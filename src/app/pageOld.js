@@ -52,12 +52,12 @@ export default function Home() {
               <div className="logo-tagline">8SEC MADNESS</div>
             </div>
 
-            {/* HEADLINE with MASSIVE GLOWING INFINITY */}
+            {/* HEADLINE */}
             <div className="headline">
               <h1>
-                <span className="infinity-hero" aria-label="infinity">∞</span>
-                {' '}creators. 8 secs. 1 film.
-              </h1>
+  <span className="infinity-hero" aria-hidden="true">∞</span>{' '}
+  creators. 8 secs. 1 film.
+</h1>
               <p>let&apos;s make history.</p>
             </div>
 
@@ -83,7 +83,8 @@ export default function Home() {
                 <span className="badge pink">⚡ 247 joined today</span>
               </div>
 
-              {/* Google Sign-in Button */}
+              {/* ✅ Usunięto formularz Name/Email i dzielnik "or".
+                  Zostaje wyłącznie logowanie Google. */}
               <button
                 className="google-btn"
                 onClick={() => signIn('google', { callbackUrl: '/dashboard' })}
