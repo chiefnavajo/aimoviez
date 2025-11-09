@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AiMoviez Studio 🎬</title>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica',Arial,sans-serif;
+      background:radial-gradient(circle at center,#050013,#000);
+      color:#E5E5FF;
+      overflow-x:hidden;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+    }
+
+    header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:20px 40px;
+      background:rgba(0,0,0,0.6);
+      backdrop-filter:blur(20px);
+      border-bottom:1px solid rgba(0,245,255,0.2);
+    }
+
+    .logo{
+      font-size:2rem;
+      font-weight:900;
+      color:#00F5FF;
+      text-shadow:0 0 20px rgba(0,245,255,0.5);
+    }
+
+    .user{
+      color:#FF006E;
+      font-weight:600;
+      font-size:1rem;
+    }
+
+    main{
+      flex:1;
+      padding:60px 20px;
+      max-width:1100px;
+      margin:0 auto;
+      text-align:center;
+    }
+
+    h1{
+      font-size:2.5rem;
+      color:#00F5FF;
+      margin-bottom:20px;
+      text-shadow:0 0 20px rgba(0,245,255,0.5);
+    }
+
+    p{
+      font-size:1.2rem;
+      color:#B8B8D8;
+      margin-bottom:40px;
+    }
+
+    /* upload card */
+    .upload-box{
+      background:rgba(10,10,15,0.7);
+      border:1px solid rgba(0,245,255,0.2);
+      border-radius:20px;
+      padding:40px;
+      max-width:600px;
+      margin:0 auto 60px;
+      backdrop-filter:blur(25px);
+      box-shadow:0 0 40px rgba(0,245,255,0.1);
+    }
+
+    input[type=file]{
+      display:block;
+      width:100%;
+      margin-top:15px;
+      color:#B8B8D8;
+    }
+
+    .btn{
+      display:inline-block;
+      margin-top:25px;
+      padding:15px 35px;
+      border:none;
+      border-radius:50px;
+      background:linear-gradient(135deg,#00F5FF,#B026FF);
+      color:#000;
+      font-weight:900;
+      text-transform:uppercase;
+      cursor:pointer;
+      transition:all 0.3s ease;
+    }
+    .btn:hover{
+      transform:translateY(-3px) scale(1.05);
+      box-shadow:0 0 40px rgba(0,245,255,0.4);
+    }
+
+    /* timeline preview */
+    .timeline{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:center;
+      margin-top:40px;
+    }
+
+    .segment{
+      width:90px;
+      height:160px;
+      background:rgba(0,245,255,0.05);
+      border:1px solid rgba(0,245,255,0.2);
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#00F5FF;
+      font-weight:600;
+      font-size:1rem;
+      transition:all 0.3s ease;
+    }
+    .segment:hover{
+      background:rgba(0,245,255,0.1);
+      transform:scale(1.05);
+    }
+
+    footer{
+      text-align:center;
+      padding:30px;
+      color:#666;
+      border-top:1px solid rgba(0,245,255,0.1);
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="logo">AiMoviez Studio</div>
+    <div class="user" id="userName"></div>
+  </header>
+
+  <main>
+    <h1>Welcome, <span id="creatorName">Creator</span> 🎬</h1>
+    <p>Upload your 8-second clip and be part of the global movie.</p>
+
+    <div class="upload-box">
+      <label for="videoUpload">Upload your vertical 8-second video (MP4)</label>
+      <input type="file" id="videoUpload" accept="video/mp4,video/webm" />
+      <button class="btn" onclick="uploadClip()">Submit Clip</button>
+    </div>
+
+    <h2>Community Timeline</h2>
+    <div class="timeline" id="timeline">
+      <!-- sample 8-second blocks -->
+    </div>
+  </main>
+
+  <footer>© 2025 AiMoviez — 8SEC MADNESS</footer>
+
+  <script>
+    // show name from query
+    const params=new URLSearchParams(window.location.search);
+    const name=params.get('name');
+    if(name){
+      document.getElementById('creatorName').textContent=name;
+      document.getElementById('userName').textContent=name;
+    }
+
+    // mock timeline
+    const timeline=document.getElementById('timeline');
+    for(let i=1;i<=15;i++){
+      const div=document.createElement('div');
+      div.className='segment';
+      div.textContent=i;
+      timeline.appendChild(div);
+    }
+
+    function uploadClip(){
+      const file=document.getElementById('videoUpload').files[0];
+      if(!file){alert('Please choose a video first');return;}
+      alert('Your clip has been uploaded successfully! 🎥');
+    }
+  </script>
+</body>
+</html>
