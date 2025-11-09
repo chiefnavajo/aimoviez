@@ -55,7 +55,7 @@ export default function Home() {
             {/* HEADLINE */}
             <div className="headline">
               <h1>
-                <span className="highlight">75 creators</span>. 8 secs. 1 film.
+                <span className="highlight">∞ creators</span>. 8 secs. 1 film.
               </h1>
               <p>let&apos;s make history.</p>
             </div>
