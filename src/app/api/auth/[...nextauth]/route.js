@@ -11,9 +11,9 @@ const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user }) {
-      const raw = process.env.ALLOWED_GOOGLE_EMAIL || "";
+      // UŻYWAMY ALLOWED_EMAILS – tak jak na Vercel
+      const raw = process.env.ALLOWED_EMAILS || "";
 
-      // obsługa 1 lub wielu maili, z trim() i lowercase
       const allowed = raw
         .split(",")
         .map((e) => e.trim().toLowerCase())
@@ -24,9 +24,9 @@ const handler = NextAuth({
         allowed,
       });
 
-      // jeśli nie skonfigurowałeś jeszcze env, nie blokujemy nikogo
+      // jeśli lista pusta – wpuszczamy wszystkich (żebyś się nie zablokował)
       if (!allowed.length) {
-        console.warn("No ALLOWED_GOOGLE_EMAIL set – allowing all users");
+        console.warn("No ALLOWED_EMAILS set – allowing all users");
         return true;
       }
 
@@ -38,3 +38,4 @@ const handler = NextAuth({
 });
 
 export { handler as GET, handler as POST };
+
