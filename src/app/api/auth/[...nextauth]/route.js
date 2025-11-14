@@ -6,12 +6,16 @@ const handler = NextAuth({
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      authorization: {
+        params: {
+          prompt: "select_account",   // ⬅ always show “Choose account”
+        },
+      },
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user }) {
-      // UŻYWAMY ALLOWED_EMAILS – tak jak na Vercel
       const raw = process.env.ALLOWED_EMAILS || "";
 
       const allowed = raw
@@ -24,7 +28,6 @@ const handler = NextAuth({
         allowed,
       });
 
-      // jeśli lista pusta – wpuszczamy wszystkich (żebyś się nie zablokował)
       if (!allowed.length) {
         console.warn("No ALLOWED_EMAILS set – allowing all users");
         return true;
@@ -38,4 +41,3 @@ const handler = NextAuth({
 });
 
 export { handler as GET, handler as POST };
-
