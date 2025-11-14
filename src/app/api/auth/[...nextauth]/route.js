@@ -11,16 +11,14 @@ const handler = NextAuth({
   secret: process.env.NEXTAUTH_SECRET,
   callbacks: {
     async signIn({ user }) {
-      const allowed = (process.env.ALLOWED_EMAILS || "")
-        .split(",")
-        .map((e) => e.trim().toLowerCase())
-        .filter(Boolean);
+      const allowedEmail = (process.env.ALLOWED_GOOGLE_EMAIL || "").toLowerCase();
+
+      console.log("SIGNIN ATTEMPT", user?.email, "ALLOWED:", allowedEmail);
 
       if (!user?.email) return false;
-      return allowed.includes(user.email.toLowerCase());
+      return user.email.toLowerCase() === allowedEmail;
     },
   },
 });
 
 export { handler as GET, handler as POST };
-
