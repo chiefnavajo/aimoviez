@@ -444,26 +444,25 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-white/8 blur-3xl" />
       </div>
 
-      {/* TOP BAR – ultra minimal on mobile */}
-      <div className="absolute top-3 inset-x-0 flex items-center justify-between px-3 z-20">
+           {/* TOP BAR – tylko od sm w górę, na mobile NIC */}
+      <div className="absolute top-3 inset-x-0 hidden sm:flex items-center justify-between px-3 z-20">
         <div className="flex items-center gap-1">
           <InfinitySign size="small" animated />
           <span className="text-xs font-semibold tracking-[0.18em] text-white/80">
             AIMOVIEZ
           </span>
-          <span className="hidden sm:inline-flex ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80">
+          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80">
             8SEC MADNESS
           </span>
         </div>
 
-        {/* Mobile: tylko małe kółko, desktop: pełny pasek */}
-        <CompactVotingIndicator voteCount={votingData?.totalVotesToday ?? 0} />
         <VotingIndicator
           voteCount={votingData?.totalVotesToday ?? 0}
           dailyGoal={100}
           streak={votingData?.streak ?? 1}
         />
       </div>
+
 
       {/* PHONE CONTAINER / VIDEO */}
       <div className="relative h-full flex items-center justify-center px-1 pb-4 pt-12 z-10">
