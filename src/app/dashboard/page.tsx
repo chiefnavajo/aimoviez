@@ -174,23 +174,7 @@ const VotingIndicator: React.FC<{
   );
 };
 
-// Compact – tylko małe kółko na mobile
-const CompactVotingIndicator: React.FC<{
-  voteCount: number;
-}> = ({ voteCount }) => {
-  return (
-    <motion.div
-      className="sm:hidden relative w-9 h-9 rounded-full bg-black/70 border border-white/30 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.9)]"
-      animate={{ boxShadow: ['0 0 8px rgba(255,255,255,0.3)', '0 0 14px rgba(255,255,255,0.7)', '0 0 8px rgba(255,255,255,0.3)'] }}
-      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
-    >
-      <InfinitySign size="small" />
-      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-white">
-        {voteCount}
-      </span>
-    </motion.div>
-  );
-};
+// (opcjonalny CompactVotingIndicator możesz zostawić lub usunąć, nie jest już używany)
 
 // =========================================
 // GENRE TAG
@@ -444,7 +428,7 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-white/8 blur-3xl" />
       </div>
 
-           {/* TOP BAR – tylko od sm w górę, na mobile NIC */}
+      {/* TOP BAR – tylko od sm w górę */}
       <div className="absolute top-3 inset-x-0 hidden sm:flex items-center justify-between px-3 z-20">
         <div className="flex items-center gap-1">
           <InfinitySign size="small" animated />
@@ -462,7 +446,6 @@ function VotingArenaEnhanced() {
           streak={votingData?.streak ?? 1}
         />
       </div>
-
 
       {/* PHONE CONTAINER / VIDEO */}
       <div className="relative h-full flex items-center justify-center px-1 pb-4 pt-12 z-10">
@@ -735,6 +718,18 @@ function VotingArenaEnhanced() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* FLOATING HOME BUTTON */}
+      <Link
+        href="/"
+        className="fixed bottom-4 left-4 z-40
+                   w-11 h-11 rounded-full bg-black/70 border border-white/40
+                   flex items-center justify-center
+                   text-xl text-white shadow-lg shadow-black/70
+                   active:scale-95 transition-transform"
+      >
+        ⌂
+      </Link>
 
       {/* FLOATING + BUTTON – ENTRY POINT DO UPLOADU */}
       <Link
