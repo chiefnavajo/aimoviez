@@ -1,5 +1,5 @@
 // =========================================
-/* ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS */
+// ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS
 // =========================================
 
 'use client';
@@ -19,7 +19,7 @@ import confetti from 'canvas-confetti';
 import Link from 'next/link';
 
 // =========================================
-/* TYPES & INTERFACES */
+// TYPES & INTERFACES
 // =========================================
 
 interface Clip {
@@ -79,7 +79,7 @@ interface Comment {
 }
 
 // =========================================
-/* INFINITY COMPONENT */
+// INFINITY COMPONENT
 // =========================================
 
 const InfinitySign: React.FC<{
@@ -127,7 +127,7 @@ const InfinitySign: React.FC<{
 };
 
 // =========================================
-/* VOTING INDICATOR */
+// VOTING INDICATOR
 // =========================================
 
 const VotingIndicator: React.FC<{
@@ -181,7 +181,7 @@ const VotingIndicator: React.FC<{
 };
 
 // =========================================
-/* GENRE TAG */
+// GENRE TAG
 // =========================================
 
 const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
@@ -215,7 +215,7 @@ const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
 };
 
 // =========================================
-/* MOCK COMMENTS (LOCAL) */
+// MOCK COMMENTS (LOCAL)
 // =========================================
 
 function useMockComments(initialClipId?: string) {
@@ -251,7 +251,7 @@ function useMockComments(initialClipId?: string) {
 }
 
 // =========================================
-/* MAIN VOTING ARENA */
+// MAIN VOTING ARENA
 // =========================================
 
 function VotingArenaEnhanced() {
@@ -267,7 +267,7 @@ function VotingArenaEnhanced() {
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
-  // Bottom nav – aktywna zakładka (na tej stronie zawsze "shorts")
+  // bottom nav active tab
   const activeTab: 'home' | 'shorts' | 'upload' | 'clips' | 'profile' = 'shorts';
 
   // Load clips + voting state
@@ -288,7 +288,7 @@ function VotingArenaEnhanced() {
   const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
   const { comments } = useMockComments(currentClipId);
 
-  // Vote mutation (with correct context type)
+  // Vote mutation
   const voteMutation = useMutation<
     VoteResponse,
     Error,
@@ -439,7 +439,7 @@ function VotingArenaEnhanced() {
   const currentClip = votingData?.clips?.[activeIndex];
 
   // =========================================
-  // Helper: VIDEO STAGE
+  // VIDEO STAGE
   // =========================================
 
   const renderVideoStage = () => (
@@ -466,7 +466,7 @@ function VotingArenaEnhanced() {
       {/* OVERLAY GRADIENT */}
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
 
-      {/* LEWY GÓRNY RÓG – META */}
+      {/* TOP LEFT META */}
       <div className="absolute top-3 left-3 right-16 flex flex-col gap-2">
         <div className="flex items-center gap-2">
           {currentClip && <GenreTag genre={currentClip.genre} />}
@@ -499,9 +499,9 @@ function VotingArenaEnhanced() {
         )}
       </div>
 
-      {/* RIGHT COLUMN – BUTTONS */}
+      {/* RIGHT COLUMN BUTTONS */}
       <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-        {/* MAIN VOTE BUTTON ∞ */}
+        {/* MAIN VOTE BUTTON */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           disabled={isVoting || !currentClip}
@@ -601,13 +601,13 @@ function VotingArenaEnhanced() {
 
   return (
     <div className="relative h-dvh w-full bg-gradient-to-b from-black via-[#020617] to-black text-white overflow-hidden">
-      {/* Tło neon */}
+      {/* Neon background */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
       </div>
 
-      {/* TOP BAR – desktop / tablet */}
+      {/* TOP BAR */}
       <div className="absolute top-4 inset-x-0 hidden sm:flex items-center justify-between px-4 z-20">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -628,15 +628,15 @@ function VotingArenaEnhanced() {
         />
       </div>
 
-      {/* GŁÓWNY KONTENER TELEFONU */}
+      {/* PHONE CONTAINER – now square (no rounded corners) */}
       <div className="relative h-full flex items-center justify-center px-2 pb-6 pt-14 z-10">
         <div
-          className="relative h-full max-h-[720px] w-full max-w-[420px] mx-auto rounded-[32px] overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+          className="relative h-full max-h-[720px] w-full max-w-[420px] mx-auto overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* VIDEO + COMMENTS (Shorts-style layout) */}
+          {/* VIDEO + COMMENTS LAYOUT */}
           <div className="relative h-full w-full">
             {!showComments ? (
               renderVideoStage()
@@ -699,7 +699,7 @@ function VotingArenaEnhanced() {
             )}
           </div>
 
-          {/* LOADING */}
+          {/* LOADING OVERLAY */}
           <AnimatePresence>
             {isLoading && (
               <motion.div
@@ -718,7 +718,7 @@ function VotingArenaEnhanced() {
             )}
           </AnimatePresence>
 
-          {/* ERROR */}
+          {/* ERROR OVERLAY */}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -744,7 +744,7 @@ function VotingArenaEnhanced() {
         </div>
       </div>
 
-      {/* BOTTOM NAVIGATION – neon underline + tap bounce */}
+      {/* BOTTOM NAVIGATION – neon underline + tap bounce, neon plus */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-black/90 border-t border-white/10">
         <div className="mx-auto max-w-[480px]">
           <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px]">
@@ -773,10 +773,12 @@ function VotingArenaEnhanced() {
               />
             </motion.button>
 
-            {/* Upload */}
+            {/* Upload – neon gradient plus with glow */}
             <Link href="/upload" className="flex flex-col items-center gap-0.5">
               <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-0.5">
-                <span className="text-xl leading-none text-white/70">＋</span>
+                <span className="text-xl leading-none text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-violet-500 drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]">
+                  ＋
+                </span>
                 <span className="text-white/60">Upload</span>
               </motion.div>
             </Link>
@@ -806,7 +808,7 @@ function VotingArenaEnhanced() {
 }
 
 // =========================================
-/* PAGE WRAPPER Z REACT QUERY PROVIDER */
+// PAGE WRAPPER WITH REACT QUERY PROVIDER
 // =========================================
 
 const queryClient = new QueryClient();
