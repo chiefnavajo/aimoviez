@@ -121,7 +121,7 @@ const InfinitySign: React.FC<{
 };
 
 // =========================================
-// VOTING INDICATOR (top-right pill)
+// VOTING INDICATORS
 // =========================================
 
 const VotingIndicator: React.FC<{
@@ -135,7 +135,7 @@ const VotingIndicator: React.FC<{
 
   return (
     <motion.div
-      className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-white/15 shadow-[0_0_18px_rgba(255,255,255,0.25)]"
+      className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-white/15 shadow-[0_0_18px_rgba(255,255,255,0.25)]"
       style={{
         boxShadow: `0 0 ${10 + progress * 18}px rgba(255,255,255,${0.25 + progress * 0.25})`,
       }}
@@ -151,7 +151,7 @@ const VotingIndicator: React.FC<{
         </motion.span>
       </div>
 
-      <div className="flex flex-col gap-1 w-[120px]">
+      <div className="flex flex-col gap-1 w-[140px]">
         <div className="flex justify-between text-[10px] text-white/70">
           <span>Today&apos;s Hype</span>
           <span>
@@ -170,6 +170,24 @@ const VotingIndicator: React.FC<{
           <span>🔥 Streak: {streak} days</span>
         </div>
       </div>
+    </motion.div>
+  );
+};
+
+// Compact – tylko małe kółko na mobile
+const CompactVotingIndicator: React.FC<{
+  voteCount: number;
+}> = ({ voteCount }) => {
+  return (
+    <motion.div
+      className="sm:hidden relative w-9 h-9 rounded-full bg-black/70 border border-white/30 flex items-center justify-center shadow-[0_0_12px_rgba(0,0,0,0.9)]"
+      animate={{ boxShadow: ['0 0 8px rgba(255,255,255,0.3)', '0 0 14px rgba(255,255,255,0.7)', '0 0 8px rgba(255,255,255,0.3)'] }}
+      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+    >
+      <InfinitySign size="small" />
+      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-white">
+        {voteCount}
+      </span>
     </motion.div>
   );
 };
@@ -267,7 +285,7 @@ function VotingArenaEnhanced() {
   const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
   const { comments } = useMockComments(currentClipId);
 
-  // Vote mutation – z poprawnym typem contextu
+  // Vote mutation
   const voteMutation = useMutation<
     VoteResponse,
     Error,
@@ -294,7 +312,6 @@ function VotingArenaEnhanced() {
 
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
 
-      // Optymistyczny update tylko jeśli mamy poprzedni stan
       if (previous) {
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
           ...previous,
@@ -305,7 +322,6 @@ function VotingArenaEnhanced() {
         });
       }
 
-      // ZAWSZE zwracamy obiekt contextu
       return { previous };
     },
     onError: (error, _variables, context) => {
@@ -428,20 +444,20 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-white/8 blur-3xl" />
       </div>
 
-      {/* TOP BAR */}
-      <div className="absolute top-4 inset-x-0 flex items-center justify-between px-4 z-20">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <InfinitySign size="small" animated />
-            <span className="text-xs font-semibold tracking-[0.2em] text-white/80">
-              AIMOVIEZ
-            </span>
-          </div>
-          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80">
+      {/* TOP BAR – ultra minimal on mobile */}
+      <div className="absolute top-3 inset-x-0 flex items-center justify-between px-3 z-20">
+        <div className="flex items-center gap-1">
+          <InfinitySign size="small" animated />
+          <span className="text-xs font-semibold tracking-[0.18em] text-white/80">
+            AIMOVIEZ
+          </span>
+          <span className="hidden sm:inline-flex ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80">
             8SEC MADNESS
           </span>
         </div>
 
+        {/* Mobile: tylko małe kółko, desktop: pełny pasek */}
+        <CompactVotingIndicator voteCount={votingData?.totalVotesToday ?? 0} />
         <VotingIndicator
           voteCount={votingData?.totalVotesToday ?? 0}
           dailyGoal={100}
@@ -481,7 +497,7 @@ function VotingArenaEnhanced() {
             {/* GRADIENT OVERLAY */}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
 
-            {/* META – TOP LEFT */}
+            {/* META – TOP LEFT INSIDE PHONE */}
             <div className="absolute top-3 left-3 right-20 flex flex-col gap-2">
               <div className="flex items-center gap-2">
                 {currentClip && <GenreTag genre={currentClip.genre} />}
@@ -503,7 +519,9 @@ function VotingArenaEnhanced() {
                       />
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[12px] font-semibold">@{currentClip.user.username}</span>
+                      <span className="text-[12px] font-semibold">
+                        @{currentClip.user.username}
+                      </span>
                       <span className="text-[10px] text-white/70">
                         Segment #{currentClip.segment_index + 1} · Round {currentClip.round_number}/
                         {currentClip.total_rounds}
@@ -514,7 +532,7 @@ function VotingArenaEnhanced() {
               )}
             </div>
 
-            {/* RIGHT COLUMN – BUTTONS (ALL 12x12, CENTERED) */}
+            {/* RIGHT COLUMN – BUTTONS */}
             <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
               {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
               <motion.button
