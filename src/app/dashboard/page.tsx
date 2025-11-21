@@ -652,7 +652,7 @@ function VotingArenaEnhanced() {
                 <div className="relative h-[58%] w-full">{renderVideoStage()}</div>
 
                 <div className="flex-1 bg-black/95 border-t border-white/15">
-                  <div className="flex items-center justify_between px-4 py-3 border-b border-white/10">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <span className="text-xs font-semibold text-white/80">
                       Comments ({comments.length})
                     </span>
@@ -751,10 +751,9 @@ function VotingArenaEnhanced() {
         </div>
       </div>
 
-      {/* BOTTOM NAVIGATION – inspirowane YouTube */}
+      {/* BOTTOM NAVIGATION – YouTube style, plus jak inne przyciski */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-black border-t border-white/10">
-        <div className="mx-auto max-w-[480px] relative">
-          {/* ikony + teksty */}
+        <div className="mx-auto max-w-[480px]">
           <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px] text-white/70">
             {/* Home */}
             <button className="flex flex-col items-center gap-0.5">
@@ -768,10 +767,16 @@ function VotingArenaEnhanced() {
               <span>Shorts</span>
             </button>
 
-            {/* Puste miejsce pod środkowy + */}
-            <div className="w-12" />
+            {/* Upload – plus w tym samym stylu jak inne */}
+            <Link
+              href="/upload"
+              className="flex flex-col items-center gap-0.5"
+            >
+              <span className="text-xl leading-none">＋</span>
+              <span>Upload</span>
+            </Link>
 
-            {/* Subscriptions / Tracks */}
+            {/* Clips */}
             <button className="flex flex-col items-center gap-0.5">
               <span className="text-xl leading-none">🎬</span>
               <span>Clips</span>
@@ -783,18 +788,6 @@ function VotingArenaEnhanced() {
               <span>Profile</span>
             </button>
           </div>
-
-          {/* Środkowy + jak w YouTube – prowadzi do /upload */}
-          <Link
-            href="/upload"
-            className="absolute left-1/2 -translate-x-1/2 -translate-y-4
-                       w-14 h-14 rounded-full bg-white text-black
-                       flex items-center justify-center
-                       text-3xl font-bold shadow-xl shadow-black/70
-                       active:scale-95 transition-transform"
-          >
-            +
-          </Link>
         </div>
       </div>
     </div>
