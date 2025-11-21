@@ -20,7 +20,7 @@ import confetti from 'canvas-confetti';
 import Link from 'next/link';
 
 // =========================================
-/* TYPES & INTERFACES */
+// TYPES & INTERFACES
 // =========================================
 
 interface Clip {
@@ -267,8 +267,13 @@ function VotingArenaEnhanced() {
   const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
   const { comments } = useMockComments(currentClipId);
 
-  // Vote mutation
-  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; type: VoteType }>({
+  // Vote mutation – z poprawnym typem contextu
+  const voteMutation = useMutation<
+    VoteResponse,
+    Error,
+    { clipId: string; type: VoteType },
+    { previous?: VotingState }
+  >({
     mutationFn: async ({ clipId, type }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
@@ -286,17 +291,21 @@ function VotingArenaEnhanced() {
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
+
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
-      if (!previous) return;
 
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
-        ...previous,
-        clips: previous.clips.map((clip) =>
-          clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
-        ),
-        totalVotesToday: previous.totalVotesToday + 1,
-      });
+      // Optymistyczny update tylko jeśli mamy poprzedni stan
+      if (previous) {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+          ...previous,
+          clips: previous.clips.map((clip) =>
+            clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
+          ),
+          totalVotesToday: previous.totalVotesToday + 1,
+        });
+      }
 
+      // ZAWSZE zwracamy obiekt contextu
       return { previous };
     },
     onError: (error, _variables, context) => {
@@ -507,41 +516,39 @@ function VotingArenaEnhanced() {
 
             {/* RIGHT COLUMN – BUTTONS (ALL 12x12, CENTERED) */}
             <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-              {/* MAIN VOTE BUTTON ∞ with orbiting dot */}
-             {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
-<motion.button
-  whileTap={{ scale: 0.9 }}
-  disabled={isVoting || !currentClip}
-  onClick={handleVote}
-  className="relative w-12 h-12 rounded-full flex items-center justify-center
-             bg-black/60 border border-white/80
-             shadow-[0_0_10px_rgba(0,0,0,0.9),0_0_18px_rgba(255,255,255,0.8)]
-             backdrop-blur-sm"
->
-  <div className="relative flex items-center justify-center w-full h-full">
-    {/* Infinity in the center */}
-    <InfinitySign size="small" animated />
+              {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                disabled={isVoting || !currentClip}
+                onClick={handleVote}
+                className="relative w-12 h-12 rounded-full flex items-center justify-center
+                           bg-black/60 border border-white/80
+                           shadow-[0_0_10px_rgba(0,0,0,0.9),0_0_18px_rgba(255,255,255,0.8)]
+                           backdrop-blur-sm"
+              >
+                <div className="relative flex items-center justify-center w-full h-full">
+                  {/* Infinity in the center */}
+                  <InfinitySign size="small" animated />
 
-    {/* Orbiting dot #1 – klasyczna, na górze */}
-    <motion.div
-      className="absolute inset-0"
-      animate={{ rotate: 360 }}
-      transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-    >
-      <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
-    </motion.div>
+                  {/* Orbiting dot #1 – klasyczna, na górze */}
+                  <motion.div
+                    className="absolute inset-0"
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+                  </motion.div>
 
-    {/* Orbiting dot #2 – mniejsza, na boku, w przeciwnym kierunku */}
-    <motion.div
-      className="absolute inset-0"
-      animate={{ rotate: -360 }}
-      transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
-    >
-      <div className="absolute top-1/2 -translate-y-1/2 left-[16%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
-    </motion.div>
-  </div>
-</motion.button>
-
+                  {/* Orbiting dot #2 – mniejsza, na boku, w przeciwnym kierunku */}
+                  <motion.div
+                    className="absolute inset-0"
+                    animate={{ rotate: -360 }}
+                    transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
+                  >
+                    <div className="absolute top-1/2 -translate-y-1/2 left-[16%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
+                  </motion.div>
+                </div>
+              </motion.button>
 
               {/* SKIP */}
               <motion.button
@@ -651,11 +658,15 @@ function VotingArenaEnhanced() {
                             </div>
                             <p className="text-[11px] text-white/80">{comment.text}</p>
                           </div>
-                          <button className="text-[10px] text-white/40">❤️ {comment.likes}</button>
+                          <button className="text-[10px] text-white/40">
+                            ❤️ {comment.likes}
+                          </button>
                         </motion.div>
                       ))
                     ) : (
-                      <p className="text-[11px] text-white/50">No comments yet – be the first!</p>
+                      <p className="text-[11px] text-white/50">
+                        No comments yet – be the first!
+                      </p>
                     )}
                   </div>
                 </motion.div>
