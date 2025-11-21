@@ -1,5 +1,5 @@
 // =========================================
-// ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS
+/* ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS */
 // =========================================
 
 'use client';
@@ -267,6 +267,9 @@ function VotingArenaEnhanced() {
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
+  // Bottom nav – aktywna zakładka (na tej stronie zawsze "shorts")
+  const activeTab: 'home' | 'shorts' | 'upload' | 'clips' | 'profile' = 'shorts';
+
   // Load clips + voting state
   const { data: votingData, isLoading, error } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
@@ -322,7 +325,6 @@ function VotingArenaEnhanced() {
         });
       }
 
-      // zawsze zwracamy obiekt kontekstu
       return { previous };
     },
     onError: (error, _variables, context) => {
@@ -437,7 +439,7 @@ function VotingArenaEnhanced() {
   const currentClip = votingData?.clips?.[activeIndex];
 
   // =========================================
-  // Helper: VIDEO STAGE (używany w obu layoutach)
+  // Helper: VIDEO STAGE
   // =========================================
 
   const renderVideoStage = () => (
@@ -499,7 +501,7 @@ function VotingArenaEnhanced() {
 
       {/* RIGHT COLUMN – BUTTONS */}
       <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-        {/* MAIN VOTE BUTTON ∞ – bigger, with inner outline and high contrast */}
+        {/* MAIN VOTE BUTTON ∞ */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           disabled={isVoting || !currentClip}
@@ -510,15 +512,10 @@ function VotingArenaEnhanced() {
                      backdrop-blur-md"
         >
           <div className="relative flex items-center justify-center w-full h-full">
-            {/* INNER OUTLINE AROUND INFINITY */}
             <div className="absolute inset-2 rounded-full border-2 border-cyan-300/90 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
+            <span className="relative text-3xl font-black text-white leading-none">∞</span>
 
-            {/* ∞ – czysta biel, idealnie na środku */}
-            <span className="relative text-3xl font-black text-white leading-none">
-              ∞
-            </span>
-
-            {/* Orbiting dot #1 – na górze */}
+            {/* Orbiters */}
             <motion.div
               className="absolute inset-1"
               animate={{ rotate: 360 }}
@@ -526,8 +523,6 @@ function VotingArenaEnhanced() {
             >
               <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
             </motion.div>
-
-            {/* Orbiting dot #2 – z boku, przeciwny kierunek */}
             <motion.div
               className="absolute inset-1"
               animate={{ rotate: -360 }}
@@ -550,7 +545,7 @@ function VotingArenaEnhanced() {
           <span className="text-[11px] text-white leading-none">Skip</span>
         </motion.button>
 
-        {/* COMMENTS – toggle (Shorts style) */}
+        {/* COMMENTS */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowComments((prev) => !prev)}
@@ -612,7 +607,7 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
       </div>
 
-      {/* TOP BAR – ukryty na mobile, tylko od sm w górę */}
+      {/* TOP BAR – desktop / tablet */}
       <div className="absolute top-4 inset-x-0 hidden sm:flex items-center justify-between px-4 z-20">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -644,10 +639,8 @@ function VotingArenaEnhanced() {
           {/* VIDEO + COMMENTS (Shorts-style layout) */}
           <div className="relative h-full w-full">
             {!showComments ? (
-              // Pełnoekranowe wideo
               renderVideoStage()
             ) : (
-              // YouTube Shorts: wideo u góry, komentarze na dole
               <div className="flex flex-col h-full w-full bg-black">
                 <div className="relative h-[58%] w-full">{renderVideoStage()}</div>
 
@@ -751,42 +744,60 @@ function VotingArenaEnhanced() {
         </div>
       </div>
 
-      {/* BOTTOM NAVIGATION – YouTube style, plus jak inne przyciski */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-black border-t border-white/10">
+      {/* BOTTOM NAVIGATION – neon underline + tap bounce */}
+      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/90 border-t border-white/10">
         <div className="mx-auto max-w-[480px]">
-          <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px] text-white/70">
+          <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px]">
             {/* Home */}
-            <button className="flex flex-col items-center gap-0.5">
-              <span className="text-xl leading-none">⌂</span>
-              <span>Home</span>
-            </button>
-
-            {/* Shorts / Voting */}
-            <button className="flex flex-col items-center gap-0.5">
-              <span className="text-xl leading-none">∞</span>
-              <span>Shorts</span>
-            </button>
-
-            {/* Upload – plus w tym samym stylu jak inne */}
-            <Link
-              href="/upload"
-              className="flex flex-col items-center gap-0.5"
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="relative flex flex-col items-center gap-0.5"
             >
-              <span className="text-xl leading-none">＋</span>
-              <span>Upload</span>
+              <span className="text-xl leading-none text-white/70">⌂</span>
+              <span className="text-white/60">Home</span>
+            </motion.button>
+
+            {/* Shorts (ACTIVE) */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="relative flex flex-col items-center gap-0.5"
+            >
+              <span className="text-xl leading-none text-white drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]">
+                ∞
+              </span>
+              <span className="text-white">Shorts</span>
+              <motion.div
+                className="absolute -bottom-1 h-[2px] w-8 rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-violet-500 shadow-[0_0_10px_rgba(56,189,248,0.8)]"
+                initial={{ opacity: 0, scaleX: 0.4 }}
+                animate={{ opacity: 1, scaleX: 1 }}
+              />
+            </motion.button>
+
+            {/* Upload */}
+            <Link href="/upload" className="flex flex-col items-center gap-0.5">
+              <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-0.5">
+                <span className="text-xl leading-none text-white/70">＋</span>
+                <span className="text-white/60">Upload</span>
+              </motion.div>
             </Link>
 
             {/* Clips */}
-            <button className="flex flex-col items-center gap-0.5">
-              <span className="text-xl leading-none">🎬</span>
-              <span>Clips</span>
-            </button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="relative flex flex-col items-center gap-0.5"
+            >
+              <span className="text-xl leading-none text-white/70">🎬</span>
+              <span className="text-white/60">Clips</span>
+            </motion.button>
 
             {/* Profile */}
-            <button className="flex flex-col items-center gap-0.5">
-              <span className="text-xl leading-none">👤</span>
-              <span>Profile</span>
-            </button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              className="relative flex flex-col items-center gap-0.5"
+            >
+              <span className="text-xl leading-none text-white/70">👤</span>
+              <span className="text-white/60">Profile</span>
+            </motion.button>
           </div>
         </div>
       </div>
