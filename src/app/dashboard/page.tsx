@@ -497,25 +497,30 @@ function VotingArenaEnhanced() {
         )}
       </div>
 
-      {/* RIGHT COLUMN – BUTTONS (jak w 21112025-Voting1.0) */}
+      {/* RIGHT COLUMN – BUTTONS */}
       <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-        {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
+        {/* MAIN VOTE BUTTON ∞ – bigger, with inner outline and high contrast */}
         <motion.button
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.92 }}
           disabled={isVoting || !currentClip}
           onClick={handleVote}
-          className="relative w-12 h-12 rounded-full flex items-center justify-center
-                     bg-black/60 border border-white/80
-                     shadow-[0_0_10px_rgba(0,0,0,0.9),0_0_18px_rgba(255,255,255,0.8)]
-                     backdrop-blur-sm"
+          className="relative w-16 h-16 rounded-full flex items-center justify-center
+                     bg-black/80 border border-cyan-300/70
+                     shadow-[0_0_18px_rgba(0,0,0,0.95),0_0_26px_rgba(34,211,238,0.7)]
+                     backdrop-blur-md"
         >
           <div className="relative flex items-center justify-center w-full h-full">
-            {/* Infinity in the center */}
-            <InfinitySign size="small" animated />
+            {/* INNER OUTLINE AROUND INFINITY */}
+            <div className="absolute inset-2 rounded-full border-2 border-cyan-300/90 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
+
+            {/* ∞ – czysta biel, idealnie na środku */}
+            <span className="relative text-3xl font-black text-white leading-none">
+              ∞
+            </span>
 
             {/* Orbiting dot #1 – na górze */}
             <motion.div
-              className="absolute inset-0"
+              className="absolute inset-1"
               animate={{ rotate: 360 }}
               transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
             >
@@ -524,11 +529,11 @@ function VotingArenaEnhanced() {
 
             {/* Orbiting dot #2 – z boku, przeciwny kierunek */}
             <motion.div
-              className="absolute inset-0"
+              className="absolute inset-1"
               animate={{ rotate: -360 }}
               transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
             >
-              <div className="absolute top-1/2 -translate-y-1/2 left-[16%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
+              <div className="absolute top-1/2 -translate-y-1/2 left-[18%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
             </motion.div>
           </div>
         </motion.button>
