@@ -1,6 +1,5 @@
 // =========================================
-// AiMoviez · 8SEC MADNESS – Voting Arena
-// Minimal TikTok-style UI, monochrome buttons
+// ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS
 // =========================================
 
 'use client';
@@ -17,7 +16,7 @@ import {
 import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
-import Link from 'next/link';
+// import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 // =========================================
 // TYPES & INTERFACES
@@ -80,48 +79,55 @@ interface Comment {
 }
 
 // =========================================
-// INFINITY SIGN – white, no background
+// INFINITY COMPONENT
 // =========================================
 
 const InfinitySign: React.FC<{
   size?: 'small' | 'medium' | 'hero';
   animated?: boolean;
 }> = ({ size = 'medium', animated = false }) => {
-  const baseSizeClass =
+  const className =
     size === 'hero'
-      ? 'text-[42px] md:text-[52px]'
-      : size === 'medium'
-      ? 'text-[32px] md:text-[36px]'
-      : 'text-[22px] md:text-[24px]'; // small
+      ? 'infinity-hero'
+      : size === 'small'
+      ? 'infinity-small'
+      : 'infinity-medium';
 
   return (
     <motion.div
-      className="relative inline-flex items-center justify-center leading-none"
+      className={`relative inline-flex items-center justify-center ${className}`}
       animate={
         animated
           ? {
-              scale: [1, 1.06, 1],
-              opacity: [0.9, 1, 0.9],
+              scale: [1, 1.05, 1],
+              textShadow: [
+                '0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(162, 0, 255, 0.6)',
+                '0 0 18px rgba(0, 255, 255, 1), 0 0 32px rgba(162, 0, 255, 0.9)',
+                '0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(162, 0, 255, 0.6)',
+              ],
             }
           : {}
       }
       transition={
         animated
           ? {
-              duration: 1.4,
+              duration: 1.5,
               repeat: Infinity,
               ease: 'easeInOut',
             }
           : undefined
       }
     >
-      <span className={`${baseSizeClass} font-black leading-none text-white`}>∞</span>
+      <span className="text-[42px] md:text-[52px] font-black tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] drop-shadow-[0_0_15px_rgba(0,255,255,0.9)]">
+        ∞
+      </span>
+      <div className="absolute inset-0 blur-xl opacity-70 bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]" />
     </motion.div>
   );
 };
 
 // =========================================
-// VOTING INDICATORS
+// VOTING INDICATOR
 // =========================================
 
 const VotingIndicator: React.FC<{
@@ -131,19 +137,19 @@ const VotingIndicator: React.FC<{
 }> = ({ voteCount, dailyGoal, streak }) => {
   const progress = Math.min(1, voteCount / dailyGoal);
   const mv = useMotionValue(progress);
-  useTransform(mv, [0, 1], [0.3, 1]);
+  useTransform(mv, [0, 1], [0.3, 1]); // tylko żeby Framer był zadowolony
 
   return (
     <motion.div
-      className="hidden sm:flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-white/15 shadow-[0_0_18px_rgba(255,255,255,0.25)]"
+      className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-white/10 shadow-[0_0_30px_rgba(0,255,255,0.25)]"
       style={{
-        boxShadow: `0 0 ${10 + progress * 18}px rgba(255,255,255,${0.25 + progress * 0.25})`,
+        boxShadow: `0 0 ${12 + progress * 20}px rgba(0,255,255,${0.35 + progress * 0.3})`,
       }}
     >
-      <div className="relative flex items-center justify-center">
+      <div className="relative">
         <InfinitySign size="small" animated />
         <motion.span
-          className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-white leading-none"
+          className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-cyan-300 drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]"
           animate={{ opacity: [0.6, 1, 0.6], y: [0, -1, 0] }}
           transition={{ duration: 1.8, repeat: Infinity }}
         >
@@ -151,8 +157,8 @@ const VotingIndicator: React.FC<{
         </motion.span>
       </div>
 
-      <div className="flex flex-col gap-1 w-[140px]">
-        <div className="flex justify-between text-[10px] text-white/70">
+      <div className="flex flex-col gap-1 w-[120px]">
+        <div className="flex justify-between text-[10px] text-white/60">
           <span>Today&apos;s Hype</span>
           <span>
             {voteCount}/{dailyGoal}
@@ -160,13 +166,13 @@ const VotingIndicator: React.FC<{
         </div>
         <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
           <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-white/60 via-white to-white/80"
+            className="h-full rounded-full bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
             initial={{ width: 0 }}
             animate={{ width: `${progress * 100}%` }}
             transition={{ duration: 0.3 }}
           />
         </div>
-        <div className="flex items-center gap-1 text-[9px] text-white/60">
+        <div className="flex items-center gap-1 text-[9px] text-white/50">
           <span>🔥 Streak: {streak} days</span>
         </div>
       </div>
@@ -174,24 +180,34 @@ const VotingIndicator: React.FC<{
   );
 };
 
-// (opcjonalny CompactVotingIndicator możesz zostawić lub usunąć, nie jest już używany)
-
 // =========================================
 // GENRE TAG
 // =========================================
 
 const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
   const config = {
-    COMEDY: { label: 'Comedy', emoji: '🎭' },
-    THRILLER: { label: 'Thriller', emoji: '😱' },
-    ACTION: { label: 'Action', emoji: '💥' },
-    ANIMATION: { label: 'Animation', emoji: '🎨' },
+    COMEDY: {
+      label: 'Comedy',
+      emoji: '🎭',
+    },
+    THRILLER: {
+      label: 'Thriller',
+      emoji: '😱',
+    },
+    ACTION: {
+      label: 'Action',
+      emoji: '💥',
+    },
+    ANIMATION: {
+      label: 'Animation',
+      emoji: '🎨',
+    },
   }[genre];
 
   return (
-    <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 border border-white/15 text-[10px]">
+    <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 border border-white/10 text-[10px]">
       <span>{config.emoji}</span>
-      <span className="text-white font-semibold tracking-wide uppercase text-[9px]">
+      <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] font-semibold tracking-wide uppercase text-[9px]">
         {config.label}
       </span>
     </div>
@@ -241,8 +257,10 @@ function useMockComments(initialClipId?: string) {
 function VotingArenaEnhanced() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
-  const [voteType] = useState<VoteType>('standard');
+  const [voteType] = useState<VoteType>('standard'); // na razie tylko standard
   const [showComments, setShowComments] = useState(false);
+  const [hasSwiped, setHasSwiped] = useState(false);
+  const [showSwipeHint, setShowSwipeHint] = useState(true);
 
   const queryClient = useQueryClient();
 
@@ -270,12 +288,7 @@ function VotingArenaEnhanced() {
   const { comments } = useMockComments(currentClipId);
 
   // Vote mutation
-  const voteMutation = useMutation<
-    VoteResponse,
-    Error,
-    { clipId: string; type: VoteType },
-    { previous?: VotingState }
-  >({
+  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; type: VoteType }>({
     mutationFn: async ({ clipId, type }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
@@ -288,23 +301,22 @@ function VotingArenaEnhanced() {
     onMutate: async ({ clipId }) => {
       setIsVoting(true);
 
+      // lekkie wibracje w przeglądarce, jeśli dostępne
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(50);
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
-
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      if (!previous) return;
 
-      if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
-          ...previous,
-          clips: previous.clips.map((clip) =>
-            clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
-          ),
-          totalVotesToday: previous.totalVotesToday + 1,
-        });
-      }
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+        ...previous,
+        clips: previous.clips.map((clip) =>
+          clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
+        ),
+        totalVotesToday: previous.totalVotesToday + 1,
+      });
 
       return { previous };
     },
@@ -348,7 +360,7 @@ function VotingArenaEnhanced() {
     },
   });
 
-  // Pusher realtime (optional)
+  // Pusher realtime (opcjonalnie)
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
@@ -377,16 +389,22 @@ function VotingArenaEnhanced() {
   }, [queryClient]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (showComments) return; // w trybie komentarzy nie swipujemy
     touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
+    if (showComments) return;
     touchEndY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = () => {
+    if (showComments) return;
     const delta = touchStartY.current - touchEndY.current;
     if (Math.abs(delta) < swipeThreshold) return;
+
+    setHasSwiped(true);
+    setShowSwipeHint(false);
 
     if (delta > 0) {
       handleVote();
@@ -417,25 +435,179 @@ function VotingArenaEnhanced() {
   const currentClip = votingData?.clips?.[activeIndex];
 
   // =========================================
+  // Helper: VIDEO STAGE (wspólne dla obu layoutów)
+  // =========================================
+
+  const renderVideoStage = () => (
+    <div className="relative h-full w-full">
+      <div className="relative h-full w-full bg-black">
+        {currentClip ? (
+          <video
+            key={currentClip.clip_id}
+            src={currentClip.video_url ?? currentClip.thumbnail_url}
+            poster={currentClip.thumbnail_url}
+            className="h-full w-full object-cover"
+            playsInline
+            autoPlay
+            loop
+            muted
+          />
+        ) : (
+          <div className="h-full w-full flex items-center justify-center text-white/40 text-sm">
+            {isLoading ? 'Loading clips…' : 'No clips available'}
+          </div>
+        )}
+      </div>
+
+      {/* OVERLAY GRADIENT */}
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
+
+      {/* LEWY GÓRNY RÓG – META */}
+      <div className="absolute top-3 left-3 right-16 flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          {currentClip && <GenreTag genre={currentClip.genre} />}
+          {currentClip?.is_featured && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-[10px] text-amber-200 flex items-center gap-1">
+              ⭐ Featured in track
+            </span>
+          )}
+        </div>
+
+        {currentClip && (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="h-7 w-7 rounded-full border border-white/20 overflow-hidden bg-black/40">
+                <img
+                  src={currentClip.user.avatar_url}
+                  alt={currentClip.user.username}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[12px] font-semibold">@{currentClip.user.username}</span>
+                <span className="text-[10px] text-white/60">
+                  Segment #{currentClip.segment_index + 1} · Round {currentClip.round_number}/
+                  {currentClip.total_rounds}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PRAWA KOLUMNA – UITIC/TIKTOK STYLE */}
+      <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-4">
+        {/* GŁÓWNY PRZYCISK ∞ */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          disabled={isVoting || !currentClip}
+          onClick={handleVote}
+          className="relative w-16 h-16 rounded-full flex items-center justify-center bg-black/30 border border-white/60 shadow-[0_0_18px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+        >
+          <InfinitySign size="medium" animated />
+        </motion.button>
+
+        {/* SKIP */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={handleSkip}
+          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/20 border border-white/40 shadow-[0_0_12px_rgba(0,0,0,0.8)] backdrop-blur-sm text-[11px]"
+        >
+          Skip
+        </motion.button>
+
+        {/* KOMENTARZE – toggle */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setShowComments((prev) => !prev)}
+          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/30 border border-white/50 shadow-[0_0_16px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+        >
+          <span className="text-lg">💬</span>
+        </motion.button>
+
+        {/* SHARE */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={() => {
+            if (typeof window !== 'undefined' && navigator.share) {
+              navigator
+                .share({
+                  title: 'AiMoviez · 8SEC MADNESS',
+                  text: 'Check out this clip on AiMoviez · 8SEC MADNESS',
+                  url: window.location.href,
+                })
+                .catch(() => {});
+            } else {
+              console.log('Share clicked – Web Share API not available');
+            }
+          }}
+          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/30 border border-white/50 shadow-[0_0_16px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+        >
+          <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" aria-hidden="true">
+            <circle cx="18" cy="5" r="2" fill="currentColor" />
+            <circle cx="6" cy="12" r="2" fill="currentColor" />
+            <circle cx="18" cy="19" r="2" fill="currentColor" />
+            <path
+              d="M8 12l8-5M8 12l8 5"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              fill="none"
+            />
+          </svg>
+        </motion.button>
+      </div>
+
+      {/* DÓŁ – PROGRES / INFO */}
+      <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
+              style={{
+                width: votingData?.clips?.length
+                  ? `${((activeIndex + 1) / votingData.clips.length) * 100}%`
+                  : '0%',
+              }}
+            />
+          </div>
+          <span className="ml-2 text-[10px] text-white/60">
+            {activeIndex + 1}/{votingData?.clips?.length ?? 0}
+          </span>
+        </div>
+
+        {currentClip && (
+          <div className="flex items-center justify-between text-[10px] text-white/60">
+            <span>Votes: {currentClip.vote_count}</span>
+            <span>Hype: {currentClip.hype_score}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  // =========================================
   // RENDER
   // =========================================
 
   return (
     <div className="relative h-dvh w-full bg-gradient-to-b from-black via-[#020617] to-black text-white overflow-hidden">
-      {/* Subtle background glows */}
+      {/* Tło neon */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-white/5 blur-3xl" />
-        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-white/8 blur-3xl" />
+        <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
       </div>
 
-      {/* TOP BAR – tylko od sm w górę */}
-      <div className="absolute top-3 inset-x-0 hidden sm:flex items-center justify-between px-3 z-20">
-        <div className="flex items-center gap-1">
-          <InfinitySign size="small" animated />
-          <span className="text-xs font-semibold tracking-[0.18em] text-white/80">
-            AIMOVIEZ
-          </span>
-          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/80">
+      {/* TOP BAR */}
+      <div className="absolute top-4 inset-x-0 flex items-center justify-between px-4 z-20">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
+            <InfinitySign size="small" animated />
+            <span className="text-xs font-semibold tracking-[0.2em] text-white/80">
+              AIMOVIEZ
+            </span>
+          </div>
+          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-cyan-200">
             8SEC MADNESS
           </span>
         </div>
@@ -447,179 +619,25 @@ function VotingArenaEnhanced() {
         />
       </div>
 
-      {/* PHONE CONTAINER / VIDEO */}
-      <div className="relative h-full flex items-center justify-center px-1 pb-4 pt-12 z-10">
+      {/* GŁÓWNY KONTENER TELEFONU */}
+      <div className="relative h-full flex items-center justify-center px-2 pb-6 pt-14 z-10">
         <div
-          className="relative h-[88vh] max-h-[780px] w-full max-w-[440px] mx-auto rounded-[28px] overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+          className="relative h-full max-h-[720px] w-full max-w-[420px] mx-auto rounded-[32px] overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {/* VIDEO + COMMENTS (Shorts-style layout) */}
           <div className="relative h-full w-full">
-            {/* VIDEO */}
-            <div className="relative h-full w-full bg-black">
-              {currentClip ? (
-                <video
-                  key={currentClip.clip_id}
-                  src={currentClip.video_url ?? currentClip.thumbnail_url}
-                  poster={currentClip.thumbnail_url}
-                  className="h-full w-full object-cover"
-                  playsInline
-                  autoPlay
-                  loop
-                  muted
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-white/40 text-sm">
-                  {isLoading ? 'Loading clips…' : 'No clips available'}
-                </div>
-              )}
-            </div>
+            {!showComments ? (
+              // Pełnoekranowe wideo
+              renderVideoStage()
+            ) : (
+              // YouTube Shorts: wideo u góry, komentarze na dole
+              <div className="flex flex-col h-full w-full bg-black">
+                <div className="relative h-[58%] w-full">{renderVideoStage()}</div>
 
-            {/* GRADIENT OVERLAY */}
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
-
-            {/* META – TOP LEFT INSIDE PHONE */}
-            <div className="absolute top-3 left-3 right-20 flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                {currentClip && <GenreTag genre={currentClip.genre} />}
-                {currentClip?.is_featured && (
-                  <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/30 text-[10px] text-white flex items-center gap-1">
-                    ⭐ Featured in track
-                  </span>
-                )}
-              </div>
-
-              {currentClip && (
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <div className="h-7 w-7 rounded-full border border-white/20 overflow-hidden bg-black/40">
-                      <img
-                        src={currentClip.user.avatar_url}
-                        alt={currentClip.user.username}
-                        className="h-full w-full object-cover"
-                      />
-                    </div>
-                    <div className="flex flex-col">
-                      <span className="text-[12px] font-semibold">
-                        @{currentClip.user.username}
-                      </span>
-                      <span className="text-[10px] text-white/70">
-                        Segment #{currentClip.segment_index + 1} · Round {currentClip.round_number}/
-                        {currentClip.total_rounds}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* RIGHT COLUMN – BUTTONS */}
-            <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-              {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                disabled={isVoting || !currentClip}
-                onClick={handleVote}
-                className="relative w-12 h-12 rounded-full flex items-center justify-center
-                           bg-black/60 border border-white/80
-                           shadow-[0_0_10px_rgba(0,0,0,0.9),0_0_18px_rgba(255,255,255,0.8)]
-                           backdrop-blur-sm"
-              >
-                <div className="relative flex items-center justify-center w-full h-full">
-                  {/* Infinity in the center */}
-                  <InfinitySign size="small" animated />
-
-                  {/* Orbiting dot #1 – klasyczna, na górze */}
-                  <motion.div
-                    className="absolute inset-0"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
-                  </motion.div>
-
-                  {/* Orbiting dot #2 – mniejsza, na boku, w przeciwnym kierunku */}
-                  <motion.div
-                    className="absolute inset-0"
-                    animate={{ rotate: -360 }}
-                    transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
-                  >
-                    <div className="absolute top-1/2 -translate-y-1/2 left-[16%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
-                  </motion.div>
-                </div>
-              </motion.button>
-
-              {/* SKIP */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={handleSkip}
-                className="relative w-12 h-12 rounded-full flex items-center justify-center
-                           bg-black/40 border border-white/60
-                           shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                           backdrop-blur-sm"
-              >
-                <span className="text-[11px] text-white leading-none">Skip</span>
-              </motion.button>
-
-              {/* COMMENTS */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => setShowComments(true)}
-                className="relative w-12 h-12 rounded-full flex items-center justify-center
-                           bg-black/40 border border-white/60
-                           shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                           backdrop-blur-sm"
-              >
-                <span className="text-lg text-white leading-none">💬</span>
-              </motion.button>
-
-              {/* SHARE */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={() => {
-                  if (typeof window !== 'undefined' && navigator.share) {
-                    navigator
-                      .share({
-                        title: 'AiMoviez · 8SEC MADNESS',
-                        text: 'Check out this clip on AiMoviez · 8SEC MADNESS',
-                        url: window.location.href,
-                      })
-                      .catch(() => {});
-                  } else {
-                    console.log('Share clicked – Web Share API not available');
-                  }
-                }}
-                className="relative w-12 h-12 rounded-full flex items-center justify-center
-                           bg-black/40 border border-white/60
-                           shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                           backdrop-blur-sm"
-              >
-                <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" aria-hidden="true">
-                  <circle cx="18" cy="5" r="2" fill="currentColor" />
-                  <circle cx="6" cy="12" r="2" fill="currentColor" />
-                  <circle cx="18" cy="19" r="2" fill="currentColor" />
-                  <path
-                    d="M8 12l8-5M8 12l8 5"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                </svg>
-              </motion.button>
-            </div>
-
-            {/* COMMENTS PANEL */}
-            <AnimatePresence>
-              {showComments && (
-                <motion.div
-                  className="absolute inset-x-0 bottom-0 max-h-[65%] bg-black/90 border-t border-white/15 rounded-t-[24px] overflow-hidden"
-                  initial={{ y: '100%' }}
-                  animate={{ y: 0 }}
-                  exit={{ y: '100%' }}
-                  transition={{ type: 'spring', stiffness: 260, damping: 28 }}
-                >
+                <div className="flex-1 bg-black/95 border-t border-white/15">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
                     <span className="text-xs font-semibold text-white/80">
                       Comments ({comments.length})
@@ -633,7 +651,7 @@ function VotingArenaEnhanced() {
                     </motion.button>
                   </div>
 
-                  <div className="px-4 py-2 space-y-2 text-[11px] max-h-[50vh] overflow-y-auto">
+                  <div className="px-4 py-2 space-y-2 text-[11px] h-full overflow-y-auto">
                     {comments.length > 0 ? (
                       comments.map((comment) => (
                         <motion.div
@@ -669,12 +687,12 @@ function VotingArenaEnhanced() {
                       </p>
                     )}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* LOADING OVERLAY */}
+          {/* LOADING */}
           <AnimatePresence>
             {isLoading && (
               <motion.div
@@ -693,7 +711,7 @@ function VotingArenaEnhanced() {
             )}
           </AnimatePresence>
 
-          {/* ERROR OVERLAY */}
+          {/* ERROR */}
           <AnimatePresence>
             {error && (
               <motion.div
@@ -716,38 +734,33 @@ function VotingArenaEnhanced() {
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* SWIPE HINT – tylko gdy nie ma komentarzy */}
+          <AnimatePresence>
+            {showSwipeHint && !hasSwiped && !showComments && (
+              <motion.div
+                className="absolute inset-x-0 bottom-4 flex justify-center gap-2 pointer-events-none"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+              >
+                <div className="px-3 py-1.5 bg-black/50 backdrop-blur rounded-full">
+                  <span className="text-white/60 text-[10px]">👆 Swipe up to vote</span>
+                </div>
+                <div className="px-3 py-1.5 bg-black/50 backdrop-blur rounded-full">
+                  <span className="text-white/60 text-[10px]">👇 Swipe down to skip</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
-
-      {/* FLOATING HOME BUTTON */}
-      <Link
-        href="/"
-        className="fixed bottom-4 left-4 z-40
-                   w-11 h-11 rounded-full bg-black/70 border border-white/40
-                   flex items-center justify-center
-                   text-xl text-white shadow-lg shadow-black/70
-                   active:scale-95 transition-transform"
-      >
-        ⌂
-      </Link>
-
-      {/* FLOATING + BUTTON – ENTRY POINT DO UPLOADU */}
-      <Link
-        href="/upload"
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40
-                   w-14 h-14 rounded-full bg-white text-black
-                   flex items-center justify-center
-                   text-3xl font-bold shadow-xl shadow-black/70
-                   active:scale-95 transition-transform"
-      >
-        +
-      </Link>
     </div>
   );
 }
 
 // =========================================
-// PAGE WRAPPER – React Query Provider
+// PAGE WRAPPER Z REACT QUERY PROVIDER
 // =========================================
 
 const queryClient = new QueryClient();
