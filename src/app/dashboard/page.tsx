@@ -5,7 +5,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   QueryClient,
   QueryClientProvider,
@@ -17,6 +17,9 @@ import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
 import Link from 'next/link';
+
+// 🔥 pełna kula po 200 głosach
+const DAILY_GOAL = 200;
 
 // =========================================
 // TYPES & INTERFACES
@@ -79,7 +82,7 @@ interface Comment {
 }
 
 // =========================================
-// INFINITY COMPONENT
+// INFINITY SIGN (branding)
 // =========================================
 
 const InfinitySign: React.FC<{
@@ -127,56 +130,52 @@ const InfinitySign: React.FC<{
 };
 
 // =========================================
-// VOTING INDICATOR
+/** VOTE METER – CYBERPUNKOWA KULA Z PŁYNEM */
 // =========================================
 
-const VotingIndicator: React.FC<{
+const VoteMeter: React.FC<{
   voteCount: number;
   dailyGoal: number;
-  streak: number;
-}> = ({ voteCount, dailyGoal, streak }) => {
-  const progress = Math.min(1, voteCount / dailyGoal);
-  const mv = useMotionValue(progress);
-  useTransform(mv, [0, 1], [0.3, 1]);
+}> = ({ voteCount, dailyGoal }) => {
+  const progress = Math.max(0, Math.min(1, dailyGoal > 0 ? voteCount / dailyGoal : 0));
 
   return (
-    <motion.div
-      className="flex items-center gap-3 px-4 py-2 rounded-full bg-black/60 border border-white/10 shadow-[0_0_30px_rgba(0,255,255,0.25)]"
-      style={{
-        boxShadow: `0 0 ${12 + progress * 20}px rgba(0,255,255,${0.35 + progress * 0.3})`,
-      }}
-    >
-      <div className="relative">
-        <InfinitySign size="small" animated />
-        <motion.span
-          className="absolute -bottom-2 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-cyan-300 drop-shadow-[0_0_6px_rgba(0,255,255,0.8)]"
-          animate={{ opacity: [0.6, 1, 0.6], y: [0, -1, 0] }}
-          transition={{ duration: 1.8, repeat: Infinity }}
+    <div className="flex flex-col items-center gap-1">
+      {/* Cyberpunkowa kula z płynem */}
+      <div
+        className="relative w-20 h-20 rounded-full bg-black/80 border border-cyan-300/70
+                   overflow-hidden shadow-[0_0_24px_rgba(34,211,238,0.95)]
+                   backdrop-blur-md"
+      >
+        {/* Płyn wypełniający kulę od dołu */}
+        <motion.div
+          className="absolute inset-x-0 bottom-0"
+          initial={false}
+          animate={{ height: `${progress * 100}%` }}
+          transition={{ duration: 0.35, ease: 'easeOut' }}
         >
-          {voteCount}
-        </motion.span>
-      </div>
+          <div className="w-full h-full bg-gradient-to-t from-[#00F5FF] via-[#A020F0] to-[#FF00C7]" />
+          {/* Glow i odbicia */}
+          <div className="absolute inset-0 opacity-35 bg-[radial-gradient(circle_at_30%_10%,#ffffff_0,#ffffff00_55%)]" />
+          <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_70%_90%,#22d3ee_0,#0ea5e900_60%)]" />
+        </motion.div>
 
-      <div className="flex flex-col gap-1 w-[120px]">
-        <div className="flex justify-between text-[10px] text-white/60">
-          <span>Today&apos;s Hype</span>
-          <span>
-            {voteCount}/{dailyGoal}
+        {/* Wewnętrzny ring */}
+        <div className="absolute inset-[3px] rounded-full border border-cyan-100/40 pointer-events-none" />
+
+        {/* Infinity sign nad płynem */}
+        <div className="relative z-10 flex h-full w-full items-center justify-center">
+          <span className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_0_12px_rgba(0,0,0,0.9)]">
+            ∞
           </span>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-white/10 overflow-hidden">
-          <motion.div
-            className="h-full rounded-full bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress * 100}%` }}
-            transition={{ duration: 0.3 }}
-          />
-        </div>
-        <div className="flex items-center gap-1 text-[9px] text-white/50">
-          <span>🔥 Streak: {streak} days</span>
-        </div>
       </div>
-    </motion.div>
+
+      {/* Tekst pod spodem */}
+      <span className="mt-1 text-[10px] text-white/80 font-medium leading-none">
+        {voteCount}/{dailyGoal} votes
+      </span>
+    </div>
   );
 };
 
@@ -184,25 +183,16 @@ const VotingIndicator: React.FC<{
 // GENRE TAG
 // =========================================
 
-const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
-  const config = {
-    COMEDY: {
-      label: 'Comedy',
-      emoji: '🎭',
-    },
-    THRILLER: {
-      label: 'Thriller',
-      emoji: '😱',
-    },
-    ACTION: {
-      label: 'Action',
-      emoji: '💥',
-    },
-    ANIMATION: {
-      label: 'Animation',
-      emoji: '🎨',
-    },
-  }[genre];
+const GENRE_CONFIG: Record<string, { label: string; emoji: string }> = {
+  COMEDY: { label: 'Comedy', emoji: '🎭' },
+  THRILLER: { label: 'Thriller', emoji: '😱' },
+  ACTION: { label: 'Action', emoji: '💥' },
+  ANIMATION: { label: 'Animation', emoji: '🎨' },
+};
+
+const GenreTag: React.FC<{ genre?: Clip['genre'] | null }> = ({ genre }) => {
+  const key = (genre || 'COMEDY').toUpperCase();
+  const config = GENRE_CONFIG[key] ?? GENRE_CONFIG['COMEDY'];
 
   return (
     <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 border border-white/10 text-[10px]">
@@ -215,7 +205,7 @@ const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
 };
 
 // =========================================
-// MOCK COMMENTS (LOCAL)
+// MOCK COMMENTS
 // =========================================
 
 function useMockComments(initialClipId?: string) {
@@ -260,24 +250,20 @@ function VotingArenaEnhanced() {
   const [voteType] = useState<VoteType>('standard');
   const [showComments, setShowComments] = useState(false);
 
+  // 🔥 lokalny licznik dzienny – tylko w tej sesji
+  const [localVotesToday, setLocalVotesToday] = useState(0);
+
   const queryClient = useQueryClient();
 
-  // Swiping
   const touchStartY = useRef<number>(0);
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
-  // bottom nav active tab
-  const activeTab: 'home' | 'shorts' | 'upload' | 'clips' | 'profile' = 'shorts';
-
-  // Load clips + voting state
   const { data: votingData, isLoading, error } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
     queryFn: async () => {
       const res = await fetch('/api/vote?trackId=track-main');
-      if (!res.ok) {
-        throw new Error('Failed to fetch clips');
-      }
+      if (!res.ok) throw new Error('Failed to fetch clips');
       return res.json();
     },
     refetchInterval: 10000,
@@ -285,10 +271,14 @@ function VotingArenaEnhanced() {
     retry: 2,
   });
 
+  const streak = votingData?.streak ?? 1;
+
+  // UWAGA: już NIE synchronizujemy localVotesToday z backendem,
+  // żeby uniknąć skakania 4 → 3, gdy DB ma mniej z uwagi na duplikaty.
+
   const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
   const { comments } = useMockComments(currentClipId);
 
-  // Vote mutation
   const voteMutation = useMutation<
     VoteResponse,
     Error,
@@ -321,9 +311,12 @@ function VotingArenaEnhanced() {
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
           ),
-          totalVotesToday: previous.totalVotesToday + 1,
+          totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
         });
       }
+
+      // 🔥 stabilny lokalny licznik do UI (max 200)
+      setLocalVotesToday((prev) => Math.min(DAILY_GOAL, prev + 1));
 
       return { previous };
     },
@@ -332,6 +325,7 @@ function VotingArenaEnhanced() {
         navigator.vibrate([100, 50, 100]);
       }
 
+      // NIE cofamy localVotesToday – dzięki temu nie ma skoków 4 → 3
       if (context?.previous) {
         queryClient.setQueryData(['voting', 'track-main'], context.previous);
       }
@@ -367,7 +361,6 @@ function VotingArenaEnhanced() {
     },
   });
 
-  // Pusher realtime
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
@@ -375,14 +368,22 @@ function VotingArenaEnhanced() {
       cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
     });
 
-    const channel = pusher.subscribe('clips');
-    channel.bind('vote-updated', (data: { clipId: string; newCount: number }) => {
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (old) => {
-        if (!old) return old;
+    const channel = pusher.subscribe('voting-track-main');
+
+    channel.bind('vote-update', (data: any) => {
+      queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
+        if (!prev) return prev;
+
         return {
-          ...old,
-          clips: old.clips?.map((clip: Clip) =>
-            clip.clip_id === data.clipId ? { ...clip, vote_count: data.newCount } : clip
+          ...prev,
+          clips: prev.clips.map((clip) =>
+            clip.clip_id === data.clipId
+              ? {
+                  ...clip,
+                  vote_count: data.voteCount ?? clip.vote_count,
+                  weighted_score: data.weightedScore ?? clip.weighted_score,
+                }
+              : clip
           ),
         };
       });
@@ -457,8 +458,14 @@ function VotingArenaEnhanced() {
             muted
           />
         ) : (
-          <div className="h-full w-full flex items-center justify-center text-white/40 text-sm">
-            {isLoading ? 'Loading clips…' : 'No clips available'}
+          <div className="h-full w-full flex flex-col items-center justify-center text-white/40 text-sm">
+            <span>No clips available</span>
+            <Link
+              href="/upload"
+              className="mt-2 text-[11px] text-cyan-300 underline underline-offset-4"
+            >
+              Be the first to upload an 8s clip
+            </Link>
           </div>
         )}
       </div>
@@ -482,7 +489,10 @@ function VotingArenaEnhanced() {
             <div className="flex items-center gap-2">
               <div className="h-7 w-7 rounded-full border border-white/20 overflow-hidden bg-black/40">
                 <img
-                  src={currentClip.user.avatar_url}
+                  src={
+                    currentClip.user.avatar_url ||
+                    'https://api.dicebear.com/7.x/identicon/svg?seed=aimoviez'
+                  }
                   alt={currentClip.user.username}
                   className="h-full w-full object-cover"
                 />
@@ -501,7 +511,7 @@ function VotingArenaEnhanced() {
 
       {/* RIGHT COLUMN BUTTONS */}
       <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-        {/* MAIN VOTE BUTTON */}
+        {/* main vote */}
         <motion.button
           whileTap={{ scale: 0.92 }}
           disabled={isVoting || !currentClip}
@@ -515,7 +525,6 @@ function VotingArenaEnhanced() {
             <div className="absolute inset-2 rounded-full border-2 border-cyan-300/90 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
             <span className="relative text-3xl font-black text-white leading-none">∞</span>
 
-            {/* Orbiters */}
             <motion.div
               className="absolute inset-1"
               animate={{ rotate: 360 }}
@@ -528,14 +537,14 @@ function VotingArenaEnhanced() {
               animate={{ rotate: -360 }}
               transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
             >
-              <div className="absolute top-1/2 -translate-y-1/2 left-[18%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
+              <div className="absolute left-1/2 -translate-x-1/2 -bottom-0.5 w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(34,211,238,0.9)]" />
             </motion.div>
           </div>
         </motion.button>
 
-        {/* SKIP */}
+        {/* skip */}
         <motion.button
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.94 }}
           onClick={handleSkip}
           className="relative w-12 h-12 rounded-full flex items-center justify-center
                      bg-black/40 border border-white/60
@@ -545,27 +554,29 @@ function VotingArenaEnhanced() {
           <span className="text-[11px] text-white leading-none">Skip</span>
         </motion.button>
 
-        {/* COMMENTS */}
+        {/* comments */}
         <motion.button
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.94 }}
           onClick={() => setShowComments((prev) => !prev)}
-          className="relative w-12 h-12 rounded-full flex items-center justify-center
+          className={`relative w-12 h-12 rounded-full flex items-center justify-center
                      bg-black/40 border border-white/60
                      shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                     backdrop-blur-sm"
+                     backdrop-blur-sm ${
+                       showComments ? 'ring-2 ring-cyan-400/70' : ''
+                     }`}
         >
-          <span className="text-lg text-white leading-none">💬</span>
+          <span className="text-xl">💬</span>
         </motion.button>
 
-        {/* SHARE */}
+        {/* share */}
         <motion.button
-          whileTap={{ scale: 0.9 }}
+          whileTap={{ scale: 0.94 }}
           onClick={() => {
-            if (typeof window !== 'undefined' && navigator.share) {
+            if (navigator.share) {
               navigator
                 .share({
                   title: 'AiMoviez · 8SEC MADNESS',
-                  text: 'Check out this clip on AiMoviez · 8SEC MADNESS',
+                  text: 'Help choose the next 8 seconds of the global movie!',
                   url: window.location.href,
                 })
                 .catch(() => {});
@@ -607,7 +618,7 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
       </div>
 
-      {/* TOP BAR */}
+      {/* TOP BAR – BRAND (desktop only) */}
       <div className="absolute top-4 inset-x-0 hidden sm:flex items-center justify-between px-4 z-20">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
@@ -620,23 +631,21 @@ function VotingArenaEnhanced() {
             8SEC MADNESS
           </span>
         </div>
-
-        <VotingIndicator
-          voteCount={votingData?.totalVotesToday ?? 0}
-          dailyGoal={100}
-          streak={votingData?.streak ?? 1}
-        />
       </div>
 
-      {/* PHONE CONTAINER – now square (no rounded corners) */}
-      <div className="relative h-full flex items-center justify-center px-2 pb-6 pt-14 z-10">
+      {/* PHONE CONTAINER – FULL HEIGHT ON MOBILE */}
+      <div className="relative h-full flex items-stretch justify-center px-0 pt-0 pb-14 sm:px-2 sm:pt-14 sm:pb-6 z-10">
         <div
-          className="relative h-full max-h-[720px] w-full max-w-[420px] mx-auto overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
+          className="relative h-full w-full max-w-[480px] sm:max-h-[720px] mx-auto overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
-          {/* VIDEO + COMMENTS LAYOUT */}
+          {/* LICZNIK W RAMCE TELEFONU */}
+          <div className="absolute top-3 right-3 z-40">
+            <VoteMeter voteCount={localVotesToday} dailyGoal={DAILY_GOAL} />
+          </div>
+
           <div className="relative h-full w-full">
             {!showComments ? (
               renderVideoStage()
@@ -744,17 +753,17 @@ function VotingArenaEnhanced() {
         </div>
       </div>
 
-      {/* BOTTOM NAVIGATION – neon underline + tap bounce, neon plus */}
+      {/* BOTTOM NAVIGATION */}
       <div className="fixed bottom-0 inset-x-0 z-40 bg-black/90 border-t border-white/10">
         <div className="mx-auto max-w-[480px]">
           <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px]">
-            {/* Home */}
+            {/* Story */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               className="relative flex flex-col items-center gap-0.5"
             >
-              <span className="text-xl leading-none text-white/70">⌂</span>
-              <span className="text-white/60">Home</span>
+              <span className="text-xl leading-none text-white/70">▶</span>
+              <span className="text-white/60">Story</span>
             </motion.button>
 
             {/* Shorts (ACTIVE) */}
@@ -773,24 +782,18 @@ function VotingArenaEnhanced() {
               />
             </motion.button>
 
-            {/* Upload – neon gradient plus with glow */}
+            {/* Upload */}
             <Link href="/upload" className="flex flex-col items-center gap-0.5">
-              <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-0.5">
+              <motion.div
+                whileTap={{ scale: 0.9 }}
+                className="flex flex-col items-center gap-0.5"
+              >
                 <span className="text-xl leading-none text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-violet-500 drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]">
                   ＋
                 </span>
                 <span className="text-white/60">Upload</span>
               </motion.div>
             </Link>
-
-            {/* Clips */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="relative flex flex-col items-center gap-0.5"
-            >
-              <span className="text-xl leading-none text-white/70">🎬</span>
-              <span className="text-white/60">Clips</span>
-            </motion.button>
 
             {/* Profile */}
             <motion.button
@@ -808,7 +811,7 @@ function VotingArenaEnhanced() {
 }
 
 // =========================================
-// PAGE WRAPPER WITH REACT QUERY PROVIDER
+// PAGE WRAPPER
 // =========================================
 
 const queryClient = new QueryClient();
