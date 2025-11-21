@@ -16,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
+import Link from 'next/link';
 
 // =========================================
 /* TYPES & INTERFACES */
@@ -496,34 +497,64 @@ function VotingArenaEnhanced() {
         )}
       </div>
 
-      {/* PRAWA KOLUMNA – PRZYCISKI */}
-      <div className="absolute right-3 bottom-20 z-30 flex flex-col items-center gap-4">
-        {/* GŁÓWNY PRZYCISK ∞ */}
+      {/* RIGHT COLUMN – BUTTONS (jak w 21112025-Voting1.0) */}
+      <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
+        {/* MAIN VOTE BUTTON ∞ with two orbiting dots */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           disabled={isVoting || !currentClip}
           onClick={handleVote}
-          className="relative w-16 h-16 rounded-full flex items-center justify-center bg-black/30 border border-white/60 shadow-[0_0_18px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+          className="relative w-12 h-12 rounded-full flex items-center justify-center
+                     bg-black/60 border border-white/80
+                     shadow-[0_0_10px_rgba(0,0,0,0.9),0_0_18px_rgba(255,255,255,0.8)]
+                     backdrop-blur-sm"
         >
-          <InfinitySign size="medium" animated />
+          <div className="relative flex items-center justify-center w-full h-full">
+            {/* Infinity in the center */}
+            <InfinitySign size="small" animated />
+
+            {/* Orbiting dot #1 – na górze */}
+            <motion.div
+              className="absolute inset-0"
+              animate={{ rotate: 360 }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
+            >
+              <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
+            </motion.div>
+
+            {/* Orbiting dot #2 – z boku, przeciwny kierunek */}
+            <motion.div
+              className="absolute inset-0"
+              animate={{ rotate: -360 }}
+              transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
+            >
+              <div className="absolute top-1/2 -translate-y-1/2 left-[16%] w-1 h-1 rounded-full bg-white/90 shadow-[0_0_4px_rgba(255,255,255,0.8)]" />
+            </motion.div>
+          </div>
         </motion.button>
 
         {/* SKIP */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={handleSkip}
-          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/20 border border-white/40 shadow-[0_0_12px_rgba(0,0,0,0.8)] backdrop-blur-sm text-[11px]"
+          className="relative w-12 h-12 rounded-full flex items-center justify-center
+                     bg-black/40 border border-white/60
+                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
+                     backdrop-blur-sm"
         >
-          Skip
+          <span className="text-[11px] text-white leading-none">Skip</span>
         </motion.button>
 
-        {/* KOMENTARZE – toggle */}
+        {/* COMMENTS – toggle (Shorts style) */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={() => setShowComments((prev) => !prev)}
-          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/30 border border-white/50 shadow-[0_0_16px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+          className="relative w-12 h-12 rounded-full flex items-center justify-center
+                     bg-black/40 border border-white/60
+                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
+                     backdrop-blur-sm"
         >
-          <span className="text-lg">💬</span>
+          <span className="text-lg text-white leading-none">💬</span>
         </motion.button>
 
         {/* SHARE */}
@@ -542,7 +573,10 @@ function VotingArenaEnhanced() {
               console.log('Share clicked – Web Share API not available');
             }
           }}
-          className="relative w-11 h-11 rounded-full flex items-center justify-center bg-black/30 border border-white/50 shadow-[0_0_16px_rgba(0,0,0,0.9)] backdrop-blur-sm"
+          className="relative w-12 h-12 rounded-full flex items-center justify-center
+                     bg-black/40 border border-white/60
+                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
+                     backdrop-blur-sm"
         >
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" aria-hidden="true">
             <circle cx="18" cy="5" r="2" fill="currentColor" />
@@ -711,6 +745,18 @@ function VotingArenaEnhanced() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* FLOATING + BUTTON – ENTRY POINT DO UPLOADU */}
+      <Link
+        href="/upload"
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40
+                   w-14 h-14 rounded-full bg-white text-black
+                   flex items-center justify-center
+                   text-3xl font-bold shadow-xl shadow-black/70
+                   active:scale-95 transition-transform"
+      >
+        +
+      </Link>
     </div>
   );
 }
