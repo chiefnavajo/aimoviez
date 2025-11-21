@@ -16,10 +16,9 @@ import {
 import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
-// import { Haptics, ImpactStyle } from '@capacitor/haptics';
 
 // =========================================
-// TYPES & INTERFACES
+/* TYPES & INTERFACES */
 // =========================================
 
 interface Clip {
@@ -79,7 +78,7 @@ interface Comment {
 }
 
 // =========================================
-// INFINITY COMPONENT
+/* INFINITY COMPONENT */
 // =========================================
 
 const InfinitySign: React.FC<{
@@ -127,7 +126,7 @@ const InfinitySign: React.FC<{
 };
 
 // =========================================
-// VOTING INDICATOR
+/* VOTING INDICATOR */
 // =========================================
 
 const VotingIndicator: React.FC<{
@@ -137,7 +136,7 @@ const VotingIndicator: React.FC<{
 }> = ({ voteCount, dailyGoal, streak }) => {
   const progress = Math.min(1, voteCount / dailyGoal);
   const mv = useMotionValue(progress);
-  useTransform(mv, [0, 1], [0.3, 1]); // tylko żeby Framer był zadowolony
+  useTransform(mv, [0, 1], [0.3, 1]);
 
   return (
     <motion.div
@@ -181,7 +180,7 @@ const VotingIndicator: React.FC<{
 };
 
 // =========================================
-// GENRE TAG
+/* GENRE TAG */
 // =========================================
 
 const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
@@ -215,7 +214,7 @@ const GenreTag: React.FC<{ genre: Clip['genre'] }> = ({ genre }) => {
 };
 
 // =========================================
-// MOCK COMMENTS (LOCAL)
+/* MOCK COMMENTS (LOCAL) */
 // =========================================
 
 function useMockComments(initialClipId?: string) {
@@ -251,16 +250,14 @@ function useMockComments(initialClipId?: string) {
 }
 
 // =========================================
-// MAIN VOTING ARENA
+/* MAIN VOTING ARENA */
 // =========================================
 
 function VotingArenaEnhanced() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
-  const [voteType] = useState<VoteType>('standard'); // na razie tylko standard
+  const [voteType] = useState<VoteType>('standard');
   const [showComments, setShowComments] = useState(false);
-  const [hasSwiped, setHasSwiped] = useState(false);
-  const [showSwipeHint, setShowSwipeHint] = useState(true);
 
   const queryClient = useQueryClient();
 
@@ -287,8 +284,13 @@ function VotingArenaEnhanced() {
   const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
   const { comments } = useMockComments(currentClipId);
 
-  // Vote mutation
-  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; type: VoteType }>({
+  // Vote mutation (with correct context type)
+  const voteMutation = useMutation<
+    VoteResponse,
+    Error,
+    { clipId: string; type: VoteType },
+    { previous?: VotingState }
+  >({
     mutationFn: async ({ clipId, type }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
@@ -301,23 +303,25 @@ function VotingArenaEnhanced() {
     onMutate: async ({ clipId }) => {
       setIsVoting(true);
 
-      // lekkie wibracje w przeglądarce, jeśli dostępne
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(50);
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
+
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
-      if (!previous) return;
 
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
-        ...previous,
-        clips: previous.clips.map((clip) =>
-          clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
-        ),
-        totalVotesToday: previous.totalVotesToday + 1,
-      });
+      if (previous) {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+          ...previous,
+          clips: previous.clips.map((clip) =>
+            clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
+          ),
+          totalVotesToday: previous.totalVotesToday + 1,
+        });
+      }
 
+      // zawsze zwracamy obiekt kontekstu
       return { previous };
     },
     onError: (error, _variables, context) => {
@@ -360,7 +364,7 @@ function VotingArenaEnhanced() {
     },
   });
 
-  // Pusher realtime (opcjonalnie)
+  // Pusher realtime
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
@@ -389,7 +393,7 @@ function VotingArenaEnhanced() {
   }, [queryClient]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (showComments) return; // w trybie komentarzy nie swipujemy
+    if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
   };
 
@@ -402,9 +406,6 @@ function VotingArenaEnhanced() {
     if (showComments) return;
     const delta = touchStartY.current - touchEndY.current;
     if (Math.abs(delta) < swipeThreshold) return;
-
-    setHasSwiped(true);
-    setShowSwipeHint(false);
 
     if (delta > 0) {
       handleVote();
@@ -435,7 +436,7 @@ function VotingArenaEnhanced() {
   const currentClip = votingData?.clips?.[activeIndex];
 
   // =========================================
-  // Helper: VIDEO STAGE (wspólne dla obu layoutów)
+  // Helper: VIDEO STAGE (używany w obu layoutach)
   // =========================================
 
   const renderVideoStage = () => (
@@ -495,8 +496,8 @@ function VotingArenaEnhanced() {
         )}
       </div>
 
-      {/* PRAWA KOLUMNA – UITIC/TIKTOK STYLE */}
-      <div className="absolute right-3 bottom-24 z-30 flex flex-col items-center gap-4">
+      {/* PRAWA KOLUMNA – PRZYCISKI */}
+      <div className="absolute right-3 bottom-20 z-30 flex flex-col items-center gap-4">
         {/* GŁÓWNY PRZYCISK ∞ */}
         <motion.button
           whileTap={{ scale: 0.9 }}
@@ -557,32 +558,6 @@ function VotingArenaEnhanced() {
           </svg>
         </motion.button>
       </div>
-
-      {/* DÓŁ – PROGRES / INFO */}
-      <div className="absolute inset-x-3 bottom-3 flex flex-col gap-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
-              style={{
-                width: votingData?.clips?.length
-                  ? `${((activeIndex + 1) / votingData.clips.length) * 100}%`
-                  : '0%',
-              }}
-            />
-          </div>
-          <span className="ml-2 text-[10px] text-white/60">
-            {activeIndex + 1}/{votingData?.clips?.length ?? 0}
-          </span>
-        </div>
-
-        {currentClip && (
-          <div className="flex items-center justify-between text-[10px] text-white/60">
-            <span>Votes: {currentClip.vote_count}</span>
-            <span>Hype: {currentClip.hype_score}</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 
@@ -598,8 +573,8 @@ function VotingArenaEnhanced() {
         <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
       </div>
 
-      {/* TOP BAR */}
-      <div className="absolute top-4 inset-x-0 flex items-center justify-between px-4 z-20">
+      {/* TOP BAR – ukryty na mobile, tylko od sm w górę */}
+      <div className="absolute top-4 inset-x-0 hidden sm:flex items-center justify-between px-4 z-20">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
             <InfinitySign size="small" animated />
@@ -734,25 +709,6 @@ function VotingArenaEnhanced() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* SWIPE HINT – tylko gdy nie ma komentarzy */}
-          <AnimatePresence>
-            {showSwipeHint && !hasSwiped && !showComments && (
-              <motion.div
-                className="absolute inset-x-0 bottom-4 flex justify-center gap-2 pointer-events-none"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-              >
-                <div className="px-3 py-1.5 bg-black/50 backdrop-blur rounded-full">
-                  <span className="text-white/60 text-[10px]">👆 Swipe up to vote</span>
-                </div>
-                <div className="px-3 py-1.5 bg-black/50 backdrop-blur rounded-full">
-                  <span className="text-white/60 text-[10px]">👇 Swipe down to skip</span>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
         </div>
       </div>
     </div>
@@ -760,7 +716,7 @@ function VotingArenaEnhanced() {
 }
 
 // =========================================
-// PAGE WRAPPER Z REACT QUERY PROVIDER
+/* PAGE WRAPPER Z REACT QUERY PROVIDER */
 // =========================================
 
 const queryClient = new QueryClient();
