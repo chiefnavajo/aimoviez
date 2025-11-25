@@ -16,17 +16,17 @@ const DAILY_VOTE_LIMIT = 200;
 // Supabase client (server)
 // =========================
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    '[vote] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables'
-  );
-}
-
 function createSupabaseServerClient(): SupabaseClient {
-  return createClient(supabaseUrl!, supabaseKey!);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error(
+      '[vote] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables'
+    );
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
 }
 
 // =========================
