@@ -6,19 +6,15 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl =
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey =
-  process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    '[story] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables'
-  );
-}
-
 function createSupabaseServerClient() {
-  return createClient(supabaseUrl!, supabaseKey!);
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    throw new Error('[route-name] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables');
+  }
+
+  return createClient(supabaseUrl, supabaseKey);
 }
 
 interface SeasonRow {
