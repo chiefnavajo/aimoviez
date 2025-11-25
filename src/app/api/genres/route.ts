@@ -1,5 +1,9 @@
 // app/api/genres/route.ts
 // Głosowanie na gatunek kolejnego sezonu (Season 2, 3, ...)
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';

@@ -2,6 +2,9 @@
 // AiMoviez · 8SEC MADNESS
 // Mikro-voting per urządzenie + aktywny Season/slot + limit 200 głosów/dzień
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
