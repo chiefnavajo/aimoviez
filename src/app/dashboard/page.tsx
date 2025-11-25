@@ -1,65 +1,58 @@
-// =========================================
-// ENHANCED VOTING ARENA - AiMoviez · 8SEC MADNESS
-// =========================================
-
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+// ============================================================================
+// VOTING ARENA - FINAL CLEAN VERSION (V5.4)
+// ============================================================================
+// ✅ Sound enabled by default (unmuted)
+// ✅ Mute/Unmute toggle button in right column
+// ✅ No play button overlay (auto-plays smoothly)
+// ✅ Comments panel transparent with blur (video visible behind)
+// ✅ Vote button on right (visible, solid bg)
+// ✅ 3-item nav only (Story, Upload, Profile)
+// ✅ Bigger nav icons and text
+// ✅ Transparent nav background
+// ✅ ~95% video visibility
+// ============================================================================
+
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
-import { toast } from 'sonner';
 import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
+import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
+import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX } from 'lucide-react';
 
-// 🔥 pełna kula po 200 głosach
-const DAILY_GOAL = 200;
+// ============================================================================
+// TYPES
+// ============================================================================
 
-// =========================================
-// TYPES & INTERFACES
-// =========================================
+type VoteType = 'standard' | 'super' | 'mega';
 
-interface Clip {
+interface ClipForClient {
   id: string;
   clip_id: string;
-  user_id: string;
+  user_id?: string;
   thumbnail_url: string;
   video_url?: string;
+  username: string;
+  avatar_url: string;
+  badge_level: string;
   vote_count: number;
   weighted_score: number;
   rank_in_track: number;
-  user: {
-    username: string;
-    avatar_url: string;
-    badge_level?: string;
-  };
-  genre: 'COMEDY' | 'THRILLER' | 'ACTION' | 'ANIMATION';
+  genre: string;
   duration: number;
   round_number: number;
   total_rounds: number;
   segment_index: number;
   hype_score: number;
-  is_featured?: boolean;
-  is_creator_followed?: boolean;
-}
-
-type VoteType = 'standard' | 'super' | 'mega';
-
-interface VoteResponse {
-  success: boolean;
-  newScore: number;
-  voteType: VoteType;
-  clipId: string;
+  is_featured: boolean;
+  is_creator_followed: boolean;
 }
 
 interface VotingState {
-  clips: Clip[];
+  clips: ClipForClient[];
   totalVotesToday: number;
   userRank: number;
   remainingVotes: {
@@ -68,6 +61,15 @@ interface VotingState {
     mega: number;
   };
   streak: number;
+}
+
+interface VoteResponse {
+  success: boolean;
+  error?: string;
+  newScore?: number;
+  totalVotesToday?: number;
+  remainingVotes?: number;
+  voteType?: VoteType;
 }
 
 interface Comment {
@@ -81,228 +83,402 @@ interface Comment {
   likes: number;
 }
 
-// =========================================
-// INFINITY SIGN (branding)
-// =========================================
+interface MutationContext {
+  previous?: VotingState;
+}
 
-const InfinitySign: React.FC<{
-  size?: 'small' | 'medium' | 'hero';
-  animated?: boolean;
-}> = ({ size = 'medium', animated = false }) => {
-  const className =
-    size === 'hero'
-      ? 'infinity-hero'
-      : size === 'small'
-      ? 'infinity-small'
-      : 'infinity-medium';
+// ============================================================================
+// CONSTANTS
+// ============================================================================
 
+const DAILY_GOAL = 200;
+
+// Mock clips for testing (uses Veo3 videos)
+const MOCK_CLIPS: ClipForClient[] = [
+  {
+    id: 'mock-1',
+    clip_id: 'mock-clip-1',
+    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
+    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
+    username: 'veo3_creator',
+    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3',
+    badge_level: 'gold',
+    vote_count: 4521,
+    weighted_score: 5200,
+    rank_in_track: 1,
+    genre: 'Horror',
+    duration: 8,
+    round_number: 6,
+    total_rounds: 75,
+    segment_index: 5,
+    hype_score: 89,
+    is_featured: true,
+    is_creator_followed: false,
+  },
+  {
+    id: 'mock-2',
+    clip_id: 'mock-clip-2',
+    thumbnail_url: '/uploads/ballet-thumbnail.jpg',
+    video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4',
+    username: 'dance_master',
+    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet',
+    badge_level: 'silver',
+    vote_count: 3847,
+    weighted_score: 4100,
+    rank_in_track: 2,
+    genre: 'Comedy',
+    duration: 8,
+    round_number: 6,
+    total_rounds: 75,
+    segment_index: 5,
+    hype_score: 76,
+    is_featured: false,
+    is_creator_followed: false,
+  },
+  {
+    id: 'mock-3',
+    clip_id: 'mock-clip-3',
+    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
+    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
+    username: 'horror_king',
+    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=horror',
+    badge_level: 'bronze',
+    vote_count: 2654,
+    weighted_score: 3200,
+    rank_in_track: 3,
+    genre: 'Horror',
+    duration: 8,
+    round_number: 6,
+    total_rounds: 75,
+    segment_index: 5,
+    hype_score: 65,
+    is_featured: false,
+    is_creator_followed: false,
+  },
+  {
+    id: 'mock-4',
+    clip_id: 'mock-clip-4',
+    thumbnail_url: '/uploads/ballet-thumbnail.jpg',
+    video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4',
+    username: 'comedy_queen',
+    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=comedy',
+    badge_level: 'bronze',
+    vote_count: 2201,
+    weighted_score: 2800,
+    rank_in_track: 4,
+    genre: 'Comedy',
+    duration: 8,
+    round_number: 6,
+    total_rounds: 75,
+    segment_index: 5,
+    hype_score: 58,
+    is_featured: false,
+    is_creator_followed: false,
+  },
+  {
+    id: 'mock-5',
+    clip_id: 'mock-clip-5',
+    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
+    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
+    username: 'film_wizard',
+    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard',
+    badge_level: 'bronze',
+    vote_count: 1896,
+    weighted_score: 2400,
+    rank_in_track: 5,
+    genre: 'Thriller',
+    duration: 8,
+    round_number: 6,
+    total_rounds: 75,
+    segment_index: 5,
+    hype_score: 52,
+    is_featured: false,
+    is_creator_followed: false,
+  },
+];
+
+// Consistent number formatting (avoids hydration mismatch)
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  }
+  return num.toString();
+}
+
+const GENRE_LABELS: Record<string, string> = {
+  COMEDY: 'Comedy',
+  ACTION: 'Action',
+  SCIFI: 'Sci-Fi',
+  THRILLER: 'Thriller',
+  ROMANCE: 'Romance',
+  ANIMATION: 'Animation',
+  HORROR: 'Horror',
+};
+
+// ============================================================================
+// INFINITY VOTE BUTTON (Visible on any background)
+// ============================================================================
+
+interface InfinityVoteButtonProps {
+  onVote: () => void;
+  isVoting: boolean;
+  isDisabled: boolean;
+}
+
+function InfinityVoteButton({ onVote, isVoting, isDisabled }: InfinityVoteButtonProps) {
   return (
-    <motion.div
-      className={`relative inline-flex items-center justify-center ${className}`}
-      animate={
-        animated
-          ? {
-              scale: [1, 1.05, 1],
-              textShadow: [
-                '0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(162, 0, 255, 0.6)',
-                '0 0 18px rgba(0, 255, 255, 1), 0 0 32px rgba(162, 0, 255, 0.9)',
-                '0 0 12px rgba(0, 255, 255, 0.8), 0 0 24px rgba(162, 0, 255, 0.6)',
-              ],
-            }
-          : {}
-      }
-      transition={
-        animated
-          ? {
-              duration: 1.5,
-              repeat: Infinity,
-              ease: 'easeInOut',
-            }
-          : undefined
-      }
+    <motion.button
+      onClick={onVote}
+      disabled={isVoting || isDisabled}
+      whileTap={{ scale: 0.85 }}
+      className="relative w-16 h-16 flex items-center justify-center"
     >
-      <span className="text-[42px] md:text-[52px] font-black tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] drop-shadow-[0_0_15px_rgba(0,255,255,0.9)]">
-        ∞
+      {/* Subtle outer glow */}
+      {!isDisabled && (
+        <motion.div
+          className="absolute inset-[-4px] rounded-full opacity-50"
+          animate={{
+            boxShadow: [
+              '0 0 15px rgba(56, 189, 248, 0.5)',
+              '0 0 25px rgba(168, 85, 247, 0.6)',
+              '0 0 15px rgba(56, 189, 248, 0.5)',
+            ],
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            ease: 'easeInOut',
+          }}
+        />
+      )}
+
+      {/* Gradient border ring - NO solid background */}
+      <svg className="absolute inset-0 w-full h-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]" viewBox="0 0 64 64">
+        <defs>
+          <linearGradient id="voteGradientV5" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#3CF2FF" />
+            <stop offset="50%" stopColor="#A855F7" />
+            <stop offset="100%" stopColor="#EC4899" />
+          </linearGradient>
+          <linearGradient id="disabledGradientV5" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#555" />
+            <stop offset="100%" stopColor="#333" />
+          </linearGradient>
+        </defs>
+        <circle
+          cx="32"
+          cy="32"
+          r="29"
+          fill="rgba(0,0,0,0.3)"
+          stroke={isDisabled ? 'url(#disabledGradientV5)' : 'url(#voteGradientV5)'}
+          strokeWidth="3"
+        />
+      </svg>
+
+      {/* Infinity sign */}
+      {isVoting ? (
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+          className="relative z-10 text-xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
+        >
+          ⚡
+        </motion.div>
+      ) : isDisabled ? (
+        <span className="relative z-10 text-gray-400 text-xl">✓</span>
+      ) : (
+        <motion.span
+          className="relative z-10 text-3xl font-black text-white"
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+          style={{
+            textShadow: '0 0 10px rgba(56, 189, 248, 0.8), 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 4px rgba(0,0,0,0.8)',
+          }}
+        >
+          ∞
+        </motion.span>
+      )}
+    </motion.button>
+  );
+}
+
+// ============================================================================
+// RIGHT COLUMN ACTION BUTTON
+// ============================================================================
+
+interface ActionButtonProps {
+  icon: React.ReactNode;
+  label?: string | number;
+  onClick?: () => void;
+}
+
+function ActionButton({ icon, label, onClick }: ActionButtonProps) {
+  return (
+    <motion.button
+      whileTap={{ scale: 0.9 }}
+      onClick={onClick}
+      className="flex flex-col items-center gap-1"
+    >
+      <div className="w-12 h-12 rounded-full flex items-center justify-center">
+        {icon}
+      </div>
+      {label !== undefined && (
+        <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+          {label}
+        </span>
+      )}
+    </motion.button>
+  );
+}
+
+// ============================================================================
+// NAV BUTTON (Bigger size)
+// ============================================================================
+
+interface NavButtonProps {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  isActive?: boolean;
+}
+
+function NavButton({ href, icon, label, isActive = false }: NavButtonProps) {
+  const content = (
+    <motion.div 
+      whileTap={{ scale: 0.9 }} 
+      className="flex flex-col items-center gap-1 py-2 px-6"
+    >
+      <div className={`text-2xl ${isActive ? 'text-white' : 'text-white/70'}`}>
+        {icon}
+      </div>
+      <span className={`text-xs font-medium ${isActive ? 'text-white' : 'text-white/60'}`}>
+        {label}
       </span>
-      <div className="absolute inset-0 blur-xl opacity-70 bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]" />
     </motion.div>
   );
-};
 
-// =========================================
-/** VOTE METER – CYBERPUNKOWA KULA Z PŁYNEM */
-// =========================================
+  if (isActive) {
+    return <div>{content}</div>;
+  }
 
-const VoteMeter: React.FC<{
-  voteCount: number;
-  dailyGoal: number;
-}> = ({ voteCount, dailyGoal }) => {
-  const progress = Math.max(0, Math.min(1, dailyGoal > 0 ? voteCount / dailyGoal : 0));
+  return <Link href={href}>{content}</Link>;
+}
 
-  return (
-    <div className="flex flex-col items-center gap-1">
-      {/* Cyberpunkowa kula z płynem */}
-      <div
-        className="relative w-20 h-20 rounded-full bg-black/80 border border-cyan-300/70
-                   overflow-hidden shadow-[0_0_24px_rgba(34,211,238,0.95)]
-                   backdrop-blur-md"
-      >
-        {/* Płyn wypełniający kulę od dołu */}
-        <motion.div
-          className="absolute inset-x-0 bottom-0"
-          initial={false}
-          animate={{ height: `${progress * 100}%` }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-        >
-          <div className="w-full h-full bg-gradient-to-t from-[#00F5FF] via-[#A020F0] to-[#FF00C7]" />
-          {/* Glow i odbicia */}
-          <div className="absolute inset-0 opacity-35 bg-[radial-gradient(circle_at_30%_10%,#ffffff_0,#ffffff00_55%)]" />
-          <div className="absolute inset-0 opacity-25 bg-[radial-gradient(circle_at_70%_90%,#22d3ee_0,#0ea5e900_60%)]" />
-        </motion.div>
-
-        {/* Wewnętrzny ring */}
-        <div className="absolute inset-[3px] rounded-full border border-cyan-100/40 pointer-events-none" />
-
-        {/* Infinity sign nad płynem */}
-        <div className="relative z-10 flex h-full w-full items-center justify-center">
-          <span className="text-3xl md:text-4xl font-black text-white drop-shadow-[0_0_12px_rgba(0,0,0,0.9)]">
-            ∞
-          </span>
-        </div>
-      </div>
-
-      {/* Tekst pod spodem */}
-      <span className="mt-1 text-[10px] text-white/80 font-medium leading-none">
-        {voteCount}/{dailyGoal} votes
-      </span>
-    </div>
-  );
-};
-
-// =========================================
-// GENRE TAG
-// =========================================
-
-const GENRE_CONFIG: Record<string, { label: string; emoji: string }> = {
-  COMEDY: { label: 'Comedy', emoji: '🎭' },
-  THRILLER: { label: 'Thriller', emoji: '😱' },
-  ACTION: { label: 'Action', emoji: '💥' },
-  ANIMATION: { label: 'Animation', emoji: '🎨' },
-};
-
-const GenreTag: React.FC<{ genre?: Clip['genre'] | null }> = ({ genre }) => {
-  const key = (genre || 'COMEDY').toUpperCase();
-  const config = GENRE_CONFIG[key] ?? GENRE_CONFIG['COMEDY'];
-
-  return (
-    <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-black/60 border border-white/10 text-[10px]">
-      <span>{config.emoji}</span>
-      <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] font-semibold tracking-wide uppercase text-[9px]">
-        {config.label}
-      </span>
-    </div>
-  );
-};
-
-// =========================================
+// ============================================================================
 // MOCK COMMENTS
-// =========================================
+// ============================================================================
 
-function useMockComments(initialClipId?: string) {
+function useMockComments(clipId?: string) {
   const [comments, setComments] = useState<Comment[]>([]);
 
   useEffect(() => {
-    if (!initialClipId) return;
+    if (!clipId) return;
     setComments([
       {
         id: '1',
-        user: {
-          username: 'neon_dream',
-          avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon',
-        },
-        text: 'This transition is insane 🤯',
+        user: { username: 'neon_dream', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon' },
+        text: 'This is absolutely insane! 🔥',
         timestamp: new Date(),
-        likes: 12,
+        likes: 24,
       },
       {
         id: '2',
-        user: {
-          username: 'story_addict',
-          avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=story',
-        },
-        text: 'Perfect continuation of the chaos 😂',
+        user: { username: 'movie_buff', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=movie' },
+        text: 'Perfect transition 👏',
         timestamp: new Date(),
-        likes: 7,
+        likes: 18,
+      },
+      {
+        id: '3',
+        user: { username: 'creator_vibes', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=creator' },
+        text: 'This needs to win!',
+        timestamp: new Date(),
+        likes: 12,
       },
     ]);
-  }, [initialClipId]);
+  }, [clipId]);
 
   return { comments, setComments };
 }
 
-// =========================================
+// ============================================================================
 // MAIN VOTING ARENA
-// =========================================
+// ============================================================================
 
-function VotingArenaEnhanced() {
+function VotingArena() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isVoting, setIsVoting] = useState(false);
-  const [voteType] = useState<VoteType>('standard');
   const [showComments, setShowComments] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const [showSwipeHint, setShowSwipeHint] = useState(true);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isMuted, setIsMuted] = useState(false); // Start unmuted
 
-  // 🔥 lokalny licznik dzienny – tylko w tej sesji
-  const [localVotesToday, setLocalVotesToday] = useState(0);
-
+  const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
 
+  // Swipe handling
   const touchStartY = useRef<number>(0);
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
-  const { data: votingData, isLoading, error } = useQuery<VotingState>({
+  // Fetch voting data
+  // TESTING MODE: Always use mock clips with Veo3 videos
+  const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
     queryFn: async () => {
-      const res = await fetch('/api/vote?trackId=track-main');
-      if (!res.ok) throw new Error('Failed to fetch clips');
-      return res.json();
+      // Force mock data for testing your Veo3 videos
+      return {
+        clips: MOCK_CLIPS,
+        totalVotesToday: 0,
+        userRank: 0,
+        remainingVotes: { standard: 200, super: 0, mega: 0 },
+        streak: 1,
+      };
     },
     refetchInterval: 10000,
     staleTime: 5000,
-    retry: 2,
+    retry: 3,
   });
 
-  const streak = votingData?.streak ?? 1;
+  const votesToday = votingData?.totalVotesToday ?? 0;
+  const currentClip = votingData?.clips?.[activeIndex];
+  const { comments } = useMockComments(currentClip?.clip_id);
 
-  // UWAGA: już NIE synchronizujemy localVotesToday z backendem,
-  // żeby uniknąć skakania 4 → 3, gdy DB ma mniej z uwagi na duplikaty.
+  // Hide swipe hint after first interaction
+  useEffect(() => {
+    if (activeIndex > 0) setShowSwipeHint(false);
+  }, [activeIndex]);
 
-  const currentClipId = votingData?.clips?.[activeIndex]?.clip_id;
-  const { comments } = useMockComments(currentClipId);
+  // Reset pause state on clip change
+  useEffect(() => {
+    setIsPaused(false);
+  }, [activeIndex]);
 
-  const voteMutation = useMutation<
-    VoteResponse,
-    Error,
-    { clipId: string; type: VoteType },
-    { previous?: VotingState }
-  >({
-    mutationFn: async ({ clipId, type }) => {
+  // Vote mutation
+  const voteMutation = useMutation<VoteResponse, Error, { clipId: string }, MutationContext>({
+    mutationFn: async ({ clipId }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clipId, voteType: type }),
+        body: JSON.stringify({ clipId, voteType: 'standard' }),
       });
-      if (!res.ok) throw new Error('Failed to cast vote');
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to vote');
+      }
       return res.json();
     },
-    onMutate: async ({ clipId }) => {
+    onMutate: async ({ clipId }): Promise<MutationContext> => {
       setIsVoting(true);
-
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(50);
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
-
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
 
       if (previous) {
@@ -315,52 +491,28 @@ function VotingArenaEnhanced() {
         });
       }
 
-      // 🔥 stabilny lokalny licznik do UI (max 200)
-      setLocalVotesToday((prev) => Math.min(DAILY_GOAL, prev + 1));
-
       return { previous };
     },
-    onError: (error, _variables, context) => {
+    onError: (error: Error, _variables, context) => {
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate([100, 50, 100]);
       }
-
-      // NIE cofamy localVotesToday – dzięki temu nie ma skoków 4 → 3
       if (context?.previous) {
         queryClient.setQueryData(['voting', 'track-main'], context.previous);
       }
-
-      toast.error(
-        <div className="flex items-center gap-2">
-          <span>⚠️ Vote failed</span>
-          <span className="text-xs text-white/60">{error.message}</span>
-        </div>
-      );
+      toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: (data) => {
-      if (data.voteType !== 'standard') {
-        confetti({
-          particleCount: data.voteType === 'mega' ? 160 : 80,
-          spread: 70,
-          origin: { y: 0.6 },
-        });
+    onSuccess: () => {
+      if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
+        confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       }
-
-      toast.success(
-        <div className="flex items-center gap-2">
-          <span>✅ Vote counted!</span>
-          <span className="text-xs text-white/60">
-            New hype score: <strong>{data.newScore}</strong>
-          </span>
-        </div>
-      );
-
       setIsVoting(false);
       handleNext();
     },
   });
 
+  // Pusher real-time
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
@@ -369,20 +521,14 @@ function VotingArenaEnhanced() {
     });
 
     const channel = pusher.subscribe('voting-track-main');
-
-    channel.bind('vote-update', (data: any) => {
+    channel.bind('vote-update', (data: { clipId: string; voteCount?: number }) => {
       queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
         if (!prev) return prev;
-
         return {
           ...prev,
           clips: prev.clips.map((clip) =>
             clip.clip_id === data.clipId
-              ? {
-                  ...clip,
-                  vote_count: data.voteCount ?? clip.vote_count,
-                  weighted_score: data.weightedScore ?? clip.weighted_score,
-                }
+              ? { ...clip, vote_count: data.voteCount ?? clip.vote_count }
               : clip
           ),
         };
@@ -396,6 +542,7 @@ function VotingArenaEnhanced() {
     };
   }, [queryClient]);
 
+  // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
@@ -411,417 +558,383 @@ function VotingArenaEnhanced() {
     const delta = touchStartY.current - touchEndY.current;
     if (Math.abs(delta) < swipeThreshold) return;
 
-    if (delta > 0) {
-      handleVote();
-    } else {
-      handleSkip();
-    }
+    if (delta > 0) handleNext();
+    else handlePrevious();
   };
 
   const handleNext = useCallback(() => {
     if (!votingData?.clips?.length) return;
+    setVideoError(false);
     setActiveIndex((prev) => (prev + 1) % votingData.clips.length);
   }, [votingData?.clips]);
 
-  const handleSkip = () => {
-    handleNext();
-  };
+  const handlePrevious = useCallback(() => {
+    if (!votingData?.clips?.length) return;
+    setVideoError(false);
+    setActiveIndex((prev) => (prev === 0 ? votingData.clips.length - 1 : prev - 1));
+  }, [votingData?.clips]);
 
   const handleVote = () => {
-    if (!votingData?.clips?.[activeIndex] || isVoting) return;
-    const clip = votingData.clips[activeIndex];
-
-    voteMutation.mutate({
-      clipId: clip.clip_id,
-      type: voteType,
-    });
+    if (!currentClip || isVoting) return;
+    if (votesToday >= DAILY_GOAL) {
+      toast.error('Daily limit reached! Come back tomorrow 🚀');
+      return;
+    }
+    voteMutation.mutate({ clipId: currentClip.clip_id });
   };
 
-  const currentClip = votingData?.clips?.[activeIndex];
+  const handleVideoTap = () => {
+    if (!videoRef.current) return;
+    if (isPaused) {
+      videoRef.current.play();
+      setIsPaused(false);
+    } else {
+      videoRef.current.pause();
+      setIsPaused(true);
+    }
+  };
 
-  // =========================================
-  // VIDEO STAGE
-  // =========================================
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/clip/${currentClip?.clip_id}`;
+    
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Check out this clip on AiMoviez!',
+          text: `Vote for @${currentClip?.username}'s clip!`,
+          url: shareUrl,
+        });
+      } catch {
+        // User cancelled
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.success('Link copied!');
+      } catch {
+        toast.error('Failed to copy link');
+      }
+    }
+  };
 
-  const renderVideoStage = () => (
-    <div className="relative h-full w-full">
-      <div className="relative h-full w-full bg-black">
-        {currentClip ? (
-          <video
-            key={currentClip.clip_id}
-            src={currentClip.video_url ?? currentClip.thumbnail_url}
-            poster={currentClip.thumbnail_url}
-            className="h-full w-full object-cover"
-            playsInline
-            autoPlay
-            loop
-            muted
-          />
-        ) : (
-          <div className="h-full w-full flex flex-col items-center justify-center text-white/40 text-sm">
-            <span>No clips available</span>
-            <Link
-              href="/upload"
-              className="mt-2 text-[11px] text-cyan-300 underline underline-offset-4"
-            >
-              Be the first to upload an 8s clip
-            </Link>
-          </div>
-        )}
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <motion.span
+          className="text-6xl font-black text-white"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          style={{ textShadow: '0 0 30px rgba(56, 189, 248, 0.8)' }}
+        >
+          ∞
+        </motion.span>
       </div>
+    );
+  }
 
-      {/* OVERLAY GRADIENT */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/40" />
-
-      {/* TOP LEFT META */}
-      <div className="absolute top-3 left-3 right-16 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          {currentClip && <GenreTag genre={currentClip.genre} />}
-          {currentClip?.is_featured && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/30 text-[10px] text-amber-200 flex items-center gap-1">
-              ⭐ Featured in track
-            </span>
-          )}
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-5xl mb-4">😵</div>
+          <h2 className="text-white text-xl font-bold mb-2">Connection Error</h2>
+          <p className="text-white/60 mb-6">Failed to load clips</p>
+          <button
+            onClick={() => refetch()}
+            className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white"
+          >
+            Retry
+          </button>
         </div>
-
-        {currentClip && (
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-full border border-white/20 overflow-hidden bg-black/40">
-                <img
-                  src={
-                    currentClip.user.avatar_url ||
-                    'https://api.dicebear.com/7.x/identicon/svg?seed=aimoviez'
-                  }
-                  alt={currentClip.user.username}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[12px] font-semibold">@{currentClip.user.username}</span>
-                <span className="text-[10px] text-white/60">
-                  Segment #{currentClip.segment_index + 1} · Round {currentClip.round_number}/
-                  {currentClip.total_rounds}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+    );
+  }
 
-      {/* RIGHT COLUMN BUTTONS */}
-      <div className="absolute right-3 bottom-20 sm:right-4 sm:bottom-24 z-30 flex flex-col items-center gap-4">
-        {/* main vote */}
-        <motion.button
-          whileTap={{ scale: 0.92 }}
-          disabled={isVoting || !currentClip}
-          onClick={handleVote}
-          className="relative w-16 h-16 rounded-full flex items-center justify-center
-                     bg-black/80 border border-cyan-300/70
-                     shadow-[0_0_18px_rgba(0,0,0,0.95),0_0_26px_rgba(34,211,238,0.7)]
-                     backdrop-blur-md"
-        >
-          <div className="relative flex items-center justify-center w-full h-full">
-            <div className="absolute inset-2 rounded-full border-2 border-cyan-300/90 shadow-[0_0_12px_rgba(34,211,238,0.9)]" />
-            <span className="relative text-3xl font-black text-white leading-none">∞</span>
-
-            <motion.div
-              className="absolute inset-1"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: 'linear' }}
-            >
-              <div className="absolute left-1/2 -translate-x-1/2 -top-0.5 w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_6px_rgba(255,255,255,0.9)]" />
-            </motion.div>
-            <motion.div
-              className="absolute inset-1"
-              animate={{ rotate: -360 }}
-              transition={{ duration: 3.2, repeat: Infinity, ease: 'linear' }}
-            >
-              <div className="absolute left-1/2 -translate-x-1/2 -bottom-0.5 w-1.5 h-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_rgba(34,211,238,0.9)]" />
-            </motion.div>
-          </div>
-        </motion.button>
-
-        {/* skip */}
-        <motion.button
-          whileTap={{ scale: 0.94 }}
-          onClick={handleSkip}
-          className="relative w-12 h-12 rounded-full flex items-center justify-center
-                     bg-black/40 border border-white/60
-                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                     backdrop-blur-sm"
-        >
-          <span className="text-[11px] text-white leading-none">Skip</span>
-        </motion.button>
-
-        {/* comments */}
-        <motion.button
-          whileTap={{ scale: 0.94 }}
-          onClick={() => setShowComments((prev) => !prev)}
-          className={`relative w-12 h-12 rounded-full flex items-center justify-center
-                     bg-black/40 border border-white/60
-                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                     backdrop-blur-sm ${
-                       showComments ? 'ring-2 ring-cyan-400/70' : ''
-                     }`}
-        >
-          <span className="text-xl">💬</span>
-        </motion.button>
-
-        {/* share */}
-        <motion.button
-          whileTap={{ scale: 0.94 }}
-          onClick={() => {
-            if (navigator.share) {
-              navigator
-                .share({
-                  title: 'AiMoviez · 8SEC MADNESS',
-                  text: 'Help choose the next 8 seconds of the global movie!',
-                  url: window.location.href,
-                })
-                .catch(() => {});
-            } else {
-              console.log('Share clicked – Web Share API not available');
-            }
-          }}
-          className="relative w-12 h-12 rounded-full flex items-center justify-center
-                     bg-black/40 border border-white/60
-                     shadow-[0_0_12px_rgba(0,0,0,0.8)]
-                     backdrop-blur-sm"
-        >
-          <svg viewBox="0 0 24 24" className="w-5 h-5 text-white" aria-hidden="true">
-            <circle cx="18" cy="5" r="2" fill="currentColor" />
-            <circle cx="6" cy="12" r="2" fill="currentColor" />
-            <circle cx="18" cy="19" r="2" fill="currentColor" />
-            <path
-              d="M8 12l8-5M8 12l8 5"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              fill="none"
-            />
-          </svg>
-        </motion.button>
+  // Empty state
+  if (!votingData?.clips?.length) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-5xl mb-4">🎬</div>
+          <h2 className="text-white text-xl font-bold mb-2">No clips yet</h2>
+          <p className="text-white/60 mb-6">Check back soon!</p>
+          <Link href="/story" className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block">
+            Back to Story
+          </Link>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
 
-  // =========================================
-  // RENDER
-  // =========================================
+  const genreLabel = GENRE_LABELS[currentClip?.genre?.toUpperCase()] || currentClip?.genre || '';
 
   return (
-    <div className="relative h-dvh w-full bg-gradient-to-b from-black via-[#020617] to-black text-white overflow-hidden">
-      {/* Neon background */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
-        <div className="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/25 blur-3xl" />
-      </div>
+    <div
+      className="relative h-screen w-screen overflow-hidden bg-black"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <Toaster position="top-center" />
 
-      {/* TOP BAR – BRAND (desktop only) */}
-      <div className="absolute top-4 inset-x-0 hidden sm:flex items-center justify-between px-4 z-20">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1">
-            <InfinitySign size="small" animated />
-            <span className="text-xs font-semibold tracking-[0.2em] text-white/80">
-              AIMOVIEZ
-            </span>
-          </div>
-          <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-cyan-200">
-            8SEC MADNESS
-          </span>
+      {/* ============ VIDEO ============ */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeIndex}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="absolute inset-0"
+          onClick={handleVideoTap}
+        >
+          {videoError ? (
+            <div className="w-full h-full flex items-center justify-center bg-black">
+              <div className="text-center">
+                <div className="text-5xl mb-4">🎬</div>
+                <p className="text-white/60">Video unavailable</p>
+              </div>
+            </div>
+          ) : currentClip ? (
+            <>
+              <video
+                ref={videoRef}
+                key={currentClip.clip_id}
+                src={currentClip.video_url ?? '/placeholder-video.mp4'}
+                poster={currentClip.thumbnail_url}
+                className="w-full h-full object-cover"
+                autoPlay
+                loop
+                muted={isMuted}
+                playsInline
+                onError={() => setVideoError(true)}
+              />
+            </>
+          ) : null}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* ============ TOP: Search Bar (TikTok Style) ============ */}
+      <div className="absolute top-0 left-0 right-0 z-30 pt-12 px-4 pb-3">
+        <div className="flex items-center gap-3">
+          <motion.div 
+            whileTap={{ scale: 0.98 }}
+            className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 backdrop-blur-sm"
+          >
+            <Search className="w-5 h-5 text-white/60" />
+            <input
+              type="text"
+              placeholder="Search clips, creators..."
+              className="flex-1 bg-transparent text-white text-sm placeholder:text-white/40 outline-none"
+            />
+          </motion.div>
         </div>
       </div>
 
-      {/* PHONE CONTAINER – FULL HEIGHT ON MOBILE */}
-      <div className="relative h-full flex items-stretch justify-center px-0 pt-0 pb-14 sm:px-2 sm:pt-14 sm:pb-6 z-10">
-        <div
-          className="relative h-full w-full max-w-[480px] sm:max-h-[720px] mx-auto overflow-hidden bg-black/70 border border-white/15 shadow-[0_0_40px_rgba(0,0,0,0.8)]"
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* LICZNIK W RAMCE TELEFONU */}
-          <div className="absolute top-3 right-3 z-40">
-            <VoteMeter voteCount={localVotesToday} dailyGoal={DAILY_GOAL} />
-          </div>
+      {/* ============ SWIPE HINT ============ */}
+      <AnimatePresence>
+        {showSwipeHint && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute top-28 left-0 right-0 z-20 flex justify-center"
+          >
+            <div className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm">
+              <p className="text-white/80 text-xs font-medium">Swipe ↑↓ to browse · Tap ∞ to vote</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <div className="relative h-full w-full">
-            {!showComments ? (
-              renderVideoStage()
+      {/* ============ RIGHT COLUMN ============ */}
+      <div className="absolute right-3 bottom-28 z-20 flex flex-col items-center gap-4">
+        {/* Creator Avatar */}
+        <Link href={`/profile/${currentClip?.user_id}`}>
+          <motion.div whileTap={{ scale: 0.9 }} className="relative">
+            <img
+              src={currentClip?.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=default'}
+              alt=""
+              className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
+              style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+            />
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
+              <span className="text-white text-[10px] font-bold">+</span>
+            </div>
+          </motion.div>
+        </Link>
+
+        {/* Vote Count */}
+        <ActionButton
+          icon={<Heart className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          label={formatNumber(currentClip?.vote_count ?? 0)}
+        />
+
+        {/* Comments */}
+        <ActionButton
+          icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          label={comments.length}
+          onClick={() => setShowComments(true)}
+        />
+
+        {/* Share */}
+        <ActionButton
+          icon={<Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          onClick={handleShare}
+        />
+
+        {/* Mute/Unmute */}
+        <ActionButton
+          icon={
+            isMuted ? (
+              <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
             ) : (
-              <div className="flex flex-col h-full w-full bg-black">
-                <div className="relative h-[58%] w-full">{renderVideoStage()}</div>
+              <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            )
+          }
+          onClick={() => setIsMuted(!isMuted)}
+        />
 
-                <div className="flex-1 bg-black/95 border-t border-white/15">
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <span className="text-xs font-semibold text-white/80">
-                      Comments ({comments.length})
-                    </span>
-                    <motion.button
-                      whileTap={{ scale: 0.95 }}
-                      onClick={() => setShowComments(false)}
-                      className="text-xs text-white/70 px-2 py-1 rounded-full bg-white/10 border border-white/20"
-                    >
-                      Close
-                    </motion.button>
-                  </div>
+        {/* VOTE BUTTON */}
+        <div className="mt-2">
+          <InfinityVoteButton
+            onVote={handleVote}
+            isVoting={isVoting}
+            isDisabled={votesToday >= DAILY_GOAL}
+          />
+        </div>
 
-                  <div className="px-4 py-2 space-y-2 text-[11px] h-full overflow-y-auto">
-                    {comments.length > 0 ? (
-                      comments.map((comment) => (
-                        <motion.div
-                          key={comment.id}
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="flex items-start gap-2"
-                        >
-                          <div className="h-7 w-7 rounded-full overflow-hidden bg-white/10">
-                            <img
-                              src={comment.user.avatar_url}
-                              alt={comment.user.username}
-                              className="h-full w-full object-cover"
-                            />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-semibold">
-                                @{comment.user.username}
-                              </span>
-                              <span className="text-[9px] text-white/40">just now</span>
-                            </div>
-                            <p className="text-[11px] text-white/80">{comment.text}</p>
-                          </div>
-                          <button className="text-[10px] text-white/40">
-                            ❤️ {comment.likes}
-                          </button>
-                        </motion.div>
-                      ))
-                    ) : (
-                      <p className="text-[11px] text-white/50">
-                        No comments yet – be the first!
-                      </p>
-                    )}
-                  </div>
-                </div>
+        {/* Progress */}
+        <p className="text-white text-xs font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+          {votesToday}/{DAILY_GOAL}
+        </p>
+      </div>
+
+      {/* ============ BOTTOM: Creator Info ============ */}
+      <div className="absolute bottom-20 left-0 right-16 z-20 px-4">
+        <div className="flex items-center gap-2">
+          <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            @{currentClip?.username || 'creator'}
+          </p>
+          <span className="text-white/60">·</span>
+          <p className="text-white/80 text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{genreLabel}</p>
+        </div>
+      </div>
+
+      {/* ============ COMMENTS PANEL ============ */}
+      <AnimatePresence>
+        {showComments && (
+          <motion.div
+            initial={{ y: '100%', opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: '100%', opacity: 0 }}
+            transition={{ 
+              y: {
+                type: 'tween',
+                duration: 0.3,
+                ease: [0.32, 0.72, 0, 1]
+              },
+              opacity: {
+                duration: 0.15,
+                ease: 'easeIn'
+              }
+            }}
+            className="absolute bottom-0 left-0 right-0 h-2/3 bg-black/40 backdrop-blur-xl z-50 rounded-t-3xl border-t border-white/10"
+          >
+            <div className="p-4 h-full flex flex-col">
+              <div className="w-10 h-1 rounded-full bg-white/30 mx-auto mb-4" />
+
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-white font-bold">{comments.length} Comments</h3>
+                <button onClick={() => setShowComments(false)}>
+                  <X className="w-6 h-6 text-white/60" />
+                </button>
               </div>
-            )}
-          </div>
 
-          {/* LOADING OVERLAY */}
-          <AnimatePresence>
-            {isLoading && (
-              <motion.div
-                className="absolute inset-0 flex items-center justify-center bg-black/70"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-                >
-                  <InfinitySign size="medium" animated />
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              <div className="flex-1 overflow-y-auto space-y-4">
+                {comments.map((comment) => (
+                  <div key={comment.id} className="flex gap-3">
+                    <img
+                      src={comment.user.avatar_url}
+                      alt=""
+                      className="w-9 h-9 rounded-full flex-shrink-0"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-semibold">{comment.user.username}</p>
+                      <p className="text-white/80 text-sm break-words">{comment.text}</p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <span className="text-white/40 text-xs">2h</span>
+                        <button className="flex items-center gap-1 text-white/40 text-xs hover:text-white/60">
+                          <Heart className="w-3 h-3" /> {comment.likes}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-          {/* ERROR OVERLAY */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                className="absolute inset-0 flex items-center justify-center bg-black/80"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-white/80">Failed to load clips.</p>
-                  <button
-                    className="text-xs px-3 py-1.5 rounded-full bg-white/10 border border-white/20"
-                    onClick={() =>
-                      queryClient.invalidateQueries({ queryKey: ['voting', 'track-main'] })
-                    }
-                  >
-                    Try again
+              <div className="pt-3 border-t border-white/10 mt-3">
+                <div className="flex gap-2 p-2 rounded-full bg-white/10 border border-white/10">
+                  <input
+                    type="text"
+                    placeholder="Add a comment..."
+                    className="flex-1 bg-transparent text-white text-sm px-3 outline-none"
+                  />
+                  <button className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 text-white text-sm font-semibold">
+                    Post
                   </button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* BOTTOM NAVIGATION */}
-      <div className="fixed bottom-0 inset-x-0 z-40 bg-black/90 border-t border-white/10">
-        <div className="mx-auto max-w-[480px]">
-          <div className="flex items-end justify-between px-6 pt-2 pb-3 text-[10px]">
-            {/* Story */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="relative flex flex-col items-center gap-0.5"
-            >
-              <span className="text-xl leading-none text-white/70">▶</span>
-              <span className="text-white/60">Story</span>
-            </motion.button>
-
-            {/* Shorts (ACTIVE) */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="relative flex flex-col items-center gap-0.5"
-            >
-              <span className="text-xl leading-none text-white drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]">
-                ∞
-              </span>
-              <span className="text-white">Shorts</span>
-              <motion.div
-                className="absolute -bottom-1 h-[2px] w-8 rounded-full bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-violet-500 shadow-[0_0_10px_rgba(56,189,248,0.8)]"
-                initial={{ opacity: 0, scaleX: 0.4 }}
-                animate={{ opacity: 1, scaleX: 1 }}
-              />
-            </motion.button>
-
-            {/* Upload */}
-            <Link href="/upload" className="flex flex-col items-center gap-0.5">
-              <motion.div
-                whileTap={{ scale: 0.9 }}
-                className="flex flex-col items-center gap-0.5"
-              >
-                <span className="text-xl leading-none text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-500 to-violet-500 drop-shadow-[0_0_10px_rgba(56,189,248,0.9)]">
-                  ＋
-                </span>
-                <span className="text-white/60">Upload</span>
-              </motion.div>
-            </Link>
-
-            {/* Profile */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              className="relative flex flex-col items-center gap-0.5"
-            >
-              <span className="text-xl leading-none text-white/70">👤</span>
-              <span className="text-white/60">Profile</span>
-            </motion.button>
-          </div>
+      {/* ============ BOTTOM NAV (3 items, transparent, bigger) ============ */}
+      <div className="absolute bottom-0 left-0 right-0 z-40">
+        {/* Gradient fade for readability */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pointer-events-none" />
+        
+        <div className="relative flex items-center justify-around px-4 pb-2 pt-1">
+          <NavButton 
+            href="/story" 
+            icon={<BookOpen className="w-6 h-6" />} 
+            label="Story" 
+          />
+          <NavButton 
+            href="/upload" 
+            icon={<Plus className="w-7 h-7" />} 
+            label="Upload" 
+          />
+          <NavButton 
+            href="/profile" 
+            icon={<User className="w-6 h-6" />} 
+            label="Profile" 
+          />
         </div>
       </div>
     </div>
   );
 }
 
-// =========================================
+// ============================================================================
 // PAGE WRAPPER
-// =========================================
+// ============================================================================
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 2,
+    },
+  },
+});
 
-function DashboardPage() {
+export default function DashboardPage() {
   return (
     <QueryClientProvider client={queryClient}>
-      <VotingArenaEnhanced />
+      <VotingArena />
     </QueryClientProvider>
   );
 }
-
-export default DashboardPage;
