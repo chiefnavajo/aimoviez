@@ -430,14 +430,11 @@ function VotingArena() {
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
     queryFn: async () => {
-      // Force mock data for testing your Veo3 videos
-      return {
-        clips: MOCK_CLIPS,
-        totalVotesToday: 0,
-        userRank: 0,
-        remainingVotes: { standard: 200, super: 0, mega: 0 },
-        streak: 1,
-      };
+      const response = await fetch('/api/vote?trackId=track-main');
+      if (!response.ok) {
+        throw new Error('Failed to fetch voting data');
+      }
+      return response.json();
     },
     refetchInterval: 10000,
     staleTime: 5000,
