@@ -668,7 +668,9 @@ function VotingArena() {
     );
   }
 
-  const genreLabel = GENRE_LABELS[currentClip?.genre?.toUpperCase()] || currentClip?.genre || '';
+ const genreLabel = currentClip?.genre 
+  ? (GENRE_LABELS[currentClip.genre.toUpperCase() as keyof typeof GENRE_LABELS] || currentClip.genre)
+  : '';
 
   return (
     <div
