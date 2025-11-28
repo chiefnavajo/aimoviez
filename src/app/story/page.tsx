@@ -996,7 +996,7 @@ function StoryPage() {
           </Link>
 
           {/* Navigation Items */}
-          <nav className="flex-1 space-y-1">
+          <nav className="flex-1 space-y-1 mt-24">
             <Link href="/story">
               <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30 backdrop-blur-sm text-white border border-white/10">
                 <BookOpen className="w-6 h-6" />
