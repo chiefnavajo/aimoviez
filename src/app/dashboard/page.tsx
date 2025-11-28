@@ -415,7 +415,7 @@ function VotingArena() {
   const [videoError, setVideoError] = useState(false);
   const [showSwipeHint, setShowSwipeHint] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
-  const [isMuted, setIsMuted] = useState(false); // Start unmuted
+  const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
@@ -726,7 +726,18 @@ function VotingArena() {
                 loop
                 muted={isMuted}
                 playsInline
+                webkit-playsinline="true"
+                x5-playsinline="true"
                 onError={() => setVideoError(true)}
+                onLoadedData={(e) => {
+                  // Force play on mobile
+                  const video = e.currentTarget;
+                  video.play().catch(() => {
+                    // If autoplay fails, keep muted and try again
+                    video.muted = true;
+                    video.play().catch(() => {});
+                  });
+                }}
               />
             </>
           ) : null}
@@ -767,7 +778,7 @@ function VotingArena() {
       </AnimatePresence>
 
       {/* ============ RIGHT COLUMN ============ */}
-      <div className="absolute right-3 bottom-28 z-20 flex flex-col items-center gap-4">
+      <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4">
         {/* Creator Avatar */}
         <Link href={`/profile/${currentClip?.user_id}`}>
           <motion.div whileTap={{ scale: 0.9 }} className="relative">
@@ -859,7 +870,7 @@ function VotingArena() {
       </div>
 
       {/* ============ BOTTOM: Creator Info ============ */}
-      <div className="absolute bottom-20 left-0 right-16 z-20 px-4">
+      <div className="absolute bottom-24 left-0 right-16 z-20 px-4">
         <div className="flex items-center gap-2">
           <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             @{currentClip?.username || 'creator'}
@@ -995,11 +1006,11 @@ function VotingArena() {
       </AnimatePresence>
 
       {/* ============ BOTTOM NAV (3 items, transparent, bigger) ============ */}
-      <div className="absolute bottom-0 left-0 right-0 z-40">
+      <div className="absolute bottom-0 left-0 right-0 z-40 pb-safe">
         {/* Gradient fade for readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pointer-events-none" />
         
-        <div className="relative flex items-center justify-around px-4 pb-2 pt-1">
+        <div className="relative flex items-center justify-around px-4 pb-4 pt-1">
           <NavButton 
             href="/story" 
             icon={<BookOpen className="w-6 h-6" />} 
