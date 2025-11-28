@@ -304,33 +304,25 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setIsPlaying(false);
   }, [season.id]);
 
-  // Control video playback when isPlaying changes
+  // Control video playback when isPlaying changes or index changes
   useEffect(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.play().catch(() => {
-          // Autoplay blocked, user needs to interact first
-          setIsPlaying(false);
+    const video = videoRef.current;
+    if (!video) return;
+    
+    if (isPlaying) {
+      // Small delay to ensure video element is ready after index change
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay blocked - this is fine, user will tap to play
         });
-      } else {
-        videoRef.current.pause();
       }
+    } else {
+      video.pause();
     }
   }, [isPlaying, currentIndex]);
 
-  // Auto-advance segments
-  useEffect(() => {
-    if (!isPlaying || completedSegments.length === 0) return;
-    const timer = setTimeout(() => {
-      if (currentIndex < completedSegments.length - 1) {
-        setCurrentIndex(prev => prev + 1);
-      } else {
-        setCurrentIndex(0);
-        setIsPlaying(false);
-      }
-    }, 8000);
-    return () => clearTimeout(timer);
-  }, [currentIndex, isPlaying, completedSegments.length]);
+  // Note: Auto-advance is handled by video onEnded event
 
   const handleTap = () => {
     // Close popup if open
@@ -439,15 +431,22 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 src={currentSegment.winning_clip.video_url}
                 poster={currentSegment.winning_clip.thumbnail_url || undefined}
                 className="w-full h-full object-cover"
+                autoPlay={isPlaying}
                 muted={isMuted}
                 playsInline
                 onEnded={() => {
-                  // Auto-advance to next segment
+                  // Auto-advance to next segment, keep playing
                   if (currentIndex < completedSegments.length - 1) {
-                    setCurrentIndex(currentIndex + 1);
+                    setCurrentIndex(prev => prev + 1);
                   } else {
+                    // End of season - loop back to start or stop
+                    setCurrentIndex(0);
                     setIsPlaying(false);
                   }
+                }}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => {
+                  // Only set to false if we didn't just finish (avoid pause during transition)
                 }}
               />
               {/* Play button overlay when paused */}
