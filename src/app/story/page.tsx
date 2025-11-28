@@ -572,24 +572,18 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </AnimatePresence>
         </div>
         
-        {/* Vote Button - Always visible */}
+        {/* Vote Button - Always visible, same style on all seasons */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
           className="flex flex-col items-center gap-0.5 relative"
         >
           <Heart 
-            className={`w-7 h-7 md:w-9 md:h-9 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${
-              isActive ? 'text-white' : 'text-white/60'
-            }`}
+            className="w-7 h-7 md:w-9 md:h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
           />
           <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-            {isActive ? formatNumber(season.total_votes) : 'Vote'}
+            {formatNumber(season.total_votes)}
           </span>
-          {/* "Go Vote" indicator for inactive seasons */}
-          {!isActive && (
-            <span className="text-[8px] text-cyan-400 font-medium">Go Vote →</span>
-          )}
         </motion.button>
         
         {/* Rankings Button (Completed) */}
