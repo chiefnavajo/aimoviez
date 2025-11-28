@@ -20,10 +20,10 @@ function getSupabaseClient() {
 // GET - Fetch single clip
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const supabase = getSupabaseClient();
 
     const { data: clip, error } = await supabase
@@ -63,10 +63,10 @@ export async function GET(
 // PUT - Update clip
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await request.json();
     const { title, description, genre, status } = body;
 
@@ -133,10 +133,10 @@ export async function PUT(
 // DELETE - Delete clip
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const supabase = getSupabaseClient();
 
     const { error } = await supabase
