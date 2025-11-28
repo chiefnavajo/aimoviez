@@ -539,6 +539,25 @@ function VotingArena() {
     };
   }, [queryClient]);
 
+  // Keyboard navigation for desktop users
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        handleVideoTap();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeIndex, votingData?.clips?.length]);
+
   // Touch handlers
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
@@ -764,11 +783,44 @@ function VotingArena() {
           </motion.div>
         </Link>
 
-        {/* Vote Count */}
-        <ActionButton
-          icon={<Heart className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
-          label={formatNumber(currentClip?.vote_count ?? 0)}
-        />
+        {/* VOTE BUTTON - Heart (like TikTok/Instagram) */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={handleVote}
+          disabled={isVoting || votesToday >= DAILY_GOAL}
+          className="flex flex-col items-center gap-1 relative"
+        >
+          {/* Heart Icon with Animation */}
+          <motion.div
+            animate={isVoting ? {
+              scale: [1, 1.3, 1],
+            } : {}}
+            transition={{ duration: 0.3 }}
+            className="relative"
+          >
+            <Heart 
+              className={`w-9 h-9 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] transition-all ${
+                votesToday >= DAILY_GOAL 
+                  ? 'text-white/30' 
+                  : 'text-white'
+              }`}
+            />
+            {/* Pulse effect when voting */}
+            {isVoting && (
+              <motion.div
+                initial={{ scale: 1, opacity: 1 }}
+                animate={{ scale: 2, opacity: 0 }}
+                transition={{ duration: 0.5 }}
+                className="absolute inset-0 rounded-full border-2 border-red-500"
+              />
+            )}
+          </motion.div>
+          
+          {/* Vote Count */}
+          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            {formatNumber(currentClip?.vote_count ?? 0)}
+          </span>
+        </motion.button>
 
         {/* Comments */}
         <ActionButton
@@ -795,19 +847,15 @@ function VotingArena() {
           onClick={() => setIsMuted(!isMuted)}
         />
 
-        {/* VOTE BUTTON */}
-        <div className="mt-2">
-          <InfinityVoteButton
-            onVote={handleVote}
-            isVoting={isVoting}
-            isDisabled={votesToday >= DAILY_GOAL}
-          />
+        {/* Daily Vote Progress */}
+        <div className="mt-2 flex flex-col items-center">
+          <p className="text-white text-xs font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            {votesToday}/{DAILY_GOAL}
+          </p>
+          <p className="text-white/60 text-[10px] font-medium">
+            votes today
+          </p>
         </div>
-
-        {/* Progress */}
-        <p className="text-white text-xs font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-          {votesToday}/{DAILY_GOAL}
-        </p>
       </div>
 
       {/* ============ BOTTOM: Creator Info ============ */}
@@ -819,6 +867,62 @@ function VotingArena() {
           <span className="text-white/60">·</span>
           <p className="text-white/80 text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{genreLabel}</p>
         </div>
+      </div>
+
+      {/* ============ DESKTOP NAVIGATION ARROWS - LEFT SIDE ============ */}
+      <div className="hidden md:block">
+        {/* Navigation Arrows - Left Side, Vertically Centered */}
+        <div className="absolute left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-6">
+          {/* Previous Clip Arrow */}
+          {activeIndex > 0 && (
+            <motion.button
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handlePrevious}
+              className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
+                       border border-white/20 flex items-center justify-center
+                       transition-all shadow-lg"
+              type="button"
+              title="Previous clip (↑)"
+            >
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+              </svg>
+            </motion.button>
+          )}
+
+          {/* Next Clip Arrow */}
+          {votingData?.clips && activeIndex < votingData.clips.length - 1 && (
+            <motion.button
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+              whileTap={{ scale: 0.9 }}
+              onClick={handleNext}
+              className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
+                       border border-white/20 flex items-center justify-center
+                       transition-all shadow-lg"
+              type="button"
+              title="Next clip (↓)"
+            >
+              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </motion.button>
+          )}
+        </div>
+
+        {/* Keyboard Hint - Bottom Left, Small & Unobtrusive */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 0.6, y: 0 }}
+          transition={{ delay: 1.5, duration: 0.5 }}
+          className="absolute bottom-24 left-8 z-20
+                   px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm
+                   border border-white/10"
+        >
+          <p className="text-white/70 text-[10px] font-medium tracking-wide">
+            ↑↓ SPACE
+          </p>
+        </motion.div>
       </div>
 
       {/* ============ COMMENTS PANEL ============ */}

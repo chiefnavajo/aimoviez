@@ -4,7 +4,10 @@ import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap', // Show fallback font immediately, swap when loaded
+});
 
 export const metadata: Metadata = {
   title: 'AiMoviez · 8SEC MADNESS',

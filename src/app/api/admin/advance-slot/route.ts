@@ -31,6 +31,7 @@ interface StorySlotRow {
   status: 'upcoming' | 'voting' | 'locked';
   genre: string | null;
   winner_tournament_clip_id?: string | null;
+  voting_duration_hours?: number | null;
 }
 
 interface TournamentClipRow {
@@ -188,10 +189,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Ustaw następny slot na 'voting'
+    // 7. Ustaw następny slot na 'voting' with timer
+    const durationHours = storySlot.voting_duration_hours || 24;
+    const now = new Date();
+    const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+
     const { data: nextSlot, error: nextSlotError } = await supabase
       .from('story_slots')
-      .update({ status: 'voting' })
+      .update({ 
+        status: 'voting',
+        voting_started_at: now.toISOString(),
+        voting_ends_at: votingEndsAt.toISOString(),
+        voting_duration_hours: durationHours,
+      })
       .eq('season_id', seasonRow.id)
       .eq('slot_position', nextPosition)
       .select('*')
@@ -223,6 +233,7 @@ export async function POST(req: NextRequest) {
         currentSlotLocked: storySlot.slot_position,
         winnerClipId: winner.id,
         nextSlotPosition: nextPosition,
+        votingEndsAt: votingEndsAt.toISOString(),
       },
       { status: 200 }
     );

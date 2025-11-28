@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================================
-// STORY PAGE - FINAL V4.1
+// STORY PAGE - FINAL V4.2
 // ============================================================================
 // Features:
 // ✅ Split view: Video player (top 55%) + Season list (bottom)
@@ -12,7 +12,8 @@
 // ✅ Contributors panel (transparent)
 // ✅ Coming Soon season with genre voting
 // ✅ TikTok-style comments panel (no black flash)
-// ✅ Breathing VOTE animation on active season thumbnail
+// ✅ Heart button voting (no infinity symbol)
+// ✅ Clean thumbnail design (no breathing overlay)
 // ============================================================================
 
 import { useState, useRef, useEffect } from 'react';
@@ -538,11 +539,40 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </AnimatePresence>
         </div>
         
-        {/* Vote Button */}
-        <InfinityVoteButton onClick={onVote} size="small" />
+        {/* Vote Button (Active) - Heart Button (matches dashboard style) */}
+        {isActive && (
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={onVote}
+            className="flex flex-col items-center gap-1 relative"
+          >
+            {/* Heart Icon */}
+            <Heart 
+              className="w-9 h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+            />
+            
+            {/* Vote Count */}
+            <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+              {formatNumber(season.total_votes)}
+            </span>
+          </motion.button>
+        )}
         
-        {/* Heart / Likes */}
-        <ActionButton icon={<Heart className="w-6 h-6 text-white drop-shadow-lg" />} label={formatNumber(season.total_votes)} />
+        {/* Rankings Button (Completed) */}
+        {isCompleted && (
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => {
+              window.location.href = '/leaderboard';
+            }}
+            className="flex flex-col items-center gap-1"
+          >
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+              <Trophy className="w-6 h-6 text-white drop-shadow-lg" />
+            </div>
+            <span className="text-white text-[10px] font-bold drop-shadow">Rankings</span>
+          </motion.button>
+        )}
         
         {/* Comments */}
         <ActionButton icon={<MessageCircle className="w-6 h-6 text-white drop-shadow-lg" />} label={24} onClick={(e) => { e.stopPropagation(); setShowComments(true); }} />
@@ -562,7 +592,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           <div className="flex items-center gap-2">
             <img src={currentSegment.winning_clip.avatar_url} alt="" className="w-8 h-8 rounded-full border border-white/30" />
             <div>
-              <p className="text-white text-sm font-semibold drop-shadow">@{currentSegment.winning_clip.username}</p>
+              <div className="flex items-center gap-1">
+                <p className="text-white text-sm font-semibold drop-shadow">@{currentSegment.winning_clip.username}</p>
+                {isCompleted && (
+                  <div className="px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center gap-0.5">
+                    <Trophy className="w-3 h-3 text-white" />
+                    <span className="text-white text-[9px] font-bold">Winner</span>
+                  </div>
+                )}
+              </div>
               <p className="text-white/50 text-xs">{currentSegment.winning_clip.genre}</p>
             </div>
           </div>
@@ -693,13 +731,8 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
 
   const handleThumbnailTap = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isActive) {
-      // Go to voting arena for active seasons
-      router.push('/dashboard');
-    } else {
-      // Select season for non-active
-      onSelect();
-    }
+    // Just select the season (show video at top)
+    onSelect();
   };
 
   return (
@@ -731,55 +764,6 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <Play className="w-6 h-6 text-white" />
             </div>
-            
-            {/* Breathing VOTE overlay - only for active seasons */}
-            {isActive && (
-              <motion.div
-                className="absolute inset-0 flex flex-col items-center justify-center"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(80,180,200,0.85) 0%, rgba(140,100,180,0.85) 50%, rgba(180,100,140,0.85) 100%)'
-                }}
-                animate={{ 
-                  opacity: [0, 0.85, 0.85, 0],
-                }}
-                transition={{ 
-                  duration: 10,
-                  repeat: Infinity,
-                  ease: [0.4, 0, 0.2, 1], // cubic-bezier for ultra smooth
-                  times: [0, 0.3, 0.7, 1]
-                }}
-              >
-                {/* Breathing infinity symbol */}
-                <motion.div
-                  animate={{ 
-                    scale: [1, 1.08, 1],
-                    opacity: [0.85, 1, 0.85]
-                  }}
-                  transition={{ 
-                    duration: 5,
-                    repeat: Infinity,
-                    ease: [0.45, 0, 0.55, 1] // ultra smooth sine-like curve
-                  }}
-                  className="text-white/90 text-2xl font-bold drop-shadow-md"
-                >
-                  ∞
-                </motion.div>
-                {/* VOTE text */}
-                <motion.span 
-                  animate={{
-                    opacity: [0.65, 0.85, 0.65]
-                  }}
-                  transition={{
-                    duration: 5,
-                    repeat: Infinity,
-                    ease: [0.45, 0, 0.55, 1]
-                  }}
-                  className="text-white/90 text-[10px] font-bold tracking-wider drop-shadow-md mt-0.5"
-                >
-                  VOTE
-                </motion.span>
-              </motion.div>
-            )}
           </>
         )}
         <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-bold z-10">
@@ -814,16 +798,57 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
 
         {!isComingSoon && (
           <>
-            <div className="h-1 rounded-full bg-white/20 overflow-hidden mt-2 mb-1">
-              <div
-                className={`h-full ${isCompleted ? 'bg-green-500' : 'bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500'}`}
-                style={{ width: `${progressPercent}%` }}
-              />
+            {/* Progress Section - Visual only */}
+            <div className="mt-2 mb-1">
+              {/* Progress Bar */}
+              <div className="h-1.5 rounded-full bg-white/20 overflow-hidden relative mb-1">
+                <div
+                  className={`h-full transition-all ${isCompleted ? 'bg-green-500' : 'bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500'}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              
+              {/* Stats */}
+              <div className="flex justify-between text-[10px] text-white/40">
+                <span>{completedSegments.length}/{season.total_slots}</span>
+                <span>{formatDuration(completedSegments.length * 8)} / 10:00</span>
+              </div>
             </div>
-            <div className="flex justify-between text-[10px] text-white/40">
-              <span>{completedSegments.length}/{season.total_slots}</span>
-              <span>{formatDuration(completedSegments.length * 8)} / 10:00</span>
-            </div>
+
+            {/* Action Buttons */}
+            {isActive && (
+              <div className="mt-3">
+                {/* Rankings Button - Full width */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push('/leaderboard');
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-white/10 border border-white/20
+                           text-white text-xs font-bold hover:bg-white/20 transition-all cursor-pointer text-center"
+                >
+                  🏆 View Rankings
+                </motion.div>
+              </div>
+            )}
+
+            {/* Rankings Button - Only for completed seasons */}
+            {isCompleted && (
+              <div className="mt-3">
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push('/leaderboard');
+                  }}
+                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500
+                           text-white text-xs font-bold shadow-lg hover:shadow-xl transition-all cursor-pointer text-center"
+                >
+                  🏆 View Final Rankings
+                </motion.div>
+              </div>
+            )}
           </>
         )}
 
