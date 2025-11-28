@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, Pause, BookOpen, Plus, Trophy, User, MessageCircle, Flag } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import CommentsSection from '@/components/CommentsSection';
 
 // ============================================================================
 // CLIP DETAIL PAGE - TikTok Style with Desktop Sidebar
@@ -53,6 +54,7 @@ export default function ClipDetailPage() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
   const [voteCount, setVoteCount] = useState(clip.vote_count);
+  const [showComments, setShowComments] = useState(false);
 
   useEffect(() => {
     if (videoRef.current) {
@@ -134,7 +136,7 @@ export default function ClipDetailPage() {
           </motion.button>
 
           {/* Comment */}
-          <button className="flex flex-col items-center gap-1">
+          <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
             <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
               <MessageCircle className="w-6 h-6" />
             </div>
@@ -192,6 +194,14 @@ export default function ClipDetailPage() {
         {renderClipContent()}
         <BottomNavigation />
       </div>
+
+      {/* Comments Panel */}
+      <CommentsSection
+        clipId={clip.id}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        clipUsername={clip.username}
+      />
     </div>
   );
 }

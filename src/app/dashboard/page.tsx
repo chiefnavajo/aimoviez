@@ -22,6 +22,7 @@ import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX } from 'lucide-react';
+import CommentsSection from '@/components/CommentsSection';
 
 // ============================================================================
 // TYPES
@@ -70,17 +71,6 @@ interface VoteResponse {
   totalVotesToday?: number;
   remainingVotes?: number;
   voteType?: VoteType;
-}
-
-interface Comment {
-  id: string;
-  user: {
-    username: string;
-    avatar_url: string;
-  };
-  text: string;
-  timestamp: Date;
-  likes: number;
 }
 
 interface MutationContext {
@@ -368,43 +358,6 @@ function NavButton({ href, icon, label, isActive = false }: NavButtonProps) {
 }
 
 // ============================================================================
-// MOCK COMMENTS
-// ============================================================================
-
-function useMockComments(clipId?: string) {
-  const [comments, setComments] = useState<Comment[]>([]);
-
-  useEffect(() => {
-    if (!clipId) return;
-    setComments([
-      {
-        id: '1',
-        user: { username: 'neon_dream', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon' },
-        text: 'This is absolutely insane! 🔥',
-        timestamp: new Date(),
-        likes: 24,
-      },
-      {
-        id: '2',
-        user: { username: 'movie_buff', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=movie' },
-        text: 'Perfect transition 👏',
-        timestamp: new Date(),
-        likes: 18,
-      },
-      {
-        id: '3',
-        user: { username: 'creator_vibes', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=creator' },
-        text: 'This needs to win!',
-        timestamp: new Date(),
-        likes: 12,
-      },
-    ]);
-  }, [clipId]);
-
-  return { comments, setComments };
-}
-
-// ============================================================================
 // MAIN VOTING ARENA
 // ============================================================================
 
@@ -443,7 +396,6 @@ function VotingArena() {
 
   const votesToday = votingData?.totalVotesToday ?? 0;
   const currentClip = votingData?.clips?.[activeIndex];
-  const { comments } = useMockComments(currentClip?.clip_id);
 
   // Hide swipe hint after first interaction
   useEffect(() => {
@@ -937,73 +889,12 @@ function VotingArena() {
       </div>
 
       {/* ============ COMMENTS PANEL ============ */}
-      <AnimatePresence>
-        {showComments && (
-          <motion.div
-            initial={{ y: '100%', opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: '100%', opacity: 0 }}
-            transition={{ 
-              y: {
-                type: 'tween',
-                duration: 0.3,
-                ease: [0.32, 0.72, 0, 1]
-              },
-              opacity: {
-                duration: 0.15,
-                ease: 'easeIn'
-              }
-            }}
-            className="absolute bottom-0 left-0 right-0 h-2/3 bg-black/40 backdrop-blur-xl z-50 rounded-t-3xl border-t border-white/10"
-          >
-            <div className="p-4 h-full flex flex-col">
-              <div className="w-10 h-1 rounded-full bg-white/30 mx-auto mb-4" />
-
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-white font-bold">{comments.length} Comments</h3>
-                <button onClick={() => setShowComments(false)}>
-                  <X className="w-6 h-6 text-white/60" />
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto space-y-4">
-                {comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-3">
-                    <img
-                      src={comment.user.avatar_url}
-                      alt=""
-                      className="w-9 h-9 rounded-full flex-shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-semibold">{comment.user.username}</p>
-                      <p className="text-white/80 text-sm break-words">{comment.text}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        <span className="text-white/40 text-xs">2h</span>
-                        <button className="flex items-center gap-1 text-white/40 text-xs hover:text-white/60">
-                          <Heart className="w-3 h-3" /> {comment.likes}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="pt-3 border-t border-white/10 mt-3">
-                <div className="flex gap-2 p-2 rounded-full bg-white/10 border border-white/10">
-                  <input
-                    type="text"
-                    placeholder="Add a comment..."
-                    className="flex-1 bg-transparent text-white text-sm px-3 outline-none"
-                  />
-                  <button className="px-4 py-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 text-white text-sm font-semibold">
-                    Post
-                  </button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <CommentsSection
+        clipId={currentClip?.clip_id || ''}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        clipUsername={currentClip?.username}
+      />
 
       {/* ============ BOTTOM NAV (3 items, transparent, bigger) ============ */}
       <div className="absolute bottom-0 left-0 right-0 z-40 pb-safe">
