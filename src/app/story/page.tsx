@@ -640,9 +640,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
-      {/* Bottom left: Creator info - Fixed position to match dashboard */}
+      {/* Bottom left: Creator info - Positioned to avoid sidebar on desktop */}
       {currentSegment?.winning_clip && (
-        <div className="absolute bottom-20 left-0 right-16 z-20 px-4">
+        <div className="absolute bottom-20 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
             <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               @{currentSegment.winning_clip.username}
