@@ -501,19 +501,19 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         )}
       </AnimatePresence>
 
-      {/* Right Column - Fixed position to match dashboard */}
-      <div className="absolute right-3 bottom-28 z-20 flex flex-col items-center gap-4">
-        {/* Creator Avatar - matches dashboard */}
+      {/* Right Column - Responsive position for mobile */}
+      <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
+        {/* Creator Avatar - Hidden on very small screens, visible on md+ */}
         {currentSegment?.winning_clip && (
-          <div className="relative">
+          <div className="hidden sm:block relative">
             <img
               src={currentSegment.winning_clip.avatar_url}
               alt=""
-              className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
+              className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
             />
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
-              <span className="text-white text-[10px] font-bold">+</span>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 md:w-5 md:h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
+              <span className="text-white text-[8px] md:text-[10px] font-bold">+</span>
             </div>
           </div>
         )}
@@ -523,10 +523,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           <motion.button
             whileTap={{ scale: 0.8 }}
             onClick={(e) => { e.stopPropagation(); setShowContributorsPopup(!showContributorsPopup); }}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <Trophy className="w-9 h-9 text-yellow-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
-            <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <Trophy className="w-7 h-7 md:w-9 md:h-9 text-yellow-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
+            <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
               {completedSegments.length}
             </span>
           </motion.button>
@@ -572,20 +572,17 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </AnimatePresence>
         </div>
         
-        {/* Vote Button (Active) - Heart Button (matches dashboard style) */}
+        {/* Vote Button (Active) - Heart Button */}
         {isActive && (
           <motion.button
             whileTap={{ scale: 0.8 }}
             onClick={onVote}
-            className="flex flex-col items-center gap-1 relative"
+            className="flex flex-col items-center gap-0.5 relative"
           >
-            {/* Heart Icon */}
             <Heart 
-              className="w-9 h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
+              className="w-7 h-7 md:w-9 md:h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
             />
-            
-            {/* Vote Count */}
-            <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
               {formatNumber(season.total_votes)}
             </span>
           </motion.button>
@@ -598,12 +595,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
             onClick={() => {
               window.location.href = '/leaderboard';
             }}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-0.5"
           >
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-              <Trophy className="w-6 h-6 text-white drop-shadow-lg" />
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+              <Trophy className="w-5 h-5 md:w-6 md:h-6 text-white drop-shadow-lg" />
             </div>
-            <span className="text-white text-[10px] font-bold drop-shadow">Rankings</span>
+            <span className="text-white text-[9px] md:text-[10px] font-bold drop-shadow">Rankings</span>
           </motion.button>
         )}
         
@@ -611,38 +608,38 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-0.5"
         >
-          <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">24</span>
+          <MessageCircle className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">24</span>
         </motion.button>
         
         {/* Share */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={handleShare}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-0.5"
         >
-          <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <Share2 className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
         </motion.button>
         
         {/* Mute */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={toggleMute}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-0.5"
         >
           {isMuted ? (
-            <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            <VolumeX className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
           ) : (
-            <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            <Volume2 className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
           )}
         </motion.button>
       </div>
 
-      {/* Bottom left: Creator info - Positioned to avoid sidebar on desktop */}
+      {/* Bottom left: Creator info - Higher on mobile to avoid season list */}
       {currentSegment?.winning_clip && (
-        <div className="absolute bottom-20 left-4 md:left-60 right-16 z-20">
+        <div className="absolute bottom-4 md:bottom-20 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
             <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               @{currentSegment.winning_clip.username}
