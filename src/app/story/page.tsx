@@ -141,13 +141,13 @@ const MOCK_SEASONS: Season[] = [
     total_clips: 342,
     total_creators: 156,
     current_voting_slot: 6,
-    thumbnail_url: 'https://picsum.photos/seed/spooky/400/711',
+    thumbnail_url: '',
     slots: [
-      { id: 's2-1', slot_position: 1, status: 'locked', winning_clip: { id: 'c1', video_url: VIDEO_SPOOKY, thumbnail_url: 'https://picsum.photos/seed/spooky/400/711', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3', vote_count: 4521, genre: 'Horror' } },
-      { id: 's2-2', slot_position: 2, status: 'locked', winning_clip: { id: 'c2', video_url: VIDEO_BALLET, thumbnail_url: 'https://picsum.photos/seed/ballet/400/711', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet', vote_count: 3847, genre: 'Comedy' } },
-      { id: 's2-3', slot_position: 3, status: 'locked', winning_clip: { id: 'c3', video_url: VIDEO_SUPERHERO, thumbnail_url: 'https://picsum.photos/seed/hero/400/711', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard', vote_count: 2654, genre: 'Action' } },
-      { id: 's2-4', slot_position: 4, status: 'locked', winning_clip: { id: 'c4', video_url: VIDEO_CLIP, thumbnail_url: 'https://picsum.photos/seed/clip1/400/711', username: 'neon_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon', vote_count: 2201, genre: 'Thriller' } },
-      { id: 's2-5', slot_position: 5, status: 'locked', winning_clip: { id: 'c5', video_url: VIDEO_SPOOKY, thumbnail_url: 'https://picsum.photos/seed/spooky2/400/711', username: 'movie_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=master', vote_count: 1896, genre: 'Horror' } },
+      { id: 's2-1', slot_position: 1, status: 'locked', winning_clip: { id: 'c1', video_url: VIDEO_SPOOKY, thumbnail_url: '', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3', vote_count: 4521, genre: 'Horror' } },
+      { id: 's2-2', slot_position: 2, status: 'locked', winning_clip: { id: 'c2', video_url: VIDEO_BALLET, thumbnail_url: '', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet', vote_count: 3847, genre: 'Comedy' } },
+      { id: 's2-3', slot_position: 3, status: 'locked', winning_clip: { id: 'c3', video_url: VIDEO_SUPERHERO, thumbnail_url: '', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard', vote_count: 2654, genre: 'Action' } },
+      { id: 's2-4', slot_position: 4, status: 'locked', winning_clip: { id: 'c4', video_url: VIDEO_CLIP, thumbnail_url: '', username: 'neon_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon', vote_count: 2201, genre: 'Thriller' } },
+      { id: 's2-5', slot_position: 5, status: 'locked', winning_clip: { id: 'c5', video_url: VIDEO_SPOOKY, thumbnail_url: '', username: 'movie_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=master', vote_count: 1896, genre: 'Horror' } },
       { id: 's2-6', slot_position: 6, status: 'voting' },
       ...Array.from({ length: 69 }, (_, i) => ({ id: `s2-${i + 7}`, slot_position: i + 7, status: 'upcoming' as SlotStatus })),
     ],
@@ -163,7 +163,7 @@ const MOCK_SEASONS: Season[] = [
     total_clips: 3200,
     total_creators: 892,
     winning_genre: 'Comedy',
-    thumbnail_url: 'https://picsum.photos/seed/s1main/400/711',
+    thumbnail_url: '',
     slots: Array.from({ length: 75 }, (_, i) => ({
       id: `s1-${i + 1}`,
       slot_position: i + 1,
@@ -171,7 +171,7 @@ const MOCK_SEASONS: Season[] = [
       winning_clip: {
         id: `s1-clip-${i + 1}`,
         video_url: [VIDEO_SPOOKY, VIDEO_BALLET, VIDEO_SUPERHERO, VIDEO_CLIP][i % 4],
-        thumbnail_url: `https://picsum.photos/seed/s1c${i + 1}/400/711`,
+        thumbnail_url: '',
         username: `creator_${i + 1}`,
         avatar_url: `https://api.dicebear.com/7.x/identicon/svg?seed=s1creator${i + 1}`,
         vote_count: Math.floor(Math.random() * 3000) + 1000,
@@ -401,7 +401,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   if (completedSegments.length === 0) {
     return (
       <div className="relative h-full bg-black" onClick={handlePlayPause}>
-        <img src={season.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+        {season.thumbnail_url && <img src={season.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <motion.span
@@ -430,14 +430,23 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
             <video
               ref={videoRef}
               src={currentSegment.winning_clip.video_url}
-              poster={currentSegment.winning_clip.thumbnail_url}
+              poster={currentSegment.winning_clip.thumbnail_url || undefined}
               className="w-full h-full object-cover"
               autoPlay
               muted={isMuted}
               playsInline
             />
           ) : (
-            <img src={currentSegment?.winning_clip?.thumbnail_url || season.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            currentSegment?.winning_clip?.thumbnail_url ? (
+              <img src={currentSegment.winning_clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+            ) : (
+              <video
+                src={currentSegment?.winning_clip?.video_url}
+                className="w-full h-full object-cover"
+                muted
+                playsInline
+              />
+            )
           )}
         </motion.div>
       </AnimatePresence>
@@ -632,8 +641,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
               <div className="overflow-y-auto h-[calc(100%-60px)] px-4 py-3">
                 {completedSegments.map((segment, index) => (
                   <motion.button key={segment.id} whileTap={{ scale: 0.98 }} onClick={() => jumpToSegment(index)} className="w-full flex items-center gap-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 mb-2 border border-white/10">
-                    <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0">
-                      <img src={segment.winning_clip?.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                    <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20">
+                      {segment.winning_clip?.thumbnail_url ? (
+                        <img src={segment.winning_clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline />
+                      )}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="w-4 h-4 text-white" />
                       </div>
@@ -761,12 +774,23 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
           </div>
         ) : (
           <>
-            {/* Thumbnail image */}
-            <img
-              src={completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url}
-              alt=""
-              className="w-full h-full object-cover"
-            />
+            {/* Thumbnail - use video preview if no thumbnail */}
+            {completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url ? (
+              <img
+                src={completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            ) : completedSegments[completedSegments.length - 1]?.winning_clip?.video_url ? (
+              <video
+                src={completedSegments[completedSegments.length - 1]?.winning_clip?.video_url}
+                className="w-full h-full object-cover"
+                muted
+                playsInline
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />
+            )}
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <Play className="w-6 h-6 text-white" />
             </div>
