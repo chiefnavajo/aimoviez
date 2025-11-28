@@ -1032,53 +1032,52 @@ function StoryPage() {
             </div>
 
             {/* Right Side Actions - TikTok Style */}
-            <div className="flex flex-col items-center gap-6 pb-24">
+            <div className="flex flex-col items-center gap-5 pb-24">
               {/* Creator Avatar */}
-              <div className="relative">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3CF2FF] to-[#FF00C7] p-0.5">
+              <div className="relative mb-2">
+                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#3CF2FF] to-[#FF00C7] p-0.5">
                   <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                    <User className="w-6 h-6 text-white/70" />
+                    <User className="w-7 h-7 text-white/70" />
                   </div>
                 </div>
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#FF00C7] flex items-center justify-center">
-                  <Plus className="w-3 h-3 text-white" />
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-[#FF0050] flex items-center justify-center">
+                  <Plus className="w-4 h-4 text-white" />
                 </div>
               </div>
 
               {/* Like Button */}
-              <button className="flex flex-col items-center gap-1 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
-                  <Heart className="w-7 h-7 text-white" />
+              <button className="flex flex-col items-center gap-1 group outline-none">
+                <div className="w-12 h-12 flex items-center justify-center">
+                  <Heart className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-white text-xs font-medium">{formatNumber(selectedSeason.total_votes)}</span>
               </button>
 
               {/* Comments Button */}
-              <button className="flex flex-col items-center gap-1 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
-                  <MessageCircle className="w-7 h-7 text-white" />
+              <button className="flex flex-col items-center gap-1 group outline-none">
+                <div className="w-12 h-12 flex items-center justify-center">
+                  <MessageCircle className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-white text-xs font-medium">{selectedSeason.total_clips}</span>
               </button>
 
               {/* Bookmark/Save Button */}
-              <button className="flex flex-col items-center gap-1 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
-                  <BookOpen className="w-7 h-7 text-white" />
+              <button className="flex flex-col items-center gap-1 group outline-none">
+                <div className="w-12 h-12 flex items-center justify-center">
+                  <BookOpen className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-white text-xs font-medium">{selectedSeason.locked_slots}</span>
               </button>
 
               {/* Share Button */}
-              <button className="flex flex-col items-center gap-1 group">
-                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
-                  <Share2 className="w-7 h-7 text-white" />
+              <button className="flex flex-col items-center gap-1 group outline-none">
+                <div className="w-12 h-12 flex items-center justify-center">
+                  <Share2 className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
                 </div>
                 <span className="text-white text-xs font-medium">Share</span>
               </button>
             </div>
           </div>
-
           {/* Navigation Arrows - Far Right */}
           <div className="absolute right-8 flex flex-col gap-3">
             <button 
