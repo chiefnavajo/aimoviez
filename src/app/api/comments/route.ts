@@ -2,7 +2,7 @@
 // Comments API - Manage comments on clips
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 
@@ -16,7 +16,13 @@ function getUserKey(req: NextRequest): string {
   return crypto.createHash('sha256').update(ip + ua).digest('hex');
 }
 
-async function getUserInfo(req: NextRequest, supabase: ReturnType<typeof createClient>) {
+interface UserData {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
+async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
   const userKey = getUserKey(req);
   let username = `User${userKey.substring(0, 6)}`;
   let avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userKey}`;
@@ -28,7 +34,7 @@ async function getUserInfo(req: NextRequest, supabase: ReturnType<typeof createC
         .from('users')
         .select('id, username, avatar_url')
         .eq('email', session.user.email)
-        .single();
+        .single<UserData>();
       
       if (userError && userError.code !== 'PGRST116') {
         // PGRST116 is "not found" which is expected for users without profiles
