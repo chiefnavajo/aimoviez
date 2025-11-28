@@ -928,112 +928,174 @@ function StoryPage() {
     setIsFullscreen(!isFullscreen);
   };
 
+  const goToPrevSeason = () => {
+    const currentIdx = MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId);
+    if (currentIdx > 0) {
+      setSelectedSeasonId(MOCK_SEASONS[currentIdx - 1].id);
+    }
+  };
+
+  const goToNextSeason = () => {
+    const currentIdx = MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId);
+    if (currentIdx < MOCK_SEASONS.length - 1) {
+      setSelectedSeasonId(MOCK_SEASONS[currentIdx + 1].id);
+    }
+  };
+
   return (
-    <div className="h-screen bg-black">
-      {/* Desktop Layout */}
-      <div className="hidden md:flex h-full items-center justify-center gap-8 px-8">
-        {/* Left Side - Season List */}
-        <div className="w-80 h-[calc(100vh-4rem)] max-h-[800px] overflow-y-auto rounded-2xl bg-zinc-900/50 border border-white/10">
-          <div className="p-4 border-b border-white/10">
-            <h2 className="text-white font-bold text-lg">Seasons</h2>
-            <p className="text-white/50 text-sm">Select a season to watch</p>
-          </div>
-          <div className="py-2">
-            {MOCK_SEASONS.map(season => (
-              <SeasonListItem
-                key={season.id}
-                season={season}
-                isSelected={season.id === selectedSeasonId}
-                onSelect={() => setSelectedSeasonId(season.id)}
-              />
-            ))}
+    <div className="h-screen bg-black overflow-hidden">
+      {/* Desktop Layout - TikTok Style */}
+      <div className="hidden md:flex h-full">
+        {/* Left Sidebar - Navigation */}
+        <div className="w-56 h-full border-r border-white/10 flex flex-col py-4 px-3">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-6">
+            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
+              AiMoviez
+            </span>
+          </Link>
+
+          {/* Navigation Items */}
+          <nav className="flex-1 space-y-1">
+            <Link href="/story">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-white/10 text-white">
+                <BookOpen className="w-6 h-6" />
+                <span className="font-semibold">Story</span>
+              </div>
+            </Link>
+            <Link href="/upload">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <Plus className="w-6 h-6" />
+                <span>Upload</span>
+              </div>
+            </Link>
+            <Link href="/leaderboard">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <Trophy className="w-6 h-6" />
+                <span>Leaderboard</span>
+              </div>
+            </Link>
+            <Link href="/profile">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <User className="w-6 h-6" />
+                <span>Profile</span>
+              </div>
+            </Link>
+          </nav>
+
+          {/* Season List at Bottom */}
+          <div className="border-t border-white/10 pt-4 mt-4">
+            <p className="text-white/50 text-xs font-medium px-3 mb-2">SEASONS</p>
+            <div className="space-y-1 max-h-48 overflow-y-auto">
+              {MOCK_SEASONS.map(season => (
+                <button
+                  key={season.id}
+                  onClick={() => setSelectedSeasonId(season.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition ${
+                    season.id === selectedSeasonId 
+                      ? 'bg-white/10 text-white' 
+                      : 'hover:bg-white/5 text-white/60'
+                  }`}
+                >
+                  <div className={`w-2 h-2 rounded-full ${
+                    season.status === 'active' ? 'bg-red-500 animate-pulse' : 
+                    season.status === 'completed' ? 'bg-green-500' : 'bg-white/30'
+                  }`} />
+                  <span className="text-sm">Season {season.number}</span>
+                  {season.status === 'active' && (
+                    <span className="text-[10px] text-red-400 font-bold">LIVE</span>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
-        {/* Center - Video Player (Phone-sized) */}
-        <div className="relative flex-shrink-0">
-          <div 
-            className="relative bg-black rounded-3xl overflow-hidden shadow-2xl shadow-black/50 border border-white/10"
-            style={{ 
-              width: '380px', 
-              height: '675px',
-              aspectRatio: '9/16'
-            }}
-          >
-            <VideoPlayer
-              season={selectedSeason}
-              onVote={handleVoteNow}
-              isFullscreen={false}
-              onToggleFullscreen={toggleFullscreen}
-            />
-          </div>
-          {/* Phone notch decoration */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl" />
-        </div>
-
-        {/* Right Side - Actions & Info */}
-        <div className="w-80 h-[calc(100vh-4rem)] max-h-[800px] flex flex-col gap-4">
-          {/* Current Season Info */}
-          <div className="rounded-2xl bg-zinc-900/50 border border-white/10 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
-                Season {selectedSeason.number}
-              </span>
-              {selectedSeason.status === 'active' && (
-                <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/50 text-red-400 text-xs font-bold">
-                  ● LIVE
-                </span>
-              )}
-            </div>
-            <p className="text-white/70 text-sm">{selectedSeason.name}</p>
-            <div className="mt-3 flex gap-4 text-sm">
-              <div>
-                <span className="text-white font-bold">{formatNumber(selectedSeason.total_votes)}</span>
-                <span className="text-white/50 ml-1">votes</span>
-              </div>
-              <div>
-                <span className="text-white font-bold">{selectedSeason.locked_slots}/{selectedSeason.total_slots}</span>
-                <span className="text-white/50 ml-1">clips</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <div className="rounded-2xl bg-zinc-900/50 border border-white/10 p-4 flex-1">
-            <h3 className="text-white/50 text-sm font-medium mb-3">Quick Links</h3>
-            <div className="space-y-2">
-              <Link href="/upload">
-                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
-                  <Plus className="w-5 h-5 text-[#3CF2FF]" />
-                  <span className="text-white text-sm">Upload Clip</span>
-                </motion.div>
-              </Link>
-              <Link href="/leaderboard">
-                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
-                  <Trophy className="w-5 h-5 text-yellow-400" />
-                  <span className="text-white text-sm">Leaderboard</span>
-                </motion.div>
-              </Link>
-              <Link href="/profile">
-                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
-                  <User className="w-5 h-5 text-white/70" />
-                  <span className="text-white text-sm">Profile</span>
-                </motion.div>
-              </Link>
-            </div>
-          </div>
-
-          {/* Vote CTA */}
-          {selectedSeason.status === 'active' && (
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleVoteNow}
-              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold text-lg shadow-lg"
+        {/* Center - Video Player Area */}
+        <div className="flex-1 flex items-center justify-center relative">
+          {/* Video Container with Actions */}
+          <div className="flex items-end gap-4">
+            {/* Video Player - TikTok sized */}
+            <div 
+              className="relative bg-black rounded-lg overflow-hidden border border-white/10"
+              style={{ 
+                width: 'min(630px, calc((100vh - 1rem) * 9 / 16))', 
+                height: 'min(1120px, calc(100vh - 1rem))',
+              }}
             >
-              🗳️ Vote Now
-            </motion.button>
-          )}
+              <VideoPlayer
+                season={selectedSeason}
+                onVote={handleVoteNow}
+                isFullscreen={false}
+                onToggleFullscreen={toggleFullscreen}
+              />
+            </div>
+
+            {/* Right Side Actions - TikTok Style */}
+            <div className="flex flex-col items-center gap-6 pb-24">
+              {/* Creator Avatar */}
+              <div className="relative">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#3CF2FF] to-[#FF00C7] p-0.5">
+                  <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
+                    <User className="w-6 h-6 text-white/70" />
+                  </div>
+                </div>
+                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-[#FF00C7] flex items-center justify-center">
+                  <Plus className="w-3 h-3 text-white" />
+                </div>
+              </div>
+
+              {/* Like Button */}
+              <button className="flex flex-col items-center gap-1 group">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
+                  <Heart className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-white text-xs font-medium">{formatNumber(selectedSeason.total_votes)}</span>
+              </button>
+
+              {/* Comments Button */}
+              <button className="flex flex-col items-center gap-1 group">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
+                  <MessageCircle className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-white text-xs font-medium">{selectedSeason.total_clips}</span>
+              </button>
+
+              {/* Bookmark/Save Button */}
+              <button className="flex flex-col items-center gap-1 group">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
+                  <BookOpen className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-white text-xs font-medium">{selectedSeason.locked_slots}</span>
+              </button>
+
+              {/* Share Button */}
+              <button className="flex flex-col items-center gap-1 group">
+                <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-white/20 transition">
+                  <Share2 className="w-7 h-7 text-white" />
+                </div>
+                <span className="text-white text-xs font-medium">Share</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Navigation Arrows - Far Right */}
+          <div className="absolute right-8 flex flex-col gap-3">
+            <button 
+              onClick={goToPrevSeason}
+              className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition disabled:opacity-30"
+              disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
+            >
+              <ChevronDown className="w-6 h-6 text-white rotate-180" />
+            </button>
+            <button 
+              onClick={goToNextSeason}
+              className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition disabled:opacity-30"
+              disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
+            >
+              <ChevronDown className="w-6 h-6 text-white" />
+            </button>
+          </div>
         </div>
       </div>
 
