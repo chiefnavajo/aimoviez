@@ -1,5 +1,6 @@
 // app/api/comments/route.ts
 // Comments API - Manage comments on clips
+// Handles likes_count manually (no DB triggers needed)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
@@ -37,18 +38,15 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
         .single<UserData>();
       
       if (userError && userError.code !== 'PGRST116') {
-        // PGRST116 is "not found" which is expected for users without profiles
         console.error('[getUserInfo] Error fetching user data:', userError);
       }
       
       if (userData) {
-        // Use actual username and avatar from profile, but still use userKey for identification
         username = userData.username;
         avatar_url = userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`;
       }
     }
   } catch (err) {
-    // Fall back to generated username/avatar
     console.error('[getUserInfo] Error getting session:', err);
   }
   
@@ -86,12 +84,6 @@ interface CommentsResponse {
 /**
  * GET /api/comments
  * Fetch comments for a clip
- * 
- * Query params:
- * - clipId: string (required)
- * - page?: number (default: 1)
- * - limit?: number (default: 20, max: 100)
- * - sort?: 'newest' | 'top' (default: 'newest')
  */
 export async function GET(req: NextRequest) {
   try {
@@ -145,14 +137,13 @@ export async function GET(req: NextRequest) {
     // Fetch replies for each top-level comment
     const enrichedComments = await Promise.all(
       (topLevelComments || []).map(async (comment) => {
-        // Get replies
         const { data: replies } = await supabase
           .from('comments')
           .select('*')
           .eq('parent_comment_id', comment.id)
           .eq('is_deleted', false)
           .order('created_at', { ascending: true })
-          .limit(5); // Limit replies per comment
+          .limit(5);
 
         const enrichedReplies: Comment[] = (replies || []).map((reply) => ({
           id: reply.id,
@@ -195,10 +186,11 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
-    console.error('[GET /api/clip/comments] Unexpected error:', err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[GET /api/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
@@ -207,12 +199,6 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/comments
  * Create a new comment
- * 
- * Body: {
- *   clipId: string,
- *   comment_text: string,
- *   parent_comment_id?: string (for replies)
- * }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -243,7 +229,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Prepare insert data
     const insertData = {
       clip_id: clipId,
       user_key: userInfo.userKey,
@@ -251,6 +236,8 @@ export async function POST(req: NextRequest) {
       avatar_url: userInfo.avatar_url,
       comment_text: comment_text.trim(),
       parent_comment_id: parent_comment_id || null,
+      likes_count: 0,
+      is_deleted: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -269,8 +256,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TODO: Create notification for clip owner
-
     return NextResponse.json({
       success: true,
       comment: {
@@ -280,10 +265,11 @@ export async function POST(req: NextRequest) {
         replies: [],
       },
     }, { status: 201 });
-  } catch (err: any) {
-    console.error('[POST /api/clip/comments] Unexpected error:', err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[POST /api/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
@@ -291,12 +277,7 @@ export async function POST(req: NextRequest) {
 
 /**
  * PATCH /api/comments
- * Like or unlike a comment
- * 
- * Body: {
- *   comment_id: string,
- *   action: 'like' | 'unlike'
- * }
+ * Like or unlike a comment (handles likes_count manually - no DB triggers needed)
  */
 export async function PATCH(req: NextRequest) {
   try {
@@ -314,8 +295,32 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (action === 'like') {
-      // Insert like (will auto-increment likes_count via trigger)
-      const { error } = await supabase
+      // Check if already liked
+      const { data: existingLike } = await supabase
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', comment_id)
+        .eq('user_key', userInfo.userKey)
+        .maybeSingle();
+
+      if (existingLike) {
+        // Already liked, just return current count
+        const { data: comment } = await supabase
+          .from('comments')
+          .select('likes_count')
+          .eq('id', comment_id)
+          .single();
+
+        return NextResponse.json({
+          success: true,
+          comment_id,
+          likes_count: comment?.likes_count || 0,
+          already_liked: true,
+        }, { status: 200 });
+      }
+
+      // Insert like record
+      const { error: likeError } = await supabase
         .from('comment_likes')
         .insert({
           comment_id,
@@ -323,46 +328,105 @@ export async function PATCH(req: NextRequest) {
           created_at: new Date().toISOString(),
         });
 
-      if (error) {
-        // Might be duplicate - that's ok
-        if (error.code !== '23505') { // unique violation
-          console.error('[PATCH /api/comments] like error:', error);
-        }
+      if (likeError) {
+        console.error('[PATCH /api/comments] like insert error:', likeError);
+        return NextResponse.json(
+          { error: 'Failed to like comment' },
+          { status: 500 }
+        );
       }
+
+      // Get current count and increment
+      const { data: currentComment } = await supabase
+        .from('comments')
+        .select('likes_count')
+        .eq('id', comment_id)
+        .single();
+
+      const newCount = (currentComment?.likes_count || 0) + 1;
+
+      await supabase
+        .from('comments')
+        .update({ likes_count: newCount })
+        .eq('id', comment_id);
+
+      return NextResponse.json({
+        success: true,
+        comment_id,
+        likes_count: newCount,
+      }, { status: 200 });
+
     } else if (action === 'unlike') {
-      // Delete like (will auto-decrement likes_count via trigger)
-      const { error } = await supabase
+      // Check if liked
+      const { data: existingLike } = await supabase
+        .from('comment_likes')
+        .select('id')
+        .eq('comment_id', comment_id)
+        .eq('user_key', userInfo.userKey)
+        .maybeSingle();
+
+      if (!existingLike) {
+        // Not liked, just return current count
+        const { data: comment } = await supabase
+          .from('comments')
+          .select('likes_count')
+          .eq('id', comment_id)
+          .single();
+
+        return NextResponse.json({
+          success: true,
+          comment_id,
+          likes_count: comment?.likes_count || 0,
+          not_liked: true,
+        }, { status: 200 });
+      }
+
+      // Delete like record
+      const { error: unlikeError } = await supabase
         .from('comment_likes')
         .delete()
         .eq('comment_id', comment_id)
         .eq('user_key', userInfo.userKey);
 
-      if (error) {
-        console.error('[PATCH /api/comments] unlike error:', error);
+      if (unlikeError) {
+        console.error('[PATCH /api/comments] unlike delete error:', unlikeError);
+        return NextResponse.json(
+          { error: 'Failed to unlike comment' },
+          { status: 500 }
+        );
       }
+
+      // Get current count and decrement
+      const { data: currentComment } = await supabase
+        .from('comments')
+        .select('likes_count')
+        .eq('id', comment_id)
+        .single();
+
+      const newCount = Math.max(0, (currentComment?.likes_count || 0) - 1);
+
+      await supabase
+        .from('comments')
+        .update({ likes_count: newCount })
+        .eq('id', comment_id);
+
+      return NextResponse.json({
+        success: true,
+        comment_id,
+        likes_count: newCount,
+      }, { status: 200 });
+
     } else {
       return NextResponse.json(
         { error: 'action must be "like" or "unlike"' },
         { status: 400 }
       );
     }
-
-    // Get updated comment
-    const { data: comment } = await supabase
-      .from('comments')
-      .select('likes_count')
-      .eq('id', comment_id)
-      .single();
-
-    return NextResponse.json({
-      success: true,
-      comment_id,
-      likes_count: comment?.likes_count || 0,
-    }, { status: 200 });
-  } catch (err: any) {
-    console.error('[PATCH /api/clip/comments] Unexpected error:', err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[PATCH /api/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }
@@ -371,10 +435,6 @@ export async function PATCH(req: NextRequest) {
 /**
  * DELETE /api/comments
  * Delete own comment (soft delete)
- * 
- * Body: {
- *   comment_id: string
- * }
  */
 export async function DELETE(req: NextRequest) {
   try {
@@ -391,17 +451,16 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // Soft delete (set is_deleted = true)
     const { data: comment, error } = await supabase
       .from('comments')
-      .update({ is_deleted: true })
+      .update({ is_deleted: true, updated_at: new Date().toISOString() })
       .eq('id', comment_id)
-      .eq('user_key', userInfo.userKey) // Ensure user owns the comment
+      .eq('user_key', userInfo.userKey)
       .select()
       .single();
 
     if (error || !comment) {
-      console.error('[DELETE /api/clip/comments] error:', error);
+      console.error('[DELETE /api/comments] error:', error);
       return NextResponse.json(
         { error: 'Failed to delete comment or comment not found' },
         { status: 500 }
@@ -412,10 +471,11 @@ export async function DELETE(req: NextRequest) {
       success: true,
       message: 'Comment deleted successfully',
     }, { status: 200 });
-  } catch (err: any) {
-    console.error('[DELETE /api/clip/comments] Unexpected error:', err);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    console.error('[DELETE /api/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error', details: errorMessage },
       { status: 500 }
     );
   }

@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Upload, Check, X, Loader2, AlertCircle, BookOpen, User, Play, Volume2, VolumeX, Plus, Heart, Trophy } from 'lucide-react';
+import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 
 // ============================================================================
@@ -22,11 +22,7 @@ const GENRES: GenreType[] = [
   { id: 'action', name: 'Action', emoji: '💥', color: 'from-red-500 to-orange-500' },
   { id: 'comedy', name: 'Comedy', emoji: '😂', color: 'from-yellow-500 to-amber-500' },
   { id: 'thriller', name: 'Thriller', emoji: '🔪', color: 'from-purple-500 to-pink-500' },
-  { id: 'scifi', name: 'Sci-Fi', emoji: '🚀', color: 'from-blue-500 to-cyan-500' },
-  { id: 'romance', name: 'Romance', emoji: '❤️', color: 'from-pink-500 to-rose-500' },
   { id: 'animation', name: 'Animation', emoji: '🎨', color: 'from-indigo-500 to-purple-500' },
-  { id: 'horror', name: 'Horror', emoji: '👻', color: 'from-gray-600 to-gray-900' },
-  { id: 'other', name: 'Other', emoji: '🎬', color: 'from-cyan-500 to-purple-500' },
 ];
 
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
@@ -44,6 +40,7 @@ export default function UploadPage() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [video, setVideo] = useState<File | null>(null);
   const [genre, setGenre] = useState('');
+  const [title, setTitle] = useState('');
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [errors, setErrors] = useState<string[]>([]);
@@ -51,6 +48,15 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+
+  // Cleanup video preview URL on unmount
+  useEffect(() => {
+    return () => {
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
+    };
+  }, [videoPreview]);
 
   const validateVideo = async (file: File): Promise<string[]> => {
     const errors: string[] = [];
@@ -77,8 +83,17 @@ export default function UploadPage() {
       return;
     }
     setErrors([]);
+    
+    // Clean up previous preview URL to prevent memory leaks
+    if (videoPreview) {
+      URL.revokeObjectURL(videoPreview);
+    }
+    
     setVideo(file);
     setVideoPreview(URL.createObjectURL(file));
+    // Auto-populate title from filename (without extension)
+    const autoTitle = file.name.replace(/\.[^/.]+$/, '').slice(0, 50);
+    setTitle(autoTitle);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -92,11 +107,48 @@ export default function UploadPage() {
     if (!video || !genre) return;
     setIsUploading(true);
     setUploadProgress(0);
-    const interval = setInterval(() => setUploadProgress(p => Math.min(p + 10, 90)), 200);
-    await new Promise(r => setTimeout(r, 2000));
-    clearInterval(interval);
-    setUploadProgress(100);
-    setTimeout(() => { setStep(3); setTimeout(() => router.push('/dashboard'), 3000); }, 500);
+    setErrors([]);
+
+    try {
+      // Create form data for upload
+      const formData = new FormData();
+      formData.append('video', video);
+      formData.append('genre', genre);
+      formData.append('title', title.trim());
+      formData.append('description', '');
+
+      // Simulate progress while uploading
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => Math.min(prev + 5, 85));
+      }, 300);
+
+      // Call the real upload API
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      clearInterval(progressInterval);
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      // Success!
+      setUploadProgress(100);
+      setStep(3);
+      
+      // Redirect to dashboard after showing success
+      setTimeout(() => router.push('/dashboard'), 3000);
+
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      setErrors([errorMessage]);
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const renderUploadContent = () => (
@@ -164,21 +216,48 @@ export default function UploadPage() {
           <motion.div key="step2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
             <button onClick={() => setStep(1)} className="text-white/60 hover:text-white flex items-center gap-2">← Back</button>
             <div className="text-center mb-6">
-              <h1 className="text-2xl font-black mb-2">Choose a Genre</h1>
-              <p className="text-white/60">What category best fits your clip?</p>
+              <h1 className="text-2xl font-black mb-2">Add Details</h1>
+              <p className="text-white/60">Give your clip a title and genre</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            {/* Title Input */}
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Clip Title</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value.slice(0, 50))}
+                placeholder="Give your clip a catchy title..."
+                className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-white placeholder-white/40 focus:border-cyan-500 focus:outline-none transition-colors"
+                maxLength={50}
+              />
+              <p className="text-xs text-white/40 mt-1 text-right">{title.length}/50</p>
+            </div>
+
+            {/* Genre Selection */}
+            <div>
+              <label className="block text-sm font-medium text-white/80 mb-2">Genre</label>
+              <div className="grid grid-cols-2 gap-3">
               {GENRES.map((g) => (
                 <motion.button key={g.id} whileTap={{ scale: 0.95 }} onClick={() => setGenre(g.id)} className={`p-4 rounded-xl border-2 transition-all ${genre === g.id ? 'border-cyan-500 bg-cyan-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
                   <span className="text-2xl mb-2 block">{g.emoji}</span>
                   <span className="font-bold">{g.name}</span>
                 </motion.button>
               ))}
+              </div>
             </div>
 
+            {/* Errors */}
+            {errors.length > 0 && (
+              <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-xl">
+                {errors.map((error, i) => (
+                  <div key={i} className="flex items-center gap-2 text-red-400 text-sm"><AlertCircle className="w-4 h-4 flex-shrink-0" />{error}</div>
+                ))}
+              </div>
+            )}
+
             {/* Submit Button */}
-            <motion.button whileTap={{ scale: 0.98 }} onClick={handleSubmit} disabled={!genre || isUploading} className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/40'}`}>
+            <motion.button whileTap={{ scale: 0.98 }} onClick={handleSubmit} disabled={!genre || !title.trim() || isUploading} className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && title.trim() && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/40'}`}>
               {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</> : 'Submit Clip'}
             </motion.button>
 
