@@ -1,44 +1,7 @@
 // lib/pusher-realtime.ts
-// Pusher Real-time Configuration (optional feature)
+// Pusher Real-time Configuration (client-side only)
 
 import PusherClient from 'pusher-js';
-
-// ============================================================================
-// SERVER-SIDE PUSHER (for triggering events)
-// ============================================================================
-
-// Note: Server-side Pusher requires 'pusher' package (npm install pusher)
-// It's optional - if not installed, real-time triggers will be disabled
-
-let pusherServer: any = null;
-
-export async function getPusherServer(): Promise<any | null> {
-  // Only initialize if credentials are available
-  if (!process.env.PUSHER_APP_ID || 
-      !process.env.PUSHER_SECRET || 
-      !process.env.NEXT_PUBLIC_PUSHER_KEY || 
-      !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) {
-    return null;
-  }
-
-  if (!pusherServer) {
-    try {
-      const Pusher = (await import('pusher')).default;
-      pusherServer = new Pusher({
-        appId: process.env.PUSHER_APP_ID,
-        key: process.env.NEXT_PUBLIC_PUSHER_KEY,
-        secret: process.env.PUSHER_SECRET,
-        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-        useTLS: true,
-      });
-    } catch {
-      // Pusher package not installed - that's OK
-      return null;
-    }
-  }
-
-  return pusherServer;
-}
 
 // ============================================================================
 // CLIENT-SIDE PUSHER (for React components)
@@ -81,6 +44,18 @@ export function getPusherClient(): PusherClient | null {
 }
 
 // ============================================================================
+// SERVER-SIDE PUSHER STUB
+// ============================================================================
+// To enable server-side Pusher triggers, run: npm install pusher
+// Then implement getPusherServer() with the 'pusher' package
+
+export async function getPusherServer(): Promise<null> {
+  // Server-side Pusher not configured
+  // Install 'pusher' package and configure to enable
+  return null;
+}
+
+// ============================================================================
 // REAL-TIME EVENT TYPES
 // ============================================================================
 
@@ -118,48 +93,20 @@ export const PUSHER_CHANNELS = {
 } as const;
 
 // ============================================================================
-// SERVER-SIDE TRIGGER FUNCTIONS
+// SERVER-SIDE TRIGGER FUNCTIONS (stubs - returns false when not configured)
 // ============================================================================
 
-export async function triggerVoteUpdate(event: VoteUpdateEvent): Promise<boolean> {
-  const pusher = await getPusherServer();
-  if (!pusher) return false;
-
-  try {
-    await pusher.trigger(PUSHER_CHANNELS.VOTING, 'vote-update', event);
-    return true;
-  } catch (error) {
-    console.error('Failed to trigger vote update:', error);
-    return false;
-  }
+export async function triggerVoteUpdate(_event: VoteUpdateEvent): Promise<boolean> {
+  // Server-side Pusher not configured
+  return false;
 }
 
-export async function triggerSlotUpdate(event: SlotUpdateEvent): Promise<boolean> {
-  const pusher = await getPusherServer();
-  if (!pusher) return false;
-
-  try {
-    await pusher.trigger(PUSHER_CHANNELS.SLOTS, 'slot-update', event);
-    return true;
-  } catch (error) {
-    console.error('Failed to trigger slot update:', error);
-    return false;
-  }
+export async function triggerSlotUpdate(_event: SlotUpdateEvent): Promise<boolean> {
+  // Server-side Pusher not configured
+  return false;
 }
 
-export async function triggerNotification(event: NotificationEvent): Promise<boolean> {
-  const pusher = await getPusherServer();
-  if (!pusher) return false;
-
-  try {
-    await pusher.trigger(
-      PUSHER_CHANNELS.NOTIFICATIONS(event.userId),
-      'new-notification',
-      event
-    );
-    return true;
-  } catch (error) {
-    console.error('Failed to trigger notification:', error);
-    return false;
-  }
+export async function triggerNotification(_event: NotificationEvent): Promise<boolean> {
+  // Server-side Pusher not configured
+  return false;
 }
