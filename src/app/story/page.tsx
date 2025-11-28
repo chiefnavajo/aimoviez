@@ -1011,17 +1011,10 @@ function StoryPage() {
           </div>
         </div>
 
-        {/* Center - Video Player Area */}
-        <div className="flex-1 flex items-center justify-center relative h-full">
-          {/* Video Player - Full height */}
-          <div 
-            className="relative bg-black overflow-hidden"
-            style={{ 
-              width: 'calc((100vh - 1rem) * 9 / 16)', 
-              height: 'calc(100vh - 1rem)',
-              maxWidth: '700px',
-            }}
-          >
+        {/* Center - Video Player Area - Full Screen */}
+        <div className="flex-1 h-full relative">
+          {/* Video Player - Full screen */}
+          <div className="absolute inset-0">
             <VideoPlayer
               season={selectedSeason}
               onVote={handleVoteNow}
@@ -1031,17 +1024,17 @@ function StoryPage() {
           </div>
 
           {/* Navigation Arrows - Far Right */}
-          <div className="absolute right-8 flex flex-col gap-3">
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
             <button 
               onClick={goToPrevSeason}
-              className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition disabled:opacity-30"
+              className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
               disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
             >
               <ChevronDown className="w-6 h-6 text-white rotate-180" />
             </button>
             <button 
               onClick={goToNextSeason}
-              className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition disabled:opacity-30"
+              className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
               disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
             >
               <ChevronDown className="w-6 h-6 text-white" />
