@@ -40,23 +40,25 @@ interface CommentsResponse {
 }
 
 /**
- * GET /api/clip/[clipId]/comments
+ * GET /api/comments
  * Fetch comments for a clip
  * 
  * Query params:
+ * - clipId: string (required)
  * - page?: number (default: 1)
  * - limit?: number (default: 20, max: 100)
  * - sort?: 'newest' | 'top' (default: 'newest')
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { clipId: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);
     const { searchParams } = new URL(req.url);
-    const { clipId } = params;
+    const clipId = searchParams.get('clipId');
+    
+    if (!clipId) {
+      return NextResponse.json({ error: 'clipId is required' }, { status: 400 });
+    }
     
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
@@ -159,25 +161,29 @@ export async function GET(
 }
 
 /**
- * POST /api/clip/[clipId]/comments
+ * POST /api/comments
  * Create a new comment
  * 
  * Body: {
+ *   clipId: string,
  *   comment_text: string,
  *   parent_comment_id?: string (for replies)
  * }
  */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: { clipId: string } }
-) {
+export async function POST(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);
-    const { clipId } = params;
     const body = await req.json();
 
-    const { comment_text, parent_comment_id } = body;
+    const { clipId, comment_text, parent_comment_id } = body;
+
+    if (!clipId) {
+      return NextResponse.json(
+        { error: 'clipId is required' },
+        { status: 400 }
+      );
+    }
 
     if (!comment_text || comment_text.trim().length === 0) {
       return NextResponse.json(
@@ -241,7 +247,7 @@ export async function POST(
 }
 
 /**
- * PATCH /api/clip/[clipId]/comments
+ * PATCH /api/comments
  * Like or unlike a comment
  * 
  * Body: {
@@ -249,10 +255,7 @@ export async function POST(
  *   action: 'like' | 'unlike'
  * }
  */
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: { clipId: string } }
-) {
+export async function PATCH(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);
@@ -323,17 +326,14 @@ export async function PATCH(
 }
 
 /**
- * DELETE /api/clip/[clipId]/comments
+ * DELETE /api/comments
  * Delete own comment (soft delete)
  * 
  * Body: {
  *   comment_id: string
  * }
  */
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { clipId: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);
