@@ -304,6 +304,20 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setIsPlaying(false);
   }, [season.id]);
 
+  // Control video playback when isPlaying changes
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(() => {
+          // Autoplay blocked, user needs to interact first
+          setIsPlaying(false);
+        });
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying, currentIndex]);
+
   // Auto-advance segments
   useEffect(() => {
     if (!isPlaying || completedSegments.length === 0) return;
@@ -340,12 +354,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       setTimeout(() => {
         // If no second tap happened, toggle play/pause
         if (Date.now() - now >= DOUBLE_TAP_DELAY - 50) {
-          setIsPlaying(prev => {
-            if (videoRef.current) {
-              prev ? videoRef.current.pause() : videoRef.current.play();
-            }
-            return !prev;
-          });
+          setIsPlaying(prev => !prev);
         }
       }, DOUBLE_TAP_DELAY);
     }
@@ -354,9 +363,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const handlePlayPause = () => {
     if (completedSegments.length === 0 || showContributors || showComments) return;
     setIsPlaying(!isPlaying);
-    if (videoRef.current) {
-      isPlaying ? videoRef.current.pause() : videoRef.current.play();
-    }
   };
 
   const toggleMute = (e: React.MouseEvent) => {
@@ -426,27 +432,37 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       {/* Video/Image */}
       <AnimatePresence mode="wait">
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-          {isPlaying && currentSegment?.winning_clip?.video_url ? (
-            <video
-              ref={videoRef}
-              src={currentSegment.winning_clip.video_url}
-              poster={currentSegment.winning_clip.thumbnail_url || undefined}
-              className="w-full h-full object-cover"
-              autoPlay
-              muted={isMuted}
-              playsInline
-            />
-          ) : (
-            currentSegment?.winning_clip?.thumbnail_url ? (
-              <img src={currentSegment.winning_clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
-            ) : (
+          {currentSegment?.winning_clip?.video_url ? (
+            <>
               <video
-                src={currentSegment?.winning_clip?.video_url}
+                ref={videoRef}
+                src={currentSegment.winning_clip.video_url}
+                poster={currentSegment.winning_clip.thumbnail_url || undefined}
                 className="w-full h-full object-cover"
-                muted
+                muted={isMuted}
                 playsInline
+                onEnded={() => {
+                  // Auto-advance to next segment
+                  if (currentIndex < completedSegments.length - 1) {
+                    setCurrentIndex(currentIndex + 1);
+                  } else {
+                    setIsPlaying(false);
+                  }
+                }}
               />
-            )
+              {/* Play button overlay when paused */}
+              {!isPlaying && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                  <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <Play className="w-10 h-10 text-white ml-1" fill="white" />
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20 flex items-center justify-center">
+              <Play className="w-16 h-16 text-white/50" />
+            </div>
           )}
         </motion.div>
       </AnimatePresence>
