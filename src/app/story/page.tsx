@@ -120,8 +120,13 @@ function getTopContributors(segments: Slot[]): { username: string; avatar_url: s
 }
 
 // ============================================================================
-// MOCK DATA
+// MOCK DATA - Using public test videos
 // ============================================================================
+
+const TEST_VIDEO_1 = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4';
+const TEST_VIDEO_2 = 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4';
+const TEST_THUMB_1 = 'https://picsum.photos/seed/spooky/400/711';
+const TEST_THUMB_2 = 'https://picsum.photos/seed/ballet/400/711';
 
 const MOCK_SEASONS: Season[] = [
   {
@@ -135,13 +140,13 @@ const MOCK_SEASONS: Season[] = [
     total_clips: 342,
     total_creators: 156,
     current_voting_slot: 6,
-    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
+    thumbnail_url: TEST_THUMB_1,
     slots: [
-      { id: 's2-1', slot_position: 1, status: 'locked', winning_clip: { id: 'c1', video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4', thumbnail_url: '/uploads/spooky-thumbnail.jpg', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3', vote_count: 4521, genre: 'Horror' } },
-      { id: 's2-2', slot_position: 2, status: 'locked', winning_clip: { id: 'c2', video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4', thumbnail_url: '/uploads/ballet-thumbnail.jpg', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet', vote_count: 3847, genre: 'Comedy' } },
-      { id: 's2-3', slot_position: 3, status: 'locked', winning_clip: { id: 'c3', video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4', thumbnail_url: '/uploads/spooky-thumbnail.jpg', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard', vote_count: 2654, genre: 'Comedy' } },
-      { id: 's2-4', slot_position: 4, status: 'locked', winning_clip: { id: 'c4', video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4', thumbnail_url: '/uploads/ballet-thumbnail.jpg', username: 'neon_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon', vote_count: 2201, genre: 'Thriller' } },
-      { id: 's2-5', slot_position: 5, status: 'locked', winning_clip: { id: 'c5', video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4', thumbnail_url: '/uploads/spooky-thumbnail.jpg', username: 'movie_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=master', vote_count: 1896, genre: 'Action' } },
+      { id: 's2-1', slot_position: 1, status: 'locked', winning_clip: { id: 'c1', video_url: TEST_VIDEO_1, thumbnail_url: TEST_THUMB_1, username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3', vote_count: 4521, genre: 'Horror' } },
+      { id: 's2-2', slot_position: 2, status: 'locked', winning_clip: { id: 'c2', video_url: TEST_VIDEO_2, thumbnail_url: TEST_THUMB_2, username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet', vote_count: 3847, genre: 'Comedy' } },
+      { id: 's2-3', slot_position: 3, status: 'locked', winning_clip: { id: 'c3', video_url: TEST_VIDEO_1, thumbnail_url: TEST_THUMB_1, username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard', vote_count: 2654, genre: 'Comedy' } },
+      { id: 's2-4', slot_position: 4, status: 'locked', winning_clip: { id: 'c4', video_url: TEST_VIDEO_2, thumbnail_url: TEST_THUMB_2, username: 'neon_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon', vote_count: 2201, genre: 'Thriller' } },
+      { id: 's2-5', slot_position: 5, status: 'locked', winning_clip: { id: 'c5', video_url: TEST_VIDEO_1, thumbnail_url: TEST_THUMB_1, username: 'movie_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=master', vote_count: 1896, genre: 'Action' } },
       { id: 's2-6', slot_position: 6, status: 'voting' },
       ...Array.from({ length: 69 }, (_, i) => ({ id: `s2-${i + 7}`, slot_position: i + 7, status: 'upcoming' as SlotStatus })),
     ],
@@ -164,7 +169,7 @@ const MOCK_SEASONS: Season[] = [
       status: 'locked' as SlotStatus,
       winning_clip: {
         id: `s1-clip-${i + 1}`,
-        video_url: `/videos/s1-clip${i + 1}.mp4`,
+        video_url: i % 2 === 0 ? TEST_VIDEO_1 : TEST_VIDEO_2,
         thumbnail_url: `https://picsum.photos/seed/s1c${i + 1}/400/711`,
         username: `creator_${i + 1}`,
         avatar_url: `https://api.dicebear.com/7.x/identicon/svg?seed=s1creator${i + 1}`,
