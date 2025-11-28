@@ -945,9 +945,19 @@ function StoryPage() {
   return (
     <div className="h-screen bg-black overflow-hidden">
       {/* Desktop Layout - TikTok Style */}
-      <div className="hidden md:flex h-full">
-        {/* Left Sidebar - Navigation */}
-        <div className="w-56 h-full border-r border-white/10 flex flex-col py-4 px-3">
+      <div className="hidden md:flex h-full relative">
+        {/* Full Screen Video Background */}
+        <div className="absolute inset-0 z-0">
+          <VideoPlayer
+            season={selectedSeason}
+            onVote={handleVoteNow}
+            isFullscreen={false}
+            onToggleFullscreen={toggleFullscreen}
+          />
+        </div>
+
+        {/* Left Sidebar - Navigation (Transparent) */}
+        <div className="w-56 h-full border-r border-white/10 flex flex-col py-4 px-3 relative z-10 bg-black/40 backdrop-blur-sm">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-6">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
@@ -1011,35 +1021,22 @@ function StoryPage() {
           </div>
         </div>
 
-        {/* Center - Video Player Area - Full Screen */}
-        <div className="flex-1 h-full relative">
-          {/* Video Player - Full screen */}
-          <div className="absolute inset-0">
-            <VideoPlayer
-              season={selectedSeason}
-              onVote={handleVoteNow}
-              isFullscreen={false}
-              onToggleFullscreen={toggleFullscreen}
-            />
-          </div>
-
-          {/* Navigation Arrows - Far Right */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
-            <button 
-              onClick={goToPrevSeason}
-              className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
-              disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
-            >
-              <ChevronDown className="w-6 h-6 text-white rotate-180" />
-            </button>
-            <button 
-              onClick={goToNextSeason}
-              className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
-              disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
-            >
-              <ChevronDown className="w-6 h-6 text-white" />
-            </button>
-          </div>
+        {/* Navigation Arrows - Far Right (Fixed Position) */}
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+          <button 
+            onClick={goToPrevSeason}
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
+            disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
+          >
+            <ChevronDown className="w-6 h-6 text-white rotate-180" />
+          </button>
+          <button 
+            onClick={goToNextSeason}
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
+            disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
+          >
+            <ChevronDown className="w-6 h-6 text-white" />
+          </button>
         </div>
       </div>
 
