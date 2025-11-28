@@ -1012,72 +1012,24 @@ function StoryPage() {
         </div>
 
         {/* Center - Video Player Area */}
-        <div className="flex-1 flex items-center justify-center relative">
-          {/* Video Container with Actions */}
-          <div className="flex items-end gap-4">
-            {/* Video Player - TikTok sized */}
-            <div 
-              className="relative bg-black rounded-lg overflow-hidden border border-white/10"
-              style={{ 
-                width: 'min(630px, calc((100vh - 1rem) * 9 / 16))', 
-                height: 'min(1120px, calc(100vh - 1rem))',
-              }}
-            >
-              <VideoPlayer
-                season={selectedSeason}
-                onVote={handleVoteNow}
-                isFullscreen={false}
-                onToggleFullscreen={toggleFullscreen}
-              />
-            </div>
-
-            {/* Right Side Actions - TikTok Style */}
-            <div className="flex flex-col items-center gap-5 pb-24">
-              {/* Creator Avatar */}
-              <div className="relative mb-2">
-                <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#3CF2FF] to-[#FF00C7] p-0.5">
-                  <div className="w-full h-full rounded-full bg-black flex items-center justify-center overflow-hidden">
-                    <User className="w-7 h-7 text-white/70" />
-                  </div>
-                </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-[#FF0050] flex items-center justify-center">
-                  <Plus className="w-4 h-4 text-white" />
-                </div>
-              </div>
-
-              {/* Like Button */}
-              <button className="flex flex-col items-center gap-1 group outline-none">
-                <div className="w-12 h-12 flex items-center justify-center">
-                  <Heart className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-white text-xs font-medium">{formatNumber(selectedSeason.total_votes)}</span>
-              </button>
-
-              {/* Comments Button */}
-              <button className="flex flex-col items-center gap-1 group outline-none">
-                <div className="w-12 h-12 flex items-center justify-center">
-                  <MessageCircle className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-white text-xs font-medium">{selectedSeason.total_clips}</span>
-              </button>
-
-              {/* Bookmark/Save Button */}
-              <button className="flex flex-col items-center gap-1 group outline-none">
-                <div className="w-12 h-12 flex items-center justify-center">
-                  <BookOpen className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-white text-xs font-medium">{selectedSeason.locked_slots}</span>
-              </button>
-
-              {/* Share Button */}
-              <button className="flex flex-col items-center gap-1 group outline-none">
-                <div className="w-12 h-12 flex items-center justify-center">
-                  <Share2 className="w-8 h-8 text-white group-hover:scale-110 transition-transform" />
-                </div>
-                <span className="text-white text-xs font-medium">Share</span>
-              </button>
-            </div>
+        <div className="flex-1 flex items-center justify-center relative h-full">
+          {/* Video Player - Full height */}
+          <div 
+            className="relative bg-black overflow-hidden"
+            style={{ 
+              width: 'calc((100vh - 1rem) * 9 / 16)', 
+              height: 'calc(100vh - 1rem)',
+              maxWidth: '700px',
+            }}
+          >
+            <VideoPlayer
+              season={selectedSeason}
+              onVote={handleVoteNow}
+              isFullscreen={false}
+              onToggleFullscreen={toggleFullscreen}
+            />
           </div>
+
           {/* Navigation Arrows - Far Right */}
           <div className="absolute right-8 flex flex-col gap-3">
             <button 
