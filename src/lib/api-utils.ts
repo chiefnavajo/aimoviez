@@ -406,12 +406,7 @@ class SimpleCache {
 // Export singleton cache instance
 export const apiCache = new SimpleCache();
 
-// Clean up cache every 5 minutes
-if (typeof global !== 'undefined' && !global.cacheCleanupInterval) {
-  global.cacheCleanupInterval = setInterval(() => {
-    apiCache.cleanup();
-  }, 5 * 60 * 1000);
-}
+// Note: Cache cleanup happens automatically when items are accessed after expiry
 
 /**
  * Execute cached query
