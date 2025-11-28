@@ -929,76 +929,186 @@ function StoryPage() {
   };
 
   return (
-    <div className="h-screen bg-black flex flex-col">
-      {/* Video Player */}
-      <motion.div
-        className="relative"
-        animate={{
-          height: isFullscreen ? '100vh' : '55vh',
-        }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-      >
-        <VideoPlayer
-          season={selectedSeason}
-          onVote={handleVoteNow}
-          isFullscreen={isFullscreen}
-          onToggleFullscreen={toggleFullscreen}
-        />
-      </motion.div>
+    <div className="h-screen bg-black">
+      {/* Desktop Layout */}
+      <div className="hidden md:flex h-full items-center justify-center gap-8 px-8">
+        {/* Left Side - Season List */}
+        <div className="w-80 h-[calc(100vh-4rem)] max-h-[800px] overflow-y-auto rounded-2xl bg-zinc-900/50 border border-white/10">
+          <div className="p-4 border-b border-white/10">
+            <h2 className="text-white font-bold text-lg">Seasons</h2>
+            <p className="text-white/50 text-sm">Select a season to watch</p>
+          </div>
+          <div className="py-2">
+            {MOCK_SEASONS.map(season => (
+              <SeasonListItem
+                key={season.id}
+                season={season}
+                isSelected={season.id === selectedSeasonId}
+                onSelect={() => setSelectedSeasonId(season.id)}
+              />
+            ))}
+          </div>
+        </div>
 
-      {/* Season List (hidden when fullscreen) */}
-      <AnimatePresence>
-        {!isFullscreen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="flex-1 overflow-y-auto border-t border-white/10"
+        {/* Center - Video Player (Phone-sized) */}
+        <div className="relative flex-shrink-0">
+          <div 
+            className="relative bg-black rounded-3xl overflow-hidden shadow-2xl shadow-black/50 border border-white/10"
+            style={{ 
+              width: '380px', 
+              height: '675px',
+              aspectRatio: '9/16'
+            }}
           >
-            <div className="py-2">
-              {MOCK_SEASONS.map(season => (
-                <SeasonListItem
-                  key={season.id}
-                  season={season}
-                  isSelected={season.id === selectedSeasonId}
-                  onSelect={() => setSelectedSeasonId(season.id)}
-                />
-              ))}
+            <VideoPlayer
+              season={selectedSeason}
+              onVote={handleVoteNow}
+              isFullscreen={false}
+              onToggleFullscreen={toggleFullscreen}
+            />
+          </div>
+          {/* Phone notch decoration */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-black rounded-b-2xl" />
+        </div>
+
+        {/* Right Side - Actions & Info */}
+        <div className="w-80 h-[calc(100vh-4rem)] max-h-[800px] flex flex-col gap-4">
+          {/* Current Season Info */}
+          <div className="rounded-2xl bg-zinc-900/50 border border-white/10 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
+                Season {selectedSeason.number}
+              </span>
+              {selectedSeason.status === 'active' && (
+                <span className="px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/50 text-red-400 text-xs font-bold">
+                  ● LIVE
+                </span>
+              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Bottom Navigation (hidden when fullscreen) */}
-      <AnimatePresence>
-        {!isFullscreen && (
-          <motion.div
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 50 }}
-            className="bg-black border-t border-white/10 flex-shrink-0"
-          >
-            <div className="flex items-center justify-around px-4 py-2">
-              <div className="flex flex-col items-center gap-1 py-2 px-6">
-                <BookOpen className="w-6 h-6 text-white" />
-                <span className="text-white text-xs font-medium">Story</span>
+            <p className="text-white/70 text-sm">{selectedSeason.name}</p>
+            <div className="mt-3 flex gap-4 text-sm">
+              <div>
+                <span className="text-white font-bold">{formatNumber(selectedSeason.total_votes)}</span>
+                <span className="text-white/50 ml-1">votes</span>
               </div>
+              <div>
+                <span className="text-white font-bold">{selectedSeason.locked_slots}/{selectedSeason.total_slots}</span>
+                <span className="text-white/50 ml-1">clips</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Links */}
+          <div className="rounded-2xl bg-zinc-900/50 border border-white/10 p-4 flex-1">
+            <h3 className="text-white/50 text-sm font-medium mb-3">Quick Links</h3>
+            <div className="space-y-2">
               <Link href="/upload">
-                <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
-                  <Plus className="w-7 h-7 text-white/70" />
-                  <span className="text-white/60 text-xs">Upload</span>
+                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                  <Plus className="w-5 h-5 text-[#3CF2FF]" />
+                  <span className="text-white text-sm">Upload Clip</span>
+                </motion.div>
+              </Link>
+              <Link href="/leaderboard">
+                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  <span className="text-white text-sm">Leaderboard</span>
                 </motion.div>
               </Link>
               <Link href="/profile">
-                <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
-                  <User className="w-6 h-6 text-white/70" />
-                  <span className="text-white/60 text-xs">Profile</span>
+                <motion.div whileHover={{ x: 4 }} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 hover:bg-white/10 transition cursor-pointer">
+                  <User className="w-5 h-5 text-white/70" />
+                  <span className="text-white text-sm">Profile</span>
                 </motion.div>
               </Link>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+
+          {/* Vote CTA */}
+          {selectedSeason.status === 'active' && (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleVoteNow}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold text-lg shadow-lg"
+            >
+              🗳️ Vote Now
+            </motion.button>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile Layout (unchanged) */}
+      <div className="md:hidden h-full flex flex-col">
+        {/* Video Player */}
+        <motion.div
+          className="relative"
+          animate={{
+            height: isFullscreen ? '100vh' : '55vh',
+          }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        >
+          <VideoPlayer
+            season={selectedSeason}
+            onVote={handleVoteNow}
+            isFullscreen={isFullscreen}
+            onToggleFullscreen={toggleFullscreen}
+          />
+        </motion.div>
+
+        {/* Season List (hidden when fullscreen) */}
+        <AnimatePresence>
+          {!isFullscreen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex-1 overflow-y-auto border-t border-white/10"
+            >
+              <div className="py-2">
+                {MOCK_SEASONS.map(season => (
+                  <SeasonListItem
+                    key={season.id}
+                    season={season}
+                    isSelected={season.id === selectedSeasonId}
+                    onSelect={() => setSelectedSeasonId(season.id)}
+                  />
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Bottom Navigation (hidden when fullscreen) */}
+        <AnimatePresence>
+          {!isFullscreen && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 50 }}
+              className="bg-black border-t border-white/10 flex-shrink-0"
+            >
+              <div className="flex items-center justify-around px-4 py-2">
+                <div className="flex flex-col items-center gap-1 py-2 px-6">
+                  <BookOpen className="w-6 h-6 text-white" />
+                  <span className="text-white text-xs font-medium">Story</span>
+                </div>
+                <Link href="/upload">
+                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
+                    <Plus className="w-7 h-7 text-white/70" />
+                    <span className="text-white/60 text-xs">Upload</span>
+                  </motion.div>
+                </Link>
+                <Link href="/profile">
+                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
+                    <User className="w-6 h-6 text-white/70" />
+                    <span className="text-white/60 text-xs">Profile</span>
+                  </motion.div>
+                </Link>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }
