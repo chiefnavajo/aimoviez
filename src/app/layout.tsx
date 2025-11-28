@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { Providers } from './providers';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -25,34 +26,36 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ErrorBoundary>
-          {children}
-          
-          <Toaster
-            position="top-center"
-            toastOptions={{
-              duration: 3000,
-              style: {
-                background: '#1a1a1a',
-                color: '#fff',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '12px',
-              },
-              success: {
-                iconTheme: {
-                  primary: '#3CF2FF',
-                  secondary: '#fff',
+        <Providers>
+          <ErrorBoundary>
+            {children}
+            
+            <Toaster
+              position="top-center"
+              toastOptions={{
+                duration: 3000,
+                style: {
+                  background: '#1a1a1a',
+                  color: '#fff',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '12px',
                 },
-              },
-              error: {
-                iconTheme: {
-                  primary: '#FF00C7',
-                  secondary: '#fff',
+                success: {
+                  iconTheme: {
+                    primary: '#3CF2FF',
+                    secondary: '#fff',
+                  },
                 },
-              },
-            }}
-          />
-        </ErrorBoundary>
+                error: {
+                  iconTheme: {
+                    primary: '#FF00C7',
+                    secondary: '#fff',
+                  },
+                },
+              }}
+            />
+          </ErrorBoundary>
+        </Providers>
       </body>
     </html>
   );
