@@ -1,10 +1,10 @@
 'use client';
 
 // ============================================================================
-// LEADERBOARD PAGE - Tournament Rankings & Competition
+// LEADERBOARD PAGE - Matches Dashboard/Storyboard Style
 // ============================================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -12,484 +12,447 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
-  Clock,
-  Filter,
-  ArrowLeft,
-  Play,
-  Volume2,
-  VolumeX,
   Crown,
   Flame,
-  AlertTriangle,
-  Check,
+  Heart,
+  BookOpen,
+  Plus,
+  User,
+  Medal,
+  Users,
+  Film,
+  ChevronRight,
 } from 'lucide-react';
+import BottomNavigation from '@/components/BottomNavigation';
 
 // ============================================================================
 // TYPES
 // ============================================================================
 
-interface LeaderboardClip {
+interface LeaderboardEntry {
+  rank: number;
   id: string;
-  title: string;
-  description: string;
-  genre: string;
+  username: string;
+  avatar_url: string;
+  score: number;
+  trend: 'up' | 'down' | 'same';
+  badge?: string;
+}
+
+interface TopClip {
+  id: string;
   video_url: string;
   thumbnail_url: string;
   username: string;
   avatar_url: string;
   vote_count: number;
-  weighted_score: number;
-  hype_score: number;
-  slot_position: number;
-  created_at: string;
-  rank?: number;
-  percentage?: number;
-  trend?: 'up' | 'down' | 'same';
-}
-
-interface Season {
-  id: string;
-  status: string;
-  total_slots: number;
   genre: string;
-  start_date: string;
-  end_date: string;
+  slot_position: number;
+  season_number: number;
 }
 
-type GenreFilter = 'all' | 'action' | 'comedy' | 'thriller' | 'scifi' | 'romance' | 'animation' | 'horror' | 'other';
+type TabType = 'clips' | 'voters' | 'creators';
 
-const GENRE_EMOJIS: Record<string, string> = {
-  action: '💥',
-  comedy: '😂',
-  thriller: '🔪',
-  scifi: '🚀',
-  romance: '❤️',
-  animation: '🎨',
-  horror: '👻',
-  other: '🎬',
-};
+// ============================================================================
+// MOCK DATA
+// ============================================================================
+
+const MOCK_TOP_CLIPS: TopClip[] = [
+  {
+    id: 'clip-1',
+    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4',
+    thumbnail_url: '',
+    username: 'veo3_creator',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3',
+    vote_count: 4521,
+    genre: 'Horror',
+    slot_position: 5,
+    season_number: 2,
+  },
+  {
+    id: 'clip-2',
+    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/ballet-dancer.mp4',
+    thumbnail_url: '',
+    username: 'dance_master',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet',
+    vote_count: 3847,
+    genre: 'Comedy',
+    slot_position: 5,
+    season_number: 2,
+  },
+  {
+    id: 'clip-3',
+    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/superhero-landing.mp4',
+    thumbnail_url: '',
+    username: 'film_wizard',
+    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard',
+    vote_count: 2654,
+    genre: 'Action',
+    slot_position: 5,
+    season_number: 2,
+  },
+];
+
+const MOCK_TOP_VOTERS: LeaderboardEntry[] = [
+  { rank: 1, id: 'v1', username: 'vote_king', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=king', score: 12450, trend: 'same', badge: '👑' },
+  { rank: 2, id: 'v2', username: 'movie_lover', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lover', score: 11230, trend: 'up', badge: '🔥' },
+  { rank: 3, id: 'v3', username: 'clip_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=master', score: 10890, trend: 'down' },
+  { rank: 4, id: 'v4', username: 'daily_voter', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=daily', score: 9876, trend: 'up' },
+  { rank: 5, id: 'v5', username: 'film_fan', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fan', score: 8765, trend: 'same' },
+  { rank: 6, id: 'v6', username: 'cinema_pro', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=cinema', score: 7654, trend: 'up' },
+  { rank: 7, id: 'v7', username: 'reel_queen', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=queen', score: 6543, trend: 'down' },
+  { rank: 8, id: 'v8', username: 'screen_time', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=screen', score: 5432, trend: 'same' },
+];
+
+const MOCK_TOP_CREATORS: LeaderboardEntry[] = [
+  { rank: 1, id: 'c1', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3', score: 45210, trend: 'same', badge: '🏆' },
+  { rank: 2, id: 'c2', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard', score: 38470, trend: 'up', badge: '⭐' },
+  { rank: 3, id: 'c3', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet', score: 28920, trend: 'up' },
+  { rank: 4, id: 'c4', username: 'horror_king', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=horror', score: 21340, trend: 'down' },
+  { rank: 5, id: 'c5', username: 'comedy_queen', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=comedy', score: 18760, trend: 'same' },
+  { rank: 6, id: 'c6', username: 'action_hero', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=action', score: 15430, trend: 'up' },
+  { rank: 7, id: 'c7', username: 'scifi_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=scifi', score: 12890, trend: 'down' },
+  { rank: 8, id: 'c8', username: 'drama_director', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=drama', score: 10540, trend: 'same' },
+];
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+}
 
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
 export default function LeaderboardPage() {
-  const [clips, setClips] = useState<LeaderboardClip[]>([]);
-  const [season, setSeason] = useState<Season | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [genreFilter, setGenreFilter] = useState<GenreFilter>('all');
-  const [playingClip, setPlayingClip] = useState<string | null>(null);
-  const [mutedClips, setMutedClips] = useState<Set<string>>(new Set());
-  const [timeLeft, setTimeLeft] = useState<string>('');
-  const videoRefs = useRef<{ [key: string]: HTMLVideoElement | null }>({});
-
-  // ============================================================================
-  // FETCH DATA
-  // ============================================================================
-
-  const fetchLeaderboard = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/leaderboard');
-      const data = await response.json();
-      
-      if (data.success) {
-        setClips(data.clips || []);
-        setSeason(data.season);
-      }
-    } catch (error) {
-      console.error('Failed to fetch leaderboard:', error);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    fetchLeaderboard();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchLeaderboard, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // ============================================================================
-  // COUNTDOWN TIMER
-  // ============================================================================
-
-  useEffect(() => {
-    if (!season?.end_date) return;
-
-    const updateCountdown = () => {
-      const now = new Date().getTime();
-      const end = new Date(season.end_date).getTime();
-      const distance = end - now;
-
-      if (distance < 0) {
-        setTimeLeft('Season ended');
-        return;
-      }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-
-      setTimeLeft(`${days}d ${hours}h ${minutes}m left`);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
-    return () => clearInterval(interval);
-  }, [season]);
-
-  // ============================================================================
-  // FILTER CLIPS
-  // ============================================================================
-
-  const filteredClips = genreFilter === 'all' 
-    ? clips 
-    : clips.filter(clip => clip.genre.toLowerCase() === genreFilter);
-
-  // ============================================================================
-  // CALCULATE STATS
-  // ============================================================================
-
-  const totalVotes = clips.reduce((sum, clip) => sum + clip.vote_count, 0);
-  const topSlots = season?.total_slots || 10;
-
-  const getClipStatus = (rank: number, percentage: number) => {
-    if (rank <= topSlots) {
-      if (rank <= 3) return { label: 'MAKING IT! 🎬', color: 'text-green-400', bg: 'bg-green-500/20' };
-      if (rank <= topSlots - 2) return { label: 'SAFE ✅', color: 'text-blue-400', bg: 'bg-blue-500/20' };
-      return { label: 'AT RISK ⚠️', color: 'text-yellow-400', bg: 'bg-yellow-500/20' };
-    }
-    return { label: 'ELIMINATED ❌', color: 'text-red-400', bg: 'bg-red-500/20' };
-  };
-
-  const getRankIcon = (rank: number) => {
-    if (rank === 1) return '🥇';
-    if (rank === 2) return '🥈';
-    if (rank === 3) return '🥉';
-    return `#${rank}`;
-  };
-
-  // ============================================================================
-  // VIDEO CONTROLS
-  // ============================================================================
-
-  const togglePlay = (clipId: string) => {
-    const video = videoRefs.current[clipId];
-    if (!video) return;
-
-    if (playingClip === clipId) {
-      video.pause();
-      setPlayingClip(null);
-    } else {
-      // Pause all other videos
-      Object.entries(videoRefs.current).forEach(([id, v]) => {
-        if (v && id !== clipId) {
-          v.pause();
-        }
-      });
-      video.play().catch(err => console.error('Play error:', err));
-      setPlayingClip(clipId);
-    }
-  };
-
-  const toggleMute = (clipId: string) => {
-    setMutedClips((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(clipId)) {
-        newSet.delete(clipId);
-      } else {
-        newSet.add(clipId);
-      }
-      return newSet;
-    });
-  };
-
-  // ============================================================================
-  // RENDER
-  // ============================================================================
+  const [activeTab, setActiveTab] = useState<TabType>('clips');
+  const [topClips, setTopClips] = useState<TopClip[]>(MOCK_TOP_CLIPS);
+  const [topVoters, setTopVoters] = useState<LeaderboardEntry[]>(MOCK_TOP_VOTERS);
+  const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>(MOCK_TOP_CREATORS);
 
   return (
-    <div className="min-h-screen bg-black text-white pb-24">
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                  type="button"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </motion.button>
-              </Link>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-6 h-6 text-yellow-400" />
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-red-500 bg-clip-text text-transparent">
-                    Tournament Leaderboard
-                  </h1>
-                </div>
-                {season && (
-                  <div className="flex items-center gap-3 mt-1">
-                    <p className="text-sm text-white/60">Season {season.id.slice(0, 8)}</p>
-                    {timeLeft && (
-                      <div className="flex items-center gap-1 text-xs text-cyan-400">
-                        <Clock className="w-3 h-3" />
-                        {timeLeft}
-                      </div>
-                    )}
-                  </div>
-                )}
+    <div className="min-h-screen bg-black text-white">
+      {/* Desktop Layout */}
+      <div className="hidden md:flex h-screen">
+        {/* Left Sidebar - Navigation */}
+        <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
+          {/* Logo */}
+          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4">
+            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
+              AiMoviez
+            </span>
+          </Link>
+
+          {/* Vote Now Button */}
+          <Link href="/dashboard" className="mb-4">
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"
+            >
+              <Heart className="w-5 h-5" fill="white" />
+              <span>Vote Now</span>
+            </motion.div>
+          </Link>
+
+          {/* Navigation Items */}
+          <nav className="flex-1 space-y-1">
+            <Link href="/story">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <BookOpen className="w-6 h-6" />
+                <span>Story</span>
               </div>
-            </div>
-
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={fetchLeaderboard}
-              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-              type="button"
-            >
-              <TrendingUp className="w-5 h-5 text-green-400" />
-            </motion.button>
-          </div>
+            </Link>
+            <Link href="/upload">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <Plus className="w-6 h-6" />
+                <span>Upload</span>
+              </div>
+            </Link>
+            <Link href="/leaderboard">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-white/10 text-white border border-white/10">
+                <Trophy className="w-6 h-6 text-yellow-500" />
+                <span className="font-semibold">Leaderboard</span>
+              </div>
+            </Link>
+            <Link href="/profile">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+                <User className="w-6 h-6" />
+                <span>Profile</span>
+              </div>
+            </Link>
+          </nav>
         </div>
-      </header>
 
-      {/* Stats Banner */}
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="bg-gradient-to-r from-purple-500/20 via-cyan-500/20 to-purple-500/20 rounded-xl p-6 border border-white/10 backdrop-blur-sm">
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-3xl font-bold">{clips.length}</p>
-              <p className="text-sm text-white/60">Competing Clips</p>
+        {/* Main Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-4xl mx-auto px-6 py-8">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
+                <Trophy className="w-8 h-8 text-yellow-500" />
+                Leaderboard
+              </h1>
+              <p className="text-white/60">Top clips, voters, and creators</p>
             </div>
-            <div>
-              <p className="text-3xl font-bold text-yellow-400">{topSlots}</p>
-              <p className="text-sm text-white/60">Spots Available</p>
+
+            {/* Tabs */}
+            <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl">
+              {[
+                { id: 'clips', label: 'Top Clips', icon: Film },
+                { id: 'voters', label: 'Top Voters', icon: Users },
+                { id: 'creators', label: 'Top Creators', icon: Crown },
+              ].map(({ id, label, icon: Icon }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id as TabType)}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition ${
+                    activeTab === id 
+                      ? 'bg-white/10 text-white' 
+                      : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </button>
+              ))}
             </div>
-            <div>
-              <p className="text-3xl font-bold text-cyan-400">{totalVotes}</p>
-              <p className="text-sm text-white/60">Total Votes</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Genre Filters */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <Filter className="w-4 h-4 text-white/60 flex-shrink-0" />
-          {(['all', 'action', 'comedy', 'thriller', 'scifi', 'romance', 'animation', 'horror', 'other'] as GenreFilter[]).map((genre) => (
-            <motion.button
-              key={genre}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setGenreFilter(genre)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                genreFilter === genre
-                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                  : 'bg-white/10 text-white/70 hover:bg-white/20'
-              }`}
-              type="button"
-            >
-              {genre !== 'all' && GENRE_EMOJIS[genre]} {genre.charAt(0).toUpperCase() + genre.slice(1)}
-            </motion.button>
-          ))}
-        </div>
-      </div>
+            {/* Content */}
+            <AnimatePresence mode="wait">
+              {activeTab === 'clips' && (
+                <motion.div
+                  key="clips"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-4"
+                >
+                  {topClips.map((clip, idx) => (
+                    <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
+                  ))}
+                </motion.div>
+              )}
 
-      {/* Leaderboard */}
-      <div className="max-w-7xl mx-auto px-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-cyan-400"></div>
-          </div>
-        ) : filteredClips.length === 0 ? (
-          <div className="text-center py-20">
-            <Trophy className="w-16 h-16 text-white/40 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-white/80 mb-2">No clips yet</h3>
-            <p className="text-white/60">Be the first to compete!</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <AnimatePresence>
-              {filteredClips.map((clip, index) => {
-                const status = getClipStatus(clip.rank || index + 1, clip.percentage || 0);
-                const isTop3 = (clip.rank || index + 1) <= 3;
-                const isMakingIt = (clip.rank || index + 1) <= topSlots;
+              {activeTab === 'voters' && (
+                <motion.div
+                  key="voters"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-2"
+                >
+                  {topVoters.map((entry) => (
+                    <LeaderboardRow key={entry.id} entry={entry} type="votes" />
+                  ))}
+                </motion.div>
+              )}
 
-                return (
-                  <motion.div
-                    key={clip.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, x: -100 }}
-                    transition={{ delay: index * 0.05 }}
-                    className={`relative bg-white/5 backdrop-blur-sm rounded-xl border overflow-hidden ${
-                      isTop3 
-                        ? 'border-yellow-500/50 shadow-lg shadow-yellow-500/20' 
-                        : isMakingIt
-                        ? 'border-green-500/30'
-                        : 'border-white/10'
-                    }`}
-                  >
-                    {/* Rank Badge */}
-                    <div className="absolute top-4 left-4 z-10">
-                      <div className={`text-4xl font-bold ${
-                        isTop3 ? 'animate-pulse' : ''
-                      }`}>
-                        {getRankIcon(clip.rank || index + 1)}
-                      </div>
-                    </div>
-
-                    {/* Status Badge */}
-                    <div className="absolute top-4 right-4 z-10">
-                      <div className={`px-3 py-1 rounded-full text-xs font-bold ${status.bg} ${status.color} backdrop-blur-sm`}>
-                        {status.label}
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-[280px,1fr] gap-6 p-6">
-                      {/* Video Preview */}
-                      <div className="relative aspect-[9/16] max-w-[280px] mx-auto rounded-xl overflow-hidden bg-black">
-                        <video
-                          ref={(el) => {
-                            videoRefs.current[clip.id] = el;
-                          }}
-                          src={clip.video_url}
-                          className="w-full h-full object-cover"
-                          loop
-                          playsInline
-                          muted={mutedClips.has(clip.id)}
-                          onPlay={() => setPlayingClip(clip.id)}
-                          onPause={() => setPlayingClip(null)}
-                        />
-
-                        {/* Play Button */}
-                        {playingClip !== clip.id && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                            <motion.button
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => togglePlay(clip.id)}
-                              className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors"
-                              type="button"
-                            >
-                              <Play className="w-8 h-8 text-white ml-1" />
-                            </motion.button>
-                          </div>
-                        )}
-
-                        {/* Controls */}
-                        <div className="absolute bottom-2 left-2">
-                          <motion.button
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => toggleMute(clip.id)}
-                            className="p-2 bg-black/70 backdrop-blur-sm rounded-full"
-                            type="button"
-                          >
-                            {mutedClips.has(clip.id) ? (
-                              <VolumeX className="w-4 h-4" />
-                            ) : (
-                              <Volume2 className="w-4 h-4" />
-                            )}
-                          </motion.button>
-                        </div>
-                      </div>
-
-                      {/* Clip Info */}
-                      <div className="flex flex-col justify-between">
-                        <div className="space-y-4">
-                          <div>
-                            <h3 className="text-xl font-bold mb-1">{clip.title}</h3>
-                            <p className="text-white/60 text-sm line-clamp-2">
-                              {clip.description || 'No description'}
-                            </p>
-                          </div>
-
-                          {/* Stats */}
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-2xl font-bold text-cyan-400">{clip.vote_count}</p>
-                              <p className="text-xs text-white/60">Votes</p>
-                            </div>
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-2xl font-bold text-purple-400">
-                                {clip.percentage?.toFixed(1)}%
-                              </p>
-                              <p className="text-xs text-white/60">Share</p>
-                            </div>
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-2xl font-bold text-orange-400">
-                                {clip.hype_score?.toFixed(0) || 0}
-                              </p>
-                              <p className="text-xs text-white/60">Hype</p>
-                            </div>
-                            <div className="bg-white/5 rounded-lg p-3">
-                              <p className="text-xl font-bold">{GENRE_EMOJIS[clip.genre.toLowerCase()]}</p>
-                              <p className="text-xs text-white/60">{clip.genre}</p>
-                            </div>
-                          </div>
-
-                          {/* Progress Bar */}
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-white/70">Vote Progress</span>
-                              <span className="font-bold text-cyan-400">{clip.vote_count} votes</span>
-                            </div>
-                            <div className="h-3 bg-white/10 rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: `${Math.min(clip.percentage || 0, 100)}%` }}
-                                className={`h-full rounded-full ${
-                                  isTop3
-                                    ? 'bg-gradient-to-r from-yellow-400 to-orange-500'
-                                    : isMakingIt
-                                    ? 'bg-gradient-to-r from-green-400 to-cyan-500'
-                                    : 'bg-gradient-to-r from-gray-500 to-gray-600'
-                                }`}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Creator Info */}
-                          <div className="flex items-center gap-3 pt-2">
-                            <img
-                              src={clip.avatar_url}
-                              alt={clip.username}
-                              className="w-10 h-10 rounded-full bg-white/10"
-                            />
-                            <div>
-                              <p className="font-medium">{clip.username}</p>
-                              <p className="text-xs text-white/60">
-                                {new Date(clip.created_at).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
+              {activeTab === 'creators' && (
+                <motion.div
+                  key="creators"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="space-y-2"
+                >
+                  {topCreators.map((entry) => (
+                    <LeaderboardRow key={entry.id} entry={entry} type="received" />
+                  ))}
+                </motion.div>
+              )}
             </AnimatePresence>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* Cutoff Line Indicator */}
-      {filteredClips.length > topSlots && (
-        <div className="max-w-7xl mx-auto px-4 mt-8">
-          <div className="flex items-center gap-4">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-red-500 to-transparent" />
-            <div className="px-4 py-2 bg-red-500/20 border border-red-500/50 rounded-full text-sm font-bold text-red-400">
-              ⚠️ CUTOFF LINE - Top {topSlots} Make It!
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-red-500 via-transparent to-transparent" />
+      {/* Mobile Layout */}
+      <div className="md:hidden pb-20">
+        {/* Header */}
+        <div className="px-4 pt-12 pb-4">
+          <h1 className="text-2xl font-black flex items-center gap-2">
+            <Trophy className="w-7 h-7 text-yellow-500" />
+            Leaderboard
+          </h1>
+        </div>
+
+        {/* Tabs */}
+        <div className="px-4 mb-4">
+          <div className="flex gap-1 p-1 bg-white/5 rounded-xl">
+            {[
+              { id: 'clips', label: 'Clips', icon: Film },
+              { id: 'voters', label: 'Voters', icon: Users },
+              { id: 'creators', label: 'Creators', icon: Crown },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id as TabType)}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition ${
+                  activeTab === id 
+                    ? 'bg-white/10 text-white' 
+                    : 'text-white/50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Content */}
+        <div className="px-4">
+          <AnimatePresence mode="wait">
+            {activeTab === 'clips' && (
+              <motion.div
+                key="clips"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-3"
+              >
+                {topClips.map((clip, idx) => (
+                  <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
+                ))}
+              </motion.div>
+            )}
+
+            {activeTab === 'voters' && (
+              <motion.div
+                key="voters"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-2"
+              >
+                {topVoters.map((entry) => (
+                  <LeaderboardRow key={entry.id} entry={entry} type="votes" />
+                ))}
+              </motion.div>
+            )}
+
+            {activeTab === 'creators' && (
+              <motion.div
+                key="creators"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="space-y-2"
+              >
+                {topCreators.map((entry) => (
+                  <LeaderboardRow key={entry.id} entry={entry} type="received" />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        <BottomNavigation />
+      </div>
     </div>
+  );
+}
+
+// ============================================================================
+// COMPONENTS
+// ============================================================================
+
+function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
+  const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
+  
+  return (
+    <Link href={`/profile/${clip.username}`}>
+      <motion.div
+        whileHover={{ scale: 1.01 }}
+        whileTap={{ scale: 0.99 }}
+        className="flex gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition border border-white/5"
+      >
+        {/* Rank */}
+        <div className="flex flex-col items-center justify-center w-12">
+          {rank <= 3 ? (
+            <Medal className={`w-8 h-8 ${medalColors[rank - 1]}`} />
+          ) : (
+            <span className="text-2xl font-black text-white/40">#{rank}</span>
+          )}
+        </div>
+
+        {/* Video Thumbnail */}
+        <div className="w-16 h-24 md:w-20 md:h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+          <video 
+            src={clip.video_url}
+            className="w-full h-full object-cover"
+            muted
+            preload="metadata"
+          />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <img 
+              src={clip.avatar_url} 
+              alt={clip.username}
+              className="w-6 h-6 rounded-full"
+            />
+            <span className="font-bold truncate">@{clip.username}</span>
+          </div>
+          <div className="text-sm text-white/60 mb-2">
+            Season {clip.season_number} • Slot #{clip.slot_position} • {clip.genre}
+          </div>
+          <div className="flex items-center gap-2">
+            <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
+            <span className="font-bold">{formatNumber(clip.vote_count)}</span>
+          </div>
+        </div>
+
+        <ChevronRight className="w-5 h-5 text-white/30 self-center" />
+      </motion.div>
+    </Link>
+  );
+}
+
+function LeaderboardRow({ entry, type }: { entry: LeaderboardEntry; type: 'votes' | 'received' }) {
+  const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
+  const TrendIcon = entry.trend === 'up' ? TrendingUp : entry.trend === 'down' ? TrendingDown : Minus;
+  const trendColor = entry.trend === 'up' ? 'text-green-500' : entry.trend === 'down' ? 'text-red-500' : 'text-white/30';
+
+  return (
+    <Link href={`/profile/${entry.username}`}>
+      <motion.div
+        whileTap={{ scale: 0.98 }}
+        className="flex items-center gap-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition"
+      >
+        {/* Rank */}
+        <div className="w-10 flex justify-center">
+          {entry.rank <= 3 ? (
+            <Medal className={`w-6 h-6 ${medalColors[entry.rank - 1]}`} />
+          ) : (
+            <span className="font-bold text-white/40">#{entry.rank}</span>
+          )}
+        </div>
+
+        {/* Avatar */}
+        <img 
+          src={entry.avatar_url} 
+          alt={entry.username}
+          className="w-10 h-10 rounded-full"
+        />
+
+        {/* Name & Badge */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-bold truncate">@{entry.username}</span>
+            {entry.badge && <span>{entry.badge}</span>}
+          </div>
+          <div className="text-sm text-white/50">
+            {formatNumber(entry.score)} {type === 'votes' ? 'votes cast' : 'votes received'}
+          </div>
+        </div>
+
+        {/* Trend */}
+        <TrendIcon className={`w-5 h-5 ${trendColor}`} />
+      </motion.div>
+    </Link>
   );
 }
