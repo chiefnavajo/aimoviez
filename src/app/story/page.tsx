@@ -956,11 +956,11 @@ function StoryPage() {
           />
         </div>
 
-        {/* Left Sidebar - Navigation (Transparent) */}
-        <div className="w-56 h-full border-r border-white/10 flex flex-col py-4 px-3 relative z-10 bg-black/40 backdrop-blur-sm">
+        {/* Left Sidebar - Navigation (Fully Transparent) */}
+        <div className="w-56 h-full flex flex-col py-4 px-3 relative z-10" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-6">
-            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
+            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] drop-shadow-lg">
               AiMoviez
             </span>
           </Link>
@@ -968,25 +968,25 @@ function StoryPage() {
           {/* Navigation Items */}
           <nav className="flex-1 space-y-1">
             <Link href="/story">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-white/10 text-white">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30 backdrop-blur-sm text-white border border-white/10">
                 <BookOpen className="w-6 h-6" />
                 <span className="font-semibold">Story</span>
               </div>
             </Link>
             <Link href="/upload">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
                 <Plus className="w-6 h-6" />
                 <span>Upload</span>
               </div>
             </Link>
             <Link href="/leaderboard">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
                 <Trophy className="w-6 h-6" />
                 <span>Leaderboard</span>
               </div>
             </Link>
             <Link href="/profile">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
                 <User className="w-6 h-6" />
                 <span>Profile</span>
               </div>
@@ -994,17 +994,17 @@ function StoryPage() {
           </nav>
 
           {/* Season List at Bottom */}
-          <div className="border-t border-white/10 pt-4 mt-4">
-            <p className="text-white/50 text-xs font-medium px-3 mb-2">SEASONS</p>
+          <div className="border-t border-white/20 pt-4 mt-4">
+            <p className="text-white/70 text-xs font-medium px-3 mb-2">SEASONS</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
               {MOCK_SEASONS.map(season => (
                 <button
                   key={season.id}
                   onClick={() => setSelectedSeasonId(season.id)}
-                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition ${
+                  className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition outline-none ${
                     season.id === selectedSeasonId 
-                      ? 'bg-white/10 text-white' 
-                      : 'hover:bg-white/5 text-white/60'
+                      ? 'bg-black/30 backdrop-blur-sm text-white border border-white/10' 
+                      : 'hover:bg-black/20 text-white/80'
                   }`}
                 >
                   <div className={`w-2 h-2 rounded-full ${
@@ -1022,17 +1022,17 @@ function StoryPage() {
         </div>
 
         {/* Navigation Arrows - Far Right (Fixed Position) */}
-        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col gap-3 z-20">
+        <div className="hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 flex-col gap-3 z-30">
           <button 
             onClick={goToPrevSeason}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20 outline-none"
             disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
           >
             <ChevronDown className="w-6 h-6 text-white rotate-180" />
           </button>
           <button 
             onClick={goToNextSeason}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20"
+            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20 outline-none"
             disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
           >
             <ChevronDown className="w-6 h-6 text-white" />
