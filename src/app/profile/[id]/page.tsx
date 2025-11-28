@@ -1,0 +1,187 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import Link from 'next/link';
+import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, PlayCircle, CheckCircle, BookOpen, Plus } from 'lucide-react';
+import BottomNavigation from '@/components/BottomNavigation';
+
+// ============================================================================
+// CREATOR PROFILE PAGE - View other creators
+// ============================================================================
+
+interface CreatorProfile {
+  id: string;
+  username: string;
+  avatar_url: string;
+  level: number;
+  total_votes_received: number;
+  clips_uploaded: number;
+  clips_locked: number;
+  followers: number;
+  is_following: boolean;
+}
+
+interface CreatorClip {
+  id: string;
+  video_url: string;
+  vote_count: number;
+  status: 'voting' | 'locked' | 'pending';
+  slot_position: number;
+  season_number: number;
+}
+
+const MOCK_CREATORS: Record<string, CreatorProfile> = {
+  'veo3_creator': { id: 'veo3_creator', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3', level: 12, total_votes_received: 45210, clips_uploaded: 8, clips_locked: 3, followers: 1234, is_following: false },
+  'dance_master': { id: 'dance_master', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet', level: 8, total_votes_received: 28470, clips_uploaded: 5, clips_locked: 2, followers: 892, is_following: true },
+  'film_wizard': { id: 'film_wizard', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard', level: 15, total_votes_received: 67340, clips_uploaded: 12, clips_locked: 5, followers: 2341, is_following: false },
+};
+
+const MOCK_CLIPS: CreatorClip[] = [
+  { id: 'clip-1', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4', vote_count: 4521, status: 'locked', slot_position: 1, season_number: 2 },
+  { id: 'clip-2', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/ballet-dancer.mp4', vote_count: 3847, status: 'locked', slot_position: 2, season_number: 2 },
+  { id: 'clip-3', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/superhero-landing.mp4', vote_count: 1245, status: 'voting', slot_position: 6, season_number: 2 },
+];
+
+function formatNumber(num: number): string {
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+}
+
+export default function CreatorProfilePage() {
+  const params = useParams();
+  const router = useRouter();
+  const creatorId = params.id as string;
+  
+  const [creator, setCreator] = useState<CreatorProfile | null>(null);
+  const [clips, setClips] = useState<CreatorClip[]>([]);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const mockCreator = MOCK_CREATORS[creatorId];
+    if (mockCreator) {
+      setCreator(mockCreator);
+      setIsFollowing(mockCreator.is_following);
+      setClips(MOCK_CLIPS);
+    } else {
+      setCreator({
+        id: creatorId, username: creatorId, avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${creatorId}`,
+        level: Math.floor(Math.random() * 20) + 1, total_votes_received: Math.floor(Math.random() * 50000),
+        clips_uploaded: Math.floor(Math.random() * 10) + 1, clips_locked: Math.floor(Math.random() * 3),
+        followers: Math.floor(Math.random() * 2000), is_following: false,
+      });
+      setClips([]);
+    }
+    setLoading(false);
+  }, [creatorId]);
+
+  const handleFollow = () => {
+    setIsFollowing(!isFollowing);
+    if (creator) setCreator({ ...creator, followers: isFollowing ? creator.followers - 1 : creator.followers + 1 });
+  };
+
+  const handleShare = async () => {
+    try { await navigator.share({ title: `@${creator?.username} on AiMoviez`, url: window.location.href }); } 
+    catch { navigator.clipboard.writeText(window.location.href); }
+  };
+
+  if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>;
+  if (!creator) return <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white"><User className="w-16 h-16 text-white/30 mb-4" /><p className="text-xl font-bold mb-2">Creator not found</p><Link href="/story" className="text-cyan-400 hover:underline">Back to Story</Link></div>;
+
+  const renderProfileContent = () => (
+    <>
+      {/* Header */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/30 via-purple-900/30 to-pink-900/30" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
+        
+        <div className="relative z-20 flex items-center justify-between px-4 md:px-6 pt-12 md:pt-6 pb-4">
+          <button onClick={() => router.back()} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={handleShare} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-5 h-5" /></button>
+        </div>
+
+        <div className="relative z-10 px-4 md:px-6 pb-6">
+          <div className="flex flex-col items-center mb-6">
+            <div className="relative mb-3">
+              <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
+                <img src={creator.avatar_url} alt={creator.username} className="w-full h-full rounded-full bg-black object-cover" />
+              </div>
+              <div className="absolute -bottom-2 -right-2 w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm md:text-base border-4 border-black">{creator.level}</div>
+            </div>
+            <h1 className="text-2xl md:text-3xl font-black mb-1">@{creator.username}</h1>
+            <div className="flex items-center gap-6 mt-3">
+              <div className="text-center"><div className="text-xl font-black">{creator.clips_uploaded}</div><div className="text-xs text-white/60">Clips</div></div>
+              <div className="text-center"><div className="text-xl font-black">{formatNumber(creator.followers)}</div><div className="text-xs text-white/60">Followers</div></div>
+              <div className="text-center"><div className="text-xl font-black">{creator.clips_locked}</div><div className="text-xs text-white/60">Wins</div></div>
+            </div>
+          </div>
+          <div className="flex gap-3 max-w-xs mx-auto">
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleFollow} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 ${isFollowing ? 'bg-white/10 border border-white/20' : 'bg-gradient-to-r from-cyan-500 to-purple-500'}`}>
+              {isFollowing ? <><CheckCircle className="w-4 h-4" />Following</> : <><User className="w-4 h-4" />Follow</>}
+            </motion.button>
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleShare} className="px-6 py-3 rounded-xl font-bold text-sm bg-white/10 border border-white/20"><Share2 className="w-4 h-4" /></motion.button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="px-4 md:px-6 mb-6">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4"><Heart className="w-5 h-5 text-pink-500 mb-2" /><div className="text-2xl font-black">{formatNumber(creator.total_votes_received)}</div><div className="text-xs text-white/60">Total Votes</div></div>
+          <div className="bg-white/5 border border-white/10 rounded-xl p-4"><Trophy className="w-5 h-5 text-yellow-500 mb-2" /><div className="text-2xl font-black">{creator.clips_locked}</div><div className="text-xs text-white/60">Locked Clips</div></div>
+        </div>
+      </div>
+
+      {/* Clips Section */}
+      <div className="px-4 md:px-6 pb-24 md:pb-8">
+        <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Film className="w-5 h-5 text-cyan-500" />Clips ({clips.length})</h2>
+        {clips.length === 0 ? (
+          <div className="text-center py-12 text-white/60"><Film className="w-16 h-16 mx-auto mb-4 text-white/20" /><p>No clips uploaded yet</p></div>
+        ) : (
+          <div className="grid grid-cols-3 gap-2">
+            {clips.map((clip) => (
+              <Link key={clip.id} href={`/clip/${clip.id}`}>
+                <motion.div whileTap={{ scale: 0.95 }} className="relative aspect-[9/16] rounded-lg overflow-hidden bg-white/10">
+                  <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                  {clip.status === 'locked' && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-cyan-500/80 flex items-center gap-1"><Lock className="w-3 h-3" /><span className="text-[10px] font-bold">Winner</span></div>}
+                  {clip.status === 'voting' && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-orange-500/80 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /><span className="text-[10px] font-bold">LIVE</span></div>}
+                  <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 text-white text-xs font-bold"><Heart className="w-3 h-3" fill="white" />{formatNumber(clip.vote_count)}</div>
+                </motion.div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-black text-white">
+      {/* Desktop Layout */}
+      <div className="hidden md:flex h-screen">
+        <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
+          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4"><span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span></Link>
+          <Link href="/dashboard" className="mb-4"><motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"><Heart className="w-5 h-5" fill="white" /><span>Vote Now</span></motion.div></Link>
+          <nav className="flex-1 space-y-1">
+            <Link href="/story"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><BookOpen className="w-6 h-6" /><span>Story</span></div></Link>
+            <Link href="/upload"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Plus className="w-6 h-6" /><span>Upload</span></div></Link>
+            <Link href="/leaderboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Trophy className="w-6 h-6" /><span>Leaderboard</span></div></Link>
+            <Link href="/profile"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><User className="w-6 h-6" /><span>Profile</span></div></Link>
+          </nav>
+        </div>
+        <div className="flex-1 overflow-y-auto"><div className="max-w-2xl mx-auto">{renderProfileContent()}</div></div>
+      </div>
+
+      {/* Mobile Layout */}
+      <div className="md:hidden">
+        {renderProfileContent()}
+        <BottomNavigation />
+      </div>
+    </div>
+  );
+}
