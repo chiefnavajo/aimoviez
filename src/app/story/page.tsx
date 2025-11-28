@@ -572,21 +572,25 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </AnimatePresence>
         </div>
         
-        {/* Vote Button (Active) - Heart Button */}
-        {isActive && (
-          <motion.button
-            whileTap={{ scale: 0.8 }}
-            onClick={onVote}
-            className="flex flex-col items-center gap-0.5 relative"
-          >
-            <Heart 
-              className="w-7 h-7 md:w-9 md:h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-            />
-            <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-              {formatNumber(season.total_votes)}
-            </span>
-          </motion.button>
-        )}
+        {/* Vote Button - Always visible */}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
+          className="flex flex-col items-center gap-0.5 relative"
+        >
+          <Heart 
+            className={`w-7 h-7 md:w-9 md:h-9 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] ${
+              isActive ? 'text-white' : 'text-white/60'
+            }`}
+          />
+          <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            {isActive ? formatNumber(season.total_votes) : 'Vote'}
+          </span>
+          {/* "Go Vote" indicator for inactive seasons */}
+          {!isActive && (
+            <span className="text-[8px] text-cyan-400 font-medium">Go Vote →</span>
+          )}
+        </motion.button>
         
         {/* Rankings Button (Completed) */}
         {isCompleted && (
@@ -978,10 +982,22 @@ function StoryPage() {
         {/* Left Sidebar - Navigation (Fully Transparent) */}
         <div className="w-56 h-full flex flex-col py-4 px-3 relative z-10" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-6">
+          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] drop-shadow-lg">
               AiMoviez
             </span>
+          </Link>
+
+          {/* Vote Now Button - Always visible */}
+          <Link href="/dashboard" className="mb-4">
+            <motion.div 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"
+            >
+              <Heart className="w-5 h-5" fill="white" />
+              <span>Vote Now</span>
+            </motion.div>
           </Link>
 
           {/* Navigation Items */}
@@ -1122,18 +1138,32 @@ function StoryPage() {
               className="bg-black border-t border-white/10 flex-shrink-0"
             >
               <div className="flex items-center justify-around px-4 py-2">
-                <div className="flex flex-col items-center gap-1 py-2 px-6">
+                <div className="flex flex-col items-center gap-1 py-2 px-4">
                   <BookOpen className="w-6 h-6 text-white" />
                   <span className="text-white text-xs font-medium">Story</span>
                 </div>
+                
+                {/* Vote Button - Always visible, prominent */}
+                <Link href="/dashboard">
+                  <motion.div 
+                    whileTap={{ scale: 0.9 }} 
+                    className="flex flex-col items-center gap-1 py-1 px-4"
+                  >
+                    <div className="w-12 h-8 rounded-lg bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] flex items-center justify-center">
+                      <Heart className="w-5 h-5 text-white" fill="white" />
+                    </div>
+                    <span className="text-white text-xs font-bold">Vote</span>
+                  </motion.div>
+                </Link>
+                
                 <Link href="/upload">
-                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
-                    <Plus className="w-7 h-7 text-white/70" />
+                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-4">
+                    <Plus className="w-6 h-6 text-white/70" />
                     <span className="text-white/60 text-xs">Upload</span>
                   </motion.div>
                 </Link>
                 <Link href="/profile">
-                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-6">
+                  <motion.div whileTap={{ scale: 0.9 }} className="flex flex-col items-center gap-1 py-2 px-4">
                     <User className="w-6 h-6 text-white/70" />
                     <span className="text-white/60 text-xs">Profile</span>
                   </motion.div>
