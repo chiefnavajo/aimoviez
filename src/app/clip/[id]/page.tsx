@@ -45,7 +45,7 @@ interface Comment {
 export default function ClipDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const clipId = params?.clipId as string;
+  const clipId = params?.id as string;
   const queryClient = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
 

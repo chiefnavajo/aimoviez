@@ -1,0 +1,401 @@
+/* Landing Page Styles - AiMoviez 8SEC MADNESS */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0a0a0a;
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Intro Overlay */
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a20 50%, #0a0a0a 100%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.intro-overlay.skip {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.skip-intro {
+  position: absolute;
+  top: 2rem;
+  right: 2rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.skip-intro:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.scanline {
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.1) 2px,
+    rgba(0, 0, 0, 0.1) 4px
+  );
+  pointer-events: none;
+}
+
+.grid-overlay {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(60, 242, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 242, 255, 0.03) 1px, transparent 1px);
+  background-size: 50px 50px;
+  pointer-events: none;
+}
+
+.intro-logo-container {
+  text-align: center;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.intro-logo-main {
+  font-size: 4rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #3CF2FF 0%, #FF00C7 50%, #3CF2FF 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradientShift 3s ease infinite;
+  text-shadow: 0 0 60px rgba(60, 242, 255, 0.5);
+}
+
+.intro-logo-separator {
+  width: 100px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3CF2FF, transparent);
+  margin: 1rem auto;
+}
+
+.intro-logo-tagline {
+  font-size: 1.5rem;
+  letter-spacing: 0.5em;
+  color: #FF00C7;
+  text-transform: uppercase;
+}
+
+/* Main Content */
+.main-content {
+  opacity: 0;
+  animation: fadeInContent 1s ease 3s forwards;
+}
+
+@keyframes fadeInContent {
+  to { opacity: 1; }
+}
+
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.cyber-grid {
+  position: absolute;
+  inset: 0;
+  background-image: 
+    linear-gradient(rgba(60, 242, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(60, 242, 255, 0.05) 1px, transparent 1px);
+  background-size: 100px 100px;
+  animation: gridMove 20s linear infinite;
+}
+
+@keyframes gridMove {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(100px, 100px); }
+}
+
+.glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.3;
+  animation: float 8s ease-in-out infinite;
+}
+
+.orb-1 {
+  width: 400px;
+  height: 400px;
+  background: #3CF2FF;
+  top: -100px;
+  left: -100px;
+}
+
+.orb-2 {
+  width: 300px;
+  height: 300px;
+  background: #FF00C7;
+  bottom: -50px;
+  right: -50px;
+  animation-delay: -2s;
+}
+
+.orb-3 {
+  width: 200px;
+  height: 200px;
+  background: #FFD700;
+  top: 50%;
+  left: 50%;
+  animation-delay: -4s;
+}
+
+@keyframes float {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(30px, -30px); }
+}
+
+.container {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  padding: 2rem;
+  max-width: 500px;
+}
+
+/* Logo */
+.logo {
+  margin-bottom: 2rem;
+}
+
+.logo-main {
+  font-size: 3rem;
+  font-weight: 900;
+  background: linear-gradient(135deg, #3CF2FF 0%, #FF00C7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.logo-separator {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #3CF2FF, transparent);
+  margin: 0.5rem auto;
+}
+
+.logo-tagline {
+  font-size: 0.9rem;
+  letter-spacing: 0.4em;
+  color: #FF00C7;
+  text-transform: uppercase;
+}
+
+/* Headline */
+.headline {
+  margin-bottom: 3rem;
+}
+
+.headline h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #fff;
+}
+
+.infinity-hero {
+  font-size: 3rem;
+  background: linear-gradient(135deg, #3CF2FF, #FF00C7);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { filter: drop-shadow(0 0 20px rgba(60, 242, 255, 0.5)); }
+  50% { filter: drop-shadow(0 0 40px rgba(255, 0, 199, 0.5)); }
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% center; }
+  100% { background-position: 200% center; }
+}
+
+.headline p {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Signup Card */
+.signup {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 2rem;
+  backdrop-filter: blur(10px);
+}
+
+.signup h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #3CF2FF, #fff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.social-proof {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.avatar-stack {
+  display: flex;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(60, 242, 255, 0.2);
+  border: 2px solid #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  margin-left: -8px;
+}
+
+.avatar:first-child {
+  margin-left: 0;
+}
+
+.social-proof-text {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.social-proof-text strong {
+  color: #3CF2FF;
+}
+
+.signup-subtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 1rem;
+}
+
+.trending-badges {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: rgba(60, 242, 255, 0.1);
+  border: 1px solid rgba(60, 242, 255, 0.3);
+  color: #3CF2FF;
+}
+
+.badge.pink {
+  background: rgba(255, 0, 199, 0.1);
+  border-color: rgba(255, 0, 199, 0.3);
+  color: #FF00C7;
+}
+
+.badge.pulse {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+/* Google Button */
+.google-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.google-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px rgba(60, 242, 255, 0.3);
+}
+
+.google-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .intro-logo-main {
+    font-size: 2.5rem;
+  }
+  
+  .intro-logo-tagline {
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+  }
+  
+  .logo-main {
+    font-size: 2rem;
+  }
+  
+  .headline h1 {
+    font-size: 1.5rem;
+  }
+  
+  .infinity-hero {
+    font-size: 2rem;
+  }
+  
+  .signup {
+    padding: 1.5rem;
+  }
+}

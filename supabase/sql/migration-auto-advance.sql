@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS clip_views (
   clip_id uuid NOT NULL,
   voter_key text NOT NULL,
   viewed_at timestamptz DEFAULT now(),
-  voted boolean DEFAULT false
+  voted boolean DEFAULT false,
+  UNIQUE(voter_key, clip_id)
 );
 
 -- 4. Index for fast lookups
