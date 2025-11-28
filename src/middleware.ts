@@ -14,27 +14,7 @@ const RATE_LIMIT_PER_MINUTE = parseInt(process.env.RATE_LIMIT_PER_MINUTE || '60'
 // In-memory rate limit store (use Redis in production)
 const rateLimitStore = new Map<string, number[]>();
 
-/**
- * Clean up old rate limit entries
- */
-function cleanupRateLimitStore() {
-  const now = Date.now();
-  const windowMs = 60 * 1000; // 1 minute
-  
-  for (const [key, timestamps] of rateLimitStore.entries()) {
-    const validTimestamps = timestamps.filter(t => now - t < windowMs);
-    if (validTimestamps.length === 0) {
-      rateLimitStore.delete(key);
-    } else {
-      rateLimitStore.set(key, validTimestamps);
-    }
-  }
-}
-
-// Cleanup every 5 minutes
-if (typeof global !== 'undefined' && !global.rateLimitCleanupInterval) {
-  global.rateLimitCleanupInterval = setInterval(cleanupRateLimitStore, 5 * 60 * 1000);
-}
+// Rate limit store will be cleaned up naturally when entries expire
 
 /**
  * Get client IP address
