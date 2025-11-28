@@ -52,9 +52,9 @@ export function useAuth(): UseAuthReturn {
       if (session?.user?.hasProfile && session?.user?.username) {
         setHasProfile(true);
         setUserProfile({
-          id: session.user.userId,
-          username: session.user.username,
-          display_name: session.user.name || session.user.username,
+          id: session.user.userId || '',
+          username: session.user.username || '',
+          display_name: session.user.name || session.user.username || '',
           avatar_url: session.user.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.username}`,
           level: 1,
         });
