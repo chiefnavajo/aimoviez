@@ -457,7 +457,7 @@ function VotingArena() {
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       }
       setIsVoting(false);
-      handleNext();
+      // User stays on same video - no auto-advance
     },
   });
 
@@ -728,6 +728,29 @@ function VotingArena() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ============ VOTING SEGMENT INFO ============ */}
+      {currentClip && (
+        <div className="absolute top-28 left-4 z-20">
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex flex-col gap-1"
+          >
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-orange-500/90 backdrop-blur-sm">
+              <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-white text-xs font-bold">
+                Voting: Segment {currentClip.segment_index || currentClip.round_number || 6}
+              </span>
+            </div>
+            <div className="px-3 py-1 rounded-full bg-black/50 backdrop-blur-sm">
+              <span className="text-white/70 text-[10px]">
+                Round {currentClip.round_number || 1} of {currentClip.total_rounds || 3} · {currentClip.genre || 'Mixed'}
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* ============ RIGHT COLUMN ============ */}
       <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4">

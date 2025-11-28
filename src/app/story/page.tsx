@@ -486,6 +486,19 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           <p className="text-white/70 text-xs mt-1 drop-shadow">
             {completedSegments.length}/{season.total_slots} segments · {formatDuration(completedSegments.length * 8)}/10:00
           </p>
+          {/* Voting Segment Indicator */}
+          {season.current_voting_slot && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-2 px-3 py-1.5 rounded-full bg-orange-500/90 backdrop-blur-sm flex items-center gap-2"
+            >
+              <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-white text-xs font-bold">
+                Voting: Segment {season.current_voting_slot}
+              </span>
+            </motion.div>
+          )}
         </div>
       </div>
 
