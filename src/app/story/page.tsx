@@ -501,32 +501,35 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         )}
       </AnimatePresence>
 
-      {/* Right Column - Season info at top, then actions */}
-      <div className="absolute right-3 top-10 bottom-16 flex flex-col items-center justify-start gap-2 z-20">
-        {/* Season info - at very top */}
-        <div className="flex flex-col items-center">
-          <span className="text-white font-bold text-sm drop-shadow-lg">Season {season.number}</span>
-          {isActive && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/30 mt-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-              <span className="text-red-400 text-[10px] font-medium">LIVE</span>
+      {/* Right Column - Fixed position to match dashboard */}
+      <div className="absolute right-3 bottom-28 z-20 flex flex-col items-center gap-4">
+        {/* Creator Avatar - matches dashboard */}
+        {currentSegment?.winning_clip && (
+          <div className="relative">
+            <img
+              src={currentSegment.winning_clip.avatar_url}
+              alt=""
+              className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
+              style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+            />
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
+              <span className="text-white text-[10px] font-bold">+</span>
             </div>
-          )}
-          {isCompleted && (
-            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-500/30 mt-1">
-              <Check className="w-3 h-3 text-green-400" />
-              <span className="text-green-400 text-[10px] font-medium">Complete</span>
-            </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* Contributors */}
+        {/* Trophy/Segments */}
         <div className="relative">
-          <ActionButton 
-            icon={<Trophy className="w-6 h-6 text-yellow-400 drop-shadow-lg" />} 
-            label={completedSegments.length} 
-            onClick={(e) => { e.stopPropagation(); setShowContributorsPopup(!showContributorsPopup); }} 
-          />
+          <motion.button
+            whileTap={{ scale: 0.8 }}
+            onClick={(e) => { e.stopPropagation(); setShowContributorsPopup(!showContributorsPopup); }}
+            className="flex flex-col items-center gap-1"
+          >
+            <Trophy className="w-9 h-9 text-yellow-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
+            <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+              {completedSegments.length}
+            </span>
+          </motion.button>
           
           {/* Contributors Popup - Transparent & Scrollable */}
           <AnimatePresence>
@@ -605,34 +608,53 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         )}
         
         {/* Comments */}
-        <ActionButton icon={<MessageCircle className="w-6 h-6 text-white drop-shadow-lg" />} label={24} onClick={(e) => { e.stopPropagation(); setShowComments(true); }} />
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
+          className="flex flex-col items-center gap-1"
+        >
+          <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">24</span>
+        </motion.button>
         
         {/* Share */}
-        <ActionButton icon={<Share2 className="w-6 h-6 text-white drop-shadow-lg" />} onClick={handleShare} />
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={handleShare}
+          className="flex flex-col items-center gap-1"
+        >
+          <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+        </motion.button>
         
         {/* Mute */}
-        <motion.button whileTap={{ scale: 0.9 }} onClick={toggleMute} className="w-8 h-8 flex items-center justify-center">
-          {isMuted ? <VolumeX className="w-5 h-5 text-white drop-shadow-lg" /> : <Volume2 className="w-5 h-5 text-white drop-shadow-lg" />}
+        <motion.button
+          whileTap={{ scale: 0.8 }}
+          onClick={toggleMute}
+          className="flex flex-col items-center gap-1"
+        >
+          {isMuted ? (
+            <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          ) : (
+            <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          )}
         </motion.button>
       </div>
 
-      {/* Bottom left: Creator info - just above split */}
+      {/* Bottom left: Creator info - Fixed position to match dashboard */}
       {currentSegment?.winning_clip && (
-        <div className="absolute bottom-2 left-4 z-10">
+        <div className="absolute bottom-20 left-0 right-16 z-20 px-4">
           <div className="flex items-center gap-2">
-            <img src={currentSegment.winning_clip.avatar_url} alt="" className="w-8 h-8 rounded-full border border-white/30" />
-            <div>
-              <div className="flex items-center gap-1">
-                <p className="text-white text-sm font-semibold drop-shadow">@{currentSegment.winning_clip.username}</p>
-                {isCompleted && (
-                  <div className="px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center gap-0.5">
-                    <Trophy className="w-3 h-3 text-white" />
-                    <span className="text-white text-[9px] font-bold">Winner</span>
-                  </div>
-                )}
+            <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+              @{currentSegment.winning_clip.username}
+            </p>
+            <span className="text-white/60">·</span>
+            <p className="text-white/80 text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{currentSegment.winning_clip.genre}</p>
+            {isCompleted && (
+              <div className="px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center gap-0.5 ml-1">
+                <Trophy className="w-3 h-3 text-white" />
+                <span className="text-white text-[9px] font-bold">Winner</span>
               </div>
-              <p className="text-white/50 text-xs">{currentSegment.winning_clip.genre}</p>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1021,22 +1043,34 @@ function StoryPage() {
           </div>
         </div>
 
-        {/* Navigation Arrows - Far Right (Fixed Position) */}
-        <div className="hidden md:flex fixed right-6 top-1/2 -translate-y-1/2 flex-col gap-3 z-30">
-          <button 
+        {/* Navigation Arrows - Left Side, Vertically Centered (matches dashboard) */}
+        <div className="hidden md:flex absolute left-8 top-1/2 -translate-y-1/2 flex-col gap-6 z-30">
+          <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+            whileTap={{ scale: 0.9 }}
             onClick={goToPrevSeason}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20 outline-none"
             disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
+            className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg disabled:opacity-30"
           >
-            <ChevronDown className="w-6 h-6 text-white rotate-180" />
-          </button>
-          <button 
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+            </svg>
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+            whileTap={{ scale: 0.9 }}
             onClick={goToNextSeason}
-            className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center hover:bg-black/60 transition disabled:opacity-30 border border-white/20 outline-none"
             disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
+            className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg disabled:opacity-30"
           >
-            <ChevronDown className="w-6 h-6 text-white" />
-          </button>
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </motion.button>
         </div>
       </div>
 
