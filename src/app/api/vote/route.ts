@@ -347,21 +347,12 @@ async function recordClipViews(
       viewed_at: new Date().toISOString(),
     }));
 
-    // Upsert to avoid duplicates
+    // Upsert to avoid duplicates (ignore if view already exists)
     await supabase
       .from('clip_views')
-      .upsert(viewRecords, { onConflict: 'voter_key,clip_id', ignoreDuplicates: true });
+      .upsert(viewRecords, { ignoreDuplicates: true });
 
-    // Increment view counts on clips
-    for (const clipId of clipIds) {
-      await supabase.rpc('increment_view_count', { clip_id: clipId }).catch(() => {
-        // Fallback if RPC doesn't exist
-        supabase
-          .from('tournament_clips')
-          .update({ view_count: supabase.rpc('increment', { x: 1 }) })
-          .eq('id', clipId);
-      });
-    }
+    // Note: view_count increment can be handled by a database trigger if needed
   } catch (error) {
     console.error('[vote] recordClipViews error:', error);
     // Non-critical, don't fail the request
