@@ -788,7 +788,7 @@ function VotingArena() {
         {/* Comments */}
         <ActionButton
           icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
-          label={comments.length}
+          label="Chat"
           onClick={() => setShowComments(true)}
         />
 
