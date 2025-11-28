@@ -329,7 +329,7 @@ export async function executeQuery<T>(
     throw new ApiError(404, ERROR_MESSAGES.NOT_FOUND);
   }
   
-  return { data, count };
+  return { data, count: count ?? undefined };
 }
 
 // ============================================================================
