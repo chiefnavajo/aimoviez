@@ -1,5 +1,5 @@
-// middleware.ts
-// FIXED: Authentication and rate limiting middleware
+// proxy.ts
+// FIXED: Authentication and rate limiting proxy (migrated from middleware.ts)
 
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
@@ -63,9 +63,9 @@ function validateAdminToken(token: string): boolean {
 }
 
 /**
- * Main middleware function
+ * Main proxy function
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const method = request.method;
   const ip = getClientIp(request);
@@ -134,7 +134,7 @@ export async function middleware(request: NextRequest) {
       responseHeaders.set('x-admin-authorized', 'true');
     } else if (process.env.NODE_ENV === 'production') {
       // Warn in production if admin auth is disabled
-      console.error('âš ï¸ WARNING: Admin routes are unprotected in production!');
+      console.error('⚠️ WARNING: Admin routes are unprotected in production!');
     }
   }
   
@@ -167,7 +167,7 @@ export async function middleware(request: NextRequest) {
   });
 }
 
-// Configure which routes to run middleware on
+// Configure which routes to run proxy on
 export const config = {
   matcher: [
     // Match all API routes
@@ -176,3 +176,4 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|.*\\..*).)'
   ],
 };
+

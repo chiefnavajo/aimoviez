@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { signOut, useSession } from 'next-auth/react';
 import { 
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
@@ -10,6 +11,7 @@ import {
   ChevronRight, BookOpen, Plus
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import { useAuth } from '@/hooks/useAuth';
 
 // ============================================================================
 // TYPES & MOCK DATA
@@ -99,31 +101,95 @@ function formatNumber(num: number): string {
 // ============================================================================
 
 export default function ProfilePage() {
+  const { user, session } = useAuth();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
-  const [stats] = useState<UserStats>(MOCK_STATS);
-  const [clips] = useState<UserClip[]>(MOCK_CLIPS);
-  const [history] = useState<VotingHistoryItem[]>(MOCK_HISTORY);
-  const [badges] = useState<Badge[]>(MOCK_BADGES);
-  const [username, setUsername] = useState('');
-  const [avatarSeed, setAvatarSeed] = useState('');
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [clips, setClips] = useState<UserClip[]>([]);
+  const [history, setHistory] = useState<VotingHistoryItem[]>([]);
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState({ notifications: true, autoplay: true });
+  const [username, setUsername] = useState('User');
+  const [avatarUrl, setAvatarUrl] = useState(`https://api.dicebear.com/7.x/avataaars/svg?seed=User`);
 
+  // Get username and avatar from user profile or session (client-side only)
   useEffect(() => {
-    let storedUsername = localStorage.getItem('aimoviez_username');
-    let storedSeed = localStorage.getItem('aimoviez_avatar_seed');
-    if (!storedUsername) {
-      storedUsername = `User${Math.random().toString(36).substring(2, 8)}`;
-      localStorage.setItem('aimoviez_username', storedUsername);
-    }
-    if (!storedSeed) {
-      storedSeed = Math.random().toString(36).substring(2, 10);
-      localStorage.setItem('aimoviez_avatar_seed', storedSeed);
-    }
-    setUsername(storedUsername);
-    setAvatarSeed(storedSeed);
+    const storedUsername = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
+    const storedAvatar = typeof window !== 'undefined' ? localStorage.getItem('avatar_url') : null;
+    
+    const finalUsername = user?.username || session?.user?.username || storedUsername || 'User';
+    const finalAvatarUrl = user?.avatar_url || session?.user?.image || storedAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${finalUsername}`;
+    
+    setUsername(finalUsername);
+    setAvatarUrl(finalAvatarUrl);
+  }, [user, session]);
+
+  const avatarSeed = avatarUrl.includes('seed=') ? avatarUrl.split('seed=')[1] : username;
+
+  // Fetch real data
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        // Fetch stats
+        const statsRes = await fetch('/api/profile/stats');
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          setStats({
+            totalVotesCast: statsData.stats?.total_votes || 0,
+            votesToday: statsData.stats?.votes_today || 0,
+            votingStreak: statsData.stats?.current_streak || 0,
+            rank: statsData.stats?.global_rank || 999,
+            level: statsData.user?.level || 1,
+            xp: statsData.user?.current_xp || 0,
+            nextLevelXp: statsData.user?.xp_for_next_level || 100,
+            clipsUploaded: statsData.stats?.clips_uploaded || 0,
+            clipsLocked: statsData.stats?.clips_locked_in || 0,
+          });
+          setBadges(statsData.badges || []);
+        }
+
+        // Fetch clips
+        const clipsRes = await fetch('/api/profile/clips');
+        if (clipsRes.ok) {
+          const clipsData = await clipsRes.json();
+          setClips((clipsData.clips || []).map((clip: any) => ({
+            id: clip.id,
+            video_url: clip.video_url,
+            slot_position: clip.slot_position,
+            status: clip.status === 'locked_in' ? 'locked' : clip.status === 'competing' ? 'voting' : clip.status === 'pending' ? 'pending' : 'approved',
+            vote_count: clip.vote_count || 0,
+            genre: clip.genre || 'Unknown',
+            season_number: 1, // TODO: Get from API
+            created_at: clip.created_at,
+          })));
+        }
+
+        // Fetch history
+        const historyRes = await fetch('/api/profile/history?limit=20');
+        if (historyRes.ok) {
+          const historyData = await historyRes.json();
+          setHistory((historyData.history || []).map((item: any) => ({
+            clip_id: item.clip?.id || '',
+            creator_username: item.clip?.username || 'Creator',
+            creator_avatar: item.clip?.thumbnail_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.clip?.username || 'default'}`,
+            voted_at: item.created_at,
+            slot_position: item.clip?.slot_position || 0,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch profile data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
   }, []);
 
-  const levelProgress = (stats.xp / stats.nextLevelXp) * 100;
+  const levelProgress = stats ? (stats.xp / stats.nextLevelXp) * 100 : 0;
+  const displayStats = stats || MOCK_STATS;
+  const displayBadges = badges.length > 0 ? badges : MOCK_BADGES;
 
   // Shared tab content
   const renderTabContent = () => (
@@ -136,7 +202,7 @@ export default function ProfilePage() {
               Badges
             </h2>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-              {badges.map((badge) => (
+              {displayBadges.map((badge) => (
                 <div key={badge.id} className={`flex flex-col items-center p-3 rounded-xl ${badge.unlocked ? 'bg-white/10' : 'bg-white/5 opacity-50'}`}>
                   <span className="text-2xl mb-1">{badge.icon}</span>
                   <span className="text-[10px] font-medium text-center">{badge.name}</span>
@@ -150,7 +216,7 @@ export default function ProfilePage() {
           <div>
             <h2 className="text-lg font-bold mb-4">In Progress</h2>
             <div className="space-y-3">
-              {badges.filter(b => !b.unlocked && b.progress !== undefined).map((badge) => (
+              {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge) => (
                 <div key={badge.id} className="p-4 bg-white/5 rounded-xl">
                   <div className="flex items-center gap-3 mb-2">
                     <span className="text-xl">{badge.icon}</span>
@@ -236,9 +302,24 @@ export default function ProfilePage() {
             <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/40" /></div></Link>
           </div>
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-            <h3 className="font-bold text-red-500 mb-3">Danger Zone</h3>
-            <button onClick={() => { if (confirm('Clear all local data?')) { localStorage.clear(); window.location.reload(); } }} className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold flex items-center justify-center gap-2">
+            <h3 className="font-bold text-red-500 mb-3">Account</h3>
+            <button 
+              onClick={() => signOut({ callbackUrl: '/' })} 
+              className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
+            >
               <LogOut className="w-5 h-5" />
+              Sign Out
+            </button>
+            <button 
+              onClick={() => { 
+                if (confirm('Clear all local data? This will sign you out.')) { 
+                  localStorage.clear(); 
+                  sessionStorage.clear();
+                  signOut({ callbackUrl: '/' });
+                } 
+              }} 
+              className="w-full px-4 py-3 mt-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-white/70"
+            >
               Clear All Data
             </button>
           </div>
@@ -261,7 +342,7 @@ export default function ProfilePage() {
       <div className="hidden md:flex h-screen">
         {/* Left Sidebar */}
         <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
-          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4">
+          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span>
           </Link>
           <Link href="/dashboard" className="mb-4">
@@ -286,30 +367,48 @@ export default function ProfilePage() {
               <div className="flex items-start gap-6 mb-6">
                 <div className="relative flex-shrink-0">
                   <div className="w-28 h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
-                    <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`} alt="Avatar" className="w-full h-full rounded-full bg-black" />
+                    <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
                   </div>
-                  <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-lg border-4 border-black">{stats.level}</div>
+                  <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-lg border-4 border-black">{displayStats.level}</div>
                 </div>
                 <div className="flex-1 pt-2">
-                  <h1 className="text-3xl font-black mb-2">@{username}</h1>
-                  <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
-                    <div className="flex items-center gap-1"><Trophy className="w-4 h-4 text-yellow-500" /><span>Rank #{stats.rank}</span></div>
-                    <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{stats.votingStreak} day streak</span></div>
-                  </div>
-                  <div className="max-w-md">
-                    <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {stats.level}</span><span>{stats.xp} / {stats.nextLevelXp} XP</span></div>
-                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                      <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h1 className="text-3xl font-black mb-2">@{username}</h1>
+                      <div className="flex items-center gap-4 text-sm text-white/60 mb-4">
+                        <div className="flex items-center gap-1"><Trophy className="w-4 h-4 text-yellow-500" /><span>Rank #{displayStats.rank}</span></div>
+                        <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{displayStats.votingStreak} day streak</span></div>
+                      </div>
+                      <div className="max-w-md">
+                        <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {displayStats.level}</span><span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span></div>
+                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                          <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
+                        </div>
+                      </div>
                     </div>
+                    <motion.button
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => signOut({ callbackUrl: '/' })}
+                      className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg font-medium flex items-center gap-2 transition-colors text-red-400"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="hidden sm:inline">Sign Out</span>
+                    </motion.button>
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-3">
-                <StatBox icon={Heart} label="Today" value={stats.votesToday} subValue="/200" />
-                <StatBox icon={TrendingUp} label="Total" value={formatNumber(stats.totalVotesCast)} />
-                <StatBox icon={Film} label="Clips" value={stats.clipsUploaded} />
-                <StatBox icon={Trophy} label="Wins" value={stats.clipsLocked} />
-              </div>
+              {loading ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" />
+                  <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} />
+                  <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} />
+                  <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} />
+                </div>
+              )}
             </div>
           </div>
           <div className="border-b border-white/10 sticky top-0 z-20 bg-black/90 backdrop-blur-xl">
@@ -334,30 +433,45 @@ export default function ProfilePage() {
             <div className="flex items-start gap-5 mb-6">
               <div className="relative flex-shrink-0">
                 <div className="w-20 h-20 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
-                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${avatarSeed}`} alt="Avatar" className="w-full h-full rounded-full bg-black" />
+                  <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm border-4 border-black">{stats.level}</div>
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm border-4 border-black">{displayStats.level}</div>
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-black mb-1 truncate">@{username}</h1>
+                <div className="flex items-start justify-between mb-1">
+                  <h1 className="text-xl font-black truncate">@{username}</h1>
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => signOut({ callbackUrl: '/' })}
+                    className="p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg transition-colors"
+                  >
+                    <LogOut className="w-4 h-4 text-red-400" />
+                  </motion.button>
+                </div>
                 <div className="flex items-center gap-3 text-sm text-white/60 mb-3 flex-wrap">
-                  <div className="flex items-center gap-1"><Trophy className="w-4 h-4 text-yellow-500" /><span>#{stats.rank}</span></div>
-                  <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{stats.votingStreak} day streak</span></div>
+                  <div className="flex items-center gap-1"><Trophy className="w-4 h-4 text-yellow-500" /><span>#{displayStats.rank}</span></div>
+                  <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{displayStats.votingStreak} day streak</span></div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {stats.level}</span><span>{stats.xp} / {stats.nextLevelXp} XP</span></div>
+                  <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {displayStats.level}</span><span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span></div>
                   <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
                     <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
                   </div>
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-2">
-              <StatBox icon={Heart} label="Today" value={stats.votesToday} subValue="/200" />
-              <StatBox icon={TrendingUp} label="Total" value={formatNumber(stats.totalVotesCast)} />
-              <StatBox icon={Film} label="Clips" value={stats.clipsUploaded} />
-              <StatBox icon={Trophy} label="Wins" value={stats.clipsLocked} />
-            </div>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-6 h-6 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 gap-2">
+                <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" />
+                <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} />
+                <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} />
+                <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} />
+              </div>
+            )}
           </div>
         </div>
         <div className="border-b border-white/10 sticky top-0 z-20 bg-black/90 backdrop-blur-xl px-4">

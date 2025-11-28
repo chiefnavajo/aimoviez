@@ -23,6 +23,7 @@ import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
+import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
 // TYPES
@@ -961,8 +962,10 @@ const queryClient = new QueryClient({
 
 export default function DashboardPage() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <VotingArena />
-    </QueryClientProvider>
+    <AuthGuard>
+      <QueryClientProvider client={queryClient}>
+        <VotingArena />
+      </QueryClientProvider>
+    </AuthGuard>
   );
 }

@@ -995,18 +995,6 @@ function StoryPage() {
             </span>
           </Link>
 
-          {/* Vote Now Button - Always visible */}
-          <Link href="/dashboard" className="mb-4">
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"
-            >
-              <Heart className="w-5 h-5" fill="white" />
-              <span>Vote Now</span>
-            </motion.div>
-          </Link>
-
           {/* Navigation Items */}
           <nav className="flex-1 space-y-1">
             <Link href="/story">

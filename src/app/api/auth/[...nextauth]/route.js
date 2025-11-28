@@ -27,45 +27,63 @@ const handler = NextAuth({
         .map((e) => e.trim().toLowerCase())
         .filter(Boolean);
 
-      console.log("SIGNIN ATTEMPT", {
-        email: user?.email,
-        allowed,
-      });
-
       if (!allowed.length) {
-        console.warn("No ALLOWED_EMAILS set – allowing all users");
+        console.warn("⚠️ No ALLOWED_EMAILS set – allowing all users");
         return true;
       }
 
-      if (!user?.email) return false;
+      if (!user?.email) {
+        console.error("❌ No email in user object");
+        return false;
+      }
 
-      return allowed.includes(user.email.toLowerCase());
+      const isAllowed = allowed.includes(user.email.toLowerCase());
+      if (!isAllowed) {
+        console.error("❌ User not in allowlist:", user.email);
+      }
+      
+      return isAllowed;
     },
 
     async jwt({ token, user, account }) {
-      // On initial sign in, check if user has profile
+      // Set email on initial sign in
       if (account && user) {
         token.email = user.email;
-        
-        // Check if user exists in database
-        if (supabaseUrl && supabaseKey) {
-          try {
-            const supabase = createClient(supabaseUrl, supabaseKey);
-            const { data } = await supabase
-              .from("users")
-              .select("id, username")
-              .eq("email", user.email)
-              .single();
-            
-            token.hasProfile = !!data;
-            token.username = data?.username || null;
-            token.userId = data?.id || null;
-          } catch (err) {
-            console.log("Could not check user profile:", err);
-            token.hasProfile = false;
-          }
-        }
       }
+
+      // Check profile status on every request if we have an email
+      // This ensures profile status is refreshed even after initial sign-in
+      if (token.email && supabaseUrl && supabaseKey) {
+        try {
+          const supabase = createClient(supabaseUrl, supabaseKey);
+          
+          const { data, error } = await supabase
+            .from("users")
+            .select("id, username")
+            .eq("email", token.email)
+            .single();
+          
+          if (error && error.code !== "PGRST116") {
+            // PGRST116 is expected for users without profiles
+            console.error("⚠️ Error checking user profile:", error.message);
+          }
+          
+          token.hasProfile = !!data;
+          token.username = data?.username || null;
+          token.userId = data?.id || null;
+        } catch (err) {
+          console.error("❌ Could not check user profile:", err);
+          token.hasProfile = false;
+        }
+      } else if (!supabaseUrl || !supabaseKey) {
+        // Only log this once to avoid spam
+        if (!token._supabaseWarningLogged) {
+          console.error("❌ Supabase credentials missing!");
+          token._supabaseWarningLogged = true;
+        }
+        token.hasProfile = false;
+      }
+      
       return token;
     },
 
@@ -74,12 +92,19 @@ const handler = NextAuth({
       session.user.hasProfile = token.hasProfile || false;
       session.user.username = token.username || null;
       session.user.userId = token.userId || null;
+      
       return session;
     },
 
     async redirect({ url, baseUrl }) {
-      // After sign in, let the client handle redirect based on profile status
-      return url.startsWith(baseUrl) ? url : baseUrl;
+      // After sign in, redirect to dashboard
+      // The useAuth hook will handle onboarding redirect if needed
+      if (url === baseUrl || url === `${baseUrl}/`) {
+        return `${baseUrl}/dashboard`;
+      }
+      
+      const finalUrl = url.startsWith(baseUrl) ? url : baseUrl;
+      return finalUrl;
     },
   },
 });

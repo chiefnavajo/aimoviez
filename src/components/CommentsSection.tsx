@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { toast } from 'react-hot-toast';
 import { 
   MessageCircle, Heart, Send, X, MoreHorizontal, 
   Trash2, Flag, ChevronDown, ChevronUp, Loader2,
@@ -76,6 +77,14 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     
     try {
       const res = await fetch(`/api/comments?clipId=${clipId}&page=${pageNum}&limit=20&sort=newest`);
+      
+      if (!res.ok) {
+        const data = await res.json();
+        const errorMessage = data.error || 'Failed to load comments. Please try again.';
+        toast.error(errorMessage);
+        return;
+      }
+      
       const data = await res.json();
       
       if (data.comments) {
@@ -90,6 +99,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
       }
     } catch (err) {
       console.error('Failed to fetch comments:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Network error. Please check your connection and try again.';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -120,7 +131,14 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
       
       const data = await res.json();
       
-      if (data.success && data.comment) {
+      if (!res.ok) {
+        const errorMessage = data.error || data.details || 'Failed to post comment. Please try again.';
+        console.error('Failed to post comment:', errorMessage);
+        toast.error(errorMessage);
+        return;
+      }
+      
+      if (data.success && data.comment && data.comment.id) {
         if (replyingTo) {
           // Add reply to parent comment
           setComments(prev => prev.map(c => {
@@ -142,9 +160,13 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
         setNewComment('');
         setReplyingTo(null);
         setShowEmojis(false);
+      } else {
+        toast.error('Failed to post comment. Please try again.');
       }
     } catch (err) {
       console.error('Failed to post comment:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Network error. Please check your connection and try again.';
+      toast.error(errorMessage);
     } finally {
       setPosting(false);
     }
@@ -172,11 +194,16 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     setComments(prev => prev.map(updateComment));
     
     try {
-      await fetch('/api/comments', {
+      const res = await fetch('/api/comments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comment_id: comment.id, action }),
       });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update like');
+      }
     } catch (err) {
       // Revert on error
       setComments(prev => prev.map(c => {
@@ -185,6 +212,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
         }
         return c;
       }));
+      const errorMessage = err instanceof Error ? err.message : 'Failed to update like. Please try again.';
+      toast.error(errorMessage);
     }
   };
 
@@ -206,9 +235,15 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
           replies: c.replies?.filter(r => r.id !== comment.id),
         })));
         setTotal(prev => prev - 1);
+      } else {
+        const data = await res.json();
+        const errorMessage = data.error || 'Failed to delete comment. Please try again.';
+        toast.error(errorMessage);
       }
     } catch (err) {
       console.error('Failed to delete comment:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Network error. Please check your connection and try again.';
+      toast.error(errorMessage);
     }
   };
 
@@ -248,6 +283,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     <AnimatePresence>
       {/* Backdrop */}
       <motion.div
+        key="backdrop"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -257,6 +293,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
 
       {/* Comments Panel */}
       <motion.div
+        key="comments-panel"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
@@ -292,7 +329,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
             </div>
           ) : (
             <>
-              {comments.map((comment) => (
+              {comments.filter(c => c.id).map((comment) => (
                 <CommentItem
                   key={comment.id}
                   comment={comment}
@@ -550,12 +587,13 @@ function CommentItem({
           <AnimatePresence>
             {!isReply && isExpanded && hasReplies && (
               <motion.div
+                key={`replies-${comment.id}`}
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-2"
               >
-                {replies.map((reply) => (
+                {replies.filter(r => r.id).map((reply) => (
                   <CommentItem
                     key={reply.id}
                     comment={reply}

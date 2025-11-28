@@ -1,8 +1,9 @@
-// app/api/clip/[clipId]/comments/route.ts
+// app/api/comments/route.ts
 // Comments API - Manage comments on clips
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -13,6 +14,43 @@ function getUserKey(req: NextRequest): string {
   const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
   const ua = req.headers.get('user-agent') || 'unknown';
   return crypto.createHash('sha256').update(ip + ua).digest('hex');
+}
+
+async function getUserInfo(req: NextRequest, supabase: ReturnType<typeof createClient>) {
+  const userKey = getUserKey(req);
+  let username = `User${userKey.substring(0, 6)}`;
+  let avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userKey}`;
+  
+  try {
+    const session = await getServerSession();
+    if (session?.user?.email) {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .eq('email', session.user.email)
+        .single();
+      
+      if (userError && userError.code !== 'PGRST116') {
+        // PGRST116 is "not found" which is expected for users without profiles
+        console.error('[getUserInfo] Error fetching user data:', userError);
+      }
+      
+      if (userData) {
+        // Use actual username and avatar from profile, but still use userKey for identification
+        username = userData.username;
+        avatar_url = userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`;
+      }
+    }
+  } catch (err) {
+    // Fall back to generated username/avatar
+    console.error('[getUserInfo] Error getting session:', err);
+  }
+  
+  return {
+    userKey,
+    username,
+    avatar_url,
+  };
 }
 
 interface Comment {
@@ -52,7 +90,7 @@ interface CommentsResponse {
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userInfo = await getUserInfo(req, supabase);
     const { searchParams } = new URL(req.url);
     const clipId = searchParams.get('clipId');
     
@@ -83,7 +121,7 @@ export async function GET(req: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (error) {
-      console.error('[GET /api/clip/comments] error:', error);
+      console.error('[GET /api/comments] error:', error);
       return NextResponse.json(
         { error: 'Failed to fetch comments' },
         { status: 500 }
@@ -94,7 +132,7 @@ export async function GET(req: NextRequest) {
     const { data: userLikes } = await supabase
       .from('comment_likes')
       .select('comment_id')
-      .eq('user_key', userKey);
+      .eq('user_key', userInfo.userKey);
 
     const likedCommentIds = new Set(userLikes?.map((l) => l.comment_id) || []);
 
@@ -113,7 +151,7 @@ export async function GET(req: NextRequest) {
         const enrichedReplies: Comment[] = (replies || []).map((reply) => ({
           id: reply.id,
           clip_id: reply.clip_id,
-          user_key: reply.user_key,
+          user_key: reply.user_key || '',
           username: reply.username,
           avatar_url: reply.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.username}`,
           comment_text: reply.comment_text,
@@ -121,21 +159,21 @@ export async function GET(req: NextRequest) {
           parent_comment_id: reply.parent_comment_id,
           created_at: reply.created_at,
           updated_at: reply.updated_at,
-          is_own: reply.user_key === userKey,
+          is_own: reply.user_key === userInfo.userKey,
           is_liked: likedCommentIds.has(reply.id),
         }));
 
         return {
           id: comment.id,
           clip_id: comment.clip_id,
-          user_key: comment.user_key,
+          user_key: comment.user_key || '',
           username: comment.username,
           avatar_url: comment.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.username}`,
           comment_text: comment.comment_text,
           likes_count: comment.likes_count || 0,
           created_at: comment.created_at,
           updated_at: comment.updated_at,
-          is_own: comment.user_key === userKey,
+          is_own: comment.user_key === userInfo.userKey,
           is_liked: likedCommentIds.has(comment.id),
           replies: enrichedReplies,
         };
@@ -173,7 +211,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
     const { clipId, comment_text, parent_comment_id } = body;
@@ -199,29 +237,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generate username (mock for now)
-    const username = `User${userKey.substring(0, 6)}`;
-    const avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userKey}`;
+    // Prepare insert data
+    const insertData = {
+      clip_id: clipId,
+      user_key: userInfo.userKey,
+      username: userInfo.username,
+      avatar_url: userInfo.avatar_url,
+      comment_text: comment_text.trim(),
+      parent_comment_id: parent_comment_id || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
 
     const { data: comment, error } = await supabase
       .from('comments')
-      .insert({
-        clip_id: clipId,
-        user_key: userKey,
-        username,
-        avatar_url,
-        comment_text: comment_text.trim(),
-        parent_comment_id: parent_comment_id || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single();
 
     if (error || !comment) {
-      console.error('[POST /api/clip/comments] error:', error);
+      console.error('[POST /api/comments] error:', error);
       return NextResponse.json(
-        { error: 'Failed to create comment' },
+        { error: 'Failed to create comment', details: error?.message },
         { status: 500 }
       );
     }
@@ -258,7 +295,7 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
     const { comment_id, action } = body;
@@ -276,14 +313,14 @@ export async function PATCH(req: NextRequest) {
         .from('comment_likes')
         .insert({
           comment_id,
-          user_key: userKey,
+          user_key: userInfo.userKey,
           created_at: new Date().toISOString(),
         });
 
       if (error) {
         // Might be duplicate - that's ok
         if (error.code !== '23505') { // unique violation
-          console.error('[PATCH /api/clip/comments] like error:', error);
+          console.error('[PATCH /api/comments] like error:', error);
         }
       }
     } else if (action === 'unlike') {
@@ -292,10 +329,10 @@ export async function PATCH(req: NextRequest) {
         .from('comment_likes')
         .delete()
         .eq('comment_id', comment_id)
-        .eq('user_key', userKey);
+        .eq('user_key', userInfo.userKey);
 
       if (error) {
-        console.error('[PATCH /api/clip/comments] unlike error:', error);
+        console.error('[PATCH /api/comments] unlike error:', error);
       }
     } else {
       return NextResponse.json(
@@ -336,7 +373,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
     const { comment_id } = body;
@@ -353,7 +390,7 @@ export async function DELETE(req: NextRequest) {
       .from('comments')
       .update({ is_deleted: true })
       .eq('id', comment_id)
-      .eq('user_key', userKey) // Ensure user owns the comment
+      .eq('user_key', userInfo.userKey) // Ensure user owns the comment
       .select()
       .single();
 

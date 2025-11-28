@@ -3,20 +3,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-/**
- * Generate voter key from IP + User-Agent
- */
-function getVoterKey(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const ua = req.headers.get('user-agent') || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
 
 interface UserClip {
   id: string;
@@ -48,15 +38,42 @@ interface ProfileClipsResponse {
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const voterKey = getVoterKey(req);
+    
+    // Get user from session
+    let userId: string | null = null;
+    try {
+      const session = await getServerSession();
+      if (session?.user?.email) {
+        // Find user by email
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', session.user.email)
+          .single();
+        
+        if (userData) {
+          userId = userData.id;
+        }
+      }
+    } catch {
+      // No session or user not found
+    }
 
-    // Get user's clips from tournament_clips
-    // Note: Assuming there's a user_id or uploader_key field
-    // You may need to adjust based on your actual schema
+    if (!userId) {
+      return NextResponse.json({
+        clips: [],
+        total_clips: 0,
+        locked_in_count: 0,
+        competing_count: 0,
+        pending_count: 0,
+      } satisfies ProfileClipsResponse);
+    }
+
+    // Get user's clips from tournament_clips using user_id (UUID)
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('*')
-      .eq('user_id', voterKey) // or .eq('uploader_key', voterKey)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (clipsError) {

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { User, Camera, Check, Loader2, Sparkles } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 
 // ============================================================================
 // ONBOARDING PAGE - New User Profile Setup
@@ -19,6 +20,7 @@ const AVATAR_SEEDS = ['felix', 'luna', 'max', 'bella', 'charlie', 'milo', 'leo',
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { update } = useSession();
   
   const [step, setStep] = useState(1);
   const [username, setUsername] = useState('');
@@ -99,6 +101,17 @@ export default function OnboardingPage() {
         localStorage.setItem('user_profile', JSON.stringify(data.user));
         localStorage.setItem('username', data.user.username);
         localStorage.setItem('avatar_url', data.user.avatar_url);
+        
+        // Small delay to ensure database is updated
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Refresh the session to update hasProfile status
+        // This will trigger the JWT callback which checks the database
+        await update();
+        
+        // Small delay to ensure session is updated
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
         router.push('/dashboard');
       } else {
         setError(data.error || 'Failed to create profile');
