@@ -1,10 +1,12 @@
 // app/api/upload/route.ts
 // ============================================================================
 // UPLOAD API - Handles video uploads to Supabase Storage
+// Requires authentication - only logged-in users can upload
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 
 // ============================================================================
@@ -49,17 +51,30 @@ function generateFilename(originalName: string): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check environment variables first
+    // Check authentication first
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      console.error('[UPLOAD] Unauthorized: No session or email');
+      return NextResponse.json({
+        success: false,
+        error: 'You must be logged in to upload clips.'
+      }, { status: 401 });
+    }
+
+    console.log('[UPLOAD] Authenticated user:', session.user.email);
+
+    // Check environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[UPLOAD] Missing Supabase environment variables');
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'Server configuration error. Please contact support.' 
+        error: 'Server configuration error. Please contact support.'
       }, { status: 500 });
     }
 
     const supabase = getSupabaseClient();
     const voterKey = getVoterKey(request);
+    const userEmail = session.user.email;
 
     // Parse form data
     const formData = await request.formData();
@@ -212,26 +227,53 @@ export async function POST(request: NextRequest) {
       type: video.type
     });
 
+    // Look up user profile to get their username
+    let uploaderUsername = `creator_${voterKey.slice(-8)}`;
+    let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
+    let userId: string | null = null;
+
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .eq('email', userEmail)
+      .single();
+
+    if (userProfile) {
+      userId = userProfile.id;
+      uploaderUsername = userProfile.username || uploaderUsername;
+      uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
+      console.log('[UPLOAD] Found user profile:', { userId, uploaderUsername });
+    } else {
+      console.log('[UPLOAD] No user profile found for email:', userEmail);
+    }
+
     // Insert into tournament_clips
+    const insertData: Record<string, unknown> = {
+      slot_position: slotPosition,
+      track_id: 'track-main',
+      video_url: videoUrl,
+      thumbnail_url: videoUrl, // Use video URL as thumbnail for now
+      username: uploaderUsername,
+      avatar_url: uploaderAvatar,
+      genre: genre.toUpperCase(),
+      title: title,
+      description: description,
+      vote_count: 0,
+      weighted_score: 0,
+      hype_score: 0,
+      status: 'pending',
+      uploader_key: voterKey,
+      created_at: new Date().toISOString(),
+    };
+
+    // Add user_id if we have one (column may not exist in all DBs)
+    if (userId) {
+      insertData.user_id = userId;
+    }
+
     const { data: clipData, error: clipError } = await supabase
       .from('tournament_clips')
-      .insert({
-        slot_position: slotPosition,
-        track_id: 'track-main',
-        video_url: videoUrl,
-        thumbnail_url: videoUrl, // Use video URL as thumbnail for now
-        username: `creator_${voterKey.slice(-8)}`,
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`,
-        genre: genre.toUpperCase(),
-        title: title,
-        description: description,
-        vote_count: 0,
-        weighted_score: 0,
-        hype_score: 0,
-        status: 'pending',
-        uploader_key: voterKey,
-        created_at: new Date().toISOString(),
-      })
+      .insert(insertData)
       .select()
       .single();
 
