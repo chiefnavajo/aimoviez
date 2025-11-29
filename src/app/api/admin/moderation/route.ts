@@ -1,8 +1,10 @@
 // app/api/admin/moderation/route.ts
 // Admin Moderation API - Approve/reject clips in moderation queue
+// Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -22,13 +24,17 @@ interface ModerationQueueItem {
 /**
  * GET /api/admin/moderation
  * Get clips in moderation queue
- * 
+ *
  * Query params:
  * - status?: 'pending' | 'approved' | 'rejected' | 'all' (default: 'pending')
  * - page?: number (default: 1)
  * - limit?: number (default: 20, max: 100)
  */
 export async function GET(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
@@ -91,13 +97,17 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/admin/moderation/approve
  * Approve a clip
- * 
+ *
  * Body: {
  *   clip_id: string,
  *   admin_notes?: string
  * }
  */
 export async function POST(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
@@ -153,13 +163,17 @@ export async function POST(req: NextRequest) {
 /**
  * DELETE /api/admin/moderation/reject
  * Reject a clip
- * 
+ *
  * Body: {
  *   clip_id: string,
  *   reason?: string
  * }
  */
 export async function DELETE(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
@@ -215,7 +229,7 @@ export async function DELETE(req: NextRequest) {
 /**
  * PATCH /api/admin/moderation/batch
  * Batch approve or reject multiple clips
- * 
+ *
  * Body: {
  *   clip_ids: string[],
  *   action: 'approve' | 'reject',
@@ -223,6 +237,10 @@ export async function DELETE(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();

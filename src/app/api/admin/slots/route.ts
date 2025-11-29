@@ -1,8 +1,10 @@
 // app/api/admin/slots/route.ts
 // Admin Slots API - Manage slot statuses and winners
+// Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -10,12 +12,16 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 /**
  * GET /api/admin/slots
  * Get all slots for a season or active season
- * 
+ *
  * Query params:
  * - season_id?: string (optional, defaults to active season)
  * - simple?: 'true' (returns just currentSlot, totalSlots, seasonStatus for admin panel)
  */
 export async function GET(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
@@ -161,7 +167,7 @@ export async function GET(req: NextRequest) {
 /**
  * PATCH /api/admin/slots
  * Update slot status or set winner
- * 
+ *
  * Body: {
  *   slot_id: string,
  *   status?: 'upcoming' | 'voting' | 'locked' | 'archived',
@@ -169,6 +175,10 @@ export async function GET(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
@@ -255,12 +265,16 @@ export async function PATCH(req: NextRequest) {
 /**
  * POST /api/admin/slots/auto-lock
  * Automatically lock a slot with the highest voted clip
- * 
+ *
  * Body: {
  *   slot_position: number
  * }
  */
 export async function POST(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();

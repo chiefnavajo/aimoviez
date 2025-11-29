@@ -1,19 +1,21 @@
 // app/api/admin/clips/[id]/route.ts
 // ============================================================================
 // ADMIN API - Update Clip Details
+// Requires admin authentication
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!url || !key) {
     throw new Error('Missing Supabase environment variables');
   }
-  
+
   return createClient(url, key);
 }
 
@@ -22,6 +24,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { id } = await params;
     const supabase = getSupabaseClient();
@@ -65,6 +71,10 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -135,6 +145,10 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const { id } = await params;
     const supabase = getSupabaseClient();

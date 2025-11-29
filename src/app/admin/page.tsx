@@ -2,11 +2,14 @@
 
 // ============================================================================
 // ADMIN DASHBOARD - With Edit Functionality
+// Requires admin authentication
 // ============================================================================
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import {
   Check,
   X,
@@ -28,7 +31,10 @@ import {
   SkipForward,
   Trophy,
   Layers,
+  ShieldX,
+  LogIn,
 } from 'lucide-react';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 // ============================================================================
 // TYPES
@@ -75,6 +81,9 @@ const GENRES = [
 // ============================================================================
 
 export default function AdminDashboard() {
+  const router = useRouter();
+  const { isLoading: authLoading, isAdmin, error: authError } = useAdminAuth();
+
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterStatus>('pending');
@@ -398,6 +407,88 @@ export default function AdminDashboard() {
   // RENDER
   // ============================================================================
 
+  // Loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white/60">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Not authenticated - show login
+  if (authError === 'Not authenticated') {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="max-w-md mx-auto px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-white/10 flex items-center justify-center">
+              <LogIn className="w-10 h-10 text-cyan-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black mb-2">Admin Login Required</h1>
+              <p className="text-white/60">You need to sign in to access the admin dashboard.</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => signIn('google')}
+              className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl font-bold text-lg flex items-center justify-center gap-3"
+            >
+              Sign in with Google
+            </motion.button>
+            <Link href="/dashboard">
+              <p className="text-sm text-white/40 hover:text-white/60 transition-colors">
+                Back to Dashboard
+              </p>
+            </Link>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Not authorized as admin
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="max-w-md mx-auto px-4 text-center">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="w-20 h-20 mx-auto rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+              <ShieldX className="w-10 h-10 text-red-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-black mb-2">Access Denied</h1>
+              <p className="text-white/60">You don't have admin privileges to access this page.</p>
+              <p className="text-white/40 text-sm mt-2">Contact the site administrator if you believe this is an error.</p>
+            </div>
+            <Link href="/dashboard">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full py-4 bg-white/10 border border-white/20 rounded-xl font-bold text-lg"
+              >
+                Back to Dashboard
+              </motion.button>
+            </Link>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
+  // Authorized admin - show dashboard
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}

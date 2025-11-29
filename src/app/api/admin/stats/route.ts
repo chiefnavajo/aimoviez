@@ -1,8 +1,10 @@
 // app/api/admin/stats/route.ts
 // Admin Stats API - Comprehensive dashboard analytics
+// Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -59,11 +61,13 @@ interface AdminStatsResponse {
 /**
  * GET /api/admin/stats
  * Returns comprehensive admin dashboard statistics
- * 
- * NOTE: This endpoint should be protected with admin authentication
- * For now, it's open but should be secured in production
+ * Requires admin authentication
  */
 export async function GET(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 

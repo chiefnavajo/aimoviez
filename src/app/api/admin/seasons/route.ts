@@ -1,8 +1,10 @@
 // app/api/admin/seasons/route.ts
 // Admin Seasons API - Create, list, and manage seasons
+// Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireAdmin } from '@/lib/admin-auth';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -12,6 +14,10 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
  * List all seasons with stats
  */
 export async function GET(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -66,7 +72,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/admin/seasons
  * Create a new season with slots
- * 
+ *
  * Body: {
  *   name: string,
  *   description?: string,
@@ -75,6 +81,10 @@ export async function GET(req: NextRequest) {
  * }
  */
 export async function POST(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
@@ -170,7 +180,7 @@ export async function POST(req: NextRequest) {
 /**
  * PATCH /api/admin/seasons
  * Update a season's status or details
- * 
+ *
  * Body: {
  *   season_id: string,
  *   status?: 'draft' | 'active' | 'archived',
@@ -179,6 +189,10 @@ export async function POST(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
