@@ -380,14 +380,13 @@ export default function UploadPage() {
               ))}
             </div>
 
-            {/* Debug log - always visible when there's content */}
-            {(isUploading || debugLog.length > 0) && (
+            {/* Debug log - only visible during upload errors in development */}
+            {process.env.NODE_ENV === 'development' && debugLog.length > 0 && (
               <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
-                <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log:</p>
+                <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log (dev only):</p>
                 {debugLog.map((log, i) => (
                   <p key={i} className="text-[10px] text-white/60 font-mono">{log}</p>
                 ))}
-                {debugLog.length === 0 && <p className="text-[10px] text-white/40 font-mono">Waiting...</p>}
               </div>
             )}
 

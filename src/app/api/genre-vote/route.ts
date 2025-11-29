@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { GenreVoteSchema, parseBody } from '@/lib/validations';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -49,6 +50,10 @@ interface GenreVoteResponse {
  * OPTIMIZED: Uses database aggregation instead of loading all rows
  */
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
@@ -121,6 +126,10 @@ export async function GET(req: NextRequest) {
  * Body: { genre: Genre }
  */
 export async function POST(req: NextRequest) {
+  // Rate limiting for votes
+  const rateLimitResponse = await rateLimit(req, 'vote');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);

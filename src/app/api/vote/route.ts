@@ -14,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { VoteRequestSchema, parseBody } from '@/lib/validations';
+import { rateLimit } from '@/lib/rate-limit';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -399,6 +400,10 @@ async function getSeenClipIds(
 // =========================
 
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
@@ -676,6 +681,10 @@ export async function GET(req: NextRequest) {
 // =========================
 
 export async function POST(req: NextRequest) {
+  // Rate limiting for votes (stricter)
+  const rateLimitResponse = await rateLimit(req, 'vote');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const supabase = createSupabaseServerClient();
 
   try {

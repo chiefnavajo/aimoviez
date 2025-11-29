@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 import { RegisterClipSchema, parseBody } from '@/lib/validations';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -45,6 +46,10 @@ function getVoterKey(request: NextRequest): string {
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  // Rate limiting for uploads (very strict)
+  const rateLimitResponse = await rateLimit(request, 'upload');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check authentication first
     const session = await getServerSession();

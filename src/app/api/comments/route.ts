@@ -11,6 +11,7 @@ import {
   DeleteCommentSchema,
   parseBody,
 } from '@/lib/validations';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -100,6 +101,10 @@ interface CommentsResponse {
  * - sort?: 'newest' | 'top' (default: 'newest')
  */
 export async function GET(req: NextRequest) {
+  // Rate limiting for reads
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userInfo = await getUserInfo(req, supabase);
@@ -221,6 +226,10 @@ export async function GET(req: NextRequest) {
  * }
  */
 export async function POST(req: NextRequest) {
+  // Rate limiting for comments
+  const rateLimitResponse = await rateLimit(req, 'comment');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userInfo = await getUserInfo(req, supabase);
@@ -293,6 +302,10 @@ export async function POST(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
+  // Rate limiting for comment likes
+  const rateLimitResponse = await rateLimit(req, 'comment');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userInfo = await getUserInfo(req, supabase);
@@ -368,6 +381,10 @@ export async function PATCH(req: NextRequest) {
  * }
  */
 export async function DELETE(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'comment');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userInfo = await getUserInfo(req, supabase);

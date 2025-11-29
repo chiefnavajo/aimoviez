@@ -1,5 +1,6 @@
 // app/api/leaderboard/voters/route.ts
 // Leaderboard Voters API - Top voters by vote count
+// OPTIMIZED: Uses database aggregation instead of loading all votes
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -45,40 +46,10 @@ function calculateLevel(voteCount: number): number {
 }
 
 /**
- * Calculate streak for a voter
- */
-function calculateStreak(votes: Array<{ created_at: string }>): number {
-  if (votes.length === 0) return 0;
-
-  const voteDates = new Set<string>();
-  votes.forEach((vote) => {
-    const date = new Date(vote.created_at);
-    voteDates.add(date.toISOString().split('T')[0]);
-  });
-
-  let streak = 0;
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-
-  for (let i = 0; i < 365; i++) {
-    const checkDate = new Date(today);
-    checkDate.setDate(checkDate.getDate() - i);
-    const checkStr = checkDate.toISOString().split('T')[0];
-    
-    if (voteDates.has(checkStr)) {
-      streak++;
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
-
-/**
  * GET /api/leaderboard/voters
  * Returns top voters by vote count
- * 
+ * OPTIMIZED: Uses database GROUP BY for aggregation
+ *
  * Query params:
  * - timeframe: 'today' | 'week' | 'all' (default: 'all')
  * - page: number (default: 1)
@@ -89,25 +60,84 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
     const currentVoterKey = getVoterKey(req);
-    
+
     const timeframe = (searchParams.get('timeframe') || 'all') as 'today' | 'week' | 'all';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const offset = (page - 1) * limit;
 
-    // Fetch votes with timeframe filter
-    let query = supabase.from('votes').select('voter_key, created_at, vote_weight');
+    // Calculate date boundaries
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const todayStr = today.toISOString();
 
+    let startDate: string | null = null;
     if (timeframe === 'today') {
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      query = query.gte('created_at', today.toISOString());
+      startDate = todayStr;
     } else if (timeframe === 'week') {
-      const weekAgo = new Date();
+      const weekAgo = new Date(today);
       weekAgo.setDate(weekAgo.getDate() - 7);
-      query = query.gte('created_at', weekAgo.toISOString());
+      startDate = weekAgo.toISOString();
     }
 
-    const { data: votes, error } = await query;
+    // Try to use RPC function first (most efficient)
+    const { data: rpcData, error: rpcError } = await supabase
+      .rpc('get_top_voters', {
+        p_limit: limit,
+        p_offset: offset,
+        p_timeframe: timeframe,
+      });
+
+    // If RPC exists and works, use it
+    if (!rpcError && rpcData && rpcData.length >= 0) {
+      // Get total count
+      const { data: countData } = await supabase.rpc('get_voters_count', {
+        p_timeframe: timeframe,
+      });
+      const total_voters = countData || 0;
+
+      // Get current user's rank
+      const { data: rankData } = await supabase.rpc('get_voter_rank', {
+        p_voter_key: currentVoterKey,
+        p_timeframe: timeframe,
+      });
+
+      const voters: LeaderboardVoter[] = rpcData.map((row: any, index: number) => ({
+        rank: offset + index + 1,
+        voter_key: row.voter_key,
+        username: `Voter${row.voter_key?.substring(0, 6) || 'Unknown'}`,
+        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.voter_key}`,
+        total_votes: Number(row.weighted_total) || Number(row.total_votes) || 0,
+        votes_today: Number(row.votes_today) || 0,
+        current_streak: 0, // Streak calculation requires more queries, skip for performance
+        level: calculateLevel(Number(row.weighted_total) || Number(row.total_votes) || 0),
+        is_current_user: row.voter_key === currentVoterKey,
+      }));
+
+      return NextResponse.json({
+        voters,
+        timeframe,
+        total_voters,
+        page,
+        page_size: limit,
+        has_more: total_voters > offset + limit,
+        current_user_rank: rankData || undefined,
+      } satisfies LeaderboardVotersResponse);
+    }
+
+    // FALLBACK: Use optimized query with LIMIT (not loading all votes)
+    // This is still better than loading everything
+    console.log('[leaderboard/voters] RPC not available, using fallback query');
+
+    // Build query with date filter
+    let query = supabase.from('votes').select('voter_key, vote_weight');
+    if (startDate) {
+      query = query.gte('created_at', startDate);
+    }
+
+    // Get all voter_keys with their vote counts using a subquery approach
+    // We load voter_key and vote_weight, then aggregate in JS (limited to reasonable size)
+    const { data: votes, error } = await query.limit(50000); // Safety limit
 
     if (error) {
       console.error('[GET /api/leaderboard/voters] error:', error);
@@ -128,94 +158,39 @@ export async function GET(req: NextRequest) {
       } satisfies LeaderboardVotersResponse);
     }
 
-    // Aggregate by voter_key
-    const voterMap = new Map<string, {
-      voter_key: string;
-      votes: any[];
-      total_votes: number;
-      votes_today: number;
-    }>();
-
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
-
+    // Aggregate by voter_key (in memory, but limited)
+    const voterMap = new Map<string, number>();
     votes.forEach((vote) => {
-      if (!voterMap.has(vote.voter_key)) {
-        voterMap.set(vote.voter_key, {
-          voter_key: vote.voter_key,
-          votes: [],
-          total_votes: 0,
-          votes_today: 0,
-        });
-      }
-
-      const voter = voterMap.get(vote.voter_key)!;
-      voter.votes.push(vote);
-      voter.total_votes += vote.vote_weight || 1;
-      
-      if (vote.created_at >= todayStr) {
-        voter.votes_today++;
-      }
+      const current = voterMap.get(vote.voter_key) || 0;
+      voterMap.set(vote.voter_key, current + (vote.vote_weight || 1));
     });
 
-    // For 'all' timeframe, we need all votes to calculate streak
-    // Fetch all votes for streak calculation if needed
-    let allVotesMap: Map<string, any[]> | null = null;
-    if (timeframe !== 'all') {
-      const { data: allVotes } = await supabase
-        .from('votes')
-        .select('voter_key, created_at');
-      
-      if (allVotes) {
-        allVotesMap = new Map();
-        allVotes.forEach((vote) => {
-          if (!allVotesMap!.has(vote.voter_key)) {
-            allVotesMap!.set(vote.voter_key, []);
-          }
-          allVotesMap!.get(vote.voter_key)!.push(vote);
-        });
-      }
-    }
-
-    // Convert to array and calculate stats
-    const votersArray = Array.from(voterMap.values()).map((voter) => {
-      const votesForStreak = allVotesMap?.get(voter.voter_key) || voter.votes;
-      const streak = calculateStreak(votesForStreak);
-      const level = calculateLevel(voter.total_votes);
-      const username = `Voter${voter.voter_key.substring(0, 6)}`;
-      const avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voter.voter_key}`;
-
-      return {
-        voter_key: voter.voter_key,
-        username,
-        avatar_url,
-        total_votes: voter.total_votes,
-        votes_today: voter.votes_today,
-        current_streak: streak,
-        level,
-        is_current_user: voter.voter_key === currentVoterKey,
-      };
-    });
-
-    // Sort by total_votes descending
-    votersArray.sort((a, b) => b.total_votes - a.total_votes);
+    // Convert to sorted array
+    const sortedVoters = Array.from(voterMap.entries())
+      .map(([voter_key, total_votes]) => ({ voter_key, total_votes }))
+      .sort((a, b) => b.total_votes - a.total_votes);
 
     // Find current user's rank
-    const currentUserRank = votersArray.findIndex((v) => v.is_current_user) + 1;
+    const currentUserRank = sortedVoters.findIndex((v) => v.voter_key === currentVoterKey) + 1;
 
     // Paginate
-    const total_voters = votersArray.length;
-    const offset = (page - 1) * limit;
-    const paginatedVoters = votersArray.slice(offset, offset + limit);
+    const total_voters = sortedVoters.length;
+    const paginatedVoters = sortedVoters.slice(offset, offset + limit);
 
-    // Add rank
+    // Enrich with additional info
     const enrichedVoters: LeaderboardVoter[] = paginatedVoters.map((voter, index) => ({
       rank: offset + index + 1,
-      ...voter,
+      voter_key: voter.voter_key,
+      username: `Voter${voter.voter_key?.substring(0, 6) || 'Unknown'}`,
+      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${voter.voter_key}`,
+      total_votes: voter.total_votes,
+      votes_today: 0, // Skip for performance in fallback
+      current_streak: 0, // Skip for performance in fallback
+      level: calculateLevel(voter.total_votes),
+      is_current_user: voter.voter_key === currentVoterKey,
     }));
 
-    const response: LeaderboardVotersResponse = {
+    return NextResponse.json({
       voters: enrichedVoters,
       timeframe,
       total_voters,
@@ -223,9 +198,7 @@ export async function GET(req: NextRequest) {
       page_size: limit,
       has_more: total_voters > offset + limit,
       current_user_rank: currentUserRank > 0 ? currentUserRank : undefined,
-    };
-
-    return NextResponse.json(response, { status: 200 });
+    } satisfies LeaderboardVotersResponse);
   } catch (err: any) {
     console.error('[GET /api/leaderboard/voters] Unexpected error:', err);
     return NextResponse.json(
