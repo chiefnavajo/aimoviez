@@ -228,8 +228,7 @@ export async function POST(request: NextRequest) {
         vote_count: 0,
         weighted_score: 0,
         hype_score: 0,
-        status: 'pending', // For voting system
-        moderation_status: 'pending', // For admin moderation queue
+        status: 'pending',
         uploader_key: voterKey,
         created_at: new Date().toISOString(),
       })
@@ -275,7 +274,6 @@ export async function POST(request: NextRequest) {
       clipId: clipData.id,
       slotPosition,
       status: 'pending',
-      moderation_status: 'pending',
       videoUrl,
       title,
       storagePath: uploadData.path
@@ -284,7 +282,7 @@ export async function POST(request: NextRequest) {
     // Verify the clip exists in database by querying it back
     const { data: verifyClip, error: verifyError } = await supabase
       .from('tournament_clips')
-      .select('id, status, moderation_status, video_url, title')
+      .select('id, status, video_url, title')
       .eq('id', clipData.id)
       .single();
 
