@@ -120,7 +120,10 @@ export default function UploadPage() {
   };
 
   // ============================================================================
-  // UPLOAD VIA API (Server-side upload with service key - bypasses RLS)
+  // UPLOAD VIA SIGNED URL (Bypasses Vercel 4.5MB limit)
+  // 1. Get signed URL from server (requires auth)
+  // 2. Upload directly to Supabase using signed URL
+  // 3. Register clip metadata via API
   // ============================================================================
 
   const handleSubmit = async () => {
@@ -144,42 +147,86 @@ export default function UploadPage() {
     addLog(`File: ${video.name} (${(video.size / 1024 / 1024).toFixed(2)}MB)`);
 
     try {
-      // Upload via API route (server handles storage upload with service key)
-      addLog('Uploading via server...');
+      // STEP 1: Get signed upload URL from server
+      addLog('Step 1: Getting upload permission...');
+      setUploadStatus('Preparing upload...');
+
+      const signedUrlResponse = await fetch('/api/upload/signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filename: video.name,
+          contentType: video.type,
+        }),
+      });
+
+      const signedUrlResult = await signedUrlResponse.json();
+
+      if (!signedUrlResponse.ok || !signedUrlResult.success) {
+        addLog(`Failed to get upload URL: ${signedUrlResult.error}`);
+        throw new Error(signedUrlResult.error || 'Failed to get upload permission');
+      }
+
+      addLog('Got signed upload URL');
+      const { signedUrl, publicUrl } = signedUrlResult;
+
+      // STEP 2: Upload directly to Supabase using signed URL
+      addLog('Step 2: Uploading to storage...');
       setUploadStatus('Uploading video...');
 
       // Simulate progress while uploading
       const startTime = Date.now();
-      const estimatedUploadTime = (video.size / 1024 / 1024) * 3000; // ~3 sec per MB estimate
+      const estimatedUploadTime = (video.size / 1024 / 1024) * 2000; // ~2 sec per MB
 
       const progressInterval = setInterval(() => {
         const elapsed = Date.now() - startTime;
-        const estimatedProgress = Math.min(85, (elapsed / estimatedUploadTime) * 85);
+        const estimatedProgress = Math.min(80, (elapsed / estimatedUploadTime) * 80);
         setUploadProgress(estimatedProgress);
       }, 200);
 
-      // Create form data and upload via API
-      const formData = new FormData();
-      formData.append('video', video);
-      formData.append('genre', genre);
-      formData.append('title', `Clip ${Date.now()}`);
-      formData.append('description', '');
-
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      // Upload using the signed URL
+      const uploadResponse = await fetch(signedUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': video.type,
+        },
+        body: video,
       });
 
       clearInterval(progressInterval);
 
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        addLog(`Upload failed: ${result.error}`);
-        throw new Error(result.error || 'Failed to upload video');
+      if (!uploadResponse.ok) {
+        const errorText = await uploadResponse.text();
+        addLog(`Storage upload failed: ${uploadResponse.status} ${errorText}`);
+        throw new Error(`Storage upload failed: ${uploadResponse.status}`);
       }
 
-      addLog('SUCCESS! Clip uploaded and saved');
+      addLog('Video uploaded to storage');
+      setUploadProgress(85);
+
+      // STEP 3: Register clip in database
+      addLog('Step 3: Saving to database...');
+      setUploadStatus('Saving clip info...');
+
+      const registerResponse = await fetch('/api/upload/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl: publicUrl,
+          genre,
+          title: `Clip ${Date.now()}`,
+          description: '',
+        }),
+      });
+
+      const registerResult = await registerResponse.json();
+
+      if (!registerResponse.ok || !registerResult.success) {
+        addLog(`Database save failed: ${registerResult.error}`);
+        throw new Error(registerResult.error || 'Failed to save clip info');
+      }
+
+      addLog('SUCCESS! Clip saved to database');
       setUploadProgress(100);
       setUploadStatus('Complete!');
 

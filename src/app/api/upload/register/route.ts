@@ -2,10 +2,12 @@
 // ============================================================================
 // REGISTER CLIP API - Saves clip info to database after direct Supabase upload
 // This endpoint receives just the video URL (not the file), so no 4.5MB limit!
+// Requires authentication - only logged-in users can register clips
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 
 // ============================================================================
@@ -43,8 +45,21 @@ function getVoterKey(request: NextRequest): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication first
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      console.error('[REGISTER] Unauthorized: No session or email');
+      return NextResponse.json({
+        success: false,
+        error: 'You must be logged in to register clips.'
+      }, { status: 401 });
+    }
+
+    console.log('[REGISTER] Authenticated user:', session.user.email);
+
     const supabase = getSupabaseClient();
     const voterKey = getVoterKey(request);
+    const userEmail = session.user.email;
 
     // Parse JSON body (small request, just metadata)
     const body = await request.json();
@@ -56,6 +71,22 @@ export async function POST(request: NextRequest) {
     }
     if (!genre) {
       return NextResponse.json({ success: false, error: 'Genre is required' }, { status: 400 });
+    }
+
+    // Look up user profile to get their username
+    let uploaderUsername = `creator_${voterKey.slice(-8)}`;
+    let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
+
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('id, username, avatar_url')
+      .eq('email', userEmail)
+      .single();
+
+    if (userProfile) {
+      uploaderUsername = userProfile.username || uploaderUsername;
+      uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
+      console.log('[REGISTER] Found user profile:', uploaderUsername);
     }
 
     // Get active season
@@ -104,8 +135,8 @@ export async function POST(request: NextRequest) {
         track_id: 'track-main',
         video_url: videoUrl,
         thumbnail_url: videoUrl, // Use video URL as thumbnail for now
-        username: `creator_${voterKey.slice(-8)}`,
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`,
+        username: uploaderUsername,
+        avatar_url: uploaderAvatar,
         genre: genre.toUpperCase(),
         title: title || `Clip ${Date.now()}`,
         description: description || '',
