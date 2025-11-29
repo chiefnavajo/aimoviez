@@ -104,21 +104,25 @@ export async function POST(req: NextRequest) {
 
     const storySlot = slot as StorySlotRow;
 
-    // 3. Klipy w tym slocie
-    const { data: clips, error: clipsError } = await supabase
+    // 3. OPTIMIZED: Get winner directly from database (single query, no JS loop)
+    const { data: winner, error: winnerError } = await supabase
       .from('tournament_clips')
       .select('id, slot_position, vote_count, weighted_score')
-      .eq('slot_position', storySlot.slot_position);
+      .eq('slot_position', storySlot.slot_position)
+      .order('weighted_score', { ascending: false, nullsFirst: false })
+      .order('vote_count', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (clipsError) {
-      console.error('[advance-slot] clipsError:', clipsError);
+    if (winnerError) {
+      console.error('[advance-slot] winnerError:', winnerError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to load clips for active slot' },
+        { ok: false, error: 'Failed to find winner for active slot' },
         { status: 500 }
       );
     }
 
-    if (!clips || clips.length === 0) {
+    if (!winner) {
       return NextResponse.json(
         {
           ok: false,
@@ -127,17 +131,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const normalizedClips = clips as TournamentClipRow[];
-
-    // 4. Wybór zwycięzcy – max(weighted_score, vote_count)
-    const winner = normalizedClips.reduce((best, clip) => {
-      const bestScore =
-        (best.weighted_score ?? best.vote_count ?? 0) as number;
-      const clipScore =
-        (clip.weighted_score ?? clip.vote_count ?? 0) as number;
-      return clipScore > bestScore ? clip : best;
-    });
 
     // 5. Zamknij aktywny slot: status = 'locked', ustaw winner_tournament_clip_id
     const { error: updateSlotError } = await supabase

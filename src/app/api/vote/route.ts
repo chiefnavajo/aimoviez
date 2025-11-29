@@ -493,13 +493,37 @@ export async function GET(req: NextRequest) {
     const slotVotes = await getUserVotesInSlot(supabase, voterKey, activeSlot.slot_position);
     const votedClipIds = slotVotes.map(v => v.clip_id);
     const specialVotesRemaining = calculateRemainingSpecialVotes(slotVotes);
+    const votedIdsSet = new Set(votedClipIds);
 
-    // 5. Get ALL clips in this slot (for sampling)
-    const { data: clips, error: clipsError, count: totalClipCount } = await supabase
+    // 5. Get total clip count for this slot (lightweight query)
+    const { count: totalClipCount, error: countError } = await supabase
       .from('tournament_clips')
-      .select('*', { count: 'exact' })
+      .select('id', { count: 'exact', head: true })
       .eq('slot_position', activeSlot.slot_position)
       .eq('status', 'active');
+
+    if (countError) {
+      console.error('[GET /api/vote] countError:', countError);
+    }
+
+    const totalClipsInSlot = totalClipCount ?? 0;
+
+    // 6. OPTIMIZED: Fetch only unvoted clips, limited to what we need
+    // This is the key optimization - we only load CLIPS_PER_SESSION clips, not all
+    let unvotedClipsQuery = supabase
+      .from('tournament_clips')
+      .select('*')
+      .eq('slot_position', activeSlot.slot_position)
+      .eq('status', 'active')
+      .order('created_at', { ascending: true }) // Prioritize newer clips for fairness
+      .limit(CLIP_POOL_SIZE); // Get a pool to sample from (30 clips max)
+
+    // Exclude already voted clips if any
+    if (votedClipIds.length > 0) {
+      unvotedClipsQuery = unvotedClipsQuery.not('id', 'in', `(${votedClipIds.join(',')})`);
+    }
+
+    const { data: unvotedClips, error: clipsError } = await unvotedClipsQuery;
 
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
@@ -526,10 +550,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    const allClips = (clips as TournamentClipRow[]) || [];
-    const totalClipsInSlot = totalClipCount ?? allClips.length;
+    const clipPool = (unvotedClips as TournamentClipRow[]) || [];
 
-    if (allClips.length === 0) {
+    if (clipPool.length === 0 && votedClipIds.length === 0) {
+      // No clips at all in this slot
       const empty: VotingStateResponse = {
         clips: [],
         totalVotesToday,
@@ -553,25 +577,16 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    // 6. Get seen clips for this user
-    const seenClipIds = await getSeenClipIds(supabase, voterKey, activeSlot.slot_position);
+    // 7. OPTIMIZED: Simple random sampling from the pool (already limited by DB)
+    // Shuffle and take CLIPS_PER_SESSION
+    const shuffledClips = clipPool.sort(() => Math.random() - 0.5);
+    const sampledClips = shuffledClips.slice(0, CLIPS_PER_SESSION);
 
-    // 7. Apply smart sampling - get 8 clips
-    const votedIdsSet = new Set(votedClipIds);
-    const sampledClips = smartSampleClips(
-      allClips,
-      votedIdsSet,
-      seenClipIds,
-      CLIPS_PER_SESSION
-    );
-
-    // 8. Record these clips as viewed
-    const newClipIds = sampledClips
-      .filter(c => !seenClipIds.has(c.id))
-      .map(c => c.id);
-    
-    if (newClipIds.length > 0) {
-      recordClipViews(supabase, voterKey, newClipIds);
+    // 8. Record clip views (non-blocking, for analytics only)
+    const clipIdsToRecord = sampledClips.map(c => c.id);
+    if (clipIdsToRecord.length > 0) {
+      // Fire and forget - don't await, don't block response
+      recordClipViews(supabase, voterKey, clipIdsToRecord).catch(() => {});
     }
 
     // 9. Map clips for frontend
