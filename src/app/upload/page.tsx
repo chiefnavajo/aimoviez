@@ -6,6 +6,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Upload, Check, X, Loader2, AlertCircle, BookOpen, User, Play, Volume2, VolumeX, Plus, Heart, Trophy } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import { createClient } from '@supabase/supabase-js';
+
+// ============================================================================
+// SUPABASE CLIENT (Browser - uses anon key)
+// ============================================================================
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -33,6 +42,17 @@ const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB - Supabase limit
 const MAX_DURATION = 8.5;
 
 // ============================================================================
+// HELPERS
+// ============================================================================
+
+function generateFilename(originalName: string): string {
+  const timestamp = Date.now();
+  const random = Math.random().toString(36).substring(2, 10);
+  const ext = originalName.split('.').pop()?.toLowerCase() || 'mp4';
+  return `clip_${timestamp}_${random}.${ext}`;
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -49,33 +69,40 @@ export default function UploadPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [debugLog, setDebugLog] = useState<string[]>([]);
 
   const addLog = (msg: string) => {
     console.log('[UPLOAD]', msg);
-    setDebugLog(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${msg}`]);
+    setDebugLog(prev => [...prev.slice(-15), `${new Date().toLocaleTimeString()}: ${msg}`]);
   };
 
   const validateVideo = async (file: File): Promise<string[]> => {
     const errors: string[] = [];
     if (file.size > MAX_VIDEO_SIZE) {
       const sizeMB = (file.size / 1024 / 1024).toFixed(1);
-      errors.push(`Video too large (${sizeMB}MB). Maximum: 50MB. Tip: Compress your video - 8-second clips should be under 20MB.`);
+      errors.push(`Video too large (${sizeMB}MB). Maximum: 50MB.`);
     }
-    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) errors.push('Only MP4, WebM, or MOV allowed');
+    if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) {
+      errors.push('Only MP4, WebM, or MOV allowed');
+    }
     return new Promise((resolve) => {
       const video = document.createElement('video');
       video.preload = 'metadata';
       video.onloadedmetadata = () => {
         URL.revokeObjectURL(video.src);
-        if (video.duration > MAX_DURATION) errors.push(`Video must be 8 seconds or less (yours: ${video.duration.toFixed(1)}s)`);
+        if (video.duration > MAX_DURATION) {
+          errors.push(`Video must be 8 seconds or less (yours: ${video.duration.toFixed(1)}s)`);
+        }
         setVideoDuration(video.duration);
         resolve(errors);
       };
-      video.onerror = () => { errors.push('Could not read video file'); resolve(errors); };
+      video.onerror = () => { 
+        errors.push('Could not read video file'); 
+        resolve(errors); 
+      };
       video.src = URL.createObjectURL(file);
     });
   };
@@ -98,163 +125,144 @@ export default function UploadPage() {
     if (file) handleFileSelect(file);
   };
 
+  // ============================================================================
+  // DIRECT SUPABASE UPLOAD (Bypasses Vercel 4.5MB limit)
+  // ============================================================================
+
   const handleSubmit = async () => {
     if (!video || !genre) return;
+    
     setIsUploading(true);
     setUploadProgress(0);
-    setUploadStartTime(Date.now());
+    setUploadStatus('Starting upload...');
     setErrors([]);
     setDebugLog([]);
 
-    // Detect device
     const isAndroid = /android/i.test(navigator.userAgent);
     const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
     addLog(`Device: ${isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop'}`);
     addLog(`File: ${video.name} (${(video.size / 1024 / 1024).toFixed(2)}MB)`);
 
-    // Fake progress for Android (XHR progress events unreliable)
-    let fakeProgressInterval: NodeJS.Timeout | null = null;
-    
-    if (isAndroid) {
-      addLog('Starting fake progress for Android');
-      let fakeProgress = 0;
-      fakeProgressInterval = setInterval(() => {
-        // Slowly increment to 85%, then wait for real completion
-        if (fakeProgress < 85) {
-          fakeProgress += Math.random() * 3 + 1;
-          setUploadProgress(Math.min(fakeProgress, 85));
-        }
-      }, 500);
-    }
-
     try {
-      // Create FormData
-      const formData = new FormData();
-      formData.append('video', video);
-      formData.append('genre', genre);
-      formData.append('title', `Clip by ${Date.now()}`); // Default title
-      formData.append('description', '');
-      addLog('FormData created, starting XHR');
+      // STEP 1: Upload directly to Supabase Storage (bypasses Vercel!)
+      addLog('Step 1: Uploading to Supabase Storage...');
+      setUploadStatus('Uploading video...');
 
-      // Use XMLHttpRequest for upload progress tracking
-      const xhr = new XMLHttpRequest();
+      const filename = generateFilename(video.name);
+      const storagePath = `clips/${filename}`;
+
+      // Try 'videos' bucket first, then 'clips'
+      let uploadError = null;
+      let bucketName = 'videos';
+
+      // Simulate progress while uploading (Supabase JS doesn't support progress)
+      const startTime = Date.now();
+      const estimatedUploadTime = (video.size / 1024 / 1024) * 2000; // ~2 sec per MB estimate
       
-      // Track upload progress (works on desktop, unreliable on Android)
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 90;
-          addLog(`Progress: ${Math.round(percentComplete)}% (${e.loaded}/${e.total})`);
-          if (!isAndroid) {
-            setUploadProgress(percentComplete);
-          }
-        }
-      });
+      const progressInterval = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const estimatedProgress = Math.min(85, (elapsed / estimatedUploadTime) * 85);
+        setUploadProgress(estimatedProgress);
+      }, 200);
 
-      // Handle completion
-      const uploadPromise = new Promise<{ success: boolean; error?: string; data?: any }>((resolve, reject) => {
-        xhr.addEventListener('load', () => {
-          addLog(`XHR load: status=${xhr.status}`);
-          // Clear fake progress interval
-          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
-          
-          if (xhr.status >= 200 && xhr.status < 300) {
-            try {
-              const data = JSON.parse(xhr.responseText);
-              addLog(`Response: success=${data.success}`);
-              // Check if API actually returned success
-              if (data.success === true) {
-                resolve({ success: true, data });
-              } else {
-                // API returned 200 but with an error
-                addLog(`API error: ${data.error || data.message}`);
-                resolve({ success: false, error: data.error || data.message || 'Upload failed on server' });
-              }
-            } catch (e) {
-              addLog('Failed to parse response');
-              resolve({ success: false, error: 'Invalid response from server' });
-            }
-          } else {
-            addLog(`HTTP error: ${xhr.status}`);
-            try {
-              const data = JSON.parse(xhr.responseText);
-              resolve({ success: false, error: data.error || 'Upload failed' });
-            } catch (e) {
-              resolve({ success: false, error: `Upload failed (${xhr.status})` });
-            }
-          }
+      // Try videos bucket
+      addLog('Uploading to videos bucket...');
+      const { data: uploadData, error: videosBucketError } = await supabase.storage
+        .from('videos')
+        .upload(storagePath, video, {
+          contentType: video.type,
+          upsert: false,
         });
 
-        xhr.addEventListener('error', (e) => {
-          addLog(`XHR error event: ${JSON.stringify(e)}`);
-          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
-          resolve({ success: false, error: 'Network error. Please check your connection.' });
-        });
-
-        xhr.addEventListener('abort', () => {
-          addLog('XHR aborted');
-          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
-          resolve({ success: false, error: 'Upload cancelled' });
-        });
-
-        xhr.addEventListener('readystatechange', () => {
-          addLog(`ReadyState: ${xhr.readyState}`);
-        });
+      if (videosBucketError) {
+        addLog(`Videos bucket error: ${videosBucketError.message}`);
         
-        // Timeout after 60 seconds for mobile
-        setTimeout(() => {
-          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
-          if (xhr.readyState !== 4) {
-            addLog('Timeout after 60s - aborting');
-            xhr.abort();
-            resolve({ success: false, error: 'Upload timed out. Try a smaller file or better connection.' });
+        // Try clips bucket as fallback
+        if (videosBucketError.message?.includes('not found') || videosBucketError.message?.includes('Bucket')) {
+          addLog('Trying clips bucket...');
+          bucketName = 'clips';
+          const { data: clipsData, error: clipsBucketError } = await supabase.storage
+            .from('clips')
+            .upload(storagePath, video, {
+              contentType: video.type,
+              upsert: false,
+            });
+          
+          if (clipsBucketError) {
+            uploadError = clipsBucketError;
           }
-        }, 60000);
+        } else {
+          uploadError = videosBucketError;
+        }
+      }
+
+      clearInterval(progressInterval);
+
+      if (uploadError) {
+        addLog(`Storage upload failed: ${uploadError.message}`);
+        throw new Error(`Storage upload failed: ${uploadError.message}`);
+      }
+
+      addLog(`Uploaded to ${bucketName}/${storagePath}`);
+      setUploadProgress(90);
+      setUploadStatus('Processing...');
+
+      // STEP 2: Get public URL
+      const { data: urlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(storagePath);
+
+      const videoUrl = urlData.publicUrl;
+      addLog(`Video URL: ${videoUrl.substring(0, 50)}...`);
+
+      // STEP 3: Save to database via API (small request, no file)
+      addLog('Step 2: Saving to database...');
+      setUploadStatus('Saving clip info...');
+
+      const response = await fetch('/api/upload/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoUrl,
+          genre,
+          title: `Clip ${Date.now()}`,
+          description: '',
+        }),
       });
 
-      // Start upload
-      addLog('Sending XHR request...');
-      xhr.open('POST', '/api/upload');
-      xhr.send(formData);
+      const result = await response.json();
 
-      // Wait for completion
-      const result = await uploadPromise;
-      addLog(`Result received: success=${result.success}`);
-
-      if (!result.success) {
-        const errorMsg = result.error || result.data?.error || 'Upload failed';
-        addLog(`FAILED: ${errorMsg}`);
-        console.error('Upload failed:', errorMsg, result);
-        throw new Error(errorMsg);
+      if (!response.ok || !result.success) {
+        addLog(`Database save failed: ${result.error}`);
+        // Clean up uploaded file
+        await supabase.storage.from(bucketName).remove([storagePath]);
+        throw new Error(result.error || 'Failed to save clip info');
       }
 
-      // Verify the response has the expected data
-      if (!result.data || result.data.success !== true) {
-        const errorMsg = result.data?.error || 'Upload completed but verification failed';
-        addLog(`VERIFICATION FAILED: ${errorMsg}`);
-        console.error('Upload verification failed:', result.data);
-        throw new Error(errorMsg);
-      }
-
-      addLog('SUCCESS! Upload complete.');
-      console.log('Upload successful:', result.data);
-
-      // Success - complete progress bar
+      addLog('SUCCESS! Clip saved to database');
       setUploadProgress(100);
+      setUploadStatus('Complete!');
+
+      // Success - go to step 3
       setTimeout(() => { 
         setStep(3); 
-        // Delay redirect so user can see success (and we can see logs)
-        setTimeout(() => router.push('/dashboard'), 5000); 
+        setTimeout(() => router.push('/dashboard'), 3000); 
       }, 500);
+
     } catch (error) {
       console.error('Upload error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
-      addLog(`CATCH ERROR: ${errorMessage}`);
+      addLog(`ERROR: ${errorMessage}`);
       setErrors([errorMessage]);
       setIsUploading(false);
       setUploadProgress(0);
-      setUploadStartTime(null);
+      setUploadStatus('');
     }
   };
+
+  // ============================================================================
+  // RENDER
+  // ============================================================================
 
   const renderUploadContent = () => (
     <div className="max-w-2xl mx-auto px-4 md:px-6 py-8">
@@ -334,15 +342,10 @@ export default function UploadPage() {
               ))}
             </div>
 
-            {/* Submit Button */}
-            <motion.button whileTap={{ scale: 0.98 }} onClick={handleSubmit} disabled={!genre || isUploading} className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/40'}`}>
-              {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</> : 'Submit Clip'}
-            </motion.button>
-
             {/* Debug log - always visible when there's content */}
             {(isUploading || debugLog.length > 0) && (
               <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
-                <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log (scroll down for latest):</p>
+                <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log:</p>
                 {debugLog.map((log, i) => (
                   <p key={i} className="text-[10px] text-white/60 font-mono">{log}</p>
                 ))}
@@ -350,23 +353,42 @@ export default function UploadPage() {
               </div>
             )}
 
+            {/* Submit Button */}
+            <motion.button 
+              whileTap={{ scale: 0.98 }} 
+              onClick={handleSubmit} 
+              disabled={!genre || isUploading} 
+              className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/40'}`}
+            >
+              {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" />{uploadStatus || 'Uploading...'}</> : 'Submit Clip'}
+            </motion.button>
+
             {isUploading && (
               <div className="space-y-2">
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
-                  <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />
+                  <motion.div 
+                    className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" 
+                    initial={{ width: 0 }} 
+                    animate={{ width: `${uploadProgress}%` }} 
+                    transition={{ duration: 0.3 }}
+                  />
                 </div>
                 <p className="text-xs text-white/60 text-center">
                   {uploadProgress < 90 
-                    ? `Uploading... ${Math.round(uploadProgress)}%` 
+                    ? `Uploading to storage... ${Math.round(uploadProgress)}%` 
                     : uploadProgress < 100 
-                      ? 'Processing on server...' 
+                      ? 'Saving to database...' 
                       : 'Complete!'}
                 </p>
-                <p className="text-xs text-white/40 text-center">
-                  {uploadStartTime && uploadProgress < 100 && (
-                    <>Please wait, this may take a minute on mobile</>
-                  )}
-                </p>
+              </div>
+            )}
+
+            {/* Errors */}
+            {errors.length > 0 && !isUploading && (
+              <div className="p-4 bg-red-500/20 border border-red-500/40 rounded-xl">
+                {errors.map((error, i) => (
+                  <div key={i} className="flex items-center gap-2 text-red-400 text-sm"><AlertCircle className="w-4 h-4" />{error}</div>
+                ))}
               </div>
             )}
           </motion.div>
