@@ -12,9 +12,16 @@ import { createClient } from '@supabase/supabase-js';
 // SUPABASE CLIENT (Browser - uses anon key)
 // ============================================================================
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+function getSupabase() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  
+  return createClient(supabaseUrl, supabaseAnonKey);
+}
 
 // ============================================================================
 // TYPES & CONSTANTS
@@ -167,7 +174,7 @@ export default function UploadPage() {
 
       // Try videos bucket
       addLog('Uploading to videos bucket...');
-      const { data: uploadData, error: videosBucketError } = await supabase.storage
+      const { data: uploadData, error: videosBucketError } = await getSupabase().storage
         .from('videos')
         .upload(storagePath, video, {
           contentType: video.type,
@@ -181,7 +188,7 @@ export default function UploadPage() {
         if (videosBucketError.message?.includes('not found') || videosBucketError.message?.includes('Bucket')) {
           addLog('Trying clips bucket...');
           bucketName = 'clips';
-          const { data: clipsData, error: clipsBucketError } = await supabase.storage
+          const { data: clipsData, error: clipsBucketError } = await getSupabase().storage
             .from('clips')
             .upload(storagePath, video, {
               contentType: video.type,
@@ -208,7 +215,7 @@ export default function UploadPage() {
       setUploadStatus('Processing...');
 
       // STEP 2: Get public URL
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = getSupabase().storage
         .from(bucketName)
         .getPublicUrl(storagePath);
 
@@ -235,7 +242,7 @@ export default function UploadPage() {
       if (!response.ok || !result.success) {
         addLog(`Database save failed: ${result.error}`);
         // Clean up uploaded file
-        await supabase.storage.from(bucketName).remove([storagePath]);
+        await getSupabase().storage.from(bucketName).remove([storagePath]);
         throw new Error(result.error || 'Failed to save clip info');
       }
 
