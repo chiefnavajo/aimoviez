@@ -218,9 +218,11 @@ export default function UploadPage() {
 
       // Wait for completion
       const result = await uploadPromise;
+      addLog(`Result received: success=${result.success}`);
 
       if (!result.success) {
         const errorMsg = result.error || result.data?.error || 'Upload failed';
+        addLog(`FAILED: ${errorMsg}`);
         console.error('Upload failed:', errorMsg, result);
         throw new Error(errorMsg);
       }
@@ -228,21 +230,25 @@ export default function UploadPage() {
       // Verify the response has the expected data
       if (!result.data || result.data.success !== true) {
         const errorMsg = result.data?.error || 'Upload completed but verification failed';
+        addLog(`VERIFICATION FAILED: ${errorMsg}`);
         console.error('Upload verification failed:', result.data);
         throw new Error(errorMsg);
       }
 
+      addLog('SUCCESS! Upload complete.');
       console.log('Upload successful:', result.data);
 
       // Success - complete progress bar
       setUploadProgress(100);
       setTimeout(() => { 
         setStep(3); 
-        setTimeout(() => router.push('/dashboard'), 3000); 
+        // Delay redirect so user can see success (and we can see logs)
+        setTimeout(() => router.push('/dashboard'), 5000); 
       }, 500);
     } catch (error) {
       console.error('Upload error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      addLog(`CATCH ERROR: ${errorMessage}`);
       setErrors([errorMessage]);
       setIsUploading(false);
       setUploadProgress(0);
@@ -333,6 +339,17 @@ export default function UploadPage() {
               {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" />Uploading...</> : 'Submit Clip'}
             </motion.button>
 
+            {/* Debug log - always visible when there's content */}
+            {(isUploading || debugLog.length > 0) && (
+              <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
+                <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log (scroll down for latest):</p>
+                {debugLog.map((log, i) => (
+                  <p key={i} className="text-[10px] text-white/60 font-mono">{log}</p>
+                ))}
+                {debugLog.length === 0 && <p className="text-[10px] text-white/40 font-mono">Waiting...</p>}
+              </div>
+            )}
+
             {isUploading && (
               <div className="space-y-2">
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
@@ -350,13 +367,6 @@ export default function UploadPage() {
                     <>Please wait, this may take a minute on mobile</>
                   )}
                 </p>
-                {/* Debug log - visible on screen */}
-                <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-40 overflow-y-auto">
-                  <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log:</p>
-                  {debugLog.map((log, i) => (
-                    <p key={i} className="text-[10px] text-white/60 font-mono">{log}</p>
-                  ))}
-                </div>
               </div>
             )}
           </motion.div>
