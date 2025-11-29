@@ -4,39 +4,55 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, Pause, BookOpen, Plus, Trophy, User, MessageCircle, Flag } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Zap, Sparkles } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import CommentsSection from '@/components/CommentsSection';
 
 // ============================================================================
-// CLIP DETAIL PAGE - TikTok Style with Desktop Sidebar
+// CLIP DETAIL PAGE - Real data from API
 // ============================================================================
 
 interface ClipData {
   id: string;
   video_url: string;
+  thumbnail_url: string;
   username: string;
   avatar_url: string;
+  title: string;
+  description: string;
   vote_count: number;
+  weighted_score: number;
   genre: string;
   slot_position: number;
-  season_number: number;
-  status: 'voting' | 'locked' | 'pending';
+  status: 'pending' | 'active' | 'voting' | 'locked' | 'rejected';
+  is_winner: boolean;
   created_at: string;
 }
 
-const MOCK_CLIP: ClipData = {
-  id: 'clip-1',
-  video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4',
-  username: 'veo3_creator',
-  avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3',
-  vote_count: 4521,
-  genre: 'Horror',
-  slot_position: 5,
-  season_number: 2,
-  status: 'voting',
-  created_at: '2024-11-25T10:00:00Z',
-};
+interface ClipAPIResponse {
+  clip: ClipData;
+  user_vote: {
+    has_voted: boolean;
+    vote_type: 'standard' | 'super' | 'mega' | null;
+  };
+  season: {
+    id: string;
+    name: string;
+    status: string;
+  } | null;
+  slot: {
+    id: string;
+    slot_position: number;
+    status: string;
+    voting_ends_at: string | null;
+  } | null;
+  stats: {
+    comment_count: number;
+    view_count: number;
+    rank_in_slot: number;
+    total_clips_in_slot: number;
+  };
+}
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -48,19 +64,67 @@ export default function ClipDetailPage() {
   const params = useParams();
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
-  
-  const [clip] = useState<ClipData>(MOCK_CLIP);
+  const clipId = params?.id as string;
+
+  const [clip, setClip] = useState<ClipData | null>(null);
+  const [stats, setStats] = useState<ClipAPIResponse['stats'] | null>(null);
+  const [season, setSeason] = useState<ClipAPIResponse['season'] | null>(null);
+  const [slot, setSlot] = useState<ClipAPIResponse['slot'] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
-  const [voteCount, setVoteCount] = useState(clip.vote_count);
+  const [voteType, setVoteType] = useState<'standard' | 'super' | 'mega' | null>(null);
+  const [voteCount, setVoteCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
+  const [isVoting, setIsVoting] = useState(false);
 
+  // Fetch clip data
   useEffect(() => {
-    if (videoRef.current) {
+    async function fetchClip() {
+      if (!clipId) return;
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const res = await fetch(`/api/clip/${clipId}`);
+        if (!res.ok) {
+          if (res.status === 404) {
+            setError('Clip not found');
+          } else {
+            setError('Failed to load clip');
+          }
+          return;
+        }
+
+        const data: ClipAPIResponse = await res.json();
+        setClip(data.clip);
+        setStats(data.stats);
+        setSeason(data.season);
+        setSlot(data.slot);
+        setVoteCount(data.clip.vote_count);
+        setHasVoted(data.user_vote.has_voted);
+        setVoteType(data.user_vote.vote_type);
+      } catch (err) {
+        console.error('Failed to fetch clip:', err);
+        setError('Failed to load clip');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchClip();
+  }, [clipId]);
+
+  // Auto-play video when clip loads
+  useEffect(() => {
+    if (clip && videoRef.current) {
       videoRef.current.play().catch(() => {});
     }
-  }, []);
+  }, [clip]);
 
   const togglePlay = () => {
     if (videoRef.current) {
@@ -70,20 +134,68 @@ export default function ClipDetailPage() {
     }
   };
 
-  const handleVote = () => {
-    if (!hasVoted) {
-      setHasVoted(true);
-      setVoteCount(v => v + 1);
+  const handleVote = async (type: 'standard' | 'super' | 'mega' = 'standard') => {
+    if (!clip || hasVoted || isVoting) return;
+
+    setIsVoting(true);
+    try {
+      const res = await fetch('/api/vote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clipId: clip.id, voteType: type }),
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        setHasVoted(true);
+        setVoteType(type);
+        setVoteCount(data.newScore || voteCount + (type === 'mega' ? 10 : type === 'super' ? 3 : 1));
+      } else if (data.code === 'ALREADY_VOTED') {
+        setHasVoted(true);
+      }
+    } catch (err) {
+      console.error('Vote failed:', err);
+    } finally {
+      setIsVoting(false);
     }
   };
 
   const handleShare = async () => {
+    if (!clip) return;
     try {
       await navigator.share({ title: `Check out this clip by @${clip.username}`, url: window.location.href });
     } catch {
       navigator.clipboard.writeText(window.location.href);
     }
   };
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-white/50" />
+      </div>
+    );
+  }
+
+  // Error state
+  if (error || !clip) {
+    return (
+      <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
+        <p className="text-white/50">{error || 'Clip not found'}</p>
+        <button
+          onClick={() => router.back()}
+          className="px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition"
+        >
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
+  // Determine if voting is allowed
+  const canVote = slot?.status === 'voting' && !hasVoted && clip.status === 'voting';
 
   const renderClipContent = () => (
     <div className="relative w-full h-full bg-black flex items-center justify-center">
@@ -113,8 +225,11 @@ export default function ClipDetailPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="px-3 py-1.5 rounded-full bg-black/50 text-sm font-bold">
-            {clip.status === 'voting' && <span className="text-orange-400">🔴 LIVE</span>}
-            {clip.status === 'locked' && <span className="text-cyan-400">🏆 Winner</span>}
+            {clip.status === 'voting' && <span className="text-orange-400">LIVE</span>}
+            {clip.status === 'locked' && clip.is_winner && <span className="text-cyan-400">WINNER</span>}
+            {clip.status === 'pending' && <span className="text-yellow-400">PENDING</span>}
+            {clip.status === 'rejected' && <span className="text-red-400">REJECTED</span>}
+            {clip.status === 'active' && !clip.is_winner && <span className="text-white/50">ENDED</span>}
           </div>
         </div>
 
@@ -127,13 +242,56 @@ export default function ClipDetailPage() {
             </div>
           </Link>
 
-          {/* Vote */}
-          <motion.button whileTap={{ scale: 0.9 }} onClick={handleVote} className="flex flex-col items-center gap-1">
-            <div className={`w-12 h-12 rounded-full flex items-center justify-center ${hasVoted ? 'bg-pink-500' : 'bg-white/20'}`}>
-              <Heart className="w-6 h-6" fill={hasVoted ? 'white' : 'none'} />
+          {/* Vote Button */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => handleVote('standard')}
+            disabled={!canVote || isVoting}
+            className="flex flex-col items-center gap-1"
+          >
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
+              hasVoted
+                ? voteType === 'mega' ? 'bg-purple-500' : voteType === 'super' ? 'bg-orange-500' : 'bg-pink-500'
+                : canVote ? 'bg-white/20 hover:bg-pink-500/50' : 'bg-white/10'
+            }`}>
+              {isVoting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <Heart className="w-6 h-6" fill={hasVoted ? 'white' : 'none'} />
+              )}
             </div>
             <span className="text-xs font-bold">{formatNumber(voteCount)}</span>
           </motion.button>
+
+          {/* Super Vote - only show if voting is open */}
+          {canVote && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleVote('super')}
+              disabled={isVoting}
+              className="flex flex-col items-center gap-1"
+            >
+              <div className="w-10 h-10 rounded-full bg-orange-500/30 flex items-center justify-center hover:bg-orange-500/50 transition-colors">
+                <Zap className="w-5 h-5 text-orange-400" />
+              </div>
+              <span className="text-[10px] text-orange-400">3x</span>
+            </motion.button>
+          )}
+
+          {/* Mega Vote - only show if voting is open */}
+          {canVote && (
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => handleVote('mega')}
+              disabled={isVoting}
+              className="flex flex-col items-center gap-1"
+            >
+              <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center hover:bg-purple-500/50 transition-colors">
+                <Sparkles className="w-5 h-5 text-purple-400" />
+              </div>
+              <span className="text-[10px] text-purple-400">10x</span>
+            </motion.button>
+          )}
 
           {/* Comment */}
           <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">
@@ -160,7 +318,13 @@ export default function ClipDetailPage() {
         {/* Bottom Info */}
         <div className="absolute bottom-0 left-0 right-16 p-4">
           <Link href={`/profile/${clip.username}`} className="font-bold text-lg mb-1 block">@{clip.username}</Link>
-          <p className="text-sm text-white/70">Season {clip.season_number} • Slot #{clip.slot_position} • {clip.genre}</p>
+          {clip.title && <p className="text-sm text-white/90 mb-1">{clip.title}</p>}
+          <p className="text-sm text-white/70">
+            {season?.name || 'Season'} • Slot #{clip.slot_position} • {clip.genre}
+            {stats && stats.rank_in_slot > 0 && (
+              <span className="ml-2">• Rank {stats.rank_in_slot}/{stats.total_clips_in_slot}</span>
+            )}
+          </p>
         </div>
       </div>
     </div>
