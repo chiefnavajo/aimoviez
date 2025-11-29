@@ -49,6 +49,15 @@ function generateFilename(originalName: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Check environment variables first
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[UPLOAD] Missing Supabase environment variables');
+      return NextResponse.json({ 
+        success: false,
+        error: 'Server configuration error. Please contact support.' 
+      }, { status: 500 });
+    }
+
     const supabase = getSupabaseClient();
     const voterKey = getVoterKey(request);
 
@@ -61,20 +70,22 @@ export async function POST(request: NextRequest) {
 
     // Validate required fields
     if (!video) {
-      return NextResponse.json({ error: 'No video file provided' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'No video file provided' }, { status: 400 });
     }
     if (!genre) {
-      return NextResponse.json({ error: 'Genre is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Genre is required' }, { status: 400 });
     }
     if (!title) {
-      return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Title is required' }, { status: 400 });
     }
 
-    // Validate file size (100MB max)
-    const MAX_SIZE = 100 * 1024 * 1024;
+    // Validate file size (50MB max - Supabase free tier limit)
+    // For 8-second videos, 50MB is more than sufficient
+    const MAX_SIZE = 50 * 1024 * 1024; // 50MB
     if (video.size > MAX_SIZE) {
       return NextResponse.json({ 
-        error: `File too large (${(video.size / 1024 / 1024).toFixed(1)}MB). Max: 100MB` 
+        success: false,
+        error: `File too large (${(video.size / 1024 / 1024).toFixed(1)}MB). Maximum size: 50MB. For 8-second clips, try compressing your video.` 
       }, { status: 400 });
     }
 
@@ -82,6 +93,7 @@ export async function POST(request: NextRequest) {
     const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
     if (!validTypes.includes(video.type)) {
       return NextResponse.json({ 
+        success: false,
         error: 'Invalid format. Use MP4, MOV, or WebM' 
       }, { status: 400 });
     }
@@ -96,7 +108,9 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (seasonError || !season) {
+      console.error('[UPLOAD] No active season:', seasonError);
       return NextResponse.json({ 
+        success: false,
         error: 'No active season. Uploads are currently closed.' 
       }, { status: 400 });
     }
@@ -131,9 +145,24 @@ export async function POST(request: NextRequest) {
       });
 
     if (uploadError) {
-      console.error('Storage upload error:', uploadError);
+      console.error('[UPLOAD] Storage upload error:', uploadError);
+      console.error('[UPLOAD] Error details:', JSON.stringify(uploadError, null, 2));
+      
+      // Check for specific error types
+      let errorMessage = 'Failed to upload video. ';
+      
+      if (uploadError.message?.includes('maximum allowed size') || uploadError.message?.includes('exceeded')) {
+        errorMessage = `File too large for Supabase Storage. Your file is ${(video.size / 1024 / 1024).toFixed(1)}MB. `;
+        errorMessage += 'Please compress your video or reduce the file size. For 8-second clips, aim for under 20MB.';
+      } else if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
+        errorMessage = 'Storage bucket not found. Please ensure the "videos" bucket exists in Supabase Storage.';
+      } else {
+        errorMessage += uploadError.message || 'Storage error. Please try again.';
+      }
+      
       return NextResponse.json({ 
-        error: 'Failed to upload video. Please try again.' 
+        success: false,
+        error: errorMessage
       }, { status: 500 });
     }
 
@@ -143,6 +172,21 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(storagePath);
 
     const videoUrl = urlData.publicUrl;
+    
+    // Verify upload succeeded
+    if (!uploadData?.path) {
+      console.error('[UPLOAD] Upload data missing path:', uploadData);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Upload verification failed. File may not have been saved.' 
+      }, { status: 500 });
+    }
+    
+    console.log('[UPLOAD] File uploaded successfully:', {
+      path: uploadData.path,
+      size: video.size,
+      type: video.type
+    });
 
     // Insert into tournament_clips
     const { data: clipData, error: clipError } = await supabase
@@ -168,13 +212,19 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (clipError) {
-      console.error('Database insert error:', clipError);
+      console.error('[UPLOAD] Database insert error:', clipError);
+      console.error('[UPLOAD] Error details:', JSON.stringify(clipError, null, 2));
       
       // Clean up uploaded file on DB error
-      await supabase.storage.from('videos').remove([storagePath]);
+      try {
+        await supabase.storage.from('videos').remove([storagePath]);
+      } catch (cleanupError) {
+        console.error('[UPLOAD] Failed to cleanup file:', cleanupError);
+      }
       
       return NextResponse.json({ 
-        error: 'Failed to save clip. Please try again.' 
+        success: false,
+        error: `Failed to save clip: ${clipError.message || 'Database error'}. Please try again.` 
       }, { status: 500 });
     }
 
@@ -193,9 +243,12 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('[UPLOAD] Unexpected error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[UPLOAD] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     return NextResponse.json({ 
-      error: 'Upload failed. Please try again.' 
+      success: false,
+      error: `Upload failed: ${errorMessage}. Please try again.` 
     }, { status: 500 });
   }
 }

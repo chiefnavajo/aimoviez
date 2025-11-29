@@ -176,7 +176,7 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
                 Drop your video here or click to browse
               </p>
               <p className="text-xs text-white/60">
-                MP4, MOV, WEBM • Max 100MB • 8 seconds • Vertical (9:16)
+                MP4, MOV, WEBM • Max 50MB • 8 seconds • Vertical (9:16)
               </p>
             </div>
           )}

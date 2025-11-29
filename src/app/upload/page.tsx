@@ -29,7 +29,7 @@ const GENRES: GenreType[] = [
   { id: 'other', name: 'Other', emoji: '🎬', color: 'from-cyan-500 to-purple-500' },
 ];
 
-const MAX_VIDEO_SIZE = 100 * 1024 * 1024;
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB - Supabase limit
 const MAX_DURATION = 8.5;
 
 // ============================================================================
@@ -54,7 +54,10 @@ export default function UploadPage() {
 
   const validateVideo = async (file: File): Promise<string[]> => {
     const errors: string[] = [];
-    if (file.size > MAX_VIDEO_SIZE) errors.push('Video must be under 100MB');
+    if (file.size > MAX_VIDEO_SIZE) {
+      const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+      errors.push(`Video too large (${sizeMB}MB). Maximum: 50MB. Tip: Compress your video - 8-second clips should be under 20MB.`);
+    }
     if (!['video/mp4', 'video/webm', 'video/quicktime'].includes(file.type)) errors.push('Only MP4, WebM, or MOV allowed');
     return new Promise((resolve) => {
       const video = document.createElement('video');
@@ -92,11 +95,97 @@ export default function UploadPage() {
     if (!video || !genre) return;
     setIsUploading(true);
     setUploadProgress(0);
-    const interval = setInterval(() => setUploadProgress(p => Math.min(p + 10, 90)), 200);
-    await new Promise(r => setTimeout(r, 2000));
-    clearInterval(interval);
-    setUploadProgress(100);
-    setTimeout(() => { setStep(3); setTimeout(() => router.push('/dashboard'), 3000); }, 500);
+    setErrors([]);
+
+    try {
+      // Create FormData
+      const formData = new FormData();
+      formData.append('video', video);
+      formData.append('genre', genre);
+      formData.append('title', `Clip by ${Date.now()}`); // Default title
+      formData.append('description', '');
+
+      // Use XMLHttpRequest for upload progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percentComplete = (e.loaded / e.total) * 90; // Up to 90%, rest is processing
+          setUploadProgress(percentComplete);
+        }
+      });
+
+      // Handle completion
+      const uploadPromise = new Promise<{ success: boolean; error?: string; data?: any }>((resolve, reject) => {
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              // Check if API actually returned success
+              if (data.success === true) {
+                resolve({ success: true, data });
+              } else {
+                // API returned 200 but with an error
+                resolve({ success: false, error: data.error || data.message || 'Upload failed on server' });
+              }
+            } catch (e) {
+              resolve({ success: false, error: 'Invalid response from server' });
+            }
+          } else {
+            try {
+              const data = JSON.parse(xhr.responseText);
+              resolve({ success: false, error: data.error || 'Upload failed' });
+            } catch (e) {
+              resolve({ success: false, error: `Upload failed (${xhr.status})` });
+            }
+          }
+        });
+
+        xhr.addEventListener('error', () => {
+          resolve({ success: false, error: 'Network error. Please check your connection.' });
+        });
+
+        xhr.addEventListener('abort', () => {
+          resolve({ success: false, error: 'Upload cancelled' });
+        });
+      });
+
+      // Start upload
+      xhr.open('POST', '/api/upload');
+      xhr.send(formData);
+
+      // Wait for completion
+      const result = await uploadPromise;
+
+      if (!result.success) {
+        const errorMsg = result.error || result.data?.error || 'Upload failed';
+        console.error('Upload failed:', errorMsg, result);
+        throw new Error(errorMsg);
+      }
+
+      // Verify the response has the expected data
+      if (!result.data || result.data.success !== true) {
+        const errorMsg = result.data?.error || 'Upload completed but verification failed';
+        console.error('Upload verification failed:', result.data);
+        throw new Error(errorMsg);
+      }
+
+      console.log('Upload successful:', result.data);
+
+      // Success - complete progress bar
+      setUploadProgress(100);
+      setTimeout(() => { 
+        setStep(3); 
+        setTimeout(() => router.push('/dashboard'), 3000); 
+      }, 500);
+    } catch (error) {
+      console.error('Upload error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
+      setErrors([errorMessage]);
+      setIsUploading(false);
+      setUploadProgress(0);
+    }
   };
 
   const renderUploadContent = () => (
@@ -135,7 +224,7 @@ export default function UploadPage() {
                     <p className="text-lg font-bold mb-1">Drop your video here</p>
                     <p className="text-sm text-white/50">or click to browse</p>
                   </div>
-                  <p className="text-xs text-white/40">MP4, WebM, MOV • Max 8 seconds • Max 100MB</p>
+                  <p className="text-xs text-white/40">MP4, WebM, MOV • Max 8 seconds • Max 50MB</p>
                 </div>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
