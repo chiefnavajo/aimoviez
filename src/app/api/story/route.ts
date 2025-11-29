@@ -104,34 +104,31 @@ function mapSeasonStatus(dbStatus: string): 'completed' | 'active' | 'coming_soo
 
 async function getSeasonStats(
   supabase: SupabaseClient,
-  seasonId: string
+  seasonId: string,
+  slotPositions: number[]
 ): Promise<{ totalVotes: number; totalClips: number; totalCreators: number }> {
   try {
-    // Get total clips in this season
-    const { count: clipsCount } = await supabase
+    if (slotPositions.length === 0) {
+      return { totalVotes: 0, totalClips: 0, totalCreators: 0 };
+    }
+
+    // Get clips in these slot positions
+    const { data: clips, error } = await supabase
       .from('tournament_clips')
-      .select('id', { count: 'exact', head: true })
-      .eq('season_id', seasonId);
+      .select('id, username, vote_count')
+      .in('slot_position', slotPositions);
 
-    // Get unique creators
-    const { data: creators } = await supabase
-      .from('tournament_clips')
-      .select('username')
-      .eq('season_id', seasonId);
+    if (error) {
+      console.error('[getSeasonStats] error:', error);
+      return { totalVotes: 0, totalClips: 0, totalCreators: 0 };
+    }
 
-    const uniqueCreators = new Set(creators?.map(c => c.username) || []);
-
-    // Get total votes (sum of vote_count from tournament_clips in this season)
-    const { data: voteData } = await supabase
-      .from('tournament_clips')
-      .select('vote_count')
-      .eq('season_id', seasonId);
-
-    const totalVotes = voteData?.reduce((sum, clip) => sum + (clip.vote_count || 0), 0) || 0;
+    const uniqueCreators = new Set((clips || []).map(c => c.username).filter(Boolean));
+    const totalVotes = (clips || []).reduce((sum, clip) => sum + (clip.vote_count || 0), 0);
 
     return {
       totalVotes,
-      totalClips: clipsCount || 0,
+      totalClips: clips?.length || 0,
       totalCreators: uniqueCreators.size,
     };
   } catch (error) {
@@ -219,8 +216,9 @@ export async function GET(req: NextRequest) {
         const lockedSlots = seasonSlots.filter(s => s.status === 'locked' && s.winner_tournament_clip_id);
         const votingSlot = seasonSlots.find(s => s.status === 'voting');
 
-        // Get season stats
-        const stats = await getSeasonStats(supabase, seasonRow.id);
+        // Get season stats using slot positions
+        const slotPositions = seasonSlots.map(s => s.slot_position);
+        const stats = await getSeasonStats(supabase, seasonRow.id, slotPositions);
 
         // Build slots with winning clips
         const slots: Slot[] = seasonSlots.map(slot => {

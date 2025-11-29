@@ -234,19 +234,19 @@ export async function GET(req: NextRequest) {
       top_10: global_rank <= 10,
     };
 
-    // 7. Define badges
+    // 7. Define badges (using Unicode escape sequences for reliable encoding)
     const badges = [
       {
         id: 'first-vote',
         name: 'First Vote',
-        icon: 'ðŸŽ¬',
+        icon: '\u{1F3AC}', // clapper board
         description: 'Cast your first vote',
         unlocked: achievements.first_vote,
       },
       {
         id: 'streak-7',
         name: '7 Day Streak',
-        icon: 'ðŸ”¥',
+        icon: '\u{1F525}', // fire
         description: 'Vote for 7 consecutive days',
         unlocked: achievements.vote_streak_7,
         progress: current_streak,
@@ -255,7 +255,7 @@ export async function GET(req: NextRequest) {
       {
         id: 'streak-30',
         name: '30 Day Streak',
-        icon: 'âš¡',
+        icon: '\u{26A1}', // lightning
         description: 'Vote for 30 consecutive days',
         unlocked: achievements.vote_streak_30,
         progress: current_streak,
@@ -264,7 +264,7 @@ export async function GET(req: NextRequest) {
       {
         id: 'daily-goal',
         name: 'Daily Goal',
-        icon: 'ðŸŽ¯',
+        icon: '\u{1F3AF}', // target
         description: 'Cast 200 votes in one day',
         unlocked: achievements.daily_goal_reached,
         progress: votes_today,
@@ -273,28 +273,28 @@ export async function GET(req: NextRequest) {
       {
         id: 'creator',
         name: 'Creator',
-        icon: 'ðŸŽ¥',
+        icon: '\u{1F3A5}', // movie camera
         description: 'Upload your first clip',
         unlocked: achievements.uploaded_first_clip,
       },
       {
         id: 'winner',
         name: 'Winner',
-        icon: 'ðŸ†',
+        icon: '\u{1F3C6}', // trophy
         description: 'Get a clip locked into the movie',
         unlocked: achievements.clip_locked_in,
       },
       {
         id: 'top-100',
         name: 'Top 100',
-        icon: 'â­',
+        icon: '\u{2B50}', // star
         description: 'Reach top 100 on leaderboard',
         unlocked: achievements.top_100,
       },
       {
         id: 'top-10',
         name: 'Top 10',
-        icon: 'ðŸ’Ž',
+        icon: '\u{1F48E}', // gem
         description: 'Reach top 10 on leaderboard',
         unlocked: achievements.top_10,
       },
