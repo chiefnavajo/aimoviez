@@ -1,9 +1,10 @@
 'use client';
 
 // ============================================================================
-// STORY PAGE - FINAL V4.2
+// STORY PAGE - V5.0 (Real API Data)
 // ============================================================================
 // Features:
+// ✅ Fetches real seasons/slots from /api/story
 // ✅ Split view: Video player (top 55%) + Season list (bottom)
 // ✅ Video fills entire top section (no black bars)
 // ✅ Swipe/scroll season list to browse
@@ -16,10 +17,11 @@
 // ✅ Clean thumbnail design (no breathing overlay)
 // ============================================================================
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import {
   Play,
   Heart,
@@ -40,7 +42,9 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Pause,
 } from 'lucide-react';
+import CommentsSection from '@/components/CommentsSection';
 
 // ============================================================================
 // TYPES
@@ -120,90 +124,22 @@ function getTopContributors(segments: Slot[]): { username: string; avatar_url: s
 }
 
 // ============================================================================
-// MOCK DATA - Using real Supabase storage videos
+// API RESPONSE TYPE
 // ============================================================================
 
-const SUPABASE_STORAGE = 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos';
-const VIDEO_BALLET = `${SUPABASE_STORAGE}/Ballet_Studio_Jackhammer_Surprise.mp4`;
-const VIDEO_SPOOKY = `${SUPABASE_STORAGE}/Spooky_Gen_Z_App_Opener_Video.mp4`;
-const VIDEO_SUPERHERO = `${SUPABASE_STORAGE}/Superhero_Story_Video_Generation.mp4`;
-const VIDEO_CLIP = `${SUPABASE_STORAGE}/clips/clip_1764246341726_w8dne4g3.mp4`;
+interface StoryAPIResponse {
+  seasons: Season[];
+}
 
-const MOCK_SEASONS: Season[] = [
-  {
-    id: 'season-2',
-    number: 2,
-    name: 'Revenge',
-    status: 'active',
-    total_slots: 75,
-    locked_slots: 5,
-    total_votes: 12400,
-    total_clips: 342,
-    total_creators: 156,
-    current_voting_slot: 6,
-    thumbnail_url: '',
-    slots: [
-      { id: 's2-1', slot_position: 1, status: 'locked', winning_clip: { id: 'c1', video_url: VIDEO_SPOOKY, thumbnail_url: '', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3', vote_count: 4521, genre: 'Horror' } },
-      { id: 's2-2', slot_position: 2, status: 'locked', winning_clip: { id: 'c2', video_url: VIDEO_BALLET, thumbnail_url: '', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet', vote_count: 3847, genre: 'Comedy' } },
-      { id: 's2-3', slot_position: 3, status: 'locked', winning_clip: { id: 'c3', video_url: VIDEO_SUPERHERO, thumbnail_url: '', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard', vote_count: 2654, genre: 'Action' } },
-      { id: 's2-4', slot_position: 4, status: 'locked', winning_clip: { id: 'c4', video_url: VIDEO_CLIP, thumbnail_url: '', username: 'neon_creator', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=neon', vote_count: 2201, genre: 'Thriller' } },
-      { id: 's2-5', slot_position: 5, status: 'locked', winning_clip: { id: 'c5', video_url: VIDEO_SPOOKY, thumbnail_url: '', username: 'movie_master', avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=master', vote_count: 1896, genre: 'Horror' } },
-      { id: 's2-6', slot_position: 6, status: 'voting' },
-      ...Array.from({ length: 69 }, (_, i) => ({ id: `s2-${i + 7}`, slot_position: i + 7, status: 'upcoming' as SlotStatus })),
-    ],
-  },
-  {
-    id: 'season-1',
-    number: 1,
-    name: 'Chaos Begins',
-    status: 'completed',
-    total_slots: 75,
-    locked_slots: 75,
-    total_votes: 127000,
-    total_clips: 3200,
-    total_creators: 892,
-    winning_genre: 'Comedy',
-    thumbnail_url: '',
-    slots: Array.from({ length: 75 }, (_, i) => ({
-      id: `s1-${i + 1}`,
-      slot_position: i + 1,
-      status: 'locked' as SlotStatus,
-      winning_clip: {
-        id: `s1-clip-${i + 1}`,
-        video_url: [VIDEO_SPOOKY, VIDEO_BALLET, VIDEO_SUPERHERO, VIDEO_CLIP][i % 4],
-        thumbnail_url: '',
-        username: `creator_${i + 1}`,
-        avatar_url: `https://api.dicebear.com/7.x/identicon/svg?seed=s1creator${i + 1}`,
-        vote_count: Math.floor(Math.random() * 3000) + 1000,
-        genre: ['Comedy', 'Action', 'Drama', 'Thriller'][Math.floor(Math.random() * 4)],
-      },
-    })),
-  },
-  {
-    id: 'season-3',
-    number: 3,
-    name: 'TBD',
-    status: 'coming_soon',
-    total_slots: 75,
-    locked_slots: 0,
-    total_votes: 0,
-    total_clips: 0,
-    total_creators: 0,
-    slots: [],
-  },
-];
-
-const GENRES: Genre[] = ['Action', 'Comedy', 'Thriller', 'Sci-Fi', 'Romance', 'Animation', 'Horror'];
-
-const MOCK_GENRE_VOTES: Record<Genre, number> = {
-  Action: 25,
-  Comedy: 19,
-  Thriller: 21,
-  'Sci-Fi': 14,
-  Romance: 9,
-  Animation: 6,
-  Horror: 6,
-};
+// Fetch seasons from API
+async function fetchSeasons(): Promise<Season[]> {
+  const response = await fetch('/api/story');
+  if (!response.ok) {
+    throw new Error('Failed to fetch story data');
+  }
+  const data: StoryAPIResponse = await response.json();
+  return data.seasons || [];
+}
 
 // ============================================================================
 // INFINITY VOTE BUTTON
@@ -289,7 +225,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const [showContributorsPopup, setShowContributorsPopup] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [lastTap, setLastTap] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const progressRef = useRef<HTMLDivElement>(null);
 
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
@@ -378,6 +318,61 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     }
   };
 
+  // Progress bar handlers
+  const handleTimeUpdate = () => {
+    if (videoRef.current && !isDragging) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+    if (!progressRef.current || !videoRef.current) return;
+
+    const rect = progressRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percentage = clickX / rect.width;
+    const newTime = percentage * duration;
+
+    videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleProgressDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging || !progressRef.current || !videoRef.current) return;
+
+    const rect = progressRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const percentage = clickX / rect.width;
+    const newTime = percentage * duration;
+
+    videoRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+  };
+
+  // Format time for display
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   // Coming Soon View
   if (isComingSoon) {
     return (
@@ -434,6 +429,8 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 autoPlay={isPlaying}
                 muted={isMuted}
                 playsInline
+                onTimeUpdate={handleTimeUpdate}
+                onLoadedMetadata={handleLoadedMetadata}
                 onEnded={() => {
                   // Auto-advance to next segment, keep playing
                   if (currentIndex < completedSegments.length - 1) {
@@ -648,9 +645,59 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
+      {/* Progress Bar - Below video */}
+      {completedSegments.length > 0 && duration > 0 && (
+        <div className="absolute bottom-16 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-3">
+            {/* Play/Pause Button */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
+              className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+            >
+              {isPlaying ? (
+                <Pause className="w-4 h-4 text-white" fill="white" />
+              ) : (
+                <Play className="w-4 h-4 text-white ml-0.5" fill="white" />
+              )}
+            </motion.button>
+
+            {/* Progress Bar */}
+            <div
+              ref={progressRef}
+              className="flex-1 h-1.5 bg-white/20 rounded-full cursor-pointer relative group"
+              onClick={handleProgressClick}
+              onMouseDown={handleDragStart}
+              onMouseMove={handleProgressDrag}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={handleDragEnd}
+              onTouchStart={handleDragStart}
+              onTouchMove={handleProgressDrag}
+              onTouchEnd={handleDragEnd}
+            >
+              {/* Buffered/Progress */}
+              <div
+                className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full transition-all"
+                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+              />
+              {/* Draggable Handle */}
+              <div
+                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 6px)` }}
+              />
+            </div>
+
+            {/* Time Display */}
+            <span className="text-white/70 text-xs font-mono min-w-[70px] text-right">
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Bottom left: Creator info - Higher on mobile to avoid season list */}
       {currentSegment?.winning_clip && (
-        <div className="absolute bottom-4 md:bottom-20 left-4 md:left-60 right-16 z-20">
+        <div className="absolute bottom-4 md:bottom-12 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
             <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               @{currentSegment.winning_clip.username}
@@ -713,64 +760,13 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         )}
       </AnimatePresence>
 
-      {/* Comments Panel - TikTok Style */}
-      <AnimatePresence>
-        {showComments && (
-          <>
-            {/* Backdrop */}
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 bg-black/20 z-40" 
-              onClick={() => setShowComments(false)} 
-            />
-            {/* Panel */}
-            <motion.div 
-              initial={{ y: '100%' }} 
-              animate={{ y: 0 }} 
-              exit={{ y: '100%' }} 
-              transition={{ type: 'tween', duration: 0.3, ease: [0.32, 0.72, 0, 1] }} 
-              className="absolute inset-x-0 bottom-0 h-[70%] bg-[#121212]/95 backdrop-blur-xl z-50 rounded-t-3xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-white/30" /></div>
-              <div className="flex items-center justify-between px-4 pb-2 border-b border-white/10">
-                <span className="text-white font-bold text-sm">Comments (24)</span>
-                <button onClick={() => setShowComments(false)} className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center">
-                  <ChevronDown className="w-4 h-4 text-white" />
-                </button>
-              </div>
-              <div className="overflow-y-auto h-[calc(100%-100px)] px-4 py-2">
-                {[
-                  { user: 'movie_fan', text: 'This is amazing! 🔥', time: '2m' },
-                  { user: 'creator_123', text: 'Can\'t wait for more!', time: '5m' },
-                  { user: 'film_lover', text: 'Great transitions', time: '12m' },
-                  { user: 'director_x', text: 'Thanks for voting! 🙏', time: '1h' },
-                ].map((c, i) => (
-                  <div key={i} className="flex gap-2 mb-3">
-                    <img src={`https://api.dicebear.com/7.x/identicon/svg?seed=${c.user}`} alt="" className="w-7 h-7 rounded-full" />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-medium text-xs">@{c.user}</span>
-                        <span className="text-white/40 text-[10px]">{c.time}</span>
-                      </div>
-                      <p className="text-white/80 text-xs">{c.text}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="absolute bottom-0 left-0 right-0 p-3 bg-black/50 border-t border-white/10">
-                <div className="flex items-center gap-2">
-                  <input type="text" placeholder="Add a comment..." className="flex-1 bg-white/10 rounded-full px-3 py-1.5 text-white text-xs placeholder:text-white/40 outline-none border border-white/10" />
-                  <button className="text-cyan-400 font-semibold text-xs">Post</button>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      {/* Comments Panel - Using shared CommentsSection component */}
+      <CommentsSection
+        clipId={currentSegment?.winning_clip?.id || ''}
+        isOpen={showComments}
+        onClose={() => setShowComments(false)}
+        clipUsername={currentSegment?.winning_clip?.username}
+      />
     </div>
   );
 }
@@ -944,10 +940,25 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
 
 function StoryPage() {
   const router = useRouter();
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string>(MOCK_SEASONS[0].id);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  const selectedSeason = MOCK_SEASONS.find(s => s.id === selectedSeasonId) || MOCK_SEASONS[0];
+  // Fetch seasons from API
+  const { data: seasons = [], isLoading, error, refetch } = useQuery<Season[]>({
+    queryKey: ['story-seasons'],
+    queryFn: fetchSeasons,
+    staleTime: 30000, // 30 seconds
+    refetchOnWindowFocus: false,
+  });
+
+  // Set initial selected season when data loads
+  useEffect(() => {
+    if (seasons.length > 0 && !selectedSeasonId) {
+      setSelectedSeasonId(seasons[0].id);
+    }
+  }, [seasons, selectedSeasonId]);
+
+  const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
 
   const handleVoteNow = () => {
     localStorage.setItem('aimoviez_has_voted', 'true');
@@ -958,19 +969,79 @@ function StoryPage() {
     setIsFullscreen(!isFullscreen);
   };
 
-  const goToPrevSeason = () => {
-    const currentIdx = MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId);
+  const goToPrevSeason = useCallback(() => {
+    const currentIdx = seasons.findIndex(s => s.id === selectedSeasonId);
     if (currentIdx > 0) {
-      setSelectedSeasonId(MOCK_SEASONS[currentIdx - 1].id);
+      setSelectedSeasonId(seasons[currentIdx - 1].id);
     }
-  };
+  }, [seasons, selectedSeasonId]);
 
-  const goToNextSeason = () => {
-    const currentIdx = MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId);
-    if (currentIdx < MOCK_SEASONS.length - 1) {
-      setSelectedSeasonId(MOCK_SEASONS[currentIdx + 1].id);
+  const goToNextSeason = useCallback(() => {
+    const currentIdx = seasons.findIndex(s => s.id === selectedSeasonId);
+    if (currentIdx < seasons.length - 1) {
+      setSelectedSeasonId(seasons[currentIdx + 1].id);
     }
-  };
+  }, [seasons, selectedSeasonId]);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center">
+        <motion.span
+          className="text-6xl font-black text-white"
+          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          style={{ textShadow: '0 0 30px rgba(56, 189, 248, 0.8)' }}
+        >
+          ∞
+        </motion.span>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="text-5xl mb-4">😵</div>
+          <h2 className="text-white text-xl font-bold mb-2">Connection Error</h2>
+          <p className="text-white/60 mb-6">Failed to load story data</p>
+          <button
+            onClick={() => refetch()}
+            className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Empty state - no seasons yet
+  if (seasons.length === 0 || !selectedSeason) {
+    return (
+      <div className="h-screen bg-black flex items-center justify-center p-6">
+        <div className="text-center">
+          <motion.span
+            className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
+            animate={{ scale: [1, 1.05, 1] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          >
+            ∞
+          </motion.span>
+          <h2 className="text-white text-xl font-bold mt-6 mb-2">No Seasons Yet</h2>
+          <p className="text-white/60 mb-6">Be the first to contribute a clip!</p>
+          <Link
+            href="/upload"
+            className="px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 text-white font-bold inline-block"
+          >
+            Upload a Clip
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-black overflow-hidden">
@@ -1027,18 +1098,18 @@ function StoryPage() {
           <div className="border-t border-white/20 pt-4 mt-4">
             <p className="text-white/70 text-xs font-medium px-3 mb-2">SEASONS</p>
             <div className="space-y-1 max-h-48 overflow-y-auto">
-              {MOCK_SEASONS.map(season => (
+              {seasons.map(season => (
                 <button
                   key={season.id}
                   onClick={() => setSelectedSeasonId(season.id)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition outline-none ${
-                    season.id === selectedSeasonId 
-                      ? 'bg-black/30 backdrop-blur-sm text-white border border-white/10' 
+                    season.id === selectedSeasonId
+                      ? 'bg-black/30 backdrop-blur-sm text-white border border-white/10'
                       : 'hover:bg-black/20 text-white/80'
                   }`}
                 >
                   <div className={`w-2 h-2 rounded-full ${
-                    season.status === 'active' ? 'bg-red-500 animate-pulse' : 
+                    season.status === 'active' ? 'bg-red-500 animate-pulse' :
                     season.status === 'completed' ? 'bg-green-500' : 'bg-white/30'
                   }`} />
                   <span className="text-sm">Season {season.number}</span>
@@ -1057,7 +1128,7 @@ function StoryPage() {
             whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
             whileTap={{ scale: 0.9 }}
             onClick={goToPrevSeason}
-            disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === 0}
+            disabled={seasons.findIndex(s => s.id === selectedSeasonId) === 0}
             className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg disabled:opacity-30"
@@ -1070,7 +1141,7 @@ function StoryPage() {
             whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
             whileTap={{ scale: 0.9 }}
             onClick={goToNextSeason}
-            disabled={MOCK_SEASONS.findIndex(s => s.id === selectedSeasonId) === MOCK_SEASONS.length - 1}
+            disabled={seasons.findIndex(s => s.id === selectedSeasonId) === seasons.length - 1}
             className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg disabled:opacity-30"
@@ -1110,7 +1181,7 @@ function StoryPage() {
               className="flex-1 overflow-y-auto border-t border-white/10"
             >
               <div className="py-2">
-                {MOCK_SEASONS.map(season => (
+                {seasons.map(season => (
                   <SeasonListItem
                     key={season.id}
                     season={season}
@@ -1172,4 +1243,23 @@ function StoryPage() {
   );
 }
 
-export default StoryPage;
+// ============================================================================
+// PAGE WRAPPER WITH QUERY CLIENT
+// ============================================================================
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnWindowFocus: false,
+      retry: 2,
+    },
+  },
+});
+
+export default function StoryPageWithProvider() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <StoryPage />
+    </QueryClientProvider>
+  );
+}

@@ -126,9 +126,6 @@ export async function GET(req: NextRequest) {
     }
 
     // FALLBACK: Use optimized query with LIMIT (not loading all votes)
-    // This is still better than loading everything
-    console.log('[leaderboard/voters] RPC not available, using fallback query');
-
     // Build query with date filter
     let query = supabase.from('votes').select('voter_key, vote_weight');
     if (startDate) {

@@ -39,8 +39,6 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    console.log('[SIGNED-URL] Authenticated user:', session.user.email);
-
     // Parse request body
     const body = await request.json();
     const { filename, contentType } = body;
@@ -79,8 +77,6 @@ export async function POST(request: NextRequest) {
       .createSignedUploadUrl(storagePath);
 
     if (signedError) {
-      console.log('[SIGNED-URL] Videos bucket error:', signedError.message);
-
       // Try 'clips' bucket as fallback
       if (signedError.message?.includes('not found') || signedError.message?.includes('Bucket')) {
         bucketName = 'clips';
@@ -112,8 +108,6 @@ export async function POST(request: NextRequest) {
     const { data: urlData } = supabase.storage
       .from(bucketName)
       .getPublicUrl(storagePath);
-
-    console.log('[SIGNED-URL] Created signed URL for:', storagePath);
 
     return NextResponse.json({
       success: true,

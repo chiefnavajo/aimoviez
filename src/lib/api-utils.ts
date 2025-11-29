@@ -419,17 +419,10 @@ export async function cachedQuery<T>(
   // Check cache first
   const cached = apiCache.get(key);
   if (cached !== null) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[Cache HIT] ${key}`);
-    }
     return cached;
   }
-  
+
   // Execute query
-  if (process.env.NODE_ENV === 'development') {
-    console.log(`[Cache MISS] ${key}`);
-  }
-  
   const result = await queryFn();
   
   // Store in cache

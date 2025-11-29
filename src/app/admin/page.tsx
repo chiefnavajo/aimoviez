@@ -33,6 +33,13 @@ import {
   Layers,
   ShieldX,
   LogIn,
+  Settings,
+  Zap,
+  Users,
+  DollarSign,
+  Shield,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
@@ -57,6 +64,18 @@ interface Clip {
 }
 
 type FilterStatus = 'all' | 'pending' | 'active' | 'rejected';
+type AdminTab = 'clips' | 'features';
+
+interface FeatureFlag {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  category: string;
+  config: Record<string, unknown>;
+  updated_at: string;
+}
 
 interface EditForm {
   title: string;
@@ -118,6 +137,12 @@ export default function AdminDashboard() {
     winnerClipId?: string;
   } | null>(null);
   const [countdown, setCountdown] = useState<string>('');
+
+  // Tab and feature flags state
+  const [activeTab, setActiveTab] = useState<AdminTab>('clips');
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
+  const [loadingFlags, setLoadingFlags] = useState(false);
+  const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
 
   // ============================================================================
   // FETCH CLIPS
@@ -200,6 +225,55 @@ export default function AdminDashboard() {
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
   }, [slotInfo?.votingEndsAt]);
+
+  // ============================================================================
+  // FETCH FEATURE FLAGS
+  // ============================================================================
+
+  const fetchFeatureFlags = async () => {
+    setLoadingFlags(true);
+    try {
+      const response = await fetch('/api/admin/feature-flags');
+      const data = await response.json();
+      if (data.ok) {
+        setFeatureFlags(data.flags || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch feature flags:', error);
+    }
+    setLoadingFlags(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'features') {
+      fetchFeatureFlags();
+    }
+  }, [activeTab]);
+
+  // ============================================================================
+  // TOGGLE FEATURE FLAG
+  // ============================================================================
+
+  const handleToggleFeature = async (flag: FeatureFlag) => {
+    setTogglingFlag(flag.key);
+    try {
+      const response = await fetch('/api/admin/feature-flags', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: flag.key, enabled: !flag.enabled }),
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        setFeatureFlags((prev) =>
+          prev.map((f) => (f.key === flag.key ? { ...f, enabled: !f.enabled } : f))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle feature:', error);
+    }
+    setTogglingFlag(null);
+  };
 
   // ============================================================================
   // ADVANCE SLOT
@@ -515,16 +589,49 @@ export default function AdminDashboard() {
 
             <motion.button
               whileTap={{ scale: 0.95 }}
-              onClick={fetchClips}
+              onClick={activeTab === 'clips' ? fetchClips : fetchFeatureFlags}
               className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               type="button"
             >
               <RefreshCw className="w-5 h-5" />
             </motion.button>
           </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mt-4">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab('clips')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'clips'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+              type="button"
+            >
+              <Film className="w-4 h-4" />
+              Clips
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab('features')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'features'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+              type="button"
+            >
+              <Settings className="w-4 h-4" />
+              Feature Flags
+            </motion.button>
+          </div>
         </div>
       </header>
 
+      {/* CLIPS TAB CONTENT */}
+      {activeTab === 'clips' && (
+        <>
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -900,6 +1007,125 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      </>
+      )}
+
+      {/* FEATURE FLAGS TAB CONTENT */}
+      {activeTab === 'features' && (
+        <div className="max-w-7xl mx-auto px-4 py-6">
+          {/* Feature Flags Header */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold mb-2">Feature Flags</h2>
+            <p className="text-white/60">Toggle features on/off without code changes. Changes take effect immediately.</p>
+          </div>
+
+          {loadingFlags ? (
+            <div className="flex items-center justify-center py-20">
+              <RefreshCw className="w-8 h-8 animate-spin text-cyan-400" />
+            </div>
+          ) : featureFlags.length === 0 ? (
+            <div className="text-center py-20">
+              <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-white/80 mb-2">No feature flags found</h3>
+              <p className="text-white/60">Run the migration SQL to create feature flags.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Group by category */}
+              {['growth', 'engagement', 'monetization', 'safety', 'general'].map((category) => {
+                const categoryFlags = featureFlags.filter((f) => f.category === category);
+                if (categoryFlags.length === 0) return null;
+
+                const categoryIcons: Record<string, React.ReactNode> = {
+                  growth: <Zap className="w-5 h-5 text-green-400" />,
+                  engagement: <Users className="w-5 h-5 text-cyan-400" />,
+                  monetization: <DollarSign className="w-5 h-5 text-yellow-400" />,
+                  safety: <Shield className="w-5 h-5 text-red-400" />,
+                  general: <Settings className="w-5 h-5 text-white/60" />,
+                };
+
+                const categoryColors: Record<string, string> = {
+                  growth: 'from-green-500/20 to-emerald-500/20 border-green-500/30',
+                  engagement: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/30',
+                  monetization: 'from-yellow-500/20 to-orange-500/20 border-yellow-500/30',
+                  safety: 'from-red-500/20 to-pink-500/20 border-red-500/30',
+                  general: 'from-white/10 to-white/5 border-white/20',
+                };
+
+                return (
+                  <div key={category} className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      {categoryIcons[category]}
+                      <h3 className="text-lg font-bold capitalize">{category}</h3>
+                    </div>
+
+                    <div className="grid gap-3">
+                      {categoryFlags.map((flag) => (
+                        <motion.div
+                          key={flag.id}
+                          whileHover={{ scale: 1.01 }}
+                          className={`bg-gradient-to-r ${categoryColors[category]} backdrop-blur-sm rounded-xl p-4 border`}
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-bold">{flag.name}</h4>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  flag.enabled
+                                    ? 'bg-green-500/30 text-green-300'
+                                    : 'bg-white/10 text-white/50'
+                                }`}>
+                                  {flag.enabled ? 'ON' : 'OFF'}
+                                </span>
+                              </div>
+                              <p className="text-sm text-white/60">{flag.description}</p>
+                              {flag.enabled && Object.keys(flag.config || {}).length > 0 && (
+                                <div className="mt-2 text-xs text-white/40 font-mono">
+                                  Config: {JSON.stringify(flag.config)}
+                                </div>
+                              )}
+                            </div>
+
+                            <motion.button
+                              whileTap={{ scale: 0.9 }}
+                              onClick={() => handleToggleFeature(flag)}
+                              disabled={togglingFlag === flag.key}
+                              className={`p-3 rounded-xl transition-all ${
+                                flag.enabled
+                                  ? 'bg-green-500 hover:bg-green-600'
+                                  : 'bg-white/10 hover:bg-white/20'
+                              } disabled:opacity-50`}
+                              type="button"
+                            >
+                              {togglingFlag === flag.key ? (
+                                <RefreshCw className="w-6 h-6 animate-spin" />
+                              ) : flag.enabled ? (
+                                <ToggleRight className="w-6 h-6" />
+                              ) : (
+                                <ToggleLeft className="w-6 h-6" />
+                              )}
+                            </motion.button>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Info Box */}
+          <div className="mt-8 bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+            <p className="text-sm text-blue-300">
+              <strong>Note:</strong> Feature flags control which features are available to users.
+              Disabled features will be hidden from the UI. Some features may require additional
+              database migrations before they can be enabled.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Edit Modal */}
       <AnimatePresence>

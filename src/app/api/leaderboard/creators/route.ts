@@ -92,8 +92,6 @@ export async function GET(req: NextRequest) {
     }
 
     // FALLBACK: Use optimized query with LIMIT (not loading all clips)
-    console.log('[leaderboard/creators] RPC not available, using fallback query');
-
     // Calculate date boundaries
     let startDate: string | null = null;
     if (timeframe === 'today') {

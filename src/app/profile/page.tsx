@@ -4,17 +4,19 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
-import { 
+import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
   CheckCircle, Clock, Bell, LogOut, Heart,
-  ChevronRight, BookOpen, Plus
+  ChevronRight, BookOpen, Plus, ShieldCheck
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import ReferralSection from '@/components/ReferralSection';
 import { useAuth } from '@/hooks/useAuth';
+import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 // ============================================================================
-// TYPES & MOCK DATA
+// TYPES
 // ============================================================================
 
 interface UserStats {
@@ -32,8 +34,9 @@ interface UserStats {
 interface UserClip {
   id: string;
   video_url: string;
+  thumbnail_url?: string;
   slot_position: number;
-  status: 'pending' | 'approved' | 'voting' | 'locked' | 'rejected';
+  status: 'pending' | 'approved' | 'voting' | 'locked' | 'rejected' | 'eliminated';
   vote_count: number;
   genre: string;
   season_number: number;
@@ -58,37 +61,18 @@ interface Badge {
   target?: number;
 }
 
-const MOCK_STATS: UserStats = {
-  totalVotesCast: 1247,
-  votesToday: 42,
-  votingStreak: 5,
-  rank: 156,
-  level: 7,
-  xp: 1247,
-  nextLevelXp: 2000,
-  clipsUploaded: 3,
-  clipsLocked: 1,
+// Default empty stats
+const EMPTY_STATS: UserStats = {
+  totalVotesCast: 0,
+  votesToday: 0,
+  votingStreak: 0,
+  rank: 0,
+  level: 1,
+  xp: 0,
+  nextLevelXp: 100,
+  clipsUploaded: 0,
+  clipsLocked: 0,
 };
-
-const MOCK_CLIPS: UserClip[] = [
-  { id: 'my-clip-1', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4', slot_position: 3, status: 'locked', vote_count: 2341, genre: 'Horror', season_number: 1, created_at: '2024-11-15T10:00:00Z' },
-  { id: 'my-clip-2', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/ballet-dancer.mp4', slot_position: 6, status: 'voting', vote_count: 892, genre: 'Comedy', season_number: 2, created_at: '2024-11-25T14:30:00Z' },
-];
-
-const MOCK_HISTORY: VotingHistoryItem[] = [
-  { clip_id: 'hist-1', creator_username: 'veo3_creator', creator_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3', voted_at: '2024-11-28T10:30:00Z', slot_position: 5 },
-  { clip_id: 'hist-2', creator_username: 'dance_master', creator_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet', voted_at: '2024-11-28T09:15:00Z', slot_position: 5 },
-  { clip_id: 'hist-3', creator_username: 'film_wizard', creator_avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard', voted_at: '2024-11-27T18:45:00Z', slot_position: 4 },
-];
-
-const MOCK_BADGES: Badge[] = [
-  { id: 'first-vote', name: 'First Vote', icon: '🎬', description: 'Cast your first vote', unlocked: true },
-  { id: 'streak-7', name: '7 Day Streak', icon: '🔥', description: 'Vote 7 days in a row', unlocked: false, progress: 5, target: 7 },
-  { id: 'daily-goal', name: 'Daily Goal', icon: '🎯', description: 'Cast 200 votes in one day', unlocked: false, progress: 42, target: 200 },
-  { id: 'creator', name: 'Creator', icon: '🎥', description: 'Upload your first clip', unlocked: true },
-  { id: 'winner', name: 'Winner', icon: '🏆', description: 'Win a slot', unlocked: true },
-  { id: 'top-100', name: 'Top 100', icon: '⭐', description: 'Reach top 100', unlocked: false },
-];
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -102,6 +86,7 @@ function formatNumber(num: number): string {
 
 export default function ProfilePage() {
   const { user, session } = useAuth();
+  const { isAdmin } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
   const [stats, setStats] = useState<UserStats | null>(null);
   const [clips, setClips] = useState<UserClip[]>([]);
@@ -126,7 +111,7 @@ export default function ProfilePage() {
 
   const avatarSeed = avatarUrl.includes('seed=') ? avatarUrl.split('seed=')[1] : username;
 
-  // Fetch real data
+  // Fetch real data from APIs
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -135,47 +120,85 @@ export default function ProfilePage() {
         const statsRes = await fetch('/api/profile/stats');
         if (statsRes.ok) {
           const statsData = await statsRes.json();
+
+          // Update username/avatar from API response if available
+          if (statsData.user?.username && statsData.user.username !== username) {
+            setUsername(statsData.user.username);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('username', statsData.user.username);
+            }
+          }
+          if (statsData.user?.avatar_url) {
+            setAvatarUrl(statsData.user.avatar_url);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('avatar_url', statsData.user.avatar_url);
+            }
+          }
+
           setStats({
             totalVotesCast: statsData.stats?.total_votes || 0,
             votesToday: statsData.stats?.votes_today || 0,
             votingStreak: statsData.stats?.current_streak || 0,
-            rank: statsData.stats?.global_rank || 999,
+            rank: statsData.stats?.global_rank || 0,
             level: statsData.user?.level || 1,
             xp: statsData.user?.current_xp || 0,
             nextLevelXp: statsData.user?.xp_for_next_level || 100,
             clipsUploaded: statsData.stats?.clips_uploaded || 0,
             clipsLocked: statsData.stats?.clips_locked_in || 0,
           });
-          setBadges(statsData.badges || []);
+
+          // Map badges with proper emoji decoding
+          const mappedBadges = (statsData.badges || []).map((badge: any) => ({
+            id: badge.id,
+            name: badge.name,
+            icon: badge.icon,
+            description: badge.description,
+            unlocked: badge.unlocked,
+            progress: badge.progress,
+            target: badge.target,
+          }));
+          setBadges(mappedBadges);
         }
 
         // Fetch clips
         const clipsRes = await fetch('/api/profile/clips');
         if (clipsRes.ok) {
           const clipsData = await clipsRes.json();
-          setClips((clipsData.clips || []).map((clip: any) => ({
-            id: clip.id,
-            video_url: clip.video_url,
-            slot_position: clip.slot_position,
-            status: clip.status === 'locked_in' ? 'locked' : clip.status === 'competing' ? 'voting' : clip.status === 'pending' ? 'pending' : 'approved',
-            vote_count: clip.vote_count || 0,
-            genre: clip.genre || 'Unknown',
-            season_number: 1, // TODO: Get from API
-            created_at: clip.created_at,
-          })));
+          const mappedClips = (clipsData.clips || []).map((clip: any) => {
+            // Map API status to display status
+            let displayStatus: UserClip['status'] = 'approved';
+            if (clip.status === 'locked_in') displayStatus = 'locked';
+            else if (clip.status === 'competing') displayStatus = 'voting';
+            else if (clip.status === 'eliminated') displayStatus = 'rejected';
+            else if (clip.status === 'pending') displayStatus = 'pending';
+
+            return {
+              id: clip.id,
+              video_url: clip.video_url,
+              thumbnail_url: clip.thumbnail_url,
+              slot_position: clip.slot_position,
+              status: displayStatus,
+              vote_count: clip.vote_count || 0,
+              genre: clip.genre || 'Unknown',
+              season_number: 1,
+              created_at: clip.created_at,
+            };
+          });
+          setClips(mappedClips);
         }
 
         // Fetch history
         const historyRes = await fetch('/api/profile/history?limit=20');
         if (historyRes.ok) {
           const historyData = await historyRes.json();
-          setHistory((historyData.history || []).map((item: any) => ({
+          const mappedHistory = (historyData.history || []).map((item: any) => ({
             clip_id: item.clip?.id || '',
             creator_username: item.clip?.username || 'Creator',
-            creator_avatar: item.clip?.thumbnail_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.clip?.username || 'default'}`,
+            creator_avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${item.clip?.username || 'default'}`,
             voted_at: item.created_at,
             slot_position: item.clip?.slot_position || 0,
-          })));
+          }));
+          setHistory(mappedHistory);
         }
       } catch (err) {
         console.error('Failed to fetch profile data:', err);
@@ -185,11 +208,11 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, []);
+  }, [username]);
 
   const levelProgress = stats ? (stats.xp / stats.nextLevelXp) * 100 : 0;
-  const displayStats = stats || MOCK_STATS;
-  const displayBadges = badges.length > 0 ? badges : MOCK_BADGES;
+  const displayStats = stats || EMPTY_STATS;
+  const displayBadges = badges;
 
   // Shared tab content
   const renderTabContent = () => (
@@ -201,40 +224,52 @@ export default function ProfilePage() {
               <Award className="w-5 h-5 text-yellow-500" />
               Badges
             </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-              {displayBadges.map((badge) => (
-                <div key={badge.id} className={`flex flex-col items-center p-3 rounded-xl ${badge.unlocked ? 'bg-white/10' : 'bg-white/5 opacity-50'}`}>
-                  <span className="text-2xl mb-1">{badge.icon}</span>
-                  <span className="text-[10px] font-medium text-center">{badge.name}</span>
-                  {!badge.unlocked && badge.progress !== undefined && (
-                    <span className="text-[9px] text-white/50 mt-1">{badge.progress}/{badge.target}</span>
-                  )}
-                </div>
-              ))}
-            </div>
+            {displayBadges.length === 0 ? (
+              <div className="text-center py-8 bg-white/5 rounded-xl">
+                <Award className="w-12 h-12 mx-auto mb-3 text-white/20" />
+                <p className="text-white/60">Start voting to unlock badges!</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                {displayBadges.map((badge) => (
+                  <div key={badge.id} className={`flex flex-col items-center p-3 rounded-xl ${badge.unlocked ? 'bg-white/10' : 'bg-white/5 opacity-50'}`}>
+                    <span className="text-2xl mb-1">{badge.icon}</span>
+                    <span className="text-[10px] font-medium text-center">{badge.name}</span>
+                    {!badge.unlocked && badge.progress !== undefined && (
+                      <span className="text-[9px] text-white/50 mt-1">{badge.progress}/{badge.target}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div>
-            <h2 className="text-lg font-bold mb-4">In Progress</h2>
-            <div className="space-y-3">
-              {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge) => (
-                <div key={badge.id} className="p-4 bg-white/5 rounded-xl">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-xl">{badge.icon}</span>
-                    <div className="flex-1">
-                      <div className="font-bold">{badge.name}</div>
-                      <div className="text-xs text-white/50">{badge.description}</div>
+          {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).length > 0 && (
+            <div>
+              <h2 className="text-lg font-bold mb-4">In Progress</h2>
+              <div className="space-y-3">
+                {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge) => (
+                  <div key={badge.id} className="p-4 bg-white/5 rounded-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="text-xl">{badge.icon}</span>
+                      <div className="flex-1">
+                        <div className="font-bold">{badge.name}</div>
+                        <div className="text-xs text-white/50">{badge.description}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${(badge.progress! / badge.target!) * 100}%` }} />
+                      </div>
+                      <span className="text-xs text-white/60">{badge.progress}/{badge.target}</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${(badge.progress! / badge.target!) * 100}%` }} />
-                    </div>
-                    <span className="text-xs text-white/60">{badge.progress}/{badge.target}</span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Referral Section */}
+          <ReferralSection />
         </div>
       )}
 
@@ -301,6 +336,25 @@ export default function ProfilePage() {
             <Link href="/story"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><BookOpen className="w-5 h-5 text-cyan-500" /><span>Watch Story</span></div><ChevronRight className="w-5 h-5 text-white/40" /></div></Link>
             <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/40" /></div></Link>
           </div>
+
+          {/* Admin Section - Only visible to admins */}
+          {isAdmin && (
+            <div className="p-4 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-500/30 rounded-xl">
+              <h3 className="font-bold text-purple-400 mb-3 flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5" />
+                Admin Access
+              </h3>
+              <Link href="/admin">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <ShieldCheck className="w-5 h-5" />
+                  Admin Dashboard
+                </motion.button>
+              </Link>
+            </div>
+          )}
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
             <h3 className="font-bold text-red-500 mb-3">Account</h3>
             <button 
@@ -505,23 +559,29 @@ function StatBox({ icon: Icon, label, value, subValue }: { icon: any; label: str
 }
 
 function ClipCard({ clip }: { clip: UserClip }) {
-  const statusConfig = {
+  const statusConfig: Record<UserClip['status'], { color: string; bg: string; label: string }> = {
     pending: { color: 'text-yellow-500', bg: 'bg-yellow-500/20', label: 'Pending' },
     approved: { color: 'text-green-500', bg: 'bg-green-500/20', label: 'Approved' },
     voting: { color: 'text-orange-500', bg: 'bg-orange-500/20', label: 'LIVE' },
     locked: { color: 'text-cyan-500', bg: 'bg-cyan-500/20', label: 'Winner' },
-    rejected: { color: 'text-red-500', bg: 'bg-red-500/20', label: 'Rejected' },
+    rejected: { color: 'text-red-500', bg: 'bg-red-500/20', label: 'Eliminated' },
+    eliminated: { color: 'text-gray-500', bg: 'bg-gray-500/20', label: 'Eliminated' },
   };
-  const config = statusConfig[clip.status];
+  const config = statusConfig[clip.status] || statusConfig.approved;
+
   return (
     <div className="flex gap-4 p-4 bg-white/5 rounded-xl">
       <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-        <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+        {clip.thumbnail_url ? (
+          <img src={clip.thumbnail_url} alt="Clip thumbnail" className="w-full h-full object-cover" />
+        ) : (
+          <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-2">
           <div className="min-w-0">
-            <div className="text-sm text-white/60 truncate">Season {clip.season_number} • Slot #{clip.slot_position}</div>
+            <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
             <div className="font-bold">{clip.genre}</div>
           </div>
           <div className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color}`}>{config.label}</div>

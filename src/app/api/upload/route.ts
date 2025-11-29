@@ -61,8 +61,6 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    console.log('[UPLOAD] Authenticated user:', session.user.email);
-
     // Check environment variables
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
       console.error('[UPLOAD] Missing Supabase environment variables');
@@ -173,7 +171,6 @@ export async function POST(request: NextRequest) {
     
     // If 'clips' bucket doesn't exist, try 'videos'
     if (uploadError && (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found'))) {
-      console.log('[UPLOAD] clips bucket not found, trying videos bucket');
       bucketName = 'videos';
       ({ data: uploadData, error: uploadError } = await supabase.storage
         .from('videos')
@@ -221,12 +218,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    console.log('[UPLOAD] File uploaded successfully:', {
-      path: uploadData.path,
-      size: video.size,
-      type: video.type
-    });
-
     // Look up user profile to get their username
     let uploaderUsername = `creator_${voterKey.slice(-8)}`;
     let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
@@ -242,9 +233,6 @@ export async function POST(request: NextRequest) {
       userId = userProfile.id;
       uploaderUsername = userProfile.username || uploaderUsername;
       uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
-      console.log('[UPLOAD] Found user profile:', { userId, uploaderUsername });
-    } else {
-      console.log('[UPLOAD] No user profile found for email:', userEmail);
     }
 
     // Insert into tournament_clips
@@ -292,9 +280,8 @@ export async function POST(request: NextRequest) {
       // Clean up uploaded file on DB error
       try {
         await supabase.storage.from(bucketName).remove([storagePath]);
-        console.log('[UPLOAD] Cleaned up uploaded file due to DB error');
-      } catch (cleanupError) {
-        console.error('[UPLOAD] Failed to cleanup file:', cleanupError);
+      } catch {
+        // Cleanup failed, but we still need to return the error
       }
       
       return NextResponse.json({ 
@@ -312,15 +299,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log('[UPLOAD] Clip successfully saved to database:', {
-      clipId: clipData.id,
-      slotPosition,
-      status: 'pending',
-      videoUrl,
-      title,
-      storagePath: uploadData.path
-    });
-
     // Verify the clip exists in database by querying it back
     const { data: verifyClip, error: verifyError } = await supabase
       .from('tournament_clips')
@@ -329,14 +307,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (verifyError || !verifyClip) {
-      console.error('[UPLOAD] Verification failed - clip not found after insert:', verifyError);
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
         error: 'Upload completed but verification failed. Please contact support with clip ID: ' + clipData.id
       }, { status: 500 });
     }
-
-    console.log('[UPLOAD] Verification successful - clip confirmed in database:', verifyClip);
 
     // Success response
     return NextResponse.json({

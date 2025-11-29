@@ -96,10 +96,10 @@ export async function GET(req: NextRequest) {
 
     // Get slot information for each clip
     const slotPositions = [...new Set(clips.map((c) => c.slot_position))];
-    
+
     const { data: slots } = await supabase
       .from('story_slots')
-      .select('slot_position, status, winning_clip_id')
+      .select('slot_position, status, winner_tournament_clip_id')
       .in('slot_position', slotPositions);
 
     // Create a map of slot info
@@ -111,19 +111,19 @@ export async function GET(req: NextRequest) {
     const enrichedClips: UserClip[] = clips.map((clip) => {
       const slot = slotMap.get(clip.slot_position);
       const slot_status = slot?.status || 'upcoming';
-      const is_winner = slot?.winning_clip_id === clip.id;
+      const is_winner = slot?.winner_tournament_clip_id === clip.id;
 
-      // Determine clip status
+      // Determine clip status based on slot status and winner
       let status: UserClip['status'] = 'approved';
-      
-      if (clip.moderation_status === 'pending') {
-        status = 'pending';
-      } else if (is_winner) {
+
+      if (is_winner) {
         status = 'locked_in';
       } else if (slot_status === 'voting') {
         status = 'competing';
       } else if (slot_status === 'locked' && !is_winner) {
         status = 'eliminated';
+      } else if (slot_status === 'upcoming') {
+        status = 'approved'; // Waiting for slot to open
       }
 
       return {

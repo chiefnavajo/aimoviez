@@ -31,10 +31,6 @@ export function getPusherClient(): PusherClient | null {
       disabledTransports: [],
     });
 
-    pusherClient.connection.bind('connected', () => {
-      console.log('Pusher connected');
-    });
-
     pusherClient.connection.bind('error', (err: any) => {
       console.error('Pusher connection error:', err);
     });

@@ -61,8 +61,6 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
-    console.log('[REGISTER] Authenticated user:', session.user.email);
-
     const supabase = getSupabaseClient();
     const voterKey = getVoterKey(request);
     const userEmail = session.user.email;
@@ -91,7 +89,6 @@ export async function POST(request: NextRequest) {
     if (userProfile) {
       uploaderUsername = userProfile.username || uploaderUsername;
       uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
-      console.log('[REGISTER] Found user profile:', uploaderUsername);
     }
 
     // Get active season
@@ -162,12 +159,6 @@ export async function POST(request: NextRequest) {
         error: `Failed to save clip: ${clipError.message || 'Database error'}` 
       }, { status: 500 });
     }
-
-    console.log('[REGISTER] Clip registered:', {
-      clipId: clipData.id,
-      slotPosition,
-      videoUrl: videoUrl.substring(0, 50) + '...',
-    });
 
     // Success response
     return NextResponse.json({

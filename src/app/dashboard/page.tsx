@@ -31,6 +31,33 @@ import { AuthGuard } from '@/hooks/useAuth';
 
 type VoteType = 'standard' | 'super' | 'mega';
 
+// API response clip structure (from /api/vote)
+interface APIClip {
+  id: string;
+  clip_id: string;
+  user_id?: string;
+  thumbnail_url: string;
+  video_url?: string;
+  vote_count: number;
+  weighted_score: number;
+  rank_in_track: number;
+  user: {
+    username: string;
+    avatar_url: string;
+    badge_level?: string;
+  };
+  genre: string;
+  duration: number;
+  round_number: number;
+  total_rounds: number;
+  segment_index: number;
+  hype_score: number;
+  is_featured?: boolean;
+  is_creator_followed?: boolean;
+  has_voted?: boolean;
+}
+
+// Frontend clip structure (normalized for UI)
 interface ClipForClient {
   id: string;
   clip_id: string;
@@ -51,8 +78,32 @@ interface ClipForClient {
   hype_score: number;
   is_featured: boolean;
   is_creator_followed: boolean;
+  has_voted?: boolean;
 }
 
+// API response structure
+interface APIVotingResponse {
+  clips: APIClip[];
+  totalVotesToday: number;
+  userRank: number;
+  remainingVotes: {
+    standard: number;
+    super: number;
+    mega: number;
+  };
+  votedClipIds: string[];
+  currentSlot: number;
+  totalSlots: number;
+  streak: number;
+  votingEndsAt: string | null;
+  votingStartedAt: string | null;
+  timeRemainingSeconds: number | null;
+  totalClipsInSlot: number;
+  clipsShown: number;
+  hasMoreClips: boolean;
+}
+
+// Frontend state structure
 interface VotingState {
   clips: ClipForClient[];
   totalVotesToday: number;
@@ -63,6 +114,48 @@ interface VotingState {
     mega: number;
   };
   streak: number;
+  currentSlot: number;
+  totalSlots: number;
+  votingEndsAt: string | null;
+  hasMoreClips: boolean;
+}
+
+// Transform API response to frontend state
+function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
+  const clips: ClipForClient[] = apiResponse.clips.map((clip) => ({
+    id: clip.id,
+    clip_id: clip.clip_id,
+    user_id: clip.user_id,
+    thumbnail_url: clip.thumbnail_url,
+    video_url: clip.video_url,
+    username: clip.user?.username || 'Creator',
+    avatar_url: clip.user?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${clip.id}`,
+    badge_level: clip.user?.badge_level || 'CREATOR',
+    vote_count: clip.vote_count,
+    weighted_score: clip.weighted_score,
+    rank_in_track: clip.rank_in_track,
+    genre: clip.genre,
+    duration: clip.duration,
+    round_number: clip.round_number,
+    total_rounds: clip.total_rounds,
+    segment_index: clip.segment_index,
+    hype_score: clip.hype_score,
+    is_featured: clip.is_featured || false,
+    is_creator_followed: clip.is_creator_followed || false,
+    has_voted: clip.has_voted,
+  }));
+
+  return {
+    clips,
+    totalVotesToday: apiResponse.totalVotesToday,
+    userRank: apiResponse.userRank,
+    remainingVotes: apiResponse.remainingVotes,
+    streak: apiResponse.streak,
+    currentSlot: apiResponse.currentSlot,
+    totalSlots: apiResponse.totalSlots,
+    votingEndsAt: apiResponse.votingEndsAt,
+    hasMoreClips: apiResponse.hasMoreClips,
+  };
 }
 
 interface VoteResponse {
@@ -83,110 +176,6 @@ interface MutationContext {
 // ============================================================================
 
 const DAILY_GOAL = 200;
-
-// Mock clips for testing (uses Veo3 videos)
-const MOCK_CLIPS: ClipForClient[] = [
-  {
-    id: 'mock-1',
-    clip_id: 'mock-clip-1',
-    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
-    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
-    username: 'veo3_creator',
-    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=veo3',
-    badge_level: 'gold',
-    vote_count: 4521,
-    weighted_score: 5200,
-    rank_in_track: 1,
-    genre: 'Horror',
-    duration: 8,
-    round_number: 6,
-    total_rounds: 75,
-    segment_index: 5,
-    hype_score: 89,
-    is_featured: true,
-    is_creator_followed: false,
-  },
-  {
-    id: 'mock-2',
-    clip_id: 'mock-clip-2',
-    thumbnail_url: '/uploads/ballet-thumbnail.jpg',
-    video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4',
-    username: 'dance_master',
-    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=ballet',
-    badge_level: 'silver',
-    vote_count: 3847,
-    weighted_score: 4100,
-    rank_in_track: 2,
-    genre: 'Comedy',
-    duration: 8,
-    round_number: 6,
-    total_rounds: 75,
-    segment_index: 5,
-    hype_score: 76,
-    is_featured: false,
-    is_creator_followed: false,
-  },
-  {
-    id: 'mock-3',
-    clip_id: 'mock-clip-3',
-    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
-    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
-    username: 'horror_king',
-    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=horror',
-    badge_level: 'bronze',
-    vote_count: 2654,
-    weighted_score: 3200,
-    rank_in_track: 3,
-    genre: 'Horror',
-    duration: 8,
-    round_number: 6,
-    total_rounds: 75,
-    segment_index: 5,
-    hype_score: 65,
-    is_featured: false,
-    is_creator_followed: false,
-  },
-  {
-    id: 'mock-4',
-    clip_id: 'mock-clip-4',
-    thumbnail_url: '/uploads/ballet-thumbnail.jpg',
-    video_url: '/uploads/Ballet_Studio_Jackhammer_Surprise.mp4',
-    username: 'comedy_queen',
-    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=comedy',
-    badge_level: 'bronze',
-    vote_count: 2201,
-    weighted_score: 2800,
-    rank_in_track: 4,
-    genre: 'Comedy',
-    duration: 8,
-    round_number: 6,
-    total_rounds: 75,
-    segment_index: 5,
-    hype_score: 58,
-    is_featured: false,
-    is_creator_followed: false,
-  },
-  {
-    id: 'mock-5',
-    clip_id: 'mock-clip-5',
-    thumbnail_url: '/uploads/spooky-thumbnail.jpg',
-    video_url: '/uploads/Spooky_Gen_Z_App_Opener_Video.mp4',
-    username: 'film_wizard',
-    avatar_url: 'https://api.dicebear.com/7.x/identicon/svg?seed=wizard',
-    badge_level: 'bronze',
-    vote_count: 1896,
-    weighted_score: 2400,
-    rank_in_track: 5,
-    genre: 'Thriller',
-    duration: 8,
-    round_number: 6,
-    total_rounds: 75,
-    segment_index: 5,
-    hype_score: 52,
-    is_featured: false,
-    is_creator_followed: false,
-  },
-];
 
 // Consistent number formatting (avoids hydration mismatch)
 function formatNumber(num: number): string {
@@ -379,8 +368,7 @@ function VotingArena() {
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
-  // Fetch voting data
-  // TESTING MODE: Always use mock clips with Veo3 videos
+  // Fetch voting data from real API
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
     queryFn: async () => {
@@ -388,7 +376,8 @@ function VotingArena() {
       if (!response.ok) {
         throw new Error('Failed to fetch voting data');
       }
-      return response.json();
+      const apiResponse: APIVotingResponse = await response.json();
+      return transformAPIResponse(apiResponse);
     },
     refetchInterval: 10000,
     staleTime: 5000,

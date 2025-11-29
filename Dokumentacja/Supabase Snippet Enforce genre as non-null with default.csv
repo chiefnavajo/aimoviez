@@ -1,0 +1,2 @@
+trigger_name,event_manipulation,action_timing,action_statement
+on_vote_insert,INSERT,AFTER,EXECUTE FUNCTION update_clip_vote_count()

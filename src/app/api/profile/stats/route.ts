@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -16,6 +17,13 @@ function getVoterKey(req: NextRequest): string {
   const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
   const ua = req.headers.get('user-agent') || 'unknown';
   return crypto.createHash('sha256').update(ip + ua).digest('hex');
+}
+
+interface UserProfile {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  email: string | null;
 }
 
 /**
@@ -84,6 +92,28 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
 
+    // Try to get logged-in user profile
+    let userProfile: UserProfile | null = null;
+    let userId: string | null = null;
+
+    try {
+      const session = await getServerSession();
+      if (session?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id, username, avatar_url, email')
+          .eq('email', session.user.email)
+          .single();
+
+        if (userData) {
+          userProfile = userData;
+          userId = userData.id;
+        }
+      }
+    } catch {
+      // No session
+    }
+
     // 1. Get user's total votes
     const { data: allVotes, error: votesError } = await supabase
       .from('votes')
@@ -148,22 +178,30 @@ export async function GET(req: NextRequest) {
     // Longest streak calculation (simplified)
     const longest_streak = current_streak; // For now, just use current
 
-    // 4. Get user's uploaded clips
-    const { data: userClips } = await supabase
-      .from('tournament_clips')
-      .select('id, slot_position')
-      .eq('user_id', voterKey); // Assuming user_id field exists or use another identifier
+    // 4. Get user's uploaded clips (use userId if logged in, otherwise voterKey)
+    let userClips: { id: string; slot_position: number }[] = [];
 
-    const clips_uploaded = userClips?.length || 0;
+    if (userId) {
+      const { data } = await supabase
+        .from('tournament_clips')
+        .select('id, slot_position')
+        .eq('user_id', userId);
+      userClips = data || [];
+    }
+
+    const clips_uploaded = userClips.length;
 
     // Count locked clips (check if any of user's clips won their slot)
-    const { data: lockedSlots } = await supabase
-      .from('story_slots')
-      .select('winning_clip_id')
-      .eq('status', 'locked')
-      .in('winning_clip_id', userClips?.map((c) => c.id) || []);
+    let clips_locked_in = 0;
+    if (userClips.length > 0) {
+      const { data: lockedSlots } = await supabase
+        .from('story_slots')
+        .select('winner_tournament_clip_id')
+        .eq('status', 'locked')
+        .in('winner_tournament_clip_id', userClips.map((c) => c.id));
 
-    const clips_locked_in = lockedSlots?.length || 0;
+      clips_locked_in = lockedSlots?.length || 0;
+    }
 
     // 5. Calculate global rank (based on total votes)
     const { data: allUsers } = await supabase
@@ -262,9 +300,9 @@ export async function GET(req: NextRequest) {
       },
     ];
 
-    // 8. Generate username and avatar (mock for now)
-    const username = `User${voterKey.substring(0, 6)}`;
-    const avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
+    // 8. Use profile data if logged in, otherwise generate
+    const username = userProfile?.username || `User${voterKey.substring(0, 6)}`;
+    const avatar_url = userProfile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
 
     // 9. Build response
     const response: ProfileStatsResponse = {

@@ -176,8 +176,8 @@ export default function WatchMoviePage() {
           text: `Check out "${currentSlot.clip.title}" by @${currentSlot.clip.username}`,
           url: window.location.href,
         });
-      } catch (err) {
-        console.log('Share cancelled');
+      } catch {
+        // Share cancelled or failed - no action needed
       }
     }
   };

@@ -1,27 +1,33 @@
 // app/api/story/route.ts
-// Zwraca zaakceptowane segmenty (winners) dla aktywnego Season – pod Story player
+// Returns all seasons with their slots for the Story player
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-function createSupabaseServerClient() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+function createSupabaseServerClient(): SupabaseClient {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('[route-name] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables');
+    throw new Error('[story] Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY environment variables');
   }
 
   return createClient(supabaseUrl, supabaseKey);
 }
+
+// ============================================================================
+// Types
+// ============================================================================
 
 interface SeasonRow {
   id: string;
   status: 'draft' | 'active' | 'finished';
   label?: string | null;
   total_slots?: number | null;
+  season_number?: number | null;
+  created_at?: string | null;
 }
 
 interface StorySlotRow {
@@ -39,148 +45,279 @@ interface TournamentClipRow {
   thumbnail_url: string | null;
   username: string | null;
   avatar_url: string | null;
+  vote_count?: number | null;
+  genre?: string | null;
 }
 
-interface StorySegment {
-  slot_position: number;
-  clip_id: string;
+interface VoteCountRow {
+  season_id: string;
+  total: number;
+}
+
+// Response types
+interface WinningClip {
+  id: string;
   video_url: string;
   thumbnail_url: string;
   username: string;
-  avatar_url: string | null;
+  avatar_url: string;
+  vote_count: number;
+  genre: string;
+}
+
+interface Slot {
+  id: string;
+  slot_position: number;
+  status: 'upcoming' | 'voting' | 'locked';
+  winning_clip?: WinningClip;
+}
+
+interface Season {
+  id: string;
+  number: number;
+  name: string;
+  status: 'completed' | 'active' | 'coming_soon';
+  total_slots: number;
+  locked_slots: number;
+  total_votes: number;
+  total_clips: number;
+  total_creators: number;
+  winning_genre?: string;
+  slots: Slot[];
+  current_voting_slot?: number;
+  thumbnail_url?: string;
 }
 
 interface StoryResponse {
-  seasonLabel: string;
-  totalSlots: number;
-  lockedSlots: number;
-  segments: StorySegment[];
+  seasons: Season[];
 }
+
+// ============================================================================
+// Helper functions
+// ============================================================================
+
+function mapSeasonStatus(dbStatus: string): 'completed' | 'active' | 'coming_soon' {
+  if (dbStatus === 'finished') return 'completed';
+  if (dbStatus === 'active') return 'active';
+  return 'coming_soon';
+}
+
+async function getSeasonStats(
+  supabase: SupabaseClient,
+  seasonId: string
+): Promise<{ totalVotes: number; totalClips: number; totalCreators: number }> {
+  try {
+    // Get total clips in this season
+    const { count: clipsCount } = await supabase
+      .from('tournament_clips')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', seasonId);
+
+    // Get unique creators
+    const { data: creators } = await supabase
+      .from('tournament_clips')
+      .select('username')
+      .eq('season_id', seasonId);
+
+    const uniqueCreators = new Set(creators?.map(c => c.username) || []);
+
+    // Get total votes (sum of vote_count from tournament_clips in this season)
+    const { data: voteData } = await supabase
+      .from('tournament_clips')
+      .select('vote_count')
+      .eq('season_id', seasonId);
+
+    const totalVotes = voteData?.reduce((sum, clip) => sum + (clip.vote_count || 0), 0) || 0;
+
+    return {
+      totalVotes,
+      totalClips: clipsCount || 0,
+      totalCreators: uniqueCreators.size,
+    };
+  } catch (error) {
+    console.error('[getSeasonStats] error:', error);
+    return { totalVotes: 0, totalClips: 0, totalCreators: 0 };
+  }
+}
+
+// ============================================================================
+// GET /api/story
+// ============================================================================
 
 export async function GET(req: NextRequest) {
   const supabase = createSupabaseServerClient();
 
   try {
-    // 1. Aktywny Season
-    const { data: season, error: seasonError } = await supabase
+    // 1. Get all seasons (active and finished, ordered by season_number)
+    const { data: seasonsData, error: seasonsError } = await supabase
       .from('seasons')
       .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .in('status', ['active', 'finished', 'draft'])
+      .order('season_number', { ascending: true });
 
-    if (seasonError) {
-      console.error('[GET /api/story] seasonError:', seasonError);
+    if (seasonsError) {
+      console.error('[GET /api/story] seasonsError:', seasonsError);
       return NextResponse.json(
-        { error: 'Failed to load active season' },
+        { error: 'Failed to load seasons' },
         { status: 500 }
       );
     }
 
-    if (!season) {
-      const empty: StoryResponse = {
-        seasonLabel: 'No active season',
-        totalSlots: 0,
-        lockedSlots: 0,
-        segments: [],
-      };
-      return NextResponse.json(empty, { status: 200 });
+    const seasonRows = (seasonsData as SeasonRow[]) || [];
+
+    if (seasonRows.length === 0) {
+      // Return empty state
+      const response: StoryResponse = { seasons: [] };
+      return NextResponse.json(response, { status: 200 });
     }
 
-    const seasonRow = season as SeasonRow;
-    const totalSlots = seasonRow.total_slots ?? 75;
+    // 2. Get all slots for these seasons
+    const seasonIds = seasonRows.map(s => s.id);
 
-    // 2. Sloty z winnerem (status = 'locked' i winner_tournament_clip_id IS NOT NULL)
-    const { data: slots, error: slotsError } = await supabase
+    const { data: slotsData, error: slotsError } = await supabase
       .from('story_slots')
       .select('*')
-      .eq('season_id', seasonRow.id)
-      .eq('status', 'locked')
-      .not('winner_tournament_clip_id', 'is', null)
+      .in('season_id', seasonIds)
       .order('slot_position', { ascending: true });
 
     if (slotsError) {
       console.error('[GET /api/story] slotsError:', slotsError);
       return NextResponse.json(
-        { error: 'Failed to load story slots' },
+        { error: 'Failed to load slots' },
         { status: 500 }
       );
     }
 
-    const lockedSlotsRows = (slots as StorySlotRow[]) || [];
-    const lockedSlotsCount = lockedSlotsRows.length;
+    const slotRows = (slotsData as StorySlotRow[]) || [];
 
-    if (lockedSlotsCount === 0) {
-      const empty: StoryResponse = {
-        seasonLabel: seasonRow.label ?? 'Active season',
-        totalSlots,
-        lockedSlots: 0,
-        segments: [],
-      };
-      return NextResponse.json(empty, { status: 200 });
-    }
-
-    const winnerIds = lockedSlotsRows
-      .map((s) => s.winner_tournament_clip_id)
+    // 3. Get all winning clips
+    const winnerIds = slotRows
+      .map(s => s.winner_tournament_clip_id)
       .filter((id): id is string => !!id);
 
-    // 3. Pobierz klipy-winners z tournament_clips
-    const { data: clips, error: clipsError } = await supabase
-      .from('tournament_clips')
-      .select('id, video_url, thumbnail_url, username, avatar_url')
-      .in('id', winnerIds);
+    let clipMap = new Map<string, TournamentClipRow>();
 
-    if (clipsError) {
-      console.error('[GET /api/story] clipsError:', clipsError);
-      return NextResponse.json(
-        { error: 'Failed to load winner clips' },
-        { status: 500 }
-      );
+    if (winnerIds.length > 0) {
+      const { data: clipsData, error: clipsError } = await supabase
+        .from('tournament_clips')
+        .select('id, video_url, thumbnail_url, username, avatar_url, vote_count, genre')
+        .in('id', winnerIds);
+
+      if (clipsError) {
+        console.error('[GET /api/story] clipsError:', clipsError);
+      } else {
+        for (const clip of (clipsData as TournamentClipRow[]) || []) {
+          clipMap.set(clip.id, clip);
+        }
+      }
     }
 
-    const clipRows = (clips as TournamentClipRow[]) || [];
+    // 4. Build response for each season
+    const seasons: Season[] = await Promise.all(
+      seasonRows.map(async (seasonRow) => {
+        const seasonSlots = slotRows.filter(s => s.season_id === seasonRow.id);
+        const lockedSlots = seasonSlots.filter(s => s.status === 'locked' && s.winner_tournament_clip_id);
+        const votingSlot = seasonSlots.find(s => s.status === 'voting');
 
-    // Zbuduj mapę clipId -> clip
-    const clipMap = new Map<string, TournamentClipRow>();
-    for (const c of clipRows) {
-      clipMap.set(c.id, c);
-    }
+        // Get season stats
+        const stats = await getSeasonStats(supabase, seasonRow.id);
 
-    // 4. Zbuduj listę segmentów w kolejności slot_position
-    const segments: StorySegment[] = lockedSlotsRows
-      .map((slot) => {
-        const clipId = slot.winner_tournament_clip_id!;
-        const clip = clipMap.get(clipId);
-        if (!clip) return null;
+        // Build slots with winning clips
+        const slots: Slot[] = seasonSlots.map(slot => {
+          const baseSlot: Slot = {
+            id: slot.id,
+            slot_position: slot.slot_position,
+            status: slot.status,
+          };
 
-        return {
-          slot_position: slot.slot_position,
-          clip_id: clip.id,
-          video_url: clip.video_url || '',
-          thumbnail_url: clip.thumbnail_url || '',
-          username: clip.username || 'creator',
-          avatar_url: clip.avatar_url,
+          if (slot.winner_tournament_clip_id) {
+            const clip = clipMap.get(slot.winner_tournament_clip_id);
+            if (clip) {
+              baseSlot.winning_clip = {
+                id: clip.id,
+                video_url: clip.video_url || '',
+                thumbnail_url: clip.thumbnail_url || '',
+                username: clip.username || 'creator',
+                avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${clip.id}`,
+                vote_count: clip.vote_count || 0,
+                genre: clip.genre || 'Mixed',
+              };
+            }
+          }
+
+          return baseSlot;
+        });
+
+        // Determine winning genre for completed seasons
+        let winningGenre: string | undefined;
+        if (seasonRow.status === 'finished' && lockedSlots.length > 0) {
+          const genreCounts = new Map<string, number>();
+          lockedSlots.forEach(slot => {
+            if (slot.winner_tournament_clip_id) {
+              const clip = clipMap.get(slot.winner_tournament_clip_id);
+              if (clip?.genre) {
+                genreCounts.set(clip.genre, (genreCounts.get(clip.genre) || 0) + 1);
+              }
+            }
+          });
+
+          let maxCount = 0;
+          genreCounts.forEach((count, genre) => {
+            if (count > maxCount) {
+              maxCount = count;
+              winningGenre = genre;
+            }
+          });
+        }
+
+        // Get thumbnail from first locked slot
+        let thumbnail_url: string | undefined;
+        const firstLockedWithClip = slots.find(s => s.status === 'locked' && s.winning_clip);
+        if (firstLockedWithClip?.winning_clip) {
+          thumbnail_url = firstLockedWithClip.winning_clip.thumbnail_url || firstLockedWithClip.winning_clip.video_url;
+        }
+
+        const season: Season = {
+          id: seasonRow.id,
+          number: seasonRow.season_number || 1,
+          name: seasonRow.label || `Season ${seasonRow.season_number || 1}`,
+          status: mapSeasonStatus(seasonRow.status),
+          total_slots: seasonRow.total_slots || 75,
+          locked_slots: lockedSlots.length,
+          total_votes: stats.totalVotes,
+          total_clips: stats.totalClips,
+          total_creators: stats.totalCreators,
+          slots,
+          thumbnail_url,
         };
+
+        if (winningGenre) {
+          season.winning_genre = winningGenre;
+        }
+
+        if (votingSlot) {
+          season.current_voting_slot = votingSlot.slot_position;
+        }
+
+        return season;
       })
-      .filter((s): s is StorySegment => s !== null);
+    );
 
-    const response: StoryResponse = {
-      seasonLabel: seasonRow.label ?? 'Active season',
-      totalSlots,
-      lockedSlots: segments.length,
-      segments,
-    };
+    // Sort: active first, then by number descending
+    seasons.sort((a, b) => {
+      if (a.status === 'active' && b.status !== 'active') return -1;
+      if (b.status === 'active' && a.status !== 'active') return 1;
+      return b.number - a.number;
+    });
 
+    const response: StoryResponse = { seasons };
     return NextResponse.json(response, { status: 200 });
+
   } catch (error) {
     console.error('[GET /api/story] Unexpected error:', error);
-    const fallback: StoryResponse = {
-      seasonLabel: 'Error',
-      totalSlots: 0,
-      lockedSlots: 0,
-      segments: [],
-    };
-    return NextResponse.json(fallback, { status: 500 });
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

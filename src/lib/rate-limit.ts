@@ -53,9 +53,6 @@ function getRedis(): Redis | null {
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
   if (!url || !token) {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[RateLimit] Redis not configured, using in-memory fallback');
-    }
     return null;
   }
 
