@@ -45,40 +45,61 @@ interface GenreVoteResponse {
 /**
  * GET /api/genre-vote
  * Returns current genre voting stats and user's previous vote if any
+ * OPTIMIZED: Uses database aggregation instead of loading all rows
  */
 export async function GET(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
 
-    // Get all genre votes
-    const { data: votes, error: votesError } = await supabase
-      .from('genre_votes')
-      .select('genre, voter_key');
+    // OPTIMIZED: Run two lightweight queries in parallel
+    // 1. Get genre counts using SQL aggregation (not loading all rows)
+    // 2. Get user's previous vote (single row lookup)
+    const [genreCountsResult, userVoteResult] = await Promise.all([
+      // Query 1: Aggregate counts per genre in database
+      supabase.rpc('get_genre_vote_counts').catch(() => null) ||
+      // Fallback: Use raw count queries per genre if RPC doesn't exist
+      Promise.all(
+        GENRES.map(async (genre) => {
+          const { count } = await supabase
+            .from('genre_votes')
+            .select('id', { count: 'exact', head: true })
+            .eq('genre', genre);
+          return { genre, count: count || 0 };
+        })
+      ),
 
-    if (votesError) {
-      console.error('[GET /api/genre-vote] votesError:', votesError);
-      return NextResponse.json(
-        { error: 'Failed to fetch genre votes' },
-        { status: 500 }
-      );
-    }
+      // Query 2: Get user's previous vote (single row)
+      supabase
+        .from('genre_votes')
+        .select('genre')
+        .eq('voter_key', voterKey)
+        .maybeSingle(),
+    ]);
 
-    // Count votes per genre
+    // Process genre counts
     const genreCounts = new Map<Genre, number>();
     GENRES.forEach((g) => genreCounts.set(g, 0));
 
-    let userPreviousVote: Genre | undefined;
+    // Handle RPC result or fallback result
+    if (Array.isArray(genreCountsResult)) {
+      // Fallback: array of { genre, count } objects
+      genreCountsResult.forEach(({ genre, count }) => {
+        if (GENRES.includes(genre as Genre)) {
+          genreCounts.set(genre as Genre, count);
+        }
+      });
+    } else if (genreCountsResult?.data) {
+      // RPC result
+      genreCountsResult.data.forEach((row: { genre: string; count: number }) => {
+        if (GENRES.includes(row.genre as Genre)) {
+          genreCounts.set(row.genre as Genre, row.count);
+        }
+      });
+    }
 
-    votes?.forEach((vote) => {
-      const genre = vote.genre as Genre;
-      if (GENRES.includes(genre)) {
-        genreCounts.set(genre, (genreCounts.get(genre) || 0) + 1);
-      }
-      if (vote.voter_key === voterKey) {
-        userPreviousVote = genre;
-      }
-    });
+    // Get user's previous vote
+    const userPreviousVote = userVoteResult.data?.genre as Genre | undefined;
 
     // Calculate percentages
     const totalVotes = Array.from(genreCounts.values()).reduce((sum, count) => sum + count, 0);
@@ -166,17 +187,20 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Get updated counts
-    const { data: allVotes } = await supabase.from('genre_votes').select('genre');
+    // OPTIMIZED: Get updated counts using parallel COUNT queries (not loading all rows)
+    const genreCountResults = await Promise.all(
+      GENRES.map(async (g) => {
+        const { count } = await supabase
+          .from('genre_votes')
+          .select('id', { count: 'exact', head: true })
+          .eq('genre', g);
+        return { genre: g, count: count || 0 };
+      })
+    );
 
     const genreCounts = new Map<Genre, number>();
-    GENRES.forEach((g) => genreCounts.set(g, 0));
-
-    allVotes?.forEach((vote) => {
-      const g = vote.genre as Genre;
-      if (GENRES.includes(g)) {
-        genreCounts.set(g, (genreCounts.get(g) || 0) + 1);
-      }
+    genreCountResults.forEach(({ genre, count }) => {
+      genreCounts.set(genre, count);
     });
 
     const totalVotes = Array.from(genreCounts.values()).reduce((sum, count) => sum + count, 0);
