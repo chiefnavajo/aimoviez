@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================================
-// LEADERBOARD PAGE - Matches Dashboard/Storyboard Style
+// LEADERBOARD PAGE - Real data from API
 // ============================================================================
 
 import { useState, useEffect } from 'react';
@@ -22,6 +22,7 @@ import {
   Users,
   Film,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 
@@ -53,72 +54,18 @@ interface TopClip {
 
 type TabType = 'clips' | 'voters' | 'creators';
 
-// ============================================================================
-// MOCK DATA
-// ============================================================================
-
-const MOCK_TOP_CLIPS: TopClip[] = [
-  {
-    id: 'clip-1',
-    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4',
-    thumbnail_url: '',
-    username: 'veo3_creator',
-    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3',
-    vote_count: 4521,
-    genre: 'Horror',
-    slot_position: 5,
-    season_number: 2,
-  },
-  {
-    id: 'clip-2',
-    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/ballet-dancer.mp4',
-    thumbnail_url: '',
-    username: 'dance_master',
-    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet',
-    vote_count: 3847,
-    genre: 'Comedy',
-    slot_position: 5,
-    season_number: 2,
-  },
-  {
-    id: 'clip-3',
-    video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/superhero-landing.mp4',
-    thumbnail_url: '',
-    username: 'film_wizard',
-    avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard',
-    vote_count: 2654,
-    genre: 'Action',
-    slot_position: 5,
-    season_number: 2,
-  },
-];
-
-const MOCK_TOP_VOTERS: LeaderboardEntry[] = [
-  { rank: 1, id: 'v1', username: 'vote_king', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=king', score: 12450, trend: 'same', badge: '👑' },
-  { rank: 2, id: 'v2', username: 'movie_lover', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=lover', score: 11230, trend: 'up', badge: '🔥' },
-  { rank: 3, id: 'v3', username: 'clip_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=master', score: 10890, trend: 'down' },
-  { rank: 4, id: 'v4', username: 'daily_voter', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=daily', score: 9876, trend: 'up' },
-  { rank: 5, id: 'v5', username: 'film_fan', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=fan', score: 8765, trend: 'same' },
-  { rank: 6, id: 'v6', username: 'cinema_pro', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=cinema', score: 7654, trend: 'up' },
-  { rank: 7, id: 'v7', username: 'reel_queen', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=queen', score: 6543, trend: 'down' },
-  { rank: 8, id: 'v8', username: 'screen_time', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=screen', score: 5432, trend: 'same' },
-];
-
-const MOCK_TOP_CREATORS: LeaderboardEntry[] = [
-  { rank: 1, id: 'c1', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3', score: 45210, trend: 'same', badge: '🏆' },
-  { rank: 2, id: 'c2', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard', score: 38470, trend: 'up', badge: '⭐' },
-  { rank: 3, id: 'c3', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet', score: 28920, trend: 'up' },
-  { rank: 4, id: 'c4', username: 'horror_king', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=horror', score: 21340, trend: 'down' },
-  { rank: 5, id: 'c5', username: 'comedy_queen', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=comedy', score: 18760, trend: 'same' },
-  { rank: 6, id: 'c6', username: 'action_hero', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=action', score: 15430, trend: 'up' },
-  { rank: 7, id: 'c7', username: 'scifi_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=scifi', score: 12890, trend: 'down' },
-  { rank: 8, id: 'c8', username: 'drama_director', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=drama', score: 10540, trend: 'same' },
-];
-
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toString();
+}
+
+// Badge assignment based on rank
+function getBadge(rank: number): string | undefined {
+  if (rank === 1) return '👑';
+  if (rank === 2) return '🔥';
+  if (rank === 3) return '⭐';
+  return undefined;
 }
 
 // ============================================================================
@@ -127,9 +74,86 @@ function formatNumber(num: number): string {
 
 export default function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<TabType>('clips');
-  const [topClips, setTopClips] = useState<TopClip[]>(MOCK_TOP_CLIPS);
-  const [topVoters, setTopVoters] = useState<LeaderboardEntry[]>(MOCK_TOP_VOTERS);
-  const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>(MOCK_TOP_CREATORS);
+  const [topClips, setTopClips] = useState<TopClip[]>([]);
+  const [topVoters, setTopVoters] = useState<LeaderboardEntry[]>([]);
+  const [topCreators, setTopCreators] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Fetch data from APIs
+  useEffect(() => {
+    async function fetchLeaderboardData() {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Fetch all three leaderboards in parallel
+        const [clipsRes, votersRes, creatorsRes] = await Promise.all([
+          fetch('/api/leaderboard/clips?limit=10'),
+          fetch('/api/leaderboard/voters?limit=10'),
+          fetch('/api/leaderboard/creators?limit=10'),
+        ]);
+
+        // Parse responses
+        const [clipsData, votersData, creatorsData] = await Promise.all([
+          clipsRes.json(),
+          votersRes.json(),
+          creatorsRes.json(),
+        ]);
+
+        // Transform clips data
+        if (clipsData.clips) {
+          const clips: TopClip[] = clipsData.clips.map((clip: any) => ({
+            id: clip.id,
+            video_url: clip.video_url || '',
+            thumbnail_url: clip.thumbnail_url || '',
+            username: clip.username || 'Creator',
+            avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${clip.username}`,
+            vote_count: clip.vote_count || 0,
+            genre: clip.genre || 'Unknown',
+            slot_position: clip.slot_position || 1,
+            season_number: 1, // Default to season 1
+          }));
+          setTopClips(clips);
+        }
+
+        // Transform voters data
+        if (votersData.voters) {
+          const voters: LeaderboardEntry[] = votersData.voters.map((voter: any) => ({
+            rank: voter.rank,
+            id: voter.voter_key,
+            username: voter.username || `Voter${voter.voter_key?.substring(0, 6)}`,
+            avatar_url: voter.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${voter.voter_key}`,
+            score: voter.total_votes || 0,
+            trend: 'same' as const, // No historical data for trends yet
+            badge: getBadge(voter.rank),
+          }));
+          setTopVoters(voters);
+        }
+
+        // Transform creators data
+        if (creatorsData.creators) {
+          const creators: LeaderboardEntry[] = creatorsData.creators.map((creator: any) => ({
+            rank: creator.rank,
+            id: creator.user_id,
+            username: creator.username || 'Creator',
+            avatar_url: creator.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creator.user_id}`,
+            score: creator.total_votes || 0,
+            trend: 'same' as const,
+            badge: getBadge(creator.rank),
+          }));
+          setTopCreators(creators);
+        }
+      } catch (err) {
+        console.error('Failed to fetch leaderboard data:', err);
+        setError('Failed to load leaderboard data');
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLeaderboardData();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -220,49 +244,77 @@ export default function LeaderboardPage() {
             </div>
 
             {/* Content */}
-            <AnimatePresence mode="wait">
-              {activeTab === 'clips' && (
-                <motion.div
-                  key="clips"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-4"
+            {loading ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+              </div>
+            ) : error ? (
+              <div className="text-center py-20 text-white/50">
+                <p>{error}</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition"
                 >
-                  {topClips.map((clip, idx) => (
-                    <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
-                  ))}
-                </motion.div>
-              )}
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                {activeTab === 'clips' && (
+                  <motion.div
+                    key="clips"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-4"
+                  >
+                    {topClips.length === 0 ? (
+                      <EmptyState message="No clips yet. Be the first to upload!" />
+                    ) : (
+                      topClips.map((clip, idx) => (
+                        <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
+                      ))
+                    )}
+                  </motion.div>
+                )}
 
-              {activeTab === 'voters' && (
-                <motion.div
-                  key="voters"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-2"
-                >
-                  {topVoters.map((entry) => (
-                    <LeaderboardRow key={entry.id} entry={entry} type="votes" />
-                  ))}
-                </motion.div>
-              )}
+                {activeTab === 'voters' && (
+                  <motion.div
+                    key="voters"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-2"
+                  >
+                    {topVoters.length === 0 ? (
+                      <EmptyState message="No votes yet. Start voting to appear here!" />
+                    ) : (
+                      topVoters.map((entry) => (
+                        <LeaderboardRow key={entry.id} entry={entry} type="votes" />
+                      ))
+                    )}
+                  </motion.div>
+                )}
 
-              {activeTab === 'creators' && (
-                <motion.div
-                  key="creators"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="space-y-2"
-                >
-                  {topCreators.map((entry) => (
-                    <LeaderboardRow key={entry.id} entry={entry} type="received" />
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                {activeTab === 'creators' && (
+                  <motion.div
+                    key="creators"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="space-y-2"
+                  >
+                    {topCreators.length === 0 ? (
+                      <EmptyState message="No creators yet. Upload a clip to get started!" />
+                    ) : (
+                      topCreators.map((entry) => (
+                        <LeaderboardRow key={entry.id} entry={entry} type="received" />
+                      ))
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
           </div>
         </div>
       </div>
@@ -303,49 +355,77 @@ export default function LeaderboardPage() {
 
         {/* Content */}
         <div className="px-4">
-          <AnimatePresence mode="wait">
-            {activeTab === 'clips' && (
-              <motion.div
-                key="clips"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-3"
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-white/50" />
+            </div>
+          ) : error ? (
+            <div className="text-center py-20 text-white/50">
+              <p>{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-4 py-2 bg-white/10 rounded-lg hover:bg-white/20 transition"
               >
-                {topClips.map((clip, idx) => (
-                  <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
-                ))}
-              </motion.div>
-            )}
+                Retry
+              </button>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              {activeTab === 'clips' && (
+                <motion.div
+                  key="clips"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-3"
+                >
+                  {topClips.length === 0 ? (
+                    <EmptyState message="No clips yet" />
+                  ) : (
+                    topClips.map((clip, idx) => (
+                      <ClipCard key={clip.id} clip={clip} rank={idx + 1} />
+                    ))
+                  )}
+                </motion.div>
+              )}
 
-            {activeTab === 'voters' && (
-              <motion.div
-                key="voters"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-2"
-              >
-                {topVoters.map((entry) => (
-                  <LeaderboardRow key={entry.id} entry={entry} type="votes" />
-                ))}
-              </motion.div>
-            )}
+              {activeTab === 'voters' && (
+                <motion.div
+                  key="voters"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-2"
+                >
+                  {topVoters.length === 0 ? (
+                    <EmptyState message="No votes yet" />
+                  ) : (
+                    topVoters.map((entry) => (
+                      <LeaderboardRow key={entry.id} entry={entry} type="votes" />
+                    ))
+                  )}
+                </motion.div>
+              )}
 
-            {activeTab === 'creators' && (
-              <motion.div
-                key="creators"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="space-y-2"
-              >
-                {topCreators.map((entry) => (
-                  <LeaderboardRow key={entry.id} entry={entry} type="received" />
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+              {activeTab === 'creators' && (
+                <motion.div
+                  key="creators"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="space-y-2"
+                >
+                  {topCreators.length === 0 ? (
+                    <EmptyState message="No creators yet" />
+                  ) : (
+                    topCreators.map((entry) => (
+                      <LeaderboardRow key={entry.id} entry={entry} type="received" />
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          )}
         </div>
 
         <BottomNavigation />
@@ -357,6 +437,15 @@ export default function LeaderboardPage() {
 // ============================================================================
 // COMPONENTS
 // ============================================================================
+
+function EmptyState({ message }: { message: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-white/50">
+      <Trophy className="w-12 h-12 mb-4 opacity-30" />
+      <p className="text-center">{message}</p>
+    </div>
+  );
+}
 
 function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
   const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
