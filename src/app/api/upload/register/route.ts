@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
+import { RegisterClipSchema, parseBody } from '@/lib/validations';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -63,15 +64,14 @@ export async function POST(request: NextRequest) {
 
     // Parse JSON body (small request, just metadata)
     const body = await request.json();
-    const { videoUrl, genre, title, description } = body;
 
-    // Validate required fields
-    if (!videoUrl) {
-      return NextResponse.json({ success: false, error: 'Video URL is required' }, { status: 400 });
+    // Validate request body with Zod
+    const validation = parseBody(RegisterClipSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ success: false, error: validation.error }, { status: 400 });
     }
-    if (!genre) {
-      return NextResponse.json({ success: false, error: 'Genre is required' }, { status: 400 });
-    }
+
+    const { videoUrl, genre, title, description } = validation.data;
 
     // Look up user profile to get their username
     let uploaderUsername = `creator_${voterKey.slice(-8)}`;

@@ -13,6 +13,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { VoteRequestSchema, parseBody } from '@/lib/validations';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -679,15 +680,17 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const clipId: string | undefined = body?.clipId;
-    const voteType: VoteType = body?.voteType ?? 'standard';
 
-    if (!clipId) {
+    // Validate request body with Zod
+    const validation = parseBody(VoteRequestSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { success: false, error: 'Missing clipId' },
+        { success: false, error: validation.error },
         { status: 400 }
       );
     }
+
+    const { clipId, voteType } = validation.data;
 
     const voterKey = getVoterKey(req);
 

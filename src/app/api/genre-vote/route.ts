@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { GenreVoteSchema, parseBody } from '@/lib/validations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -52,13 +53,11 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
 
-    // OPTIMIZED: Run two lightweight queries in parallel
-    // 1. Get genre counts using SQL aggregation (not loading all rows)
+    // OPTIMIZED: Run lightweight queries in parallel
+    // 1. Get genre counts using COUNT queries (not loading all rows)
     // 2. Get user's previous vote (single row lookup)
     const [genreCountsResult, userVoteResult] = await Promise.all([
-      // Query 1: Aggregate counts per genre in database
-      supabase.rpc('get_genre_vote_counts').catch(() => null) ||
-      // Fallback: Use raw count queries per genre if RPC doesn't exist
+      // Query 1: Count per genre using parallel COUNT queries
       Promise.all(
         GENRES.map(async (genre) => {
           const { count } = await supabase
@@ -81,22 +80,12 @@ export async function GET(req: NextRequest) {
     const genreCounts = new Map<Genre, number>();
     GENRES.forEach((g) => genreCounts.set(g, 0));
 
-    // Handle RPC result or fallback result
-    if (Array.isArray(genreCountsResult)) {
-      // Fallback: array of { genre, count } objects
-      genreCountsResult.forEach(({ genre, count }) => {
-        if (GENRES.includes(genre as Genre)) {
-          genreCounts.set(genre as Genre, count);
-        }
-      });
-    } else if (genreCountsResult?.data) {
-      // RPC result
-      genreCountsResult.data.forEach((row: { genre: string; count: number }) => {
-        if (GENRES.includes(row.genre as Genre)) {
-          genreCounts.set(row.genre as Genre, row.count);
-        }
-      });
-    }
+    // Process count results
+    genreCountsResult.forEach(({ genre, count }) => {
+      if (GENRES.includes(genre as Genre)) {
+        genreCounts.set(genre as Genre, count);
+      }
+    });
 
     // Get user's previous vote
     const userPreviousVote = userVoteResult.data?.genre as Genre | undefined;
@@ -136,17 +125,17 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
 
-    // Parse body
+    // Parse and validate body with Zod
     const body = await req.json();
-    const { genre } = body;
-
-    // Validate genre
-    if (!genre || !GENRES.includes(genre)) {
+    const validation = parseBody(GenreVoteSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'Invalid genre. Must be one of: ' + GENRES.join(', ') },
+        { error: validation.error },
         { status: 400 }
       );
     }
+
+    const { genre } = validation.data;
 
     // Check if user has already voted
     const { data: existingVote } = await supabase

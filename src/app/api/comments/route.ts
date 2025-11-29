@@ -5,6 +5,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
+import {
+  CreateCommentSchema,
+  LikeCommentSchema,
+  DeleteCommentSchema,
+  parseBody,
+} from '@/lib/validations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -220,28 +226,16 @@ export async function POST(req: NextRequest) {
     const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
-    const { clipId, comment_text, parent_comment_id } = body;
-
-    if (!clipId) {
+    // Validate request body with Zod
+    const validation = parseBody(CreateCommentSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'clipId is required' },
+        { error: validation.error },
         { status: 400 }
       );
     }
 
-    if (!comment_text || comment_text.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Comment text is required' },
-        { status: 400 }
-      );
-    }
-
-    if (comment_text.length > 500) {
-      return NextResponse.json(
-        { error: 'Comment is too long (max 500 characters)' },
-        { status: 400 }
-      );
-    }
+    const { clipId, comment_text, parent_comment_id } = validation.data;
 
     // Prepare insert data
     const insertData = {
@@ -304,14 +298,16 @@ export async function PATCH(req: NextRequest) {
     const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
-    const { comment_id, action } = body;
-
-    if (!comment_id || !action) {
+    // Validate request body with Zod
+    const validation = parseBody(LikeCommentSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'comment_id and action are required' },
+        { error: validation.error },
         { status: 400 }
       );
     }
+
+    const { comment_id, action } = validation.data;
 
     if (action === 'like') {
       // Insert like (will auto-increment likes_count via trigger)
@@ -329,8 +325,8 @@ export async function PATCH(req: NextRequest) {
           console.error('[PATCH /api/comments] like error:', error);
         }
       }
-    } else if (action === 'unlike') {
-      // Delete like (will auto-decrement likes_count via trigger)
+    } else {
+      // action === 'unlike' (already validated by Zod)
       const { error } = await supabase
         .from('comment_likes')
         .delete()
@@ -340,11 +336,6 @@ export async function PATCH(req: NextRequest) {
       if (error) {
         console.error('[PATCH /api/comments] unlike error:', error);
       }
-    } else {
-      return NextResponse.json(
-        { error: 'action must be "like" or "unlike"' },
-        { status: 400 }
-      );
     }
 
     // Get updated comment
@@ -382,14 +373,16 @@ export async function DELETE(req: NextRequest) {
     const userInfo = await getUserInfo(req, supabase);
     const body = await req.json();
 
-    const { comment_id } = body;
-
-    if (!comment_id) {
+    // Validate request body with Zod
+    const validation = parseBody(DeleteCommentSchema, body);
+    if (!validation.success) {
       return NextResponse.json(
-        { error: 'comment_id is required' },
+        { error: validation.error },
         { status: 400 }
       );
     }
+
+    const { comment_id } = validation.data;
 
     // Soft delete (set is_deleted = true)
     const { data: comment, error } = await supabase
