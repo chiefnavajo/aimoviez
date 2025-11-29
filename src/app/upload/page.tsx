@@ -49,8 +49,15 @@ export default function UploadPage() {
   const [errors, setErrors] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStartTime, setUploadStartTime] = useState<number | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+
+  const addLog = (msg: string) => {
+    console.log('[UPLOAD]', msg);
+    setDebugLog(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()}: ${msg}`]);
+  };
 
   const validateVideo = async (file: File): Promise<string[]> => {
     const errors: string[] = [];
@@ -95,7 +102,30 @@ export default function UploadPage() {
     if (!video || !genre) return;
     setIsUploading(true);
     setUploadProgress(0);
+    setUploadStartTime(Date.now());
     setErrors([]);
+    setDebugLog([]);
+
+    // Detect device
+    const isAndroid = /android/i.test(navigator.userAgent);
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    addLog(`Device: ${isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop'}`);
+    addLog(`File: ${video.name} (${(video.size / 1024 / 1024).toFixed(2)}MB)`);
+
+    // Fake progress for Android (XHR progress events unreliable)
+    let fakeProgressInterval: NodeJS.Timeout | null = null;
+    
+    if (isAndroid) {
+      addLog('Starting fake progress for Android');
+      let fakeProgress = 0;
+      fakeProgressInterval = setInterval(() => {
+        // Slowly increment to 85%, then wait for real completion
+        if (fakeProgress < 85) {
+          fakeProgress += Math.random() * 3 + 1;
+          setUploadProgress(Math.min(fakeProgress, 85));
+        }
+      }, 500);
+    }
 
     try {
       // Create FormData
@@ -104,35 +134,47 @@ export default function UploadPage() {
       formData.append('genre', genre);
       formData.append('title', `Clip by ${Date.now()}`); // Default title
       formData.append('description', '');
+      addLog('FormData created, starting XHR');
 
       // Use XMLHttpRequest for upload progress tracking
       const xhr = new XMLHttpRequest();
       
-      // Track upload progress
+      // Track upload progress (works on desktop, unreliable on Android)
       xhr.upload.addEventListener('progress', (e) => {
         if (e.lengthComputable) {
-          const percentComplete = (e.loaded / e.total) * 90; // Up to 90%, rest is processing
-          setUploadProgress(percentComplete);
+          const percentComplete = (e.loaded / e.total) * 90;
+          addLog(`Progress: ${Math.round(percentComplete)}% (${e.loaded}/${e.total})`);
+          if (!isAndroid) {
+            setUploadProgress(percentComplete);
+          }
         }
       });
 
       // Handle completion
       const uploadPromise = new Promise<{ success: boolean; error?: string; data?: any }>((resolve, reject) => {
         xhr.addEventListener('load', () => {
+          addLog(`XHR load: status=${xhr.status}`);
+          // Clear fake progress interval
+          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
+          
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const data = JSON.parse(xhr.responseText);
+              addLog(`Response: success=${data.success}`);
               // Check if API actually returned success
               if (data.success === true) {
                 resolve({ success: true, data });
               } else {
                 // API returned 200 but with an error
+                addLog(`API error: ${data.error || data.message}`);
                 resolve({ success: false, error: data.error || data.message || 'Upload failed on server' });
               }
             } catch (e) {
+              addLog('Failed to parse response');
               resolve({ success: false, error: 'Invalid response from server' });
             }
           } else {
+            addLog(`HTTP error: ${xhr.status}`);
             try {
               const data = JSON.parse(xhr.responseText);
               resolve({ success: false, error: data.error || 'Upload failed' });
@@ -142,16 +184,35 @@ export default function UploadPage() {
           }
         });
 
-        xhr.addEventListener('error', () => {
+        xhr.addEventListener('error', (e) => {
+          addLog(`XHR error event: ${JSON.stringify(e)}`);
+          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
           resolve({ success: false, error: 'Network error. Please check your connection.' });
         });
 
         xhr.addEventListener('abort', () => {
+          addLog('XHR aborted');
+          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
           resolve({ success: false, error: 'Upload cancelled' });
         });
+
+        xhr.addEventListener('readystatechange', () => {
+          addLog(`ReadyState: ${xhr.readyState}`);
+        });
+        
+        // Timeout after 60 seconds for mobile
+        setTimeout(() => {
+          if (fakeProgressInterval) clearInterval(fakeProgressInterval);
+          if (xhr.readyState !== 4) {
+            addLog('Timeout after 60s - aborting');
+            xhr.abort();
+            resolve({ success: false, error: 'Upload timed out. Try a smaller file or better connection.' });
+          }
+        }, 60000);
       });
 
       // Start upload
+      addLog('Sending XHR request...');
       xhr.open('POST', '/api/upload');
       xhr.send(formData);
 
@@ -185,6 +246,7 @@ export default function UploadPage() {
       setErrors([errorMessage]);
       setIsUploading(false);
       setUploadProgress(0);
+      setUploadStartTime(null);
     }
   };
 
@@ -276,7 +338,25 @@ export default function UploadPage() {
                 <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                   <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} />
                 </div>
-                <p className="text-xs text-white/60 text-center">Uploading your clip...</p>
+                <p className="text-xs text-white/60 text-center">
+                  {uploadProgress < 90 
+                    ? `Uploading... ${Math.round(uploadProgress)}%` 
+                    : uploadProgress < 100 
+                      ? 'Processing on server...' 
+                      : 'Complete!'}
+                </p>
+                <p className="text-xs text-white/40 text-center">
+                  {uploadStartTime && uploadProgress < 100 && (
+                    <>Please wait, this may take a minute on mobile</>
+                  )}
+                </p>
+                {/* Debug log - visible on screen */}
+                <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-40 overflow-y-auto">
+                  <p className="text-[10px] text-cyan-400 font-mono mb-1">Debug Log:</p>
+                  {debugLog.map((log, i) => (
+                    <p key={i} className="text-[10px] text-white/60 font-mono">{log}</p>
+                  ))}
+                </div>
               </div>
             )}
           </motion.div>
