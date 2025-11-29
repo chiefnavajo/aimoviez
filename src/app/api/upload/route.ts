@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get current voting slot
-    const { data: votingSlot } = await supabase
+    const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
       .select('id, slot_position')
       .eq('season_id', season.id)
@@ -125,8 +125,16 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    // Use current voting slot or slot 1 if none
-    const slotPosition = votingSlot?.slot_position || 1;
+    // Fail if no active voting slot (don't silently assign to wrong slot)
+    if (slotError || !votingSlot) {
+      console.error('[UPLOAD] No active voting slot:', slotError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'No active voting slot. Voting is currently closed for this round.' 
+      }, { status: 400 });
+    }
+
+    const slotPosition = votingSlot.slot_position;
 
     // Generate unique filename
     const filename = generateFilename(video.name);
@@ -136,13 +144,29 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await video.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
 
-    // Upload to Supabase Storage - 'videos' bucket
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('videos')  // Using 'videos' bucket
+    // Upload to Supabase Storage - try 'clips' bucket first (user mentioned files are there)
+    // Then fallback to 'videos' if needed
+    let bucketName = 'clips';
+    let uploadData, uploadError;
+    
+    ({ data: uploadData, error: uploadError } = await supabase.storage
+      .from('clips')
       .upload(storagePath, buffer, {
         contentType: video.type,
         upsert: false,
-      });
+      }));
+    
+    // If 'clips' bucket doesn't exist, try 'videos'
+    if (uploadError && (uploadError.message?.includes('Bucket not found') || uploadError.message?.includes('not found'))) {
+      console.log('[UPLOAD] clips bucket not found, trying videos bucket');
+      bucketName = 'videos';
+      ({ data: uploadData, error: uploadError } = await supabase.storage
+        .from('videos')
+        .upload(storagePath, buffer, {
+          contentType: video.type,
+          upsert: false,
+        }));
+    }
 
     if (uploadError) {
       console.error('[UPLOAD] Storage upload error:', uploadError);
@@ -166,9 +190,9 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    // Get public URL
+    // Get public URL from the bucket we used
     const { data: urlData } = supabase.storage
-      .from('videos')
+      .from(bucketName)
       .getPublicUrl(storagePath);
 
     const videoUrl = urlData.publicUrl;
@@ -204,7 +228,8 @@ export async function POST(request: NextRequest) {
         vote_count: 0,
         weighted_score: 0,
         hype_score: 0,
-        status: 'pending',
+        status: 'pending', // For voting system
+        moderation_status: 'pending', // For admin moderation queue
         uploader_key: voterKey,
         created_at: new Date().toISOString(),
       })
@@ -214,10 +239,19 @@ export async function POST(request: NextRequest) {
     if (clipError) {
       console.error('[UPLOAD] Database insert error:', clipError);
       console.error('[UPLOAD] Error details:', JSON.stringify(clipError, null, 2));
+      console.error('[UPLOAD] Attempted insert data:', {
+        slot_position: slotPosition,
+        track_id: 'track-main',
+        video_url: videoUrl,
+        genre: genre.toUpperCase(),
+        title: title,
+        status: 'pending'
+      });
       
       // Clean up uploaded file on DB error
       try {
-        await supabase.storage.from('videos').remove([storagePath]);
+        await supabase.storage.from(bucketName).remove([storagePath]);
+        console.log('[UPLOAD] Cleaned up uploaded file due to DB error');
       } catch (cleanupError) {
         console.error('[UPLOAD] Failed to cleanup file:', cleanupError);
       }
@@ -227,6 +261,42 @@ export async function POST(request: NextRequest) {
         error: `Failed to save clip: ${clipError.message || 'Database error'}. Please try again.` 
       }, { status: 500 });
     }
+
+    // Verify clip was actually inserted
+    if (!clipData || !clipData.id) {
+      console.error('[UPLOAD] Clip data missing after insert:', clipData);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Clip was uploaded but database record was not created. Please contact support.' 
+      }, { status: 500 });
+    }
+
+    console.log('[UPLOAD] Clip successfully saved to database:', {
+      clipId: clipData.id,
+      slotPosition,
+      status: 'pending',
+      moderation_status: 'pending',
+      videoUrl,
+      title,
+      storagePath: uploadData.path
+    });
+
+    // Verify the clip exists in database by querying it back
+    const { data: verifyClip, error: verifyError } = await supabase
+      .from('tournament_clips')
+      .select('id, status, moderation_status, video_url, title')
+      .eq('id', clipData.id)
+      .single();
+
+    if (verifyError || !verifyClip) {
+      console.error('[UPLOAD] Verification failed - clip not found after insert:', verifyError);
+      return NextResponse.json({ 
+        success: false,
+        error: 'Upload completed but verification failed. Please contact support with clip ID: ' + clipData.id
+      }, { status: 500 });
+    }
+
+    console.log('[UPLOAD] Verification successful - clip confirmed in database:', verifyClip);
 
     // Success response
     return NextResponse.json({
@@ -239,7 +309,8 @@ export async function POST(request: NextRequest) {
         genre: genre,
         title: title,
       },
-      message: 'Upload successful! Your clip is pending review.',
+      message: 'Upload successful! Your clip is pending review and will appear after admin approval.',
+      note: 'Your clip has been saved. It will be visible in the voting arena once approved by an admin.',
     });
 
   } catch (error) {
