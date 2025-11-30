@@ -70,9 +70,9 @@ export async function GET(req: NextRequest) {
     // 1. Get all seasons
     const { data: seasons, error: seasonsError } = await supabase
       .from('seasons')
-      .select('id, status, label, total_slots, season_number, created_at')
+      .select('id, status, label, total_slots, created_at')
       .in('status', ['active', 'finished'])
-      .order('season_number', { ascending: true });
+      .order('created_at', { ascending: true });
 
     if (seasonsError) {
       console.error('[story] seasons error:', seasonsError);
@@ -164,10 +164,13 @@ export async function GET(req: NextRequest) {
         thumbnail_url = firstLocked.winning_clip.thumbnail_url || firstLocked.winning_clip.video_url;
       }
 
+      // Extract season number from label or use index
+      const seasonIndex = seasons.indexOf(seasonRow) + 1;
+
       const season: Season = {
         id: seasonRow.id,
-        number: seasonRow.season_number || 1,
-        name: seasonRow.label || `Season ${seasonRow.season_number || 1}`,
+        number: seasonIndex,
+        name: seasonRow.label || `Season ${seasonIndex}`,
         status,
         total_slots: seasonRow.total_slots || 75,
         locked_slots: lockedSlots.length,
