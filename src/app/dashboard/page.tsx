@@ -610,11 +610,6 @@ function VotingArena() {
   const votesToday = votingData?.totalVotesToday ?? 0;
   const currentClip = votingData?.clips?.[activeIndex];
 
-  // Hide swipe hint after first interaction
-  useEffect(() => {
-    if (activeIndex > 0) setShowSwipeHint(false);
-  }, [activeIndex]);
-
   // Reset pause state on clip change
   useEffect(() => {
     setIsPaused(false);
