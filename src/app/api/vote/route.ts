@@ -540,6 +540,7 @@ export async function GET(req: NextRequest) {
     const { count: totalClipCount, error: countError } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
+      .eq('season_id', seasonRow.id)
       .eq('slot_position', activeSlot.slot_position)
       .eq('status', 'active');
 
@@ -551,13 +552,23 @@ export async function GET(req: NextRequest) {
 
     // 6. Fetch ALL active clips for this slot (both voted and unvoted)
     // This ensures user can always navigate between clips and revoke votes
+    // Filter by season_id to only get clips from the current active season
     const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('*')
+      .eq('season_id', seasonRow.id)
       .eq('slot_position', activeSlot.slot_position)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
       .limit(CLIP_POOL_SIZE);
+
+    console.log('[GET /api/vote] Query params:', {
+      season_id: seasonRow.id,
+      slot_position: activeSlot.slot_position,
+      status: 'active',
+      clipsFound: allClips?.length || 0,
+      clipsError: clipsError?.message || null,
+    });
 
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
@@ -827,11 +838,13 @@ export async function POST(req: NextRequest) {
     const weight: number =
       voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
 
-    // 6. Insert vote (use real user_id if logged in, otherwise use voterKey)
+    // 6. Insert vote
+    // - voter_key: always set (device fingerprint for rate limiting)
+    // - user_id: only set if logged in (null for anonymous users)
     const { error: insertError } = await supabase.from('votes').insert({
       clip_id: clipId,
       voter_key: voterKey,
-      user_id: loggedInUserId || voterKey,
+      user_id: loggedInUserId, // null if not logged in
       vote_weight: weight,
       vote_type: voteType,
       slot_position: slotPosition,

@@ -34,30 +34,39 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Enrich with stats
-    const enrichedSeasons = await Promise.all(
-      (seasons || []).map(async (season) => {
-        const { data: slots } = await supabase
-          .from('story_slots')
-          .select('status')
-          .eq('season_id', season.id);
+    // Fetch all slots for all seasons in ONE query (avoid N+1)
+    const seasonIds = (seasons || []).map((s) => s.id);
+    const { data: allSlots } = await supabase
+      .from('story_slots')
+      .select('season_id, status')
+      .in('season_id', seasonIds);
 
-        const locked = slots?.filter((s) => s.status === 'locked').length || 0;
-        const voting = slots?.filter((s) => s.status === 'voting').length || 0;
-        const upcoming = slots?.filter((s) => s.status === 'upcoming').length || 0;
+    // Group slots by season_id
+    const slotsBySeasonId = new Map<string, { locked: number; voting: number; upcoming: number }>();
+    (allSlots || []).forEach((slot) => {
+      if (!slotsBySeasonId.has(slot.season_id)) {
+        slotsBySeasonId.set(slot.season_id, { locked: 0, voting: 0, upcoming: 0 });
+      }
+      const stats = slotsBySeasonId.get(slot.season_id)!;
+      if (slot.status === 'locked') stats.locked++;
+      else if (slot.status === 'voting') stats.voting++;
+      else if (slot.status === 'upcoming') stats.upcoming++;
+    });
 
-        return {
-          ...season,
-          stats: {
-            total_slots: season.total_slots || 75,
-            locked_slots: locked,
-            voting_slots: voting,
-            upcoming_slots: upcoming,
-            completion_percent: Math.round((locked / (season.total_slots || 75)) * 100),
-          },
-        };
-      })
-    );
+    // Enrich seasons with stats (no additional queries)
+    const enrichedSeasons = (seasons || []).map((season) => {
+      const slotStats = slotsBySeasonId.get(season.id) || { locked: 0, voting: 0, upcoming: 0 };
+      return {
+        ...season,
+        stats: {
+          total_slots: season.total_slots || 75,
+          locked_slots: slotStats.locked,
+          voting_slots: slotStats.voting,
+          upcoming_slots: slotStats.upcoming,
+          completion_percent: Math.round((slotStats.locked / (season.total_slots || 75)) * 100),
+        },
+      };
+    });
 
     return NextResponse.json({ seasons: enrichedSeasons }, { status: 200 });
   } catch (err: any) {

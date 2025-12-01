@@ -221,48 +221,94 @@ export default function ProfilePage() {
         <div className="space-y-6">
           <div>
             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
-              <Award className="w-5 h-5 text-yellow-500" />
-              Badges
+              <Award className="w-5 h-5 text-yellow-500 animate-subtle-float" />
+              <span className="text-gradient-premium">Badges</span>
             </h2>
             {displayBadges.length === 0 ? (
-              <div className="text-center py-8 bg-white/5 rounded-xl">
+              <div className="text-center py-8 glass-card">
                 <Award className="w-12 h-12 mx-auto mb-3 text-white/20" />
                 <p className="text-white/60">Start voting to unlock badges!</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
-                {displayBadges.map((badge) => (
-                  <div key={badge.id} className={`flex flex-col items-center p-3 rounded-xl ${badge.unlocked ? 'bg-white/10' : 'bg-white/5 opacity-50'}`}>
-                    <span className="text-2xl mb-1">{badge.icon}</span>
+                {displayBadges.map((badge, idx) => (
+                  <motion.div
+                    key={badge.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: idx * 0.05, duration: 0.3 }}
+                    whileHover={{ scale: badge.unlocked ? 1.08 : 1, y: badge.unlocked ? -2 : 0 }}
+                    className={`relative flex flex-col items-center p-3 rounded-xl transition-all cursor-default group ${
+                      badge.unlocked
+                        ? 'glass-card glow-cyan'
+                        : 'bg-white/5 grayscale opacity-40'
+                    }`}
+                  >
+                    {/* Lock overlay for locked badges */}
+                    {!badge.unlocked && (
+                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/30">
+                        <Lock className="w-4 h-4 text-white/40" />
+                      </div>
+                    )}
+                    <span className={`text-2xl mb-1 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
                     <span className="text-[10px] font-medium text-center">{badge.name}</span>
                     {!badge.unlocked && badge.progress !== undefined && (
-                      <span className="text-[9px] text-white/50 mt-1">{badge.progress}/{badge.target}</span>
+                      <div className="w-full mt-2">
+                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
+                            style={{ width: `${(badge.progress! / badge.target!) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-[8px] text-white/40 mt-0.5 block text-center">{badge.progress}/{badge.target}</span>
+                      </div>
                     )}
-                  </div>
+                    {/* Tooltip on hover */}
+                    <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black/90 rounded-lg text-[10px] text-white/80 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-white/10">
+                      {badge.description}
+                    </div>
+                  </motion.div>
                 ))}
               </div>
             )}
           </div>
           {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).length > 0 && (
             <div>
-              <h2 className="text-lg font-bold mb-4">In Progress</h2>
+              <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-cyan-500" />
+                In Progress
+              </h2>
               <div className="space-y-3">
-                {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge) => (
-                  <div key={badge.id} className="p-4 bg-white/5 rounded-xl">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-xl">{badge.icon}</span>
+                {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge, idx) => (
+                  <motion.div
+                    key={badge.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1, duration: 0.3 }}
+                    className="glass-card glass-card-hover p-4"
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                        <span className="text-xl">{badge.icon}</span>
+                      </div>
                       <div className="flex-1">
                         <div className="font-bold">{badge.name}</div>
                         <div className="text-xs text-white/50">{badge.description}</div>
                       </div>
+                      <span className="text-sm font-bold text-cyan-400">{Math.round((badge.progress! / badge.target!) * 100)}%</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" style={{ width: `${(badge.progress! / badge.target!) * 100}%` }} />
+                      <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
+                        <motion.div
+                          className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 shimmer-bar rounded-full"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${(badge.progress! / badge.target!) * 100}%` }}
+                          transition={{ duration: 0.8, ease: "easeOut" }}
+                        />
                       </div>
-                      <span className="text-xs text-white/60">{badge.progress}/{badge.target}</span>
+                      <span className="text-xs text-white/60 min-w-[50px] text-right">{badge.progress}/{badge.target}</span>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
@@ -420,10 +466,19 @@ export default function ProfilePage() {
             <div className="relative z-10 max-w-4xl mx-auto px-6 pt-8 pb-6">
               <div className="flex items-start gap-6 mb-6">
                 <div className="relative flex-shrink-0">
-                  <div className="w-28 h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
+                  {/* Outer glow ring */}
+                  <div className="absolute -inset-2 rounded-full avatar-glow-ring opacity-60" />
+                  {/* Animated gradient border */}
+                  <div className="w-28 h-28 rounded-full gradient-border-animated p-[3px] relative">
                     <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
                   </div>
-                  <div className="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-lg border-4 border-black">{displayStats.level}</div>
+                  {/* Level badge with gold glow */}
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    className="absolute -bottom-2 -right-2 w-12 h-12 bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-lg border-4 border-black shadow-lg glow-gold"
+                  >
+                    {displayStats.level}
+                  </motion.div>
                 </div>
                 <div className="flex-1 pt-2">
                   <div className="flex items-start justify-between">
@@ -434,9 +489,20 @@ export default function ProfilePage() {
                         <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{displayStats.votingStreak} day streak</span></div>
                       </div>
                       <div className="max-w-md">
-                        <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {displayStats.level}</span><span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span></div>
-                        <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                          <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
+                        <div className="flex items-center justify-between text-xs text-white/60 mb-1.5">
+                          <span className="font-medium">Level {displayStats.level}</span>
+                          <span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span>
+                        </div>
+                        <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden relative">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 shimmer-bar rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${levelProgress}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                          />
+                          {levelProgress >= 90 && (
+                            <div className="absolute inset-0 animate-soft-pulse rounded-full" />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -457,10 +523,10 @@ export default function ProfilePage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-3">
-                  <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" />
-                  <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} />
-                  <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} />
-                  <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} />
+                  <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" index={0} iconColor="text-pink-500" />
+                  <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} index={1} iconColor="text-cyan-500" />
+                  <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} index={2} iconColor="text-purple-500" />
+                  <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} index={3} iconColor="text-yellow-500" />
                 </div>
               )}
             </div>
@@ -486,10 +552,19 @@ export default function ProfilePage() {
           <div className="relative z-10 px-4 pt-12 pb-6">
             <div className="flex items-start gap-5 mb-6">
               <div className="relative flex-shrink-0">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
+                {/* Outer glow ring */}
+                <div className="absolute -inset-1.5 rounded-full avatar-glow-ring opacity-50" />
+                {/* Animated gradient border */}
+                <div className="w-20 h-20 rounded-full gradient-border-animated p-[2px] relative">
                   <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm border-4 border-black">{displayStats.level}</div>
+                {/* Level badge */}
+                <motion.div
+                  whileTap={{ scale: 1.1 }}
+                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm border-4 border-black glow-gold"
+                >
+                  {displayStats.level}
+                </motion.div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between mb-1">
@@ -507,9 +582,17 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-1"><Flame className="w-4 h-4 text-orange-500" /><span>{displayStats.votingStreak} day streak</span></div>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between text-xs text-white/60 mb-1"><span>Level {displayStats.level}</span><span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span></div>
-                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                    <motion.div className="h-full bg-gradient-to-r from-cyan-500 to-purple-500" initial={{ width: 0 }} animate={{ width: `${levelProgress}%` }} />
+                  <div className="flex items-center justify-between text-xs text-white/60 mb-1">
+                    <span className="font-medium">Level {displayStats.level}</span>
+                    <span>{displayStats.xp} / {displayStats.nextLevelXp} XP</span>
+                  </div>
+                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden relative">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 shimmer-bar rounded-full"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${levelProgress}%` }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                    />
                   </div>
                 </div>
               </div>
@@ -520,10 +603,10 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="grid grid-cols-4 gap-2">
-                <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" />
-                <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} />
-                <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} />
-                <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} />
+                <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" index={0} iconColor="text-pink-500" />
+                <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} index={1} iconColor="text-cyan-500" />
+                <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} index={2} iconColor="text-purple-500" />
+                <StatBox icon={Trophy} label="Wins" value={displayStats.clipsLocked} index={3} iconColor="text-yellow-500" />
               </div>
             )}
           </div>
@@ -548,35 +631,52 @@ export default function ProfilePage() {
 // HELPER COMPONENTS
 // ============================================================================
 
-function StatBox({ icon: Icon, label, value, subValue }: { icon: any; label: string; value: number | string; subValue?: string }) {
+function StatBox({ icon: Icon, label, value, subValue, index = 0, iconColor = 'text-cyan-500' }: { icon: any; label: string; value: number | string; subValue?: string; index?: number; iconColor?: string }) {
   return (
-    <div className="bg-white/5 border border-white/10 rounded-xl p-3 text-center">
-      <Icon className="w-4 h-4 text-cyan-500 mx-auto mb-1" />
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.05, duration: 0.3 }}
+      whileHover={{ y: -2, scale: 1.02 }}
+      className="glass-card glass-card-hover p-3 text-center group cursor-default"
+    >
+      <div className={`w-8 h-8 mx-auto mb-2 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors`}>
+        <Icon className={`w-4 h-4 ${iconColor} group-hover:scale-110 transition-transform`} />
+      </div>
       <div className="text-lg font-black">{value}{subValue && <span className="text-xs text-white/40">{subValue}</span>}</div>
-      <div className="text-[10px] text-white/60">{label}</div>
-    </div>
+      <div className="text-[10px] text-white/60 uppercase tracking-wide">{label}</div>
+    </motion.div>
   );
 }
 
 function ClipCard({ clip }: { clip: UserClip }) {
-  const statusConfig: Record<UserClip['status'], { color: string; bg: string; label: string }> = {
+  const statusConfig: Record<UserClip['status'], { color: string; bg: string; label: string; glow?: string }> = {
     pending: { color: 'text-yellow-500', bg: 'bg-yellow-500/20', label: 'Pending' },
     approved: { color: 'text-green-500', bg: 'bg-green-500/20', label: 'Approved' },
-    voting: { color: 'text-orange-500', bg: 'bg-orange-500/20', label: 'LIVE' },
-    locked: { color: 'text-cyan-500', bg: 'bg-cyan-500/20', label: 'Winner' },
+    voting: { color: 'text-orange-500', bg: 'bg-orange-500/20', label: 'LIVE', glow: 'animate-soft-pulse' },
+    locked: { color: 'text-cyan-500', bg: 'bg-cyan-500/20', label: 'Winner', glow: 'glow-cyan' },
     rejected: { color: 'text-red-500', bg: 'bg-red-500/20', label: 'Eliminated' },
     eliminated: { color: 'text-gray-500', bg: 'bg-gray-500/20', label: 'Eliminated' },
   };
   const config = statusConfig[clip.status] || statusConfig.approved;
 
   return (
-    <div className="flex gap-4 p-4 bg-white/5 rounded-xl">
-      <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01, y: -2 }}
+      className={`flex gap-4 p-4 glass-card glass-card-hover ${config.glow || ''}`}
+    >
+      <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
         {clip.thumbnail_url ? (
           <img src={clip.thumbnail_url} alt="Clip thumbnail" className="w-full h-full object-cover" />
         ) : (
           <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
         )}
+        {/* Play icon overlay */}
+        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <PlayCircle className="w-8 h-8 text-white/80" />
+        </div>
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2 mb-2">
@@ -584,12 +684,17 @@ function ClipCard({ clip }: { clip: UserClip }) {
             <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
             <div className="font-bold">{clip.genre}</div>
           </div>
-          <div className={`flex-shrink-0 px-2 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color}`}>{config.label}</div>
+          <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color} ${clip.status === 'voting' ? 'animate-pulse' : ''}`}>
+            {config.label}
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-sm"><Heart className="w-4 h-4 text-pink-500" fill="#ec4899" /><span className="font-bold">{formatNumber(clip.vote_count)} votes</span></div>
+        <div className="flex items-center gap-2 text-sm">
+          <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
+          <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
+        </div>
         <div className="text-xs text-white/40 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 

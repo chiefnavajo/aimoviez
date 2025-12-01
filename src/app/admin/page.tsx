@@ -41,6 +41,7 @@ import {
   ToggleLeft,
   ToggleRight,
   RotateCcw,
+  Crown,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
@@ -158,6 +159,14 @@ export default function AdminDashboard() {
     success: boolean;
     message: string;
     clipsInSlot?: number;
+  } | null>(null);
+
+  // Assign winner state
+  const [assigningWinner, setAssigningWinner] = useState(false);
+  const [winnerCandidate, setWinnerCandidate] = useState<Clip | null>(null);
+  const [winnerResult, setWinnerResult] = useState<{
+    success: boolean;
+    message: string;
   } | null>(null);
 
   // Tab and feature flags state
@@ -454,6 +463,66 @@ export default function AdminDashboard() {
     }
 
     setFullResetting(false);
+  };
+
+  // ============================================================================
+  // ASSIGN WINNER MANUALLY
+  // ============================================================================
+
+  const openWinnerModal = (clip: Clip) => {
+    setWinnerCandidate(clip);
+    setWinnerResult(null);
+  };
+
+  const closeWinnerModal = () => {
+    setWinnerCandidate(null);
+  };
+
+  const handleAssignWinner = async () => {
+    if (!winnerCandidate) return;
+
+    setAssigningWinner(true);
+    setWinnerResult(null);
+
+    try {
+      const response = await fetch('/api/admin/assign-winner', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clipId: winnerCandidate.id,
+          advanceSlot: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setWinnerResult({
+          success: true,
+          message: data.message || `Winner assigned: ${winnerCandidate.title}`,
+        });
+        // Refresh data
+        fetchSlotInfo();
+        fetchClips();
+        // Close modal after a short delay
+        setTimeout(() => {
+          closeWinnerModal();
+        }, 2000);
+      } else {
+        setWinnerResult({
+          success: false,
+          message: data.error || 'Failed to assign winner',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to assign winner:', error);
+      setWinnerResult({
+        success: false,
+        message: 'Network error - failed to assign winner',
+      });
+    }
+
+    setAssigningWinner(false);
   };
 
   // ============================================================================
@@ -1268,6 +1337,20 @@ export default function AdminDashboard() {
 
                       {/* Action Buttons */}
                       <div className="flex gap-3 mt-4">
+                        {/* Assign Winner Button - Only for active clips in current voting slot */}
+                        {clip.status === 'active' && clip.slot_position === slotInfo?.currentSlot && (
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => openWinnerModal(clip)}
+                            disabled={processingClip === clip.id}
+                            className="py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            type="button"
+                            title="Assign as winner for this slot"
+                          >
+                            <Crown className="w-5 h-5" />
+                          </motion.button>
+                        )}
+
                         {/* Edit Button - Always visible */}
                         <motion.button
                           whileTap={{ scale: 0.95 }}
@@ -1583,6 +1666,156 @@ export default function AdminDashboard() {
                     <>
                       <Save className="w-5 h-5" />
                       Save Changes
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Assign Winner Modal */}
+      <AnimatePresence>
+        {winnerCandidate && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={closeWinnerModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl border border-yellow-500/30 p-6 max-w-lg w-full"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-yellow-500/20">
+                    <Crown className="w-6 h-6 text-yellow-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold">Assign Winner</h2>
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={closeWinnerModal}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  type="button"
+                >
+                  <X className="w-5 h-5" />
+                </motion.button>
+              </div>
+
+              {/* Clip Preview */}
+              <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
+                <div className="flex gap-4">
+                  {/* Thumbnail */}
+                  <div className="w-24 h-32 rounded-lg overflow-hidden bg-black flex-shrink-0">
+                    {winnerCandidate.thumbnail_url ? (
+                      <img
+                        src={winnerCandidate.thumbnail_url}
+                        alt={winnerCandidate.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/40">
+                        <Film className="w-8 h-8" />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1">
+                    <h3 className="font-bold text-lg mb-1">{winnerCandidate.title}</h3>
+                    <p className="text-white/60 text-sm mb-2">by {winnerCandidate.username}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-2 py-1 bg-white/10 rounded-full text-xs">
+                        {winnerCandidate.genre}
+                      </span>
+                      <span className="px-2 py-1 bg-cyan-500/20 text-cyan-400 rounded-full text-xs">
+                        {winnerCandidate.vote_count} votes
+                      </span>
+                      <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded-full text-xs">
+                        Slot {winnerCandidate.slot_position}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4 mb-6">
+                <p className="text-sm text-yellow-300">
+                  <strong>Warning:</strong> This will manually assign this clip as the winner for slot {slotInfo?.currentSlot}.
+                  The slot will be locked and voting will advance to the next slot.
+                </p>
+              </div>
+
+              {/* Result Message */}
+              <AnimatePresence>
+                {winnerResult && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className={`mb-6 p-4 rounded-xl ${
+                      winnerResult.success
+                        ? 'bg-green-500/20 border border-green-500/40'
+                        : 'bg-red-500/20 border border-red-500/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {winnerResult.success ? (
+                        <Trophy className="w-5 h-5 text-green-400" />
+                      ) : (
+                        <AlertCircle className="w-5 h-5 text-red-400" />
+                      )}
+                      <p className={winnerResult.success ? 'text-green-300' : 'text-red-300'}>
+                        {winnerResult.message}
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={closeWinnerModal}
+                  disabled={assigningWinner}
+                  className="flex-1 py-3 rounded-xl bg-white/10 font-medium hover:bg-white/20 transition-colors disabled:opacity-50"
+                  type="button"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleAssignWinner}
+                  disabled={assigningWinner || winnerResult?.success}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold
+                           hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50
+                           flex items-center justify-center gap-2"
+                  type="button"
+                >
+                  {assigningWinner ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Assigning...
+                    </>
+                  ) : winnerResult?.success ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      Done!
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="w-5 h-5" />
+                      Confirm Winner
                     </>
                   )}
                 </motion.button>

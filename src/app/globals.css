@@ -79,3 +79,218 @@ video::cue {
     padding-bottom: max(env(safe-area-inset-bottom), 16px);
   }
 }
+
+/* ============================================================================
+   PREMIUM VISUAL ENHANCEMENTS - Keyframe Animations
+   ============================================================================ */
+
+/* Elegant shimmer for progress bars */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Subtle breathing glow */
+@keyframes breathe-glow {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.02); }
+}
+
+/* Soft pulse for highlights */
+@keyframes soft-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(60, 242, 255, 0.15); }
+  50% { box-shadow: 0 0 30px rgba(60, 242, 255, 0.3); }
+}
+
+/* Gold pulse for achievements */
+@keyframes gold-pulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.2); }
+  50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.4); }
+}
+
+/* Medal shine sweep */
+@keyframes medal-shine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+/* Smooth fade-up entrance */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Gradient rotation for animated borders */
+@keyframes gradient-rotate {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Subtle float animation */
+@keyframes subtle-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Glow ring breathing */
+@keyframes glow-ring {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(60, 242, 255, 0.2),
+                0 0 40px rgba(160, 32, 240, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(60, 242, 255, 0.3),
+                0 0 60px rgba(160, 32, 240, 0.2);
+  }
+}
+
+/* ============================================================================
+   PREMIUM UTILITY CLASSES
+   ============================================================================ */
+
+/* Glass morphism card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+}
+
+.glass-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card-hover:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3),
+              0 0 20px rgba(60, 242, 255, 0.05);
+}
+
+/* Glow effects */
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(60, 242, 255, 0.2);
+}
+
+.glow-gold {
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.25);
+}
+
+.glow-silver {
+  box-shadow: 0 0 20px rgba(156, 163, 175, 0.2);
+}
+
+.glow-bronze {
+  box-shadow: 0 0 20px rgba(217, 119, 6, 0.2);
+}
+
+/* Shimmer bar overlay */
+.shimmer-bar {
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+/* Fade-up animation class */
+.animate-fade-up {
+  animation: fade-up 0.4s ease-out forwards;
+}
+
+/* Stagger delay utilities */
+.delay-100 { animation-delay: 0.1s; }
+.delay-150 { animation-delay: 0.15s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-250 { animation-delay: 0.25s; }
+.delay-300 { animation-delay: 0.3s; }
+
+/* Medal with shine effect */
+.medal-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.medal-shine::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.3),
+    transparent
+  );
+  animation: medal-shine 3s ease-in-out infinite;
+}
+
+/* Animated gradient border */
+.gradient-border-animated {
+  background: linear-gradient(90deg, #3CF2FF, #A020F0, #FF00C7, #3CF2FF);
+  background-size: 300% 100%;
+  animation: gradient-rotate 4s linear infinite;
+}
+
+/* Breathing glow ring for avatars */
+.avatar-glow-ring {
+  animation: glow-ring 3s ease-in-out infinite;
+}
+
+/* Soft pulse animation */
+.animate-soft-pulse {
+  animation: soft-pulse 2s ease-in-out infinite;
+}
+
+/* Gold pulse for special elements */
+.animate-gold-pulse {
+  animation: gold-pulse 2s ease-in-out infinite;
+}
+
+/* Subtle float */
+.animate-subtle-float {
+  animation: subtle-float 3s ease-in-out infinite;
+}
+
+/* Premium text gradient */
+.text-gradient-premium {
+  background: linear-gradient(135deg, #3CF2FF 0%, #A020F0 50%, #FF00C7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Rank tier backgrounds */
+.rank-gold-bg {
+  background: linear-gradient(135deg, rgba(234, 179, 8, 0.08) 0%, transparent 100%);
+  border-color: rgba(234, 179, 8, 0.3);
+}
+
+.rank-silver-bg {
+  background: linear-gradient(135deg, rgba(156, 163, 175, 0.08) 0%, transparent 100%);
+  border-color: rgba(156, 163, 175, 0.3);
+}
+
+.rank-bronze-bg {
+  background: linear-gradient(135deg, rgba(217, 119, 6, 0.08) 0%, transparent 100%);
+  border-color: rgba(217, 119, 6, 0.3);
+}

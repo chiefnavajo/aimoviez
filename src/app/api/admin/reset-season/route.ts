@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
     // 4. Optionally reset vote counts on clips AND reset clip statuses
     if (reset_clip_counts) {
       // Reset all clips: vote counts to 0, status to 'active', move to slot 1
+      // Also set season_id to current active season to ensure clips are found by vote API
       const { error: resetClipsError } = await supabase
         .from('tournament_clips')
         .update({
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
           weighted_score: 0,
           status: 'active',
           slot_position: start_slot,
+          season_id: season.id, // Link clips to current active season
         })
         .neq('status', 'rejected'); // Don't touch rejected clips
 
@@ -119,7 +121,7 @@ export async function POST(req: NextRequest) {
         console.error('[reset-season] resetClipsError:', resetClipsError);
         // Non-fatal, continue
       } else {
-        console.log('[reset-season] Reset all clip counts, statuses, and positions');
+        console.log('[reset-season] Reset all clip counts, statuses, positions, and season_id');
       }
     }
 

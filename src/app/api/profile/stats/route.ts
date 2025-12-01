@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -88,6 +89,10 @@ interface ProfileStatsResponse {
  * Returns comprehensive user stats and achievements
  */
 export async function GET(req: NextRequest) {
+  // Rate limiting - 60 requests per minute
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
@@ -115,49 +120,53 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Get user's total votes
-    // Try to get votes by user_id first (for logged-in users), fallback to voter_key
+    // For logged-in users: get votes by BOTH user_id AND voter_key (covers votes before and after login)
+    // For anonymous users: get votes by voter_key only
     let allVotes: { created_at: string; vote_weight: number }[] = [];
-    let votesError = null;
 
     if (userId) {
-      // First try by user_id (most reliable for logged-in users)
-      const { data, error } = await supabase
+      // Logged in: get votes by user_id OR voter_key (union of both)
+      // This ensures we capture votes made before login (voter_key only) and after (user_id set)
+      const { data: userIdVotes, error: userIdError } = await supabase
         .from('votes')
         .select('created_at, vote_weight')
         .eq('user_id', userId)
         .order('created_at', { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        allVotes = data;
-      } else {
-        // Fallback to voter_key if no votes found by user_id
-        const { data: keyData, error: keyError } = await supabase
-          .from('votes')
-          .select('created_at, vote_weight')
-          .eq('voter_key', voterKey)
-          .order('created_at', { ascending: true });
+      const { data: voterKeyVotes, error: voterKeyError } = await supabase
+        .from('votes')
+        .select('created_at, vote_weight')
+        .eq('voter_key', voterKey)
+        .is('user_id', null) // Only get anonymous votes (not already counted by user_id)
+        .order('created_at', { ascending: true });
 
-        allVotes = keyData || [];
-        votesError = keyError;
+      if (userIdError) {
+        console.error('[GET /api/profile/stats] userIdError:', userIdError);
       }
+      if (voterKeyError) {
+        console.error('[GET /api/profile/stats] voterKeyError:', voterKeyError);
+      }
+
+      // Merge both sets of votes
+      allVotes = [...(userIdVotes || []), ...(voterKeyVotes || [])];
+      // Sort by date
+      allVotes.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     } else {
-      // Not logged in - use voter_key
+      // Not logged in - use voter_key only
       const { data, error } = await supabase
         .from('votes')
         .select('created_at, vote_weight')
         .eq('voter_key', voterKey)
         .order('created_at', { ascending: true });
 
+      if (error) {
+        console.error('[GET /api/profile/stats] votesError:', error);
+        return NextResponse.json(
+          { error: 'Failed to fetch votes' },
+          { status: 500 }
+        );
+      }
       allVotes = data || [];
-      votesError = error;
-    }
-
-    if (votesError) {
-      console.error('[GET /api/profile/stats] votesError:', votesError);
-      return NextResponse.json(
-        { error: 'Failed to fetch votes' },
-        { status: 500 }
-      );
     }
 
     const total_votes = allVotes?.length || 0;

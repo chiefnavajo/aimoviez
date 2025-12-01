@@ -215,14 +215,30 @@ export default function LeaderboardPage() {
             {/* Header */}
             <div className="mb-8">
               <h1 className="text-3xl font-black mb-2 flex items-center gap-3">
-                <Trophy className="w-8 h-8 text-yellow-500" />
-                Leaderboard
+                <motion.div
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                  className="glow-gold rounded-full p-1"
+                >
+                  <Trophy className="w-8 h-8 text-yellow-500" />
+                </motion.div>
+                <span className="text-gradient-premium">Leaderboard</span>
               </h1>
               <p className="text-white/60">Top clips, voters, and creators</p>
             </div>
 
-            {/* Tabs */}
-            <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl">
+            {/* Tabs with sliding indicator */}
+            <div className="relative flex gap-1 mb-6 p-1 glass-card">
+              {/* Sliding background indicator */}
+              <motion.div
+                className="absolute top-1 bottom-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-lg border border-white/10"
+                initial={false}
+                animate={{
+                  left: activeTab === 'clips' ? '4px' : activeTab === 'voters' ? 'calc(33.33% + 2px)' : 'calc(66.66% + 0px)',
+                  width: 'calc(33.33% - 4px)',
+                }}
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
               {[
                 { id: 'clips', label: 'Top Clips', icon: Film },
                 { id: 'voters', label: 'Top Voters', icon: Users },
@@ -231,13 +247,13 @@ export default function LeaderboardPage() {
                 <button
                   key={id}
                   onClick={() => setActiveTab(id as TabType)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition ${
-                    activeTab === id 
-                      ? 'bg-white/10 text-white' 
+                  className={`relative flex-1 flex items-center justify-center gap-2 py-3 rounded-lg font-medium transition-colors z-10 ${
+                    activeTab === id
+                      ? 'text-white'
                       : 'text-white/50 hover:text-white/70'
                   }`}
                 >
-                  <Icon className="w-4 h-4" />
+                  <Icon className={`w-4 h-4 transition-transform ${activeTab === id ? 'scale-110' : ''}`} />
                   {label}
                 </button>
               ))}
@@ -324,14 +340,30 @@ export default function LeaderboardPage() {
         {/* Header */}
         <div className="px-4 pt-12 pb-4">
           <h1 className="text-2xl font-black flex items-center gap-2">
-            <Trophy className="w-7 h-7 text-yellow-500" />
-            Leaderboard
+            <motion.div
+              animate={{ y: [0, -2, 0] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="glow-gold rounded-full"
+            >
+              <Trophy className="w-7 h-7 text-yellow-500" />
+            </motion.div>
+            <span className="text-gradient-premium">Leaderboard</span>
           </h1>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs with sliding indicator */}
         <div className="px-4 mb-4">
-          <div className="flex gap-1 p-1 bg-white/5 rounded-xl">
+          <div className="relative flex gap-1 p-1 glass-card">
+            {/* Sliding background indicator */}
+            <motion.div
+              className="absolute top-1 bottom-1 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 rounded-lg border border-white/10"
+              initial={false}
+              animate={{
+                left: activeTab === 'clips' ? '4px' : activeTab === 'voters' ? 'calc(33.33% + 2px)' : 'calc(66.66% + 0px)',
+                width: 'calc(33.33% - 4px)',
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            />
             {[
               { id: 'clips', label: 'Clips', icon: Film },
               { id: 'voters', label: 'Voters', icon: Users },
@@ -340,13 +372,13 @@ export default function LeaderboardPage() {
               <button
                 key={id}
                 onClick={() => setActiveTab(id as TabType)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition ${
-                  activeTab === id 
-                    ? 'bg-white/10 text-white' 
+                className={`relative flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium transition-colors z-10 ${
+                  activeTab === id
+                    ? 'text-white'
                     : 'text-white/50'
                 }`}
               >
-                <Icon className="w-4 h-4" />
+                <Icon className={`w-4 h-4 transition-transform ${activeTab === id ? 'scale-110' : ''}`} />
                 {label}
               </button>
             ))}
@@ -440,51 +472,75 @@ export default function LeaderboardPage() {
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-white/50">
-      <Trophy className="w-12 h-12 mb-4 opacity-30" />
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="flex flex-col items-center justify-center py-16 text-white/50 glass-card"
+    >
+      <motion.div
+        animate={{ y: [0, -5, 0] }}
+        transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+      >
+        <Trophy className="w-12 h-12 mb-4 opacity-30" />
+      </motion.div>
       <p className="text-center">{message}</p>
-    </div>
+    </motion.div>
   );
 }
 
 function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
   const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
-  
+  const glowClasses = ['glow-gold', 'glow-silver', 'glow-bronze'];
+  const bgClasses = ['rank-gold-bg', 'rank-silver-bg', 'rank-bronze-bg'];
+
   return (
     <Link href={`/profile/${clip.username}`}>
       <motion.div
-        whileHover={{ scale: 1.01 }}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: (rank - 1) * 0.05 }}
+        whileHover={{ scale: 1.01, y: -2 }}
         whileTap={{ scale: 0.99 }}
-        className="flex gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition border border-white/5"
+        className={`flex gap-4 p-4 glass-card glass-card-hover ${rank <= 3 ? `${glowClasses[rank - 1]} ${bgClasses[rank - 1]}` : ''}`}
       >
-        {/* Rank */}
+        {/* Rank with medal shine */}
         <div className="flex flex-col items-center justify-center w-12">
           {rank <= 3 ? (
-            <Medal className={`w-8 h-8 ${medalColors[rank - 1]}`} />
+            <div className="medal-shine">
+              <Medal className={`w-8 h-8 ${medalColors[rank - 1]}`} />
+            </div>
           ) : (
             <span className="text-2xl font-black text-white/40">#{rank}</span>
           )}
         </div>
 
-        {/* Video Thumbnail */}
-        <div className="w-16 h-24 md:w-20 md:h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-          <video 
+        {/* Video Thumbnail with hover effect */}
+        <div className="w-16 h-24 md:w-20 md:h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
+          <video
             src={clip.video_url}
             className="w-full h-full object-cover"
             muted
             preload="metadata"
           />
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+              <div className="w-0 h-0 border-l-[8px] border-l-white border-y-[5px] border-y-transparent ml-1" />
+            </div>
+          </div>
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <img 
-              src={clip.avatar_url} 
-              alt={clip.username}
-              className="w-6 h-6 rounded-full"
-            />
+            <div className={`rounded-full p-0.5 ${rank <= 3 ? 'gradient-border-animated' : ''}`}>
+              <img
+                src={clip.avatar_url}
+                alt={clip.username}
+                className="w-6 h-6 rounded-full bg-black"
+              />
+            </div>
             <span className="font-bold truncate">@{clip.username}</span>
+            {rank === 1 && <span className="text-sm">👑</span>}
           </div>
           <div className="text-sm text-white/60 mb-2">
             Season {clip.season_number} • Slot #{clip.slot_position} • {clip.genre}
@@ -495,7 +551,7 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
           </div>
         </div>
 
-        <ChevronRight className="w-5 h-5 text-white/30 self-center" />
+        <ChevronRight className="w-5 h-5 text-white/30 self-center group-hover:text-white/50 transition-colors" />
       </motion.div>
     </Link>
   );
@@ -503,44 +559,67 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
 
 function LeaderboardRow({ entry, type }: { entry: LeaderboardEntry; type: 'votes' | 'received' }) {
   const medalColors = ['text-yellow-500', 'text-gray-400', 'text-amber-600'];
+  const glowClasses = ['glow-gold', 'glow-silver', 'glow-bronze'];
+  const bgClasses = ['rank-gold-bg', 'rank-silver-bg', 'rank-bronze-bg'];
+  const avatarBorderColors = ['border-yellow-500/50', 'border-gray-400/50', 'border-amber-600/50'];
   const TrendIcon = entry.trend === 'up' ? TrendingUp : entry.trend === 'down' ? TrendingDown : Minus;
   const trendColor = entry.trend === 'up' ? 'text-green-500' : entry.trend === 'down' ? 'text-red-500' : 'text-white/30';
 
   return (
     <Link href={`/profile/${entry.username}`}>
       <motion.div
+        initial={{ opacity: 0, x: -10 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: (entry.rank - 1) * 0.03 }}
+        whileHover={{ scale: 1.01, x: 4 }}
         whileTap={{ scale: 0.98 }}
-        className="flex items-center gap-3 p-3 bg-white/5 rounded-xl hover:bg-white/10 transition"
+        className={`flex items-center gap-3 p-3 glass-card glass-card-hover ${entry.rank <= 3 ? `${glowClasses[entry.rank - 1]} ${bgClasses[entry.rank - 1]}` : ''}`}
       >
-        {/* Rank */}
+        {/* Rank with medal shine */}
         <div className="w-10 flex justify-center">
           {entry.rank <= 3 ? (
-            <Medal className={`w-6 h-6 ${medalColors[entry.rank - 1]}`} />
+            <div className="medal-shine">
+              <Medal className={`w-6 h-6 ${medalColors[entry.rank - 1]}`} />
+            </div>
           ) : (
             <span className="font-bold text-white/40">#{entry.rank}</span>
           )}
         </div>
 
-        {/* Avatar */}
-        <img 
-          src={entry.avatar_url} 
-          alt={entry.username}
-          className="w-10 h-10 rounded-full"
-        />
+        {/* Avatar with colored border for top 3 */}
+        <div className={`rounded-full ${entry.rank <= 3 ? `p-0.5 ${avatarBorderColors[entry.rank - 1]} border-2` : ''}`}>
+          <img
+            src={entry.avatar_url}
+            alt={entry.username}
+            className="w-10 h-10 rounded-full bg-black"
+          />
+        </div>
 
         {/* Name & Badge */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="font-bold truncate">@{entry.username}</span>
-            {entry.badge && <span>{entry.badge}</span>}
+            {entry.badge && <span className="text-sm">{entry.badge}</span>}
           </div>
           <div className="text-sm text-white/50">
-            {formatNumber(entry.score)} {type === 'votes' ? 'votes cast' : 'votes received'}
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2 }}
+            >
+              {formatNumber(entry.score)}
+            </motion.span>
+            {' '}{type === 'votes' ? 'votes cast' : 'votes received'}
           </div>
         </div>
 
-        {/* Trend */}
-        <TrendIcon className={`w-5 h-5 ${trendColor}`} />
+        {/* Trend with subtle animation */}
+        <motion.div
+          animate={entry.trend === 'up' ? { y: [0, -2, 0] } : {}}
+          transition={{ duration: 1.5, repeat: entry.trend === 'up' ? Infinity : 0 }}
+        >
+          <TrendIcon className={`w-5 h-5 ${trendColor}`} />
+        </motion.div>
       </motion.div>
     </Link>
   );

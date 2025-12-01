@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
 
     const updates: any = {
       moderation_status: 'approved',
+      status: 'active', // Set status to active so clip appears in voting
       moderated_at: new Date().toISOString(),
     };
 
@@ -188,6 +189,7 @@ export async function DELETE(req: NextRequest) {
 
     const updates: any = {
       moderation_status: 'rejected',
+      status: 'rejected', // Set status to rejected so clip doesn't appear in voting
       moderated_at: new Date().toISOString(),
     };
 
@@ -262,6 +264,7 @@ export async function PATCH(req: NextRequest) {
 
     const updates: any = {
       moderation_status: action === 'approve' ? 'approved' : 'rejected',
+      status: action === 'approve' ? 'active' : 'rejected', // Set status for voting visibility
       moderated_at: new Date().toISOString(),
     };
 

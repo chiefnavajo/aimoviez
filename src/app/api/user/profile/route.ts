@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -17,6 +18,10 @@ function getUserKey(req: NextRequest): string {
 }
 
 export async function GET(req: NextRequest) {
+  // Rate limiting - 60 requests per minute
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);

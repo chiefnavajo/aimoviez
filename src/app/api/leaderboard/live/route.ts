@@ -62,10 +62,12 @@ export async function GET(req: NextRequest) {
       .order('vote_count', { ascending: false })
       .limit(10);
 
-    // Fetch all clips for creator aggregation
+    // Fetch top clips for creator aggregation (limit to top 500 by vote count)
     const { data: allClips } = await supabase
       .from('tournament_clips')
-      .select('user_id, username, avatar_url, vote_count, id');
+      .select('user_id, username, avatar_url, vote_count, id')
+      .order('vote_count', { ascending: false })
+      .limit(500);
 
     // Get locked slots
     const { data: lockedSlots } = await supabase
@@ -112,10 +114,15 @@ export async function GET(req: NextRequest) {
         ...creator,
       }));
 
-    // Fetch top voters
+    // Fetch recent votes for voter aggregation (last 7 days, limit 10000)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     const { data: allVotes } = await supabase
       .from('votes')
-      .select('voter_key, vote_weight');
+      .select('voter_key, vote_weight')
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .limit(10000);
 
     const voterMap = new Map<string, number>();
     allVotes?.forEach((vote) => {
@@ -143,7 +150,8 @@ export async function GET(req: NextRequest) {
     const { data: recentVotes } = await supabase
       .from('votes')
       .select('clip_id')
-      .gte('created_at', oneHourAgo.toISOString());
+      .gte('created_at', oneHourAgo.toISOString())
+      .limit(5000);
 
     const recentVoteMap = new Map<string, number>();
     recentVotes?.forEach((vote) => {
@@ -183,7 +191,8 @@ export async function GET(req: NextRequest) {
     const { data: todayVotes } = await supabase
       .from('votes')
       .select('voter_key')
-      .gte('created_at', today.toISOString());
+      .gte('created_at', today.toISOString())
+      .limit(10000);
 
     const activeVoters = new Set(todayVotes?.map((v) => v.voter_key) || []).size;
 

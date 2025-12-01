@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -67,6 +67,16 @@ export default function UploadPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [debugLog, setDebugLog] = useState<string[]>([]);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
 
   const addLog = (msg: string) => {
     setDebugLog(prev => [...prev.slice(-15), `${new Date().toLocaleTimeString()}: ${msg}`]);
@@ -177,7 +187,12 @@ export default function UploadPage() {
       const startTime = Date.now();
       const estimatedUploadTime = (video.size / 1024 / 1024) * 2000; // ~2 sec per MB
 
-      const progressInterval = setInterval(() => {
+      // Clear any existing interval first
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+
+      progressIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTime;
         const estimatedProgress = Math.min(80, (elapsed / estimatedUploadTime) * 80);
         setUploadProgress(estimatedProgress);
@@ -192,7 +207,11 @@ export default function UploadPage() {
         body: video,
       });
 
-      clearInterval(progressInterval);
+      // Clear interval after upload completes
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
 
       if (!uploadResponse.ok) {
         const errorText = await uploadResponse.text();
@@ -236,6 +255,12 @@ export default function UploadPage() {
       }, 500);
 
     } catch (error) {
+      // Clear progress interval on error
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
+
       console.error('Upload error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Upload failed. Please try again.';
       addLog(`ERROR: ${errorMessage}`);
