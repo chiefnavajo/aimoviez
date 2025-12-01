@@ -1,15 +1,18 @@
-import NextAuth from "next-auth";
+// lib/auth-options.ts
+// NextAuth configuration options - shared between route handler and server functions
+
 import GoogleProvider from "next-auth/providers/google";
 import { createClient } from "@supabase/supabase-js";
+import type { NextAuthOptions } from "next-auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-const handler = NextAuth({
+export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
       authorization: {
         params: {
           prompt: "select_account",
@@ -41,7 +44,7 @@ const handler = NextAuth({
       if (!isAllowed) {
         console.error("❌ User not in allowlist:", user.email);
       }
-      
+
       return isAllowed;
     },
 
@@ -52,22 +55,20 @@ const handler = NextAuth({
       }
 
       // Check profile status on every request if we have an email
-      // This ensures profile status is refreshed even after initial sign-in
       if (token.email && supabaseUrl && supabaseKey) {
         try {
           const supabase = createClient(supabaseUrl, supabaseKey);
-          
+
           const { data, error } = await supabase
             .from("users")
             .select("id, username")
             .eq("email", token.email)
             .single();
-          
+
           if (error && error.code !== "PGRST116") {
-            // PGRST116 is expected for users without profiles
             console.error("⚠️ Error checking user profile:", error.message);
           }
-          
+
           token.hasProfile = !!data;
           token.username = data?.username || null;
           token.userId = data?.id || null;
@@ -76,14 +77,13 @@ const handler = NextAuth({
           token.hasProfile = false;
         }
       } else if (!supabaseUrl || !supabaseKey) {
-        // Only log this once to avoid spam
         if (!token._supabaseWarningLogged) {
           console.error("❌ Supabase credentials missing!");
           token._supabaseWarningLogged = true;
         }
         token.hasProfile = false;
       }
-      
+
       return token;
     },
 
@@ -92,21 +92,17 @@ const handler = NextAuth({
       session.user.hasProfile = token.hasProfile || false;
       session.user.username = token.username || null;
       session.user.userId = token.userId || null;
-      
+
       return session;
     },
 
     async redirect({ url, baseUrl }) {
-      // After sign in, redirect to dashboard
-      // The useAuth hook will handle onboarding redirect if needed
       if (url === baseUrl || url === `${baseUrl}/`) {
         return `${baseUrl}/dashboard`;
       }
-      
+
       const finalUrl = url.startsWith(baseUrl) ? url : baseUrl;
       return finalUrl;
     },
   },
-});
-
-export { handler as GET, handler as POST };
+};

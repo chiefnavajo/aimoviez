@@ -40,6 +40,7 @@ import {
   Shield,
   ToggleLeft,
   ToggleRight,
+  RotateCcw,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
@@ -56,14 +57,23 @@ interface Clip {
   thumbnail_url: string;
   username: string;
   avatar_url: string;
-  status: 'pending' | 'active' | 'rejected';
+  status: 'pending' | 'active' | 'rejected' | 'locked';
   vote_count: number;
   uploader_key: string;
   created_at: string;
   slot_position: number;
+  season_id?: string;
 }
 
-type FilterStatus = 'all' | 'pending' | 'active' | 'rejected';
+interface Season {
+  id: string;
+  label: string;
+  status: 'draft' | 'active' | 'finished';
+  total_slots: number;
+  created_at: string;
+}
+
+type FilterStatus = 'all' | 'pending' | 'active' | 'rejected' | 'locked';
 type AdminTab = 'clips' | 'features';
 
 interface FeatureFlag {
@@ -105,7 +115,10 @@ export default function AdminDashboard() {
 
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterStatus>('pending');
+  const [filter, setFilter] = useState<FilterStatus>('all');
+  const [slotFilter, setSlotFilter] = useState<number | 'all' | 'locked'>('all');
+  const [seasonFilter, setSeasonFilter] = useState<string | 'all'>('all');
+  const [seasons, setSeasons] = useState<Season[]>([]);
   const [playingClip, setPlayingClip] = useState<string | null>(null);
   const [mutedClips, setMutedClips] = useState<Set<string>>(new Set());
   const [processingClip, setProcessingClip] = useState<string | null>(null);
@@ -138,11 +151,46 @@ export default function AdminDashboard() {
   } | null>(null);
   const [countdown, setCountdown] = useState<string>('');
 
+  // Reset season state
+  const [resettingSeason, setResettingSeason] = useState(false);
+  const [resetResult, setResetResult] = useState<{
+    success: boolean;
+    message: string;
+    clipsInSlot?: number;
+  } | null>(null);
+
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
   const [featureFlags, setFeatureFlags] = useState<FeatureFlag[]>([]);
   const [loadingFlags, setLoadingFlags] = useState(false);
   const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
+
+  // ============================================================================
+  // FETCH SEASONS
+  // ============================================================================
+
+  const fetchSeasons = async () => {
+    try {
+      const response = await fetch('/api/admin/seasons');
+      const data = await response.json();
+      if (data.seasons) {
+        setSeasons(data.seasons);
+        // Auto-select active season if none selected
+        if (seasonFilter === 'all') {
+          const activeSeason = data.seasons.find((s: Season) => s.status === 'active');
+          if (activeSeason) {
+            setSeasonFilter(activeSeason.id);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch seasons:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchSeasons();
+  }, []);
 
   // ============================================================================
   // FETCH CLIPS
@@ -151,7 +199,8 @@ export default function AdminDashboard() {
   const fetchClips = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/admin/clips?status=${filter}`);
+      const seasonParam = seasonFilter !== 'all' ? `&season_id=${seasonFilter}` : '';
+      const response = await fetch(`/api/admin/clips?status=${filter}${seasonParam}`);
       const data = await response.json();
       setClips(data.clips || []);
     } catch (error) {
@@ -162,7 +211,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchClips();
-  }, [filter]);
+  }, [filter, seasonFilter]);
 
   // ============================================================================
   // FETCH SLOT INFO
@@ -273,6 +322,67 @@ export default function AdminDashboard() {
       console.error('Failed to toggle feature:', error);
     }
     setTogglingFlag(null);
+  };
+
+  // ============================================================================
+  // RESET SEASON
+  // ============================================================================
+
+  const handleResetSeason = async () => {
+    const confirmReset = confirm(
+      'Are you sure you want to reset the season?\n\n' +
+      'This will:\n' +
+      '- Reset all slots to "upcoming"\n' +
+      '- Set slot 1 to "voting"\n' +
+      '- Clear all winners\n' +
+      '- Optionally clear votes and reset vote counts\n\n' +
+      'This action cannot be undone!'
+    );
+
+    if (!confirmReset) return;
+
+    const clearVotes = confirm('Do you also want to clear all votes and reset clip vote counts?');
+
+    setResettingSeason(true);
+    setResetResult(null);
+    setAdvanceResult(null);
+
+    try {
+      const response = await fetch('/api/admin/reset-season', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clear_votes: clearVotes,
+          reset_clip_counts: clearVotes,
+          start_slot: 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setResetResult({
+          success: true,
+          message: `Season reset! Now voting on slot 1 with ${data.clips_in_slot} clips.`,
+          clipsInSlot: data.clips_in_slot,
+        });
+        fetchSlotInfo();
+        fetchClips();
+      } else {
+        setResetResult({
+          success: false,
+          message: data.error || 'Failed to reset season',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to reset season:', error);
+      setResetResult({
+        success: false,
+        message: 'Network error - failed to reset season',
+      });
+    }
+
+    setResettingSeason(false);
   };
 
   // ============================================================================
@@ -474,8 +584,18 @@ export default function AdminDashboard() {
     pending: clips.filter((c) => c.status === 'pending').length,
     active: clips.filter((c) => c.status === 'active').length,
     rejected: clips.filter((c) => c.status === 'rejected').length,
+    locked: clips.filter((c) => c.status === 'locked').length,
     total: clips.length,
   };
+
+  // Filter clips by status and slot
+  const filteredClips = clips.filter((clip) => {
+    const statusMatch = filter === 'all' || clip.status === filter;
+    const slotMatch = slotFilter === 'all'
+      || (slotFilter === 'locked' && clip.status === 'locked')
+      || clip.slot_position === slotFilter;
+    return statusMatch && slotMatch;
+  });
 
   // ============================================================================
   // RENDER
@@ -728,8 +848,8 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Advance Button */}
-            <div className="flex items-center gap-3">
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3 flex-wrap">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={fetchSlotInfo}
@@ -739,7 +859,32 @@ export default function AdminDashboard() {
               >
                 <RefreshCw className="w-5 h-5" />
               </motion.button>
-              
+
+              {/* Reset Season Button */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleResetSeason}
+                disabled={resettingSeason || !slotInfo}
+                className="px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold
+                         hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50
+                         flex items-center gap-2"
+                type="button"
+                title="Reset season to slot 1"
+              >
+                {resettingSeason ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="w-5 h-5" />
+                    Reset Season
+                  </>
+                )}
+              </motion.button>
+
+              {/* Advance Slot Button */}
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleAdvanceSlot}
@@ -763,6 +908,33 @@ export default function AdminDashboard() {
               </motion.button>
             </div>
           </div>
+
+          {/* Reset Result Message */}
+          <AnimatePresence>
+            {resetResult && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className={`mt-4 p-4 rounded-xl ${
+                  resetResult.success
+                    ? 'bg-yellow-500/20 border border-yellow-500/40'
+                    : 'bg-red-500/20 border border-red-500/40'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {resetResult.success ? (
+                    <RotateCcw className="w-5 h-5 text-yellow-400" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                  )}
+                  <p className={resetResult.success ? 'text-yellow-300' : 'text-red-300'}>
+                    {resetResult.message}
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Advance Result Message */}
           <AnimatePresence>
@@ -795,22 +967,64 @@ export default function AdminDashboard() {
 
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          {(['all', 'pending', 'active', 'rejected'] as FilterStatus[]).map((status) => (
-            <motion.button
-              key={status}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setFilter(status)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                filter === status
-                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                  : 'bg-white/10 text-white/70 hover:bg-white/20'
-              }`}
-              type="button"
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Status Filter */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {(['all', 'pending', 'active', 'locked', 'rejected'] as FilterStatus[]).map((status) => (
+              <motion.button
+                key={status}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setFilter(status)}
+                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+                  filter === status
+                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                    : 'bg-white/10 text-white/70 hover:bg-white/20'
+                }`}
+                type="button"
+              >
+                {status.charAt(0).toUpperCase() + status.slice(1)}
+              </motion.button>
+            ))}
+          </div>
+
+          {/* Season Filter */}
+          <div className="flex items-center gap-2">
+            <span className="text-white/60 text-sm">Season:</span>
+            <select
+              value={seasonFilter}
+              onChange={(e) => setSeasonFilter(e.target.value)}
+              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition"
             >
-              {status.charAt(0).toUpperCase() + status.slice(1)}
-            </motion.button>
-          ))}
+              <option value="all" className="bg-gray-900">All Seasons</option>
+              {seasons.map((season) => (
+                <option key={season.id} value={season.id} className="bg-gray-900">
+                  {season.label || `Season ${season.id.slice(0, 8)}`}
+                  {season.status === 'active' ? ' (Active)' : season.status === 'finished' ? ' (Finished)' : ' (Draft)'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Slot Filter */}
+          <div className="flex items-center gap-2 ml-auto">
+            <span className="text-white/60 text-sm">Slot:</span>
+            <select
+              value={slotFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setSlotFilter(val === 'all' ? 'all' : val === 'locked' ? 'locked' : Number(val));
+              }}
+              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition"
+            >
+              <option value="all" className="bg-gray-900">All Slots</option>
+              <option value="locked" className="bg-gray-900">🏆 Winners (Locked)</option>
+              {slotInfo && Array.from({ length: slotInfo.currentSlot + 5 }, (_, i) => i + 1).map((slot) => (
+                <option key={slot} value={slot} className="bg-gray-900">
+                  Slot {slot} {slot === slotInfo.currentSlot ? '(Current)' : slot < slotInfo.currentSlot ? '(Locked)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -820,20 +1034,22 @@ export default function AdminDashboard() {
           <div className="flex items-center justify-center py-20">
             <RefreshCw className="w-8 h-8 animate-spin text-cyan-400" />
           </div>
-        ) : clips.length === 0 ? (
+        ) : filteredClips.length === 0 ? (
           <div className="text-center py-20">
             <AlertCircle className="w-16 h-16 text-white/40 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-white/80 mb-2">No clips found</h3>
             <p className="text-white/60">
               {filter === 'pending'
                 ? 'No pending clips to review'
+                : slotFilter !== 'all'
+                ? `No ${filter === 'all' ? '' : filter} clips in Slot ${slotFilter}`
                 : `No ${filter} clips at the moment`}
             </p>
           </div>
         ) : (
           <div className="grid gap-6">
             <AnimatePresence>
-              {clips.map((clip) => (
+              {filteredClips.map((clip) => (
                 <motion.div
                   key={clip.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -924,8 +1140,16 @@ export default function AdminDashboard() {
                           <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">
                             🎭 {clip.genre}
                           </span>
-                          <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                            clip.slot_position === slotInfo?.currentSlot
+                              ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
+                              : clip.slot_position < (slotInfo?.currentSlot || 0)
+                              ? 'bg-green-500/20 text-green-400 border border-green-500/30'
+                              : 'bg-white/10'
+                          }`}>
                             📍 Slot {clip.slot_position}
+                            {clip.slot_position === slotInfo?.currentSlot && ' (Voting)'}
+                            {clip.slot_position < (slotInfo?.currentSlot || 0) && ' (Locked)'}
                           </span>
                           <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">
                             👍 {clip.vote_count} votes

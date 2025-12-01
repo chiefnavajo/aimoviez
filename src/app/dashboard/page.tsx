@@ -21,8 +21,9 @@ import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
-import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX } from 'lucide-react';
+import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
+import MiniLeaderboard from '@/components/MiniLeaderboard';
 import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
@@ -359,6 +360,7 @@ function VotingArena() {
   const [showSwipeHint, setShowSwipeHint] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
+  const [leaderboardCollapsed, setLeaderboardCollapsed] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
@@ -663,13 +665,16 @@ function VotingArena() {
                 key={currentClip.clip_id}
                 src={currentClip.video_url ?? '/placeholder-video.mp4'}
                 poster={currentClip.thumbnail_url}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
+                style={{ WebkitAppearance: 'none' } as React.CSSProperties}
                 autoPlay
                 loop
                 muted={isMuted}
                 playsInline
                 webkit-playsinline="true"
                 x5-playsinline="true"
+                disablePictureInPicture
+                controlsList="nodownload nofullscreen noremoteplayback"
                 onError={() => setVideoError(true)}
                 onLoadedData={(e) => {
                   // Force play on mobile
@@ -686,21 +691,21 @@ function VotingArena() {
         </motion.div>
       </AnimatePresence>
 
-      {/* ============ TOP: Search Bar (TikTok Style) ============ */}
-      <div className="absolute top-0 left-0 right-0 z-30 pt-12 px-4 pb-3">
-        <div className="flex items-center gap-3">
-          <motion.div 
-            whileTap={{ scale: 0.98 }}
-            className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-full bg-white/10 backdrop-blur-sm"
-          >
-            <Search className="w-5 h-5 text-white/60" />
-            <input
-              type="text"
-              placeholder="Search clips, creators..."
-              className="flex-1 bg-transparent text-white text-sm placeholder:text-white/40 outline-none"
-            />
-          </motion.div>
-        </div>
+      {/* ============ TOP: Mini Leaderboard ============ */}
+      <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-2">
+        <MiniLeaderboard
+          currentClipId={currentClip?.clip_id}
+          onClipSelect={(clipId) => {
+            // Find clip index and jump to it
+            const index = votingData?.clips?.findIndex(c => c.clip_id === clipId);
+            if (index !== undefined && index >= 0) {
+              setActiveIndex(index);
+              setVideoError(false);
+            }
+          }}
+          isCollapsed={leaderboardCollapsed}
+          onToggleCollapse={() => setLeaderboardCollapsed(!leaderboardCollapsed)}
+        />
       </div>
 
       {/* ============ SWIPE HINT ============ */}
@@ -909,26 +914,31 @@ function VotingArena() {
         clipUsername={currentClip?.username}
       />
 
-      {/* ============ BOTTOM NAV (3 items, transparent, bigger) ============ */}
+      {/* ============ BOTTOM NAV (4 items, transparent, bigger) ============ */}
       <div className="absolute bottom-0 left-0 right-0 z-40 pb-safe">
         {/* Gradient fade for readability */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pointer-events-none" />
-        
+
         <div className="relative flex items-center justify-around px-4 pb-4 pt-1">
-          <NavButton 
-            href="/story" 
-            icon={<BookOpen className="w-6 h-6" />} 
-            label="Story" 
+          <NavButton
+            href="/story"
+            icon={<BookOpen className="w-6 h-6" />}
+            label="Story"
           />
-          <NavButton 
-            href="/upload" 
-            icon={<Plus className="w-7 h-7" />} 
-            label="Upload" 
+          <NavButton
+            href="/leaderboard"
+            icon={<Trophy className="w-6 h-6" />}
+            label="Rankings"
           />
-          <NavButton 
-            href="/profile" 
-            icon={<User className="w-6 h-6" />} 
-            label="Profile" 
+          <NavButton
+            href="/upload"
+            icon={<Plus className="w-7 h-7" />}
+            label="Upload"
+          />
+          <NavButton
+            href="/profile"
+            icon={<User className="w-6 h-6" />}
+            label="Profile"
           />
         </div>
       </div>

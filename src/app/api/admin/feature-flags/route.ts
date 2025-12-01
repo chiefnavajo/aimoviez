@@ -5,7 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { getServerSession } from 'next-auth';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -23,33 +23,15 @@ function getSupabaseClient() {
 }
 
 // ============================================================================
-// ADMIN CHECK
-// ============================================================================
-
-async function isAdmin(): Promise<boolean> {
-  const session = await getServerSession();
-  if (!session?.user?.email) return false;
-
-  const supabase = getSupabaseClient();
-  const { data: user } = await supabase
-    .from('users')
-    .select('role')
-    .eq('email', session.user.email)
-    .single();
-
-  return user?.role === 'admin';
-}
-
-// ============================================================================
 // GET - List all feature flags
 // ============================================================================
 
 export async function GET() {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
-    // Check admin access
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const supabase = getSupabaseClient();
 
@@ -90,11 +72,11 @@ export async function GET() {
 // ============================================================================
 
 export async function PUT(request: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
-    // Check admin access
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const body = await request.json();
     const { key, enabled, config } = body;
@@ -143,11 +125,11 @@ export async function PUT(request: NextRequest) {
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
-    // Check admin access
-    if (!(await isAdmin())) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     const body = await request.json();
     const { key, name, description, category, enabled, config } = body;

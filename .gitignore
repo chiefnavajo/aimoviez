@@ -40,3 +40,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 Archiv.zip
+
+# Environment files with secrets
+.env.local
+.env.*.local

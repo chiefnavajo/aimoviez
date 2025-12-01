@@ -1068,6 +1068,12 @@ function StoryPage() {
 
           {/* Navigation Items */}
           <nav className="flex-1 space-y-1 mt-24">
+            <Link href="/dashboard">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-white border border-cyan-500/30 hover:border-cyan-400/50 transition">
+                <Play className="w-6 h-6 text-cyan-400" />
+                <span className="font-semibold">Vote Now</span>
+              </div>
+            </Link>
             <Link href="/story">
               <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30 backdrop-blur-sm text-white border border-white/10">
                 <BookOpen className="w-6 h-6" />

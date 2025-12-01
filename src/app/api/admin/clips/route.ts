@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'all';
+    const seasonId = searchParams.get('season_id');
 
     const supabase = getSupabaseClient();
 
@@ -41,6 +42,11 @@ export async function GET(request: NextRequest) {
     // Filter by status if not 'all'
     if (status !== 'all') {
       query = query.eq('status', status);
+    }
+
+    // Filter by season if provided
+    if (seasonId) {
+      query = query.eq('season_id', seasonId);
     }
 
     const { data: clips, error } = await query;

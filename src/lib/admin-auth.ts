@@ -7,6 +7,7 @@
 import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { authOptions } from '@/lib/auth-options';
 
 // ============================================================================
 // TYPES
@@ -44,10 +45,17 @@ function getSupabaseClient() {
  */
 export async function checkAdminAuth(): Promise<AdminAuthResult> {
   try {
-    // Get session
-    const session = await getServerSession();
+    // Get session with authOptions
+    const session = await getServerSession(authOptions);
+
+    console.log('[admin-auth] Session check:', {
+      hasSession: !!session,
+      hasUser: !!session?.user,
+      email: session?.user?.email || 'NO EMAIL',
+    });
 
     if (!session?.user?.email) {
+      console.log('[admin-auth] No session or email found');
       return {
         isAdmin: false,
         userId: null,
@@ -65,6 +73,13 @@ export async function checkAdminAuth(): Promise<AdminAuthResult> {
       .select('id, email, is_admin')
       .eq('email', email)
       .single();
+
+    console.log('[admin-auth] Database check:', {
+      email,
+      found: !!user,
+      is_admin: user?.is_admin,
+      error: error?.message,
+    });
 
     if (error || !user) {
       return {

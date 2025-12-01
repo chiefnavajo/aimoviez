@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
 
     // Insert into tournament_clips
     const insertData: Record<string, unknown> = {
+      season_id: season.id,  // Link to active season
       slot_position: slotPosition,
       track_id: 'track-main',
       video_url: videoUrl,

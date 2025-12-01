@@ -149,6 +149,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 5b. Mark the winning clip as 'locked' (winner status)
+    const { error: lockWinnerError } = await supabase
+      .from('tournament_clips')
+      .update({ status: 'locked' })
+      .eq('id', winner.id);
+
+    if (lockWinnerError) {
+      console.error('[advance-slot] lockWinnerError:', lockWinnerError);
+      // Non-fatal - continue but log
+    }
+
     // 6. Przygotuj następny slot
     const nextPosition = storySlot.slot_position + 1;
 
@@ -192,7 +203,7 @@ export async function POST(req: NextRequest) {
 
     const { data: nextSlot, error: nextSlotError } = await supabase
       .from('story_slots')
-      .update({ 
+      .update({
         status: 'voting',
         voting_started_at: now.toISOString(),
         voting_ends_at: votingEndsAt.toISOString(),
@@ -222,6 +233,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // 8. CARRY OVER: Move non-winning active clips to next slot
+    // This keeps the competition going with same clips
+    const { data: movedClips, error: moveClipsError } = await supabase
+      .from('tournament_clips')
+      .update({
+        slot_position: nextPosition,
+        vote_count: 0,        // Reset votes for fair competition
+        weighted_score: 0,    // Reset weighted score
+      })
+      .eq('slot_position', storySlot.slot_position)
+      .eq('status', 'active')
+      .neq('id', winner.id)   // Don't move the winner
+      .select('id');
+
+    if (moveClipsError) {
+      console.error('[advance-slot] moveClipsError:', moveClipsError);
+      // Non-fatal - log but continue
+    }
+
+    const clipsMovedCount = movedClips?.length ?? 0;
+    console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
+
     return NextResponse.json(
       {
         ok: true,
@@ -230,6 +263,7 @@ export async function POST(req: NextRequest) {
         winnerClipId: winner.id,
         nextSlotPosition: nextPosition,
         votingEndsAt: votingEndsAt.toISOString(),
+        clipsMovedToNextSlot: clipsMovedCount,
       },
       { status: 200 }
     );

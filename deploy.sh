@@ -24,3 +24,4 @@ vercel --prod
 echo "✅ Deployment complete!"
 echo "🌐 Your app should be live at: https://your-app-name.vercel.app"
 
+

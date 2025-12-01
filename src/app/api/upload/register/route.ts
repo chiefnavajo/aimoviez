@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     const { data: clipData, error: clipError } = await supabase
       .from('tournament_clips')
       .insert({
+        season_id: season.id,  // Link to active season
         slot_position: slotPosition,
         track_id: 'track-main',
         video_url: videoUrl,
