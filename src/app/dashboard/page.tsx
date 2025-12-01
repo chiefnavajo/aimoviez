@@ -816,6 +816,9 @@ function VotingArena() {
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
+    // Reset touchEndY to same position - prevents tap from triggering swipe
+    // (if user taps without moving, delta will be 0)
+    touchEndY.current = e.touches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -1144,7 +1147,7 @@ function VotingArena() {
         {/* Version indicator for debugging - REMOVE AFTER TESTING */}
         <div className="mt-4 opacity-50">
           <p className="text-white/40 text-[8px] font-mono">
-            v48398d6
+            v2-tapfix
           </p>
         </div>
       </div>
