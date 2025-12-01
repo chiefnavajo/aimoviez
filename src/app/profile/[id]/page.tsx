@@ -26,23 +26,12 @@ interface CreatorProfile {
 interface CreatorClip {
   id: string;
   video_url: string;
+  thumbnail_url: string;
   vote_count: number;
-  status: 'voting' | 'locked' | 'pending';
+  status: 'voting' | 'locked' | 'pending' | 'active';
   slot_position: number;
   season_number: number;
 }
-
-const MOCK_CREATORS: Record<string, CreatorProfile> = {
-  'veo3_creator': { id: 'veo3_creator', username: 'veo3_creator', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=veo3', level: 12, total_votes_received: 45210, clips_uploaded: 8, clips_locked: 3, followers: 1234, is_following: false },
-  'dance_master': { id: 'dance_master', username: 'dance_master', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ballet', level: 8, total_votes_received: 28470, clips_uploaded: 5, clips_locked: 2, followers: 892, is_following: true },
-  'film_wizard': { id: 'film_wizard', username: 'film_wizard', avatar_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=wizard', level: 15, total_votes_received: 67340, clips_uploaded: 12, clips_locked: 5, followers: 2341, is_following: false },
-};
-
-const MOCK_CLIPS: CreatorClip[] = [
-  { id: 'clip-1', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/spooky-ghost.mp4', vote_count: 4521, status: 'locked', slot_position: 1, season_number: 2 },
-  { id: 'clip-2', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/ballet-dancer.mp4', vote_count: 3847, status: 'locked', slot_position: 2, season_number: 2 },
-  { id: 'clip-3', video_url: 'https://dxixqdmqomqzhilmdfzg.supabase.co/storage/v1/object/public/videos/superhero-landing.mp4', vote_count: 1245, status: 'voting', slot_position: 6, season_number: 2 },
-];
 
 function formatNumber(num: number): string {
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -54,29 +43,80 @@ export default function CreatorProfilePage() {
   const params = useParams();
   const router = useRouter();
   const creatorId = params.id as string;
-  
+
   const [creator, setCreator] = useState<CreatorProfile | null>(null);
   const [clips, setClips] = useState<CreatorClip[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
-    const mockCreator = MOCK_CREATORS[creatorId];
-    if (mockCreator) {
-      setCreator(mockCreator);
-      setIsFollowing(mockCreator.is_following);
-      setClips(MOCK_CLIPS);
-    } else {
-      setCreator({
-        id: creatorId, username: creatorId, avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${creatorId}`,
-        level: Math.floor(Math.random() * 20) + 1, total_votes_received: Math.floor(Math.random() * 50000),
-        clips_uploaded: Math.floor(Math.random() * 10) + 1, clips_locked: Math.floor(Math.random() * 3),
-        followers: Math.floor(Math.random() * 2000), is_following: false,
-      });
-      setClips([]);
+    async function fetchCreatorData() {
+      setLoading(true);
+      try {
+        // Fetch creator profile and clips from API
+        const response = await fetch(`/api/creator/${encodeURIComponent(creatorId)}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.creator) {
+            setCreator({
+              id: data.creator.id || creatorId,
+              username: data.creator.username || creatorId,
+              avatar_url: data.creator.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${creatorId}`,
+              level: data.creator.level || 1,
+              total_votes_received: data.creator.total_votes_received || 0,
+              clips_uploaded: data.creator.clips_uploaded || 0,
+              clips_locked: data.creator.clips_locked || 0,
+              followers: data.creator.followers_count || 0,
+              is_following: data.creator.is_following || false,
+            });
+            setIsFollowing(data.creator.is_following || false);
+          }
+          if (data.clips) {
+            setClips(data.clips.map((clip: any) => ({
+              id: clip.id,
+              video_url: clip.video_url || '',
+              thumbnail_url: clip.thumbnail_url || clip.video_url || '',
+              vote_count: clip.vote_count || 0,
+              status: clip.status || 'active',
+              slot_position: clip.slot_position || 1,
+              season_number: 1,
+            })));
+          }
+        } else {
+          // Fallback: create basic profile from username
+          setCreator({
+            id: creatorId,
+            username: creatorId,
+            avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${creatorId}`,
+            level: 1,
+            total_votes_received: 0,
+            clips_uploaded: 0,
+            clips_locked: 0,
+            followers: 0,
+            is_following: false,
+          });
+          setClips([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch creator data:', error);
+        // Fallback on error
+        setCreator({
+          id: creatorId,
+          username: creatorId,
+          avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${creatorId}`,
+          level: 1,
+          total_votes_received: 0,
+          clips_uploaded: 0,
+          clips_locked: 0,
+          followers: 0,
+          is_following: false,
+        });
+        setClips([]);
+      }
+      setLoading(false);
     }
-    setLoading(false);
+
+    fetchCreatorData();
   }, [creatorId]);
 
   const handleFollow = () => {
@@ -146,10 +186,14 @@ export default function CreatorProfilePage() {
             {clips.map((clip) => (
               <Link key={clip.id} href={`/clip/${clip.id}`}>
                 <motion.div whileTap={{ scale: 0.95 }} className="relative aspect-[9/16] rounded-lg overflow-hidden bg-white/10">
-                  <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                  {clip.thumbnail_url ? (
+                    <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   {clip.status === 'locked' && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-cyan-500/80 flex items-center gap-1"><Lock className="w-3 h-3" /><span className="text-[10px] font-bold">Winner</span></div>}
-                  {clip.status === 'voting' && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-orange-500/80 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /><span className="text-[10px] font-bold">LIVE</span></div>}
+                  {(clip.status === 'voting' || clip.status === 'active') && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-orange-500/80 flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /><span className="text-[10px] font-bold">LIVE</span></div>}
                   <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 text-white text-xs font-bold"><Heart className="w-3 h-3" fill="white" />{formatNumber(clip.vote_count)}</div>
                 </motion.div>
               </Link>
