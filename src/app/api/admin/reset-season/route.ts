@@ -102,15 +102,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Optionally reset vote counts on clips
+    // 4. Optionally reset vote counts on clips AND reset clip statuses
     if (reset_clip_counts) {
+      // Reset all clips: vote counts to 0, status to 'active', move to slot 1
       const { error: resetClipsError } = await supabase
         .from('tournament_clips')
-        .update({ vote_count: 0, weighted_score: 0 });
+        .update({
+          vote_count: 0,
+          weighted_score: 0,
+          status: 'active',
+          slot_position: start_slot,
+        })
+        .neq('status', 'rejected'); // Don't touch rejected clips
 
       if (resetClipsError) {
         console.error('[reset-season] resetClipsError:', resetClipsError);
         // Non-fatal, continue
+      } else {
+        console.log('[reset-season] Reset all clip counts, statuses, and positions');
       }
     }
 
