@@ -8,7 +8,7 @@ export default function BottomNavigation() {
   const pathname = usePathname();
 
   const navItems = [
-    { href: '/', icon: Home, label: 'Home' },
+    { href: '/dashboard', icon: Home, label: 'Home' },
     { href: '/watch', icon: Play, label: 'Watch' },
     { href: '/upload', icon: Upload, label: 'Upload' },
     { href: '/leaderboard', icon: Trophy, label: 'Ranks' },
