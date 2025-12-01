@@ -125,8 +125,8 @@ export async function GET(req: NextRequest) {
 
         // Get winner details if locked
         let winner_details = null;
-        if (slot.winning_clip_id) {
-          const winnerClip = clips?.find((c) => c.id === slot.winning_clip_id);
+        if (slot.winner_tournament_clip_id) {
+          const winnerClip = clips?.find((c) => c.id === slot.winner_tournament_clip_id);
           if (winnerClip) {
             winner_details = {
               clip_id: winnerClip.id,
@@ -219,7 +219,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     if (winning_clip_id !== undefined) {
-      updates.winning_clip_id = winning_clip_id;
+      updates.winner_tournament_clip_id = winning_clip_id;
       // If setting a winner, auto-lock the slot
       if (winning_clip_id && !status) {
         updates.status = 'locked';
@@ -338,7 +338,7 @@ export async function POST(req: NextRequest) {
       .from('story_slots')
       .update({
         status: 'locked',
-        winning_clip_id: topClip.id,
+        winner_tournament_clip_id: topClip.id,
       })
       .eq('id', slot.id)
       .select()

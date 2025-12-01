@@ -47,8 +47,8 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     
     const timeframe = (searchParams.get('timeframe') || 'all') as 'today' | 'week' | 'all';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const offset = (page - 1) * limit;
 
     // Build query
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     const slotPositions = [...new Set(clips?.map((c) => c.slot_position) || [])];
     const { data: slots } = await supabase
       .from('story_slots')
-      .select('slot_position, status, winning_clip_id')
+      .select('slot_position, status, winner_tournament_clip_id')
       .in('slot_position', slotPositions);
 
     const slotMap = new Map(
@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     // Enrich clips with rank and status
     const enrichedClips: LeaderboardClip[] = (clips || []).map((clip, index) => {
       const slot = slotMap.get(clip.slot_position);
-      const is_winner = slot?.winning_clip_id === clip.id;
+      const is_winner = slot?.winner_tournament_clip_id === clip.id;
       
       let status: 'competing' | 'locked_in' | 'eliminated' = 'competing';
       if (is_winner) {

@@ -153,6 +153,7 @@ export default function AdminDashboard() {
 
   // Reset season state
   const [resettingSeason, setResettingSeason] = useState(false);
+  const [fullResetting, setFullResetting] = useState(false);
   const [resetResult, setResetResult] = useState<{
     success: boolean;
     message: string;
@@ -383,6 +384,76 @@ export default function AdminDashboard() {
     }
 
     setResettingSeason(false);
+  };
+
+  // ============================================================================
+  // FULL CLEAN RESET
+  // ============================================================================
+
+  const handleFullCleanReset = async () => {
+    const confirmReset = confirm(
+      '⚠️ FULL CLEAN RESET ⚠️\n\n' +
+      'This will completely reset everything:\n\n' +
+      '• Reset all 75 slots to "upcoming"\n' +
+      '• Set slot 1 to "voting"\n' +
+      '• Clear ALL winners\n' +
+      '• DELETE ALL VOTES\n' +
+      '• Reset ALL clip vote counts to 0\n\n' +
+      'This is a DESTRUCTIVE action and cannot be undone!\n\n' +
+      'Are you absolutely sure?'
+    );
+
+    if (!confirmReset) return;
+
+    // Double confirm for safety
+    const doubleConfirm = confirm(
+      'FINAL CONFIRMATION\n\n' +
+      'You are about to delete ALL voting data.\n' +
+      'Type "yes" mentality by clicking OK to proceed.'
+    );
+
+    if (!doubleConfirm) return;
+
+    setFullResetting(true);
+    setResetResult(null);
+    setAdvanceResult(null);
+
+    try {
+      const response = await fetch('/api/admin/reset-season', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clear_votes: true,
+          reset_clip_counts: true,
+          start_slot: 1,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setResetResult({
+          success: true,
+          message: `Full clean reset complete! Season back to slot 1 with ${data.clips_in_slot} clips. All votes cleared.`,
+          clipsInSlot: data.clips_in_slot,
+        });
+        fetchSlotInfo();
+        fetchClips();
+      } else {
+        setResetResult({
+          success: false,
+          message: data.error || 'Failed to perform full reset',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to perform full reset:', error);
+      setResetResult({
+        success: false,
+        message: 'Network error - failed to perform full reset',
+      });
+    }
+
+    setFullResetting(false);
   };
 
   // ============================================================================
@@ -864,7 +935,7 @@ export default function AdminDashboard() {
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={handleResetSeason}
-                disabled={resettingSeason || !slotInfo}
+                disabled={resettingSeason || fullResetting || !slotInfo}
                 className="px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold
                          hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50
                          flex items-center gap-2"
@@ -880,6 +951,30 @@ export default function AdminDashboard() {
                   <>
                     <RotateCcw className="w-5 h-5" />
                     Reset Season
+                  </>
+                )}
+              </motion.button>
+
+              {/* Full Clean Reset Button */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleFullCleanReset}
+                disabled={resettingSeason || fullResetting || !slotInfo}
+                className="px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-800 font-bold
+                         hover:shadow-lg hover:shadow-red-500/20 transition-all disabled:opacity-50
+                         flex items-center gap-2 border border-red-400/50"
+                type="button"
+                title="Complete reset: clears all votes and resets everything"
+              >
+                {fullResetting ? (
+                  <>
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                    Full Reset...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-5 h-5" />
+                    Full Clean Reset
                   </>
                 )}
               </motion.button>

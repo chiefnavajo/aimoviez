@@ -59,8 +59,8 @@ export async function GET(req: NextRequest) {
     const genre = searchParams.get('genre');
     const sort = (searchParams.get('sort') || 'trending') as 'trending' | 'newest' | 'top';
     const type = (searchParams.get('type') || 'all') as 'clips' | 'creators' | 'all';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const offset = (page - 1) * limit;
 
     let clips: DiscoverClip[] = [];
@@ -136,11 +136,11 @@ export async function GET(req: NextRequest) {
         // Get locked slots
         const { data: lockedSlots } = await supabase
           .from('story_slots')
-          .select('winning_clip_id')
+          .select('winner_tournament_clip_id')
           .eq('status', 'locked');
 
         const winningClipIds = new Set(
-          lockedSlots?.map((s) => s.winning_clip_id).filter(Boolean) || []
+          lockedSlots?.map((s) => s.winner_tournament_clip_id).filter(Boolean) || []
         );
 
         // Aggregate creators

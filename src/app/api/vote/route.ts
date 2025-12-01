@@ -858,22 +858,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Update clip stats (vote_count increases by weight: 1, 3, or 10)
-    const currentVoteCount = (clipData.vote_count ?? 0) + weight;
-    const currentWeightedScore =
-      (clipData.weighted_score ?? clipData.vote_count ?? 0) + weight;
-
-    const { error: updateClipError } = await supabase
-      .from('tournament_clips')
-      .update({
-        vote_count: currentVoteCount,
-        weighted_score: currentWeightedScore,
-      })
-      .eq('id', clipId);
-
-    if (updateClipError) {
-      console.error('[POST /api/vote] updateClipError:', updateClipError);
-    }
+    // 7. Vote count update is handled by database trigger (on_vote_insert)
+    // The trigger atomically increments:
+    //   - vote_count by 1 (number of votes)
+    //   - weighted_score by vote_weight (1, 3, or 10)
+    // We calculate the expected new score for the response
+    const newVoteCount = (clipData.vote_count ?? 0) + 1;
+    const newWeightedScore = (clipData.weighted_score ?? 0) + weight;
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + 1;
@@ -884,7 +875,7 @@ export async function POST(req: NextRequest) {
       success: true,
       clipId,
       voteType,
-      newScore: currentWeightedScore,
+      newScore: newWeightedScore,
       totalVotesToday: newTotalVotesToday,
       remainingVotes: {
         standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
@@ -985,8 +976,10 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // 4. Update clip stats (subtract vote weight based on vote type)
-    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - existingVote.vote_weight);
+    // 4. Update clip stats
+    // vote_count decreases by 1 (one vote removed)
+    // weighted_score decreases by vote_weight (1, 3, or 10)
+    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - 1);
     const newWeightedScore = Math.max(
       0,
       (clipData.weighted_score ?? 0) - existingVote.vote_weight

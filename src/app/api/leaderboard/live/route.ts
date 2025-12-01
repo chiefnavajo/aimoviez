@@ -70,11 +70,11 @@ export async function GET(req: NextRequest) {
     // Get locked slots
     const { data: lockedSlots } = await supabase
       .from('story_slots')
-      .select('winning_clip_id')
+      .select('winner_tournament_clip_id')
       .eq('status', 'locked');
 
     const winningClipIds = new Set(
-      lockedSlots?.map((s) => s.winning_clip_id).filter(Boolean) || []
+      lockedSlots?.map((s) => s.winner_tournament_clip_id).filter(Boolean) || []
     );
 
     // Aggregate creators

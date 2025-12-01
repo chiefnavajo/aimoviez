@@ -209,7 +209,7 @@ export async function GET(req: NextRequest) {
       const checkDate = new Date(todayDate);
       checkDate.setDate(checkDate.getDate() - i);
       const checkStr = checkDate.toISOString().split('T')[0];
-      
+
       if (voteDates.has(checkStr)) {
         current_streak++;
       } else {
@@ -217,8 +217,30 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Longest streak calculation (simplified)
-    const longest_streak = current_streak; // For now, just use current
+    // Calculate longest streak ever (find max consecutive days in all voting history)
+    let longest_streak = current_streak;
+    if (voteDates.size > 0) {
+      // Sort all vote dates chronologically
+      const sortedDates = Array.from(voteDates).sort();
+      let tempStreak = 1;
+
+      for (let i = 1; i < sortedDates.length; i++) {
+        const prevDate = new Date(sortedDates[i - 1]);
+        const currDate = new Date(sortedDates[i]);
+
+        // Check if dates are consecutive (difference of 1 day)
+        const diffDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
+
+        if (diffDays === 1) {
+          tempStreak++;
+          if (tempStreak > longest_streak) {
+            longest_streak = tempStreak;
+          }
+        } else {
+          tempStreak = 1;
+        }
+      }
+    }
 
     // 4. Get user's uploaded clips (use userId if logged in, otherwise voterKey)
     let userClips: { id: string; slot_position: number }[] = [];

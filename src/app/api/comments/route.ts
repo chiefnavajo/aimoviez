@@ -115,8 +115,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'clipId is required' }, { status: 400 });
     }
     
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const sort = (searchParams.get('sort') || 'newest') as 'newest' | 'top';
     const offset = (page - 1) * limit;
 

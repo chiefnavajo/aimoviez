@@ -9,11 +9,11 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/admin-auth';
 
 function createSupabaseServerClient() {
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error('[advance-slot] Missing Supabase environment variables');
+    throw new Error('[advance-slot] Missing Supabase environment variables. SUPABASE_SERVICE_ROLE_KEY is required for admin operations.');
   }
 
   return createClient(supabaseUrl, supabaseKey);
