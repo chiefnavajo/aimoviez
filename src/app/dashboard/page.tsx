@@ -786,7 +786,7 @@ function VotingArena() {
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: (data) => {
+    onSuccess: (data, { clipId }) => {
       const voteType = data.revokedVoteType;
       if (voteType === 'mega') {
         toast.success('Mega vote removed', { icon: '💎' });
@@ -796,8 +796,19 @@ function VotingArena() {
         toast.success('Vote removed');
       }
       setIsVoting(false);
-      // Don't invalidate/refetch - optimistic update already handled the UI
-      // This prevents video from changing after revoking
+
+      // Update with actual server value (optimistic used -1, but could be -3 or -10)
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      if (previous) {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+          ...previous,
+          clips: previous.clips.map((clip) =>
+            clip.clip_id === clipId
+              ? { ...clip, vote_count: Math.max(0, data.newScore) }
+              : clip
+          ),
+        });
+      }
     },
   });
 
