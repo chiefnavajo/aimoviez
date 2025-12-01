@@ -593,6 +593,7 @@ function VotingArena() {
   const swipeThreshold = 50;
 
   // Fetch voting data from real API
+  // No refetchInterval - clips only change when user navigates (swipe/arrows)
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main'],
     queryFn: async () => {
@@ -603,8 +604,7 @@ function VotingArena() {
       const apiResponse: APIVotingResponse = await response.json();
       return transformAPIResponse(apiResponse);
     },
-    refetchInterval: 10000,
-    staleTime: 5000,
+    staleTime: Infinity, // Never consider data stale - user controls navigation
     retry: 3,
   });
 
