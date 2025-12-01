@@ -840,8 +840,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Update clip stats
-    const currentVoteCount = (clipData.vote_count ?? 0) + 1;
+    // 7. Update clip stats (vote_count increases by weight: 1, 3, or 10)
+    const currentVoteCount = (clipData.vote_count ?? 0) + weight;
     const currentWeightedScore =
       (clipData.weighted_score ?? clipData.vote_count ?? 0) + weight;
 
