@@ -25,6 +25,7 @@ import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, Volume
 import CommentsSection from '@/components/CommentsSection';
 import MiniLeaderboard from '@/components/MiniLeaderboard';
 import { AuthGuard } from '@/hooks/useAuth';
+import { useFeature } from '@/hooks/useFeatureFlags';
 
 // ============================================================================
 // TYPES
@@ -214,6 +215,9 @@ interface PowerVoteButtonProps {
   hasVoted: boolean;
   superRemaining: number;
   megaRemaining: number;
+  votesToday?: number;
+  dailyGoal?: number;
+  showDailyProgress?: boolean;
 }
 
 function PowerVoteButton({
@@ -222,7 +226,10 @@ function PowerVoteButton({
   isDisabled,
   hasVoted,
   superRemaining,
-  megaRemaining
+  megaRemaining,
+  votesToday = 0,
+  dailyGoal = 200,
+  showDailyProgress = false,
 }: PowerVoteButtonProps) {
   const [holdProgress, setHoldProgress] = useState(0);
   const [currentVoteType, setCurrentVoteType] = useState<VoteType>('standard');
@@ -350,6 +357,21 @@ function PowerVoteButton({
   const circumference = 2 * Math.PI * 29;
   const strokeDashoffset = circumference * (1 - holdProgress);
 
+  // Daily progress calculation (0 to 1)
+  const dailyProgress = Math.min(votesToday / dailyGoal, 1);
+  const dailyStrokeDashoffset = circumference * (1 - dailyProgress);
+
+  // Color gradient based on daily progress (blue → cyan → green → gold)
+  const getDailyProgressColor = () => {
+    if (dailyProgress >= 1) return '#FFD700'; // Gold at 100%
+    if (dailyProgress >= 0.75) return '#F59E0B'; // Orange at 75%+
+    if (dailyProgress >= 0.5) return '#22C55E'; // Green at 50%+
+    if (dailyProgress >= 0.25) return '#06B6D4'; // Cyan at 25%+
+    return '#3B82F6'; // Blue at start
+  };
+
+  const dailyProgressColor = getDailyProgressColor();
+
   return (
     <div className="relative flex flex-col items-center">
       {/* Vote type label */}
@@ -428,7 +450,26 @@ function PowerVoteButton({
             strokeWidth="3"
           />
 
-          {/* Progress circle */}
+          {/* Daily progress ring (outer) - only when feature enabled and not holding */}
+          {showDailyProgress && !isHolding && !hasVoted && (
+            <circle
+              cx="32"
+              cy="32"
+              r="29"
+              fill="none"
+              stroke={dailyProgressColor}
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={dailyStrokeDashoffset}
+              style={{
+                transition: 'stroke-dashoffset 0.5s ease-out, stroke 0.3s ease',
+                filter: dailyProgress >= 1 ? 'drop-shadow(0 0 6px #FFD700)' : 'none'
+              }}
+            />
+          )}
+
+          {/* Progress circle (hold for power votes) */}
           {isHolding && (
             <circle
               cx="32"
@@ -585,6 +626,9 @@ function VotingArena() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
+
+  // Feature flag for vote button daily progress fill
+  const { enabled: showVoteProgress } = useFeature('vote_button_progress');
 
   // Swipe handling
   const touchStartY = useRef<number>(0);
@@ -1081,6 +1125,9 @@ function VotingArena() {
             hasVoted={currentClip?.has_voted ?? false}
             superRemaining={votingData?.remainingVotes?.super ?? 1}
             megaRemaining={votingData?.remainingVotes?.mega ?? 1}
+            votesToday={votesToday}
+            dailyGoal={DAILY_GOAL}
+            showDailyProgress={showVoteProgress}
           />
           {/* Vote Count */}
           <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
