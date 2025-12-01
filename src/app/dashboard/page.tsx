@@ -1152,61 +1152,63 @@ function VotingArena() {
         </div>
       </div>
 
-      {/* ============ DESKTOP NAVIGATION ARROWS - LEFT SIDE ============ */}
-      <div className="hidden md:block">
-        {/* Navigation Arrows - Left Side, Vertically Centered */}
-        <div className="absolute left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-6">
+      {/* ============ NAVIGATION ARROWS - LEFT SIDE (All Screens) ============ */}
+      {votingData?.clips && votingData.clips.length > 1 && (
+        <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4 md:gap-6">
           {/* Previous Clip Arrow */}
-          {activeIndex > 0 && (
-            <motion.button
-              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handlePrevious}
-              className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
-                       border border-white/20 flex items-center justify-center
-                       transition-all shadow-lg"
-              type="button"
-              title="Previous clip (↑)"
-            >
-              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-              </svg>
-            </motion.button>
-          )}
+          <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handlePrevious}
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg ${activeIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
+            type="button"
+            title="Previous clip (↑)"
+          >
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+            </svg>
+          </motion.button>
+
+          {/* Clip Counter */}
+          <div className="text-center">
+            <span className="text-white/80 text-xs md:text-sm font-medium drop-shadow-lg">
+              {activeIndex + 1}/{votingData.clips.length}
+            </span>
+          </div>
 
           {/* Next Clip Arrow */}
-          {votingData?.clips && activeIndex < votingData.clips.length - 1 && (
-            <motion.button
-              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-              whileTap={{ scale: 0.9 }}
-              onClick={handleNext}
-              className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
-                       border border-white/20 flex items-center justify-center
-                       transition-all shadow-lg"
-              type="button"
-              title="Next clip (↓)"
-            >
-              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-              </svg>
-            </motion.button>
-          )}
+          <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleNext}
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg ${activeIndex >= votingData.clips.length - 1 ? 'opacity-30' : 'opacity-100'}`}
+            type="button"
+            title="Next clip (↓)"
+          >
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
+          </motion.button>
         </div>
+      )}
 
-        {/* Keyboard Hint - Bottom Left, Small & Unobtrusive */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 0.6, y: 0 }}
-          transition={{ delay: 1.5, duration: 0.5 }}
-          className="absolute bottom-24 left-8 z-20
-                   px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm
-                   border border-white/10"
-        >
-          <p className="text-white/70 text-[10px] font-medium tracking-wide">
-            ↑↓ SPACE
-          </p>
-        </motion.div>
-      </div>
+      {/* Keyboard Hint - Desktop Only */}
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 0.6, y: 0 }}
+        transition={{ delay: 1.5, duration: 0.5 }}
+        className="hidden md:block absolute bottom-24 left-8 z-20
+                 px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm
+                 border border-white/10"
+      >
+        <p className="text-white/70 text-[10px] font-medium tracking-wide">
+          ↑↓ SPACE
+        </p>
+      </motion.div>
 
       {/* ============ COMMENTS PANEL ============ */}
       <CommentsSection
