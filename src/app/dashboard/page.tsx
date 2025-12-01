@@ -1140,6 +1140,13 @@ function VotingArena() {
             votes today
           </p>
         </div>
+
+        {/* Version indicator for debugging - REMOVE AFTER TESTING */}
+        <div className="mt-4 opacity-50">
+          <p className="text-white/40 text-[8px] font-mono">
+            v48398d6
+          </p>
+        </div>
       </div>
 
       {/* ============ BOTTOM: Creator Info ============ */}
