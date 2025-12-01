@@ -591,9 +591,25 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    const clipPool = (unvotedClips as TournamentClipRow[]) || [];
+    let clipPool = (unvotedClips as TournamentClipRow[]) || [];
 
-    if (clipPool.length === 0 && votedClipIds.length === 0) {
+    // If no unvoted clips but user has voted on some, fetch the voted clips
+    // so user can still see them and potentially revoke votes
+    if (clipPool.length === 0 && votedClipIds.length > 0) {
+      const { data: votedClips, error: votedClipsError } = await supabase
+        .from('tournament_clips')
+        .select('*')
+        .eq('slot_position', activeSlot.slot_position)
+        .eq('status', 'active')
+        .in('id', votedClipIds)
+        .limit(CLIPS_PER_SESSION);
+
+      if (!votedClipsError && votedClips) {
+        clipPool = votedClips as TournamentClipRow[];
+      }
+    }
+
+    if (clipPool.length === 0) {
       // No clips at all in this slot
       const empty: VotingStateResponse = {
         clips: [],
