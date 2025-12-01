@@ -611,10 +611,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    // 7. OPTIMIZED: Simple random sampling from the pool (already limited by DB)
-    // Shuffle and take CLIPS_PER_SESSION
-    const shuffledClips = clipPool.sort(() => Math.random() - 0.5);
-    const sampledClips = shuffledClips.slice(0, CLIPS_PER_SESSION);
+    // 7. Take clips in consistent order (no shuffle to prevent video rotation on refetch)
+    // Clips are already ordered by created_at from the DB query
+    const sampledClips = clipPool.slice(0, CLIPS_PER_SESSION);
 
     // 8. Record clip views (non-blocking, for analytics only)
     const clipIdsToRecord = sampledClips.map(c => c.id);
@@ -967,8 +966,8 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // 4. Update clip stats (subtract vote weight)
-    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - 1);
+    // 4. Update clip stats (subtract vote weight based on vote type)
+    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - existingVote.vote_weight);
     const newWeightedScore = Math.max(
       0,
       (clipData.weighted_score ?? 0) - existingVote.vote_weight
