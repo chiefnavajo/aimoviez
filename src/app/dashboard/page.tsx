@@ -582,7 +582,7 @@ function VotingArena() {
   const [showSwipeHint, setShowSwipeHint] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
-  const [leaderboardCollapsed, setLeaderboardCollapsed] = useState(false);
+  const [leaderboardCollapsed, setLeaderboardCollapsed] = useState(true); // Start collapsed
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
@@ -1044,7 +1044,7 @@ function VotingArena() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="absolute top-28 left-0 right-0 z-20 flex justify-center"
+            className="absolute top-20 left-0 right-0 z-10 flex justify-center"
           >
             <div className="px-4 py-2 rounded-full bg-black/40 backdrop-blur-sm">
               <p className="text-white/80 text-xs font-medium">Swipe ↑↓ to browse · Tap ∞ to vote</p>
