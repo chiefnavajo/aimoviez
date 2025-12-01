@@ -21,7 +21,7 @@ import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
-import { MessageCircle, Share2, X, Heart, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy } from 'lucide-react';
+import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import MiniLeaderboard from '@/components/MiniLeaderboard';
 import { AuthGuard } from '@/hooks/useAuth';
@@ -200,89 +200,285 @@ const GENRE_LABELS: Record<string, string> = {
 };
 
 // ============================================================================
-// INFINITY VOTE BUTTON (Visible on any background)
+// POWER VOTE BUTTON - Long-press for Super/Mega votes
+// ============================================================================
+// TAP = Standard (1x)
+// HOLD 1s = Super (3x)
+// HOLD 2s = Mega (10x)
 // ============================================================================
 
-interface InfinityVoteButtonProps {
-  onVote: () => void;
+interface PowerVoteButtonProps {
+  onVote: (voteType: VoteType) => void;
   isVoting: boolean;
   isDisabled: boolean;
+  hasVoted: boolean;
+  superRemaining: number;
+  megaRemaining: number;
 }
 
-function InfinityVoteButton({ onVote, isVoting, isDisabled }: InfinityVoteButtonProps) {
+function PowerVoteButton({
+  onVote,
+  isVoting,
+  isDisabled,
+  hasVoted,
+  superRemaining,
+  megaRemaining
+}: PowerVoteButtonProps) {
+  const [holdProgress, setHoldProgress] = useState(0);
+  const [currentVoteType, setCurrentVoteType] = useState<VoteType>('standard');
+  const [isHolding, setIsHolding] = useState(false);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
+
+  const SUPER_THRESHOLD = 1000; // 1 second for Super
+  const MEGA_THRESHOLD = 2000;  // 2 seconds for Mega
+
+  const clearTimers = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+  };
+
+  const handlePressStart = () => {
+    if (isVoting || isDisabled || hasVoted) return;
+
+    setIsHolding(true);
+    startTimeRef.current = Date.now();
+    setHoldProgress(0);
+    setCurrentVoteType('standard');
+
+    // Update progress every 50ms
+    progressIntervalRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTimeRef.current;
+      const progress = Math.min(elapsed / MEGA_THRESHOLD, 1);
+      setHoldProgress(progress);
+
+      // Determine vote type based on elapsed time
+      if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
+        setCurrentVoteType('mega');
+        // Vibrate if available
+        if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+      } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
+        setCurrentVoteType('super');
+        // Vibrate if available
+        if (navigator.vibrate) navigator.vibrate(30);
+      } else {
+        setCurrentVoteType('standard');
+      }
+    }, 50);
+  };
+
+  const handlePressEnd = () => {
+    if (!isHolding) return;
+
+    clearTimers();
+    setIsHolding(false);
+
+    const elapsed = Date.now() - startTimeRef.current;
+
+    // Determine final vote type
+    let finalVoteType: VoteType = 'standard';
+    if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
+      finalVoteType = 'mega';
+    } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
+      finalVoteType = 'super';
+    }
+
+    // Execute vote
+    if (!isDisabled && !hasVoted) {
+      onVote(finalVoteType);
+    }
+
+    // Reset progress after animation
+    setTimeout(() => {
+      setHoldProgress(0);
+      setCurrentVoteType('standard');
+    }, 300);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => clearTimers();
+  }, []);
+
+  // Get colors based on current vote type
+  const getVoteColors = () => {
+    switch (currentVoteType) {
+      case 'mega':
+        return {
+          glow: 'rgba(168, 85, 247, 0.8)',
+          ring: '#A855F7',
+          bg: 'rgba(168, 85, 247, 0.3)',
+          icon: '💎',
+          label: 'MEGA 10x'
+        };
+      case 'super':
+        return {
+          glow: 'rgba(250, 204, 21, 0.8)',
+          ring: '#FACC15',
+          bg: 'rgba(250, 204, 21, 0.3)',
+          icon: '⚡',
+          label: 'SUPER 3x'
+        };
+      default:
+        return {
+          glow: 'rgba(56, 189, 248, 0.5)',
+          ring: '#3CF2FF',
+          bg: 'rgba(0,0,0,0.3)',
+          icon: '∞',
+          label: ''
+        };
+    }
+  };
+
+  const colors = getVoteColors();
+  const circumference = 2 * Math.PI * 29;
+  const strokeDashoffset = circumference * (1 - holdProgress);
+
   return (
-    <motion.button
-      onClick={onVote}
-      disabled={isVoting || isDisabled}
-      whileTap={{ scale: 0.85 }}
-      className="relative w-16 h-16 flex items-center justify-center"
-    >
-      {/* Subtle outer glow */}
-      {!isDisabled && (
+    <div className="relative flex flex-col items-center">
+      {/* Vote type label */}
+      <AnimatePresence>
+        {isHolding && currentVoteType !== 'standard' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className={`absolute -top-8 px-3 py-1 rounded-full text-xs font-bold ${
+              currentVoteType === 'mega'
+                ? 'bg-purple-500 text-white'
+                : 'bg-yellow-500 text-black'
+            }`}
+          >
+            {colors.label}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.button
+        onMouseDown={handlePressStart}
+        onMouseUp={handlePressEnd}
+        onMouseLeave={handlePressEnd}
+        onTouchStart={handlePressStart}
+        onTouchEnd={handlePressEnd}
+        disabled={isVoting || isDisabled}
+        className="relative w-16 h-16 flex items-center justify-center touch-none select-none"
+      >
+        {/* Outer glow - intensifies with hold */}
         <motion.div
-          className="absolute inset-[-4px] rounded-full opacity-50"
+          className="absolute inset-[-6px] rounded-full"
           animate={{
-            boxShadow: [
-              '0 0 15px rgba(56, 189, 248, 0.5)',
-              '0 0 25px rgba(168, 85, 247, 0.6)',
-              '0 0 15px rgba(56, 189, 248, 0.5)',
-            ],
+            boxShadow: isHolding
+              ? `0 0 ${20 + holdProgress * 30}px ${colors.glow}`
+              : hasVoted
+                ? 'none'
+                : [
+                    '0 0 15px rgba(56, 189, 248, 0.5)',
+                    '0 0 25px rgba(168, 85, 247, 0.6)',
+                    '0 0 15px rgba(56, 189, 248, 0.5)',
+                  ],
           }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: 'easeInOut',
-          }}
+          transition={isHolding ? { duration: 0.1 } : { duration: 2.5, repeat: Infinity }}
         />
-      )}
 
-      {/* Gradient border ring - NO solid background */}
-      <svg className="absolute inset-0 w-full h-full drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]" viewBox="0 0 64 64">
-        <defs>
-          <linearGradient id="voteGradientV5" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3CF2FF" />
-            <stop offset="50%" stopColor="#A855F7" />
-            <stop offset="100%" stopColor="#EC4899" />
-          </linearGradient>
-          <linearGradient id="disabledGradientV5" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#555" />
-            <stop offset="100%" stopColor="#333" />
-          </linearGradient>
-        </defs>
-        <circle
-          cx="32"
-          cy="32"
-          r="29"
-          fill="rgba(0,0,0,0.3)"
-          stroke={isDisabled ? 'url(#disabledGradientV5)' : 'url(#voteGradientV5)'}
-          strokeWidth="3"
-        />
-      </svg>
+        {/* Progress ring */}
+        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 64 64">
+          <defs>
+            <linearGradient id="voteGradientPower" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#3CF2FF" />
+              <stop offset="50%" stopColor="#A855F7" />
+              <stop offset="100%" stopColor="#EC4899" />
+            </linearGradient>
+            <linearGradient id="superGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FACC15" />
+              <stop offset="100%" stopColor="#F59E0B" />
+            </linearGradient>
+            <linearGradient id="megaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#A855F7" />
+              <stop offset="100%" stopColor="#7C3AED" />
+            </linearGradient>
+          </defs>
 
-      {/* Infinity sign */}
-      {isVoting ? (
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-          className="relative z-10 text-xl text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]"
-        >
-          ⚡
-        </motion.div>
-      ) : isDisabled ? (
-        <span className="relative z-10 text-gray-400 text-xl">✓</span>
-      ) : (
-        <motion.span
-          className="relative z-10 text-3xl font-black text-white"
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          style={{
-            textShadow: '0 0 10px rgba(56, 189, 248, 0.8), 0 0 20px rgba(168, 85, 247, 0.6), 0 2px 4px rgba(0,0,0,0.8)',
-          }}
-        >
-          ∞
-        </motion.span>
+          {/* Background circle */}
+          <circle
+            cx="32"
+            cy="32"
+            r="29"
+            fill={colors.bg}
+            stroke={hasVoted ? '#4B5563' : 'rgba(255,255,255,0.2)'}
+            strokeWidth="3"
+          />
+
+          {/* Progress circle */}
+          {isHolding && (
+            <circle
+              cx="32"
+              cy="32"
+              r="29"
+              fill="none"
+              stroke={
+                currentVoteType === 'mega'
+                  ? 'url(#megaGradient)'
+                  : currentVoteType === 'super'
+                    ? 'url(#superGradient)'
+                    : 'url(#voteGradientPower)'
+              }
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              style={{ transition: 'stroke-dashoffset 0.05s linear' }}
+            />
+          )}
+        </svg>
+
+        {/* Icon */}
+        {isVoting ? (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+            className="relative z-10 text-xl text-white"
+          >
+            ⚡
+          </motion.div>
+        ) : hasVoted ? (
+          <span className="relative z-10 text-gray-400 text-xl">✓</span>
+        ) : (
+          <motion.span
+            className="relative z-10 text-3xl font-black text-white"
+            animate={isHolding ? { scale: 1 + holdProgress * 0.3 } : { scale: [1, 1.1, 1] }}
+            transition={isHolding ? { duration: 0.1 } : { duration: 2, repeat: Infinity }}
+            style={{
+              textShadow: `0 0 10px ${colors.glow}, 0 2px 4px rgba(0,0,0,0.8)`,
+            }}
+          >
+            {colors.icon}
+          </motion.span>
+        )}
+      </motion.button>
+
+      {/* Remaining special votes indicator */}
+      {!hasVoted && (superRemaining > 0 || megaRemaining > 0) && (
+        <div className="flex gap-2 mt-1">
+          {superRemaining > 0 && (
+            <span className="text-[10px] text-yellow-400 font-medium">
+              ⚡{superRemaining}
+            </span>
+          )}
+          {megaRemaining > 0 && (
+            <span className="text-[10px] text-purple-400 font-medium">
+              💎{megaRemaining}
+            </span>
+          )}
+        </div>
       )}
-    </motion.button>
+    </div>
   );
 }
 
@@ -399,13 +595,13 @@ function VotingArena() {
     setIsPaused(false);
   }, [activeIndex]);
 
-  // Vote mutation
-  const voteMutation = useMutation<VoteResponse, Error, { clipId: string }, MutationContext>({
-    mutationFn: async ({ clipId }) => {
+  // Vote mutation - supports standard, super, mega vote types
+  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType }, MutationContext>({
+    mutationFn: async ({ clipId, voteType }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clipId, voteType: 'standard' }),
+        body: JSON.stringify({ clipId, voteType }),
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -413,20 +609,31 @@ function VotingArena() {
       }
       return res.json();
     },
-    onMutate: async ({ clipId }): Promise<MutationContext> => {
+    onMutate: async ({ clipId, voteType }): Promise<MutationContext> => {
       setIsVoting(true);
+
+      // Vibration feedback based on vote type
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        navigator.vibrate(50);
+        if (voteType === 'mega') {
+          navigator.vibrate([50, 30, 50, 30, 100]);
+        } else if (voteType === 'super') {
+          navigator.vibrate([50, 30, 50]);
+        } else {
+          navigator.vibrate(50);
+        }
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
 
+      // Calculate vote weight for optimistic update
+      const voteWeight = voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
+
       if (previous) {
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
           ...previous,
           clips: previous.clips.map((clip) =>
-            clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + 1 } : clip
+            clip.clip_id === clipId ? { ...clip, vote_count: clip.vote_count + voteWeight } : clip
           ),
           totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
         });
@@ -444,12 +651,20 @@ function VotingArena() {
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: () => {
-      if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
+    onSuccess: (_data, { voteType }) => {
+      // Confetti for milestones and special votes
+      if (voteType === 'mega') {
+        confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+        toast.success('MEGA VOTE! 10x Power!', { icon: '💎' });
+      } else if (voteType === 'super') {
+        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+        toast.success('SUPER VOTE! 3x Power!', { icon: '⚡' });
+      } else if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       }
       setIsVoting(false);
-      // User stays on same video - no auto-advance
+      // Refetch to get updated remaining votes
+      queryClient.invalidateQueries({ queryKey: ['voting', 'track-main'] });
     },
   });
 
@@ -534,13 +749,13 @@ function VotingArena() {
     setActiveIndex((prev) => (prev === 0 ? votingData.clips.length - 1 : prev - 1));
   }, [votingData?.clips]);
 
-  const handleVote = () => {
+  const handleVote = (voteType: VoteType = 'standard') => {
     if (!currentClip || isVoting) return;
     if (votesToday >= DAILY_GOAL) {
       toast.error('Daily limit reached! Come back tomorrow 🚀');
       return;
     }
-    voteMutation.mutate({ clipId: currentClip.clip_id });
+    voteMutation.mutate({ clipId: currentClip.clip_id, voteType });
   };
 
   const handleVideoTap = () => {
@@ -764,44 +979,21 @@ function VotingArena() {
           </motion.div>
         </Link>
 
-        {/* VOTE BUTTON - Heart (like TikTok/Instagram) */}
-        <motion.button
-          whileTap={{ scale: 0.8 }}
-          onClick={handleVote}
-          disabled={isVoting || votesToday >= DAILY_GOAL}
-          className="flex flex-col items-center gap-1 relative"
-        >
-          {/* Heart Icon with Animation */}
-          <motion.div
-            animate={isVoting ? {
-              scale: [1, 1.3, 1],
-            } : {}}
-            transition={{ duration: 0.3 }}
-            className="relative"
-          >
-            <Heart 
-              className={`w-9 h-9 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)] transition-all ${
-                votesToday >= DAILY_GOAL 
-                  ? 'text-white/30' 
-                  : 'text-white'
-              }`}
-            />
-            {/* Pulse effect when voting */}
-            {isVoting && (
-              <motion.div
-                initial={{ scale: 1, opacity: 1 }}
-                animate={{ scale: 2, opacity: 0 }}
-                transition={{ duration: 0.5 }}
-                className="absolute inset-0 rounded-full border-2 border-red-500"
-              />
-            )}
-          </motion.div>
-          
+        {/* POWER VOTE BUTTON - Long press for Super/Mega votes */}
+        <div className="flex flex-col items-center gap-1">
+          <PowerVoteButton
+            onVote={handleVote}
+            isVoting={isVoting}
+            isDisabled={votesToday >= DAILY_GOAL}
+            hasVoted={currentClip?.has_voted ?? false}
+            superRemaining={votingData?.remainingVotes?.super ?? 1}
+            megaRemaining={votingData?.remainingVotes?.mega ?? 1}
+          />
           {/* Vote Count */}
           <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
             {formatNumber(currentClip?.vote_count ?? 0)}
           </span>
-        </motion.button>
+        </div>
 
         {/* Comments */}
         <ActionButton
