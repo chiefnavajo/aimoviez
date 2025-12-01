@@ -549,22 +549,15 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. OPTIMIZED: Fetch only unvoted clips, limited to what we need
-    // This is the key optimization - we only load CLIPS_PER_SESSION clips, not all
-    let unvotedClipsQuery = supabase
+    // 6. Fetch ALL active clips for this slot (both voted and unvoted)
+    // This ensures user can always navigate between clips and revoke votes
+    const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('*')
       .eq('slot_position', activeSlot.slot_position)
       .eq('status', 'active')
-      .order('created_at', { ascending: true }) // Prioritize newer clips for fairness
-      .limit(CLIP_POOL_SIZE); // Get a pool to sample from (30 clips max)
-
-    // Exclude already voted clips if any
-    if (votedClipIds.length > 0) {
-      unvotedClipsQuery = unvotedClipsQuery.not('id', 'in', `(${votedClipIds.join(',')})`);
-    }
-
-    const { data: unvotedClips, error: clipsError } = await unvotedClipsQuery;
+      .order('created_at', { ascending: true })
+      .limit(CLIP_POOL_SIZE);
 
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
@@ -591,23 +584,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    let clipPool = (unvotedClips as TournamentClipRow[]) || [];
-
-    // If no unvoted clips but user has voted on some, fetch the voted clips
-    // so user can still see them and potentially revoke votes
-    if (clipPool.length === 0 && votedClipIds.length > 0) {
-      const { data: votedClips, error: votedClipsError } = await supabase
-        .from('tournament_clips')
-        .select('*')
-        .eq('slot_position', activeSlot.slot_position)
-        .eq('status', 'active')
-        .in('id', votedClipIds)
-        .limit(CLIPS_PER_SESSION);
-
-      if (!votedClipsError && votedClips) {
-        clipPool = votedClips as TournamentClipRow[];
-      }
-    }
+    const clipPool = (allClips as TournamentClipRow[]) || [];
 
     if (clipPool.length === 0) {
       // No clips at all in this slot
