@@ -691,8 +691,8 @@ function VotingArena() {
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       }
       setIsVoting(false);
-      // Refetch to get updated remaining votes
-      queryClient.invalidateQueries({ queryKey: ['voting', 'track-main'] });
+      // Don't invalidate/refetch - optimistic update already handled the UI
+      // This prevents video from changing after voting
     },
   });
 
@@ -758,7 +758,8 @@ function VotingArena() {
         toast.success('Vote removed');
       }
       setIsVoting(false);
-      queryClient.invalidateQueries({ queryKey: ['voting', 'track-main'] });
+      // Don't invalidate/refetch - optimistic update already handled the UI
+      // This prevents video from changing after revoking
     },
   });
 
