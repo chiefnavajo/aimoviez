@@ -1144,12 +1144,6 @@ function VotingArena() {
           </p>
         </div>
 
-        {/* Version indicator for debugging - REMOVE AFTER TESTING */}
-        <div className="mt-4 opacity-50">
-          <p className="text-white/40 text-[8px] font-mono">
-            v2-tapfix
-          </p>
-        </div>
       </div>
 
       {/* ============ BOTTOM: Creator Info ============ */}
