@@ -246,32 +246,36 @@ function PowerVoteButton({
   };
 
   const handlePressStart = () => {
-    if (isVoting || isDisabled || hasVoted) return;
+    if (isVoting || isDisabled) return;
 
+    // For voted clips, we still need to track the press for revoke
     setIsHolding(true);
     startTimeRef.current = Date.now();
     setHoldProgress(0);
     setCurrentVoteType('standard');
 
-    // Update progress every 50ms
-    progressIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - startTimeRef.current;
-      const progress = Math.min(elapsed / MEGA_THRESHOLD, 1);
-      setHoldProgress(progress);
+    // Only start progress interval for new votes (not for revoke)
+    if (!hasVoted) {
+      // Update progress every 50ms
+      progressIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTimeRef.current;
+        const progress = Math.min(elapsed / MEGA_THRESHOLD, 1);
+        setHoldProgress(progress);
 
-      // Determine vote type based on elapsed time
-      if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
-        setCurrentVoteType('mega');
-        // Vibrate if available
-        if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-      } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
-        setCurrentVoteType('super');
-        // Vibrate if available
-        if (navigator.vibrate) navigator.vibrate(30);
-      } else {
-        setCurrentVoteType('standard');
-      }
-    }, 50);
+        // Determine vote type based on elapsed time
+        if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
+          setCurrentVoteType('mega');
+          // Vibrate if available
+          if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+        } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
+          setCurrentVoteType('super');
+          // Vibrate if available
+          if (navigator.vibrate) navigator.vibrate(30);
+        } else {
+          setCurrentVoteType('standard');
+        }
+      }, 50);
+    }
   };
 
   const handlePressEnd = () => {
@@ -293,11 +297,8 @@ function PowerVoteButton({
     // Execute vote or revoke
     if (!isDisabled) {
       if (hasVoted) {
-        // If already voted and just tapped (no hold), revoke
-        if (finalVoteType === 'standard') {
-          onVote('standard'); // This will trigger revoke in handleVote
-        }
-        // If holding for super/mega on already voted clip, ignore
+        // Tap on voted clip = revoke
+        onVote('standard'); // This will trigger revoke in handleVote
       } else {
         onVote(finalVoteType);
       }
