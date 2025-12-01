@@ -224,6 +224,41 @@ async function hasVotedOnClip(
   return !!data;
 }
 
+interface VoteDetails {
+  id: string;
+  vote_weight: number;
+  vote_type: VoteType;
+  slot_position: number;
+}
+
+async function getVoteOnClip(
+  supabase: SupabaseClient,
+  voterKey: string,
+  clipId: string
+): Promise<VoteDetails | null> {
+  const { data, error } = await supabase
+    .from('votes')
+    .select('id, vote_weight, vote_type, slot_position')
+    .eq('voter_key', voterKey)
+    .eq('clip_id', clipId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[vote] getVoteOnClip error:', error);
+    return null;
+  }
+
+  if (!data) return null;
+
+  return {
+    id: data.id,
+    vote_weight: data.vote_weight ?? 1,
+    vote_type: data.vote_type ?? 'standard',
+    slot_position: data.slot_position ?? 1,
+  };
+}
+
 function getVoterKey(req: NextRequest): string {
   const ip =
     (req.headers.get('x-forwarded-for') || '').split(',')[0]?.trim() ||
@@ -852,6 +887,140 @@ export async function POST(req: NextRequest) {
     console.error('Error in POST /api/vote', error);
     return NextResponse.json(
       { success: false, error: 'Failed to cast vote' },
+      { status: 500 }
+    );
+  }
+}
+
+// =========================
+// DELETE /api/vote - Revoke Vote
+// =========================
+
+interface RevokeResponseBody {
+  success: boolean;
+  clipId: string;
+  revokedVoteType: VoteType;
+  newScore: number;
+  totalVotesToday: number;
+  remainingVotes: {
+    standard: number;
+    super: number;
+    mega: number;
+  };
+  error?: string;
+}
+
+export async function DELETE(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'vote');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const supabase = createSupabaseServerClient();
+
+  try {
+    const body = await req.json();
+    const clipId = body.clipId;
+
+    if (!clipId || typeof clipId !== 'string') {
+      return NextResponse.json(
+        { success: false, error: 'clipId is required' },
+        { status: 400 }
+      );
+    }
+
+    const voterKey = getVoterKey(req);
+
+    // 1. Get existing vote details
+    const existingVote = await getVoteOnClip(supabase, voterKey, clipId);
+
+    if (!existingVote) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No vote found to revoke',
+          code: 'NOT_VOTED',
+          clipId,
+        },
+        { status: 404 }
+      );
+    }
+
+    // 2. Get clip's current stats
+    const { data: clipData, error: clipFetchError } = await supabase
+      .from('tournament_clips')
+      .select('vote_count, weighted_score')
+      .eq('id', clipId)
+      .maybeSingle();
+
+    if (clipFetchError || !clipData) {
+      console.error('[DELETE /api/vote] clipFetchError:', clipFetchError);
+      return NextResponse.json(
+        { success: false, error: 'Clip not found' },
+        { status: 404 }
+      );
+    }
+
+    // 3. Delete the vote
+    const { error: deleteError } = await supabase
+      .from('votes')
+      .delete()
+      .eq('id', existingVote.id);
+
+    if (deleteError) {
+      console.error('[DELETE /api/vote] deleteError:', deleteError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to revoke vote' },
+        { status: 500 }
+      );
+    }
+
+    // 4. Update clip stats (subtract vote weight)
+    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - 1);
+    const newWeightedScore = Math.max(
+      0,
+      (clipData.weighted_score ?? 0) - existingVote.vote_weight
+    );
+
+    const { error: updateClipError } = await supabase
+      .from('tournament_clips')
+      .update({
+        vote_count: newVoteCount,
+        weighted_score: newWeightedScore,
+      })
+      .eq('id', clipId);
+
+    if (updateClipError) {
+      console.error('[DELETE /api/vote] updateClipError:', updateClipError);
+      // Vote was deleted, but stats update failed - log but continue
+    }
+
+    // 5. Calculate remaining votes (vote is now restored)
+    const { count: newTotalVotesToday } = await getUserVotesToday(supabase, voterKey);
+    const slotVotesAfter = await getUserVotesInSlot(
+      supabase,
+      voterKey,
+      existingVote.slot_position
+    );
+    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfter);
+
+    const response: RevokeResponseBody = {
+      success: true,
+      clipId,
+      revokedVoteType: existingVote.vote_type,
+      newScore: newWeightedScore,
+      totalVotesToday: newTotalVotesToday,
+      remainingVotes: {
+        standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
+        super: specialRemaining.super,
+        mega: specialRemaining.mega,
+      },
+    };
+
+    return NextResponse.json(response, { status: 200 });
+  } catch (error) {
+    console.error('Error in DELETE /api/vote', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to revoke vote' },
       { status: 500 }
     );
   }

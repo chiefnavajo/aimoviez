@@ -290,9 +290,17 @@ function PowerVoteButton({
       finalVoteType = 'super';
     }
 
-    // Execute vote
-    if (!isDisabled && !hasVoted) {
-      onVote(finalVoteType);
+    // Execute vote or revoke
+    if (!isDisabled) {
+      if (hasVoted) {
+        // If already voted and just tapped (no hold), revoke
+        if (finalVoteType === 'standard') {
+          onVote('standard'); // This will trigger revoke in handleVote
+        }
+        // If holding for super/mega on already voted clip, ignore
+      } else {
+        onVote(finalVoteType);
+      }
     }
 
     // Reset progress after animation
@@ -370,14 +378,14 @@ function PowerVoteButton({
         disabled={isVoting || isDisabled}
         className="relative w-16 h-16 flex items-center justify-center touch-none select-none"
       >
-        {/* Outer glow - intensifies with hold */}
+        {/* Outer glow - intensifies with hold, green when voted */}
         <motion.div
           className="absolute inset-[-6px] rounded-full"
           animate={{
             boxShadow: isHolding
               ? `0 0 ${20 + holdProgress * 30}px ${colors.glow}`
               : hasVoted
-                ? 'none'
+                ? '0 0 15px rgba(74, 222, 128, 0.5)'
                 : [
                     '0 0 15px rgba(56, 189, 248, 0.5)',
                     '0 0 25px rgba(168, 85, 247, 0.6)',
@@ -403,6 +411,10 @@ function PowerVoteButton({
               <stop offset="0%" stopColor="#A855F7" />
               <stop offset="100%" stopColor="#7C3AED" />
             </linearGradient>
+            <linearGradient id="votedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#4ADE80" />
+              <stop offset="100%" stopColor="#22C55E" />
+            </linearGradient>
           </defs>
 
           {/* Background circle */}
@@ -410,8 +422,8 @@ function PowerVoteButton({
             cx="32"
             cy="32"
             r="29"
-            fill={colors.bg}
-            stroke={hasVoted ? '#4B5563' : 'rgba(255,255,255,0.2)'}
+            fill={hasVoted ? 'rgba(74, 222, 128, 0.2)' : colors.bg}
+            stroke={hasVoted ? '#4ADE80' : 'rgba(255,255,255,0.2)'}
             strokeWidth="3"
           />
 
@@ -448,7 +460,16 @@ function PowerVoteButton({
             ⚡
           </motion.div>
         ) : hasVoted ? (
-          <span className="relative z-10 text-gray-400 text-xl">✓</span>
+          <motion.div
+            className="relative z-10 flex flex-col items-center"
+            initial={{ scale: 0.8 }}
+            animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 300 }}
+          >
+            <span className="text-2xl text-green-400" style={{ textShadow: '0 0 10px rgba(74, 222, 128, 0.8)' }}>
+              ✓
+            </span>
+          </motion.div>
         ) : (
           <motion.span
             className="relative z-10 text-3xl font-black text-white"
@@ -463,8 +484,12 @@ function PowerVoteButton({
         )}
       </motion.button>
 
-      {/* Remaining special votes indicator */}
-      {!hasVoted && (superRemaining > 0 || megaRemaining > 0) && (
+      {/* Status indicator */}
+      {hasVoted ? (
+        <span className="text-[10px] text-green-400/70 font-medium mt-1">
+          tap to undo
+        </span>
+      ) : (superRemaining > 0 || megaRemaining > 0) ? (
         <div className="flex gap-2 mt-1">
           {superRemaining > 0 && (
             <span className="text-[10px] text-yellow-400 font-medium">
@@ -477,7 +502,7 @@ function PowerVoteButton({
             </span>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -668,6 +693,72 @@ function VotingArena() {
     },
   });
 
+  // Revoke vote mutation
+  const revokeMutation = useMutation<
+    { success: boolean; newScore: number; revokedVoteType: VoteType },
+    Error,
+    { clipId: string },
+    MutationContext
+  >({
+    mutationFn: async ({ clipId }) => {
+      const res = await fetch('/api/vote', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clipId }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to revoke vote');
+      }
+      return res.json();
+    },
+    onMutate: async ({ clipId }): Promise<MutationContext> => {
+      setIsVoting(true);
+
+      // Vibration feedback for revoke
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate([30, 20, 30]);
+      }
+
+      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+
+      if (previous) {
+        // Find the clip to get approximate vote weight (assume standard for optimistic)
+        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+          ...previous,
+          clips: previous.clips.map((clip) =>
+            clip.clip_id === clipId
+              ? { ...clip, vote_count: Math.max(0, clip.vote_count - 1), has_voted: false }
+              : clip
+          ),
+          totalVotesToday: Math.max(0, (previous.totalVotesToday ?? 0) - 1),
+        });
+      }
+
+      return { previous };
+    },
+    onError: (error: Error, _variables, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['voting', 'track-main'], context.previous);
+      }
+      toast.error(error.message);
+      setIsVoting(false);
+    },
+    onSuccess: (data) => {
+      const voteType = data.revokedVoteType;
+      if (voteType === 'mega') {
+        toast.success('Mega vote removed', { icon: '💎' });
+      } else if (voteType === 'super') {
+        toast.success('Super vote removed', { icon: '⚡' });
+      } else {
+        toast.success('Vote removed');
+      }
+      setIsVoting(false);
+      queryClient.invalidateQueries({ queryKey: ['voting', 'track-main'] });
+    },
+  });
+
   // Pusher real-time
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
@@ -749,13 +840,29 @@ function VotingArena() {
     setActiveIndex((prev) => (prev === 0 ? votingData.clips.length - 1 : prev - 1));
   }, [votingData?.clips]);
 
+  // Handle vote - if already voted, revoke; otherwise cast new vote
   const handleVote = (voteType: VoteType = 'standard') => {
     if (!currentClip || isVoting) return;
+
+    // If already voted on this clip, revoke the vote (only on tap, not hold)
+    if (currentClip.has_voted && voteType === 'standard') {
+      revokeMutation.mutate({ clipId: currentClip.clip_id });
+      return;
+    }
+
+    // Check daily limit for new votes
     if (votesToday >= DAILY_GOAL) {
       toast.error('Daily limit reached! Come back tomorrow 🚀');
       return;
     }
+
     voteMutation.mutate({ clipId: currentClip.clip_id, voteType });
+  };
+
+  // Handle revoke vote separately (for explicit revoke action)
+  const handleRevokeVote = () => {
+    if (!currentClip || isVoting || !currentClip.has_voted) return;
+    revokeMutation.mutate({ clipId: currentClip.clip_id });
   };
 
   const handleVideoTap = () => {
