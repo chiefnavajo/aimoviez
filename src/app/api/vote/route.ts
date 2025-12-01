@@ -730,6 +730,25 @@ export async function POST(req: NextRequest) {
 
     const voterKey = getVoterKey(req);
 
+    // Get logged-in user's ID if available
+    let loggedInUserId: string | null = null;
+    try {
+      const { getServerSession } = await import('next-auth');
+      const session = await getServerSession();
+      if (session?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', session.user.email)
+          .single();
+        if (userData) {
+          loggedInUserId = userData.id;
+        }
+      }
+    } catch {
+      // No session - continue with voterKey only
+    }
+
     // 1. Check if already voted on this clip (HYBRID RULE: 1 vote per clip)
     const alreadyVoted = await hasVotedOnClip(supabase, voterKey, clipId);
     if (alreadyVoted) {
@@ -808,11 +827,11 @@ export async function POST(req: NextRequest) {
     const weight: number =
       voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
 
-    // 6. Insert vote
+    // 6. Insert vote (use real user_id if logged in, otherwise use voterKey)
     const { error: insertError } = await supabase.from('votes').insert({
       clip_id: clipId,
       voter_key: voterKey,
-      user_id: voterKey,
+      user_id: loggedInUserId || voterKey,
       vote_weight: weight,
       vote_type: voteType,
       slot_position: slotPosition,

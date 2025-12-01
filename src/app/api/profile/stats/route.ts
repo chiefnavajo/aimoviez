@@ -115,11 +115,42 @@ export async function GET(req: NextRequest) {
     }
 
     // 1. Get user's total votes
-    const { data: allVotes, error: votesError } = await supabase
-      .from('votes')
-      .select('created_at, vote_weight')
-      .eq('voter_key', voterKey)
-      .order('created_at', { ascending: true });
+    // Try to get votes by user_id first (for logged-in users), fallback to voter_key
+    let allVotes: { created_at: string; vote_weight: number }[] = [];
+    let votesError = null;
+
+    if (userId) {
+      // First try by user_id (most reliable for logged-in users)
+      const { data, error } = await supabase
+        .from('votes')
+        .select('created_at, vote_weight')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        allVotes = data;
+      } else {
+        // Fallback to voter_key if no votes found by user_id
+        const { data: keyData, error: keyError } = await supabase
+          .from('votes')
+          .select('created_at, vote_weight')
+          .eq('voter_key', voterKey)
+          .order('created_at', { ascending: true });
+
+        allVotes = keyData || [];
+        votesError = keyError;
+      }
+    } else {
+      // Not logged in - use voter_key
+      const { data, error } = await supabase
+        .from('votes')
+        .select('created_at, vote_weight')
+        .eq('voter_key', voterKey)
+        .order('created_at', { ascending: true });
+
+      allVotes = data || [];
+      votesError = error;
+    }
 
     if (votesError) {
       console.error('[GET /api/profile/stats] votesError:', votesError);
@@ -137,16 +168,27 @@ export async function GET(req: NextRequest) {
     const xp_needed = xpForNextLevel(level);
     const xp_progress = ((total_xp % xp_needed) / xp_needed) * 100;
 
-    // 2. Get votes today
+    // 2. Get votes today (use user_id if logged in, otherwise voter_key)
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const todayStr = today.toISOString();
 
-    const { data: todayVotes } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('voter_key', voterKey)
-      .gte('created_at', todayStr);
+    let todayVotes: { id: string }[] = [];
+    if (userId) {
+      const { data } = await supabase
+        .from('votes')
+        .select('id')
+        .eq('user_id', userId)
+        .gte('created_at', todayStr);
+      todayVotes = data || [];
+    } else {
+      const { data } = await supabase
+        .from('votes')
+        .select('id')
+        .eq('voter_key', voterKey)
+        .gte('created_at', todayStr);
+      todayVotes = data || [];
+    }
 
     const votes_today = todayVotes?.length || 0;
 
