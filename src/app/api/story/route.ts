@@ -120,6 +120,54 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // 3b. Get a preview thumbnail from active clips for each season (fallback)
+    // This map stores season_id -> preview_thumbnail_url
+    const seasonPreviewMap = new Map<string, string>();
+
+    // For each season with a voting slot, fetch a preview clip thumbnail
+    for (const seasonRow of seasons) {
+      const seasonSlots = (slots || []).filter(s => s.season_id === seasonRow.id);
+      const votingSlot = seasonSlots.find(s => s.status === 'voting');
+
+      if (votingSlot) {
+        // Try to get any clip with a thumbnail or video from the current voting slot
+        // First try with season_id filter
+        let { data: previewClips, error: previewError } = await supabase
+          .from('tournament_clips')
+          .select('thumbnail_url, video_url')
+          .eq('season_id', seasonRow.id)
+          .eq('slot_position', votingSlot.slot_position)
+          .eq('status', 'active')
+          .order('vote_count', { ascending: false })
+          .limit(5);
+
+        // If no clips found with season_id, try without it (for legacy data)
+        if ((!previewClips || previewClips.length === 0) && !previewError) {
+          const fallbackResult = await supabase
+            .from('tournament_clips')
+            .select('thumbnail_url, video_url')
+            .eq('slot_position', votingSlot.slot_position)
+            .eq('status', 'active')
+            .order('vote_count', { ascending: false })
+            .limit(5);
+
+          previewClips = fallbackResult.data;
+          previewError = fallbackResult.error;
+        }
+
+        if (!previewError && previewClips && previewClips.length > 0) {
+          // Find first clip that has a thumbnail or video
+          for (const clip of previewClips) {
+            const previewUrl = clip.thumbnail_url || clip.video_url;
+            if (previewUrl && previewUrl.length > 0) {
+              seasonPreviewMap.set(seasonRow.id, previewUrl);
+              break;
+            }
+          }
+        }
+      }
+    }
+
     // 4. Build response
     const result: Season[] = seasons.map(seasonRow => {
       const seasonSlots = (slots || []).filter(s => s.season_id === seasonRow.id);
@@ -157,11 +205,20 @@ export async function GET(req: NextRequest) {
       if (seasonRow.status === 'finished') status = 'completed';
       else if (seasonRow.status === 'active') status = 'active';
 
-      // Get thumbnail
+      // Get thumbnail - prioritize locked winners, fall back to preview from voting clips
       let thumbnail_url: string | undefined;
       const firstLocked = mappedSlots.find(s => s.status === 'locked' && s.winning_clip);
-      if (firstLocked?.winning_clip) {
-        thumbnail_url = firstLocked.winning_clip.thumbnail_url || firstLocked.winning_clip.video_url;
+
+      // Check locked clip thumbnail (must be non-empty string)
+      if (firstLocked?.winning_clip?.thumbnail_url && firstLocked.winning_clip.thumbnail_url.length > 0) {
+        thumbnail_url = firstLocked.winning_clip.thumbnail_url;
+      } else if (firstLocked?.winning_clip?.video_url && firstLocked.winning_clip.video_url.length > 0) {
+        thumbnail_url = firstLocked.winning_clip.video_url;
+      }
+
+      // If still no thumbnail, try preview from voting clips
+      if (!thumbnail_url) {
+        thumbnail_url = seasonPreviewMap.get(seasonRow.id);
       }
 
       // Extract season number from label or use index

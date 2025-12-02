@@ -836,7 +836,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
     ? completedSegments[completedSegments.length - 1]?.winning_clip
     : null;
   const thumbnailUrl = lastCompletedClip?.thumbnail_url || selectedSeason?.thumbnail_url;
-  const videoUrl = lastCompletedClip?.video_url;
+  const videoUrl = lastCompletedClip?.video_url || selectedSeason?.thumbnail_url;
 
   const isActive = selectedSeason?.status === 'active';
   const isCompleted = selectedSeason?.status === 'completed';
@@ -902,22 +902,32 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/30 to-pink-500/30">
                 <Lock className="w-4 h-4 text-white/50" />
               </div>
-            ) : thumbnailUrl ? (
-              /* Has thumbnail image - show it */
-              <img
-                src={thumbnailUrl}
-                alt=""
-                className="w-full h-full object-cover"
-              />
-            ) : videoUrl ? (
-              /* Has video but no thumbnail - show video first frame */
-              <video
-                src={videoUrl}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-                preload="metadata"
-              />
+            ) : thumbnailUrl || videoUrl ? (
+              /* Has media - check if it's a video or image */
+              (() => {
+                const mediaUrl = thumbnailUrl || videoUrl;
+                const isVideo = mediaUrl?.match(/\.(mp4|webm|mov|m4v)(\?|$)/i);
+
+                if (isVideo) {
+                  return (
+                    <video
+                      src={mediaUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="metadata"
+                    />
+                  );
+                } else {
+                  return (
+                    <img
+                      src={mediaUrl}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
+                  );
+                }
+              })()
             ) : (
               /* No content yet - show gradient with season number */
               <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/30 via-[#A020F0]/30 to-[#FF00C7]/30 flex flex-col items-center justify-center">
