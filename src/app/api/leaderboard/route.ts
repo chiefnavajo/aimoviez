@@ -6,19 +6,50 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// ============================================================================
+// In-memory cache with TTL
+// ============================================================================
+const cache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string) {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expires) {
+    return entry.data;
+  }
+  cache.delete(key); // Clean up expired entry
+  return null;
+}
+
+function setCache(key: string, data: any) {
+  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!url || !key) {
     throw new Error('Missing Supabase environment variables');
   }
-  
+
   return createClient(url, key);
 }
 
 export async function GET(request: NextRequest) {
   try {
+    // Check cache first
+    const cacheKey = 'leaderboard_main';
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
     const supabase = getSupabaseClient();
 
     // Get active season
@@ -47,10 +78,10 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get all active clips with votes
+    // Get all active clips with votes (optimized SELECT - only needed fields)
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, video_url, thumbnail_url, username, avatar_url, vote_count, genre, title, slot_position')
       .eq('status', 'active')
       .order('vote_count', { ascending: false });
 
@@ -72,12 +103,22 @@ export async function GET(request: NextRequest) {
       trend: 'same' as const, // Can be enhanced with historical data
     }));
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       clips: rankedClips,
       season: activeSeason,
       totalVotes,
       totalClips: clips?.length || 0,
+    };
+
+    // Cache the response
+    setCache(cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'X-Cache': 'MISS',
+      },
     });
   } catch (error) {
     console.error('GET /api/leaderboard error:', error);

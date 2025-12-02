@@ -7,6 +7,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
+// In-memory cache with TTL (shorter for story due to active voting)
+// ============================================================================
+const cache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 30 * 1000; // 30 seconds (shorter due to active voting)
+
+function getCached(key: string) {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expires) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any) {
+  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
+// ============================================================================
 // Types
 // ============================================================================
 
@@ -53,6 +72,18 @@ interface StoryResponse {
 
 export async function GET(req: NextRequest) {
   try {
+    // Check cache first
+    const cacheKey = 'story_seasons';
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
     // Check environment variables
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -252,7 +283,18 @@ export async function GET(req: NextRequest) {
       return b.number - a.number;
     });
 
-    return NextResponse.json({ seasons: result }, { status: 200 });
+    const responseData = { seasons: result };
+
+    // Cache the response
+    setCache(cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+        'X-Cache': 'MISS',
+      },
+    });
 
   } catch (error: any) {
     console.error('[story] Unexpected error:', error);

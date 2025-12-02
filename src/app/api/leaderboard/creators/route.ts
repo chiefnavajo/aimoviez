@@ -8,6 +8,25 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// ============================================================================
+// In-memory cache with TTL
+// ============================================================================
+const cache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string) {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expires) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any) {
+  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
 interface LeaderboardCreator {
   rank: number;
   user_id: string;
@@ -43,13 +62,26 @@ interface LeaderboardCreatorsResponse {
  */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
 
     const timeframe = (searchParams.get('timeframe') || 'all') as 'today' | 'week' | 'all';
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const offset = (page - 1) * limit;
+
+    // Check cache first
+    const cacheKey = `leaderboard_creators_${timeframe}_${page}_${limit}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Try to use RPC function first (most efficient)
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_creators', {
@@ -81,14 +113,24 @@ export async function GET(req: NextRequest) {
         best_clip_votes: Number(row.best_clip_votes) || 0,
       }));
 
-      return NextResponse.json({
+      const responseData = {
         creators,
         timeframe,
         total_creators,
         page,
         page_size: limit,
         has_more: total_creators > offset + limit,
-      } satisfies LeaderboardCreatorsResponse);
+      } satisfies LeaderboardCreatorsResponse;
+
+      // Cache the response
+      setCache(cacheKey, responseData);
+
+      return NextResponse.json(responseData, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'MISS',
+        },
+      });
     }
 
     // FALLBACK: Use optimized query with LIMIT (not loading all clips)
@@ -206,14 +248,24 @@ export async function GET(req: NextRequest) {
       ...creator,
     }));
 
-    return NextResponse.json({
+    const responseData = {
       creators: enrichedCreators,
       timeframe,
       total_creators,
       page,
       page_size: limit,
       has_more: total_creators > offset + limit,
-    } satisfies LeaderboardCreatorsResponse);
+    } satisfies LeaderboardCreatorsResponse;
+
+    // Cache the response
+    setCache(cacheKey, responseData);
+
+    return NextResponse.json(responseData, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'X-Cache': 'MISS',
+      },
+    });
   } catch (err: any) {
     console.error('[GET /api/leaderboard/creators] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 });

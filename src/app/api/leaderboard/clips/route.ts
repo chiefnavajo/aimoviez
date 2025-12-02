@@ -7,6 +7,25 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
+// ============================================================================
+// In-memory cache with TTL
+// ============================================================================
+const cache = new Map<string, { data: any; expires: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+function getCached(key: string) {
+  const entry = cache.get(key);
+  if (entry && Date.now() < entry.expires) {
+    return entry.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key: string, data: any) {
+  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
 interface LeaderboardClip {
   rank: number;
   id: string;
@@ -43,13 +62,26 @@ interface LeaderboardClipsResponse {
  */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
-    
+
     const timeframe = (searchParams.get('timeframe') || 'all') as 'today' | 'week' | 'all';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const offset = (page - 1) * limit;
+
+    // Check cache first
+    const cacheKey = `leaderboard_clips_${timeframe}_${page}_${limit}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Build query
     let query = supabase
@@ -130,7 +162,16 @@ export async function GET(req: NextRequest) {
       has_more: (count || 0) > offset + limit,
     };
 
-    return NextResponse.json(response, { status: 200 });
+    // Cache the response
+    setCache(cacheKey, response);
+
+    return NextResponse.json(response, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        'X-Cache': 'MISS',
+      },
+    });
   } catch (err: any) {
     console.error('[GET /api/leaderboard/clips] Unexpected error:', err);
     return NextResponse.json(
