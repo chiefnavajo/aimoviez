@@ -93,6 +93,7 @@ export default function ProfilePage() {
   const [history, setHistory] = useState<VotingHistoryItem[]>([]);
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [settings, setSettings] = useState({ notifications: true, autoplay: true });
   const [username, setUsername] = useState('User');
   const [avatarUrl, setAvatarUrl] = useState(`https://api.dicebear.com/7.x/avataaars/svg?seed=User`);
@@ -202,6 +203,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         console.error('Failed to fetch profile data:', err);
+        setError('Failed to load profile data. Please try again.');
       } finally {
         setLoading(false);
       }
@@ -209,6 +211,14 @@ export default function ProfilePage() {
 
     fetchData();
   }, [username]);
+
+  // Retry function for error state
+  const handleRetry = () => {
+    setError(null);
+    setLoading(true);
+    // Trigger refetch by updating a dependency
+    setUsername(prev => prev);
+  };
 
   const levelProgress = stats ? (stats.xp / stats.nextLevelXp) * 100 : 0;
   const displayStats = stats || EMPTY_STATS;
@@ -252,12 +262,12 @@ export default function ProfilePage() {
                     )}
                     <span className={`text-2xl mb-1 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
                     <span className="text-[10px] font-medium text-center">{badge.name}</span>
-                    {!badge.unlocked && badge.progress !== undefined && (
+                    {!badge.unlocked && badge.progress !== undefined && badge.target && badge.target > 0 && (
                       <div className="w-full mt-2">
                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
-                            style={{ width: `${(badge.progress! / badge.target!) * 100}%` }}
+                            style={{ width: `${Math.min((badge.progress / badge.target) * 100, 100)}%` }}
                           />
                         </div>
                         <span className="text-[8px] text-white/40 mt-0.5 block text-center">{badge.progress}/{badge.target}</span>
@@ -272,44 +282,47 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
-          {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).length > 0 && (
+          {displayBadges.filter(b => !b.unlocked && b.progress !== undefined && b.target && b.target > 0).length > 0 && (
             <div>
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-cyan-500" />
                 In Progress
               </h2>
               <div className="space-y-3">
-                {displayBadges.filter(b => !b.unlocked && b.progress !== undefined).map((badge, idx) => (
-                  <motion.div
-                    key={badge.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1, duration: 0.3 }}
-                    className="glass-card glass-card-hover p-4"
-                  >
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-                        <span className="text-xl">{badge.icon}</span>
+                {displayBadges.filter(b => !b.unlocked && b.progress !== undefined && b.target && b.target > 0).map((badge, idx) => {
+                  const progressPercent = Math.min(Math.round((badge.progress! / badge.target!) * 100), 100);
+                  return (
+                    <motion.div
+                      key={badge.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.1, duration: 0.3 }}
+                      className="glass-card glass-card-hover p-4"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
+                          <span className="text-xl">{badge.icon}</span>
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-bold">{badge.name}</div>
+                          <div className="text-xs text-white/50">{badge.description}</div>
+                        </div>
+                        <span className="text-sm font-bold text-cyan-400">{progressPercent}%</span>
                       </div>
-                      <div className="flex-1">
-                        <div className="font-bold">{badge.name}</div>
-                        <div className="text-xs text-white/50">{badge.description}</div>
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
+                          <motion.div
+                            className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 shimmer-bar rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progressPercent}%` }}
+                            transition={{ duration: 0.8, ease: "easeOut" }}
+                          />
+                        </div>
+                        <span className="text-xs text-white/60 min-w-[50px] text-right">{badge.progress}/{badge.target}</span>
                       </div>
-                      <span className="text-sm font-bold text-cyan-400">{Math.round((badge.progress! / badge.target!) * 100)}%</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2.5 bg-white/10 rounded-full overflow-hidden">
-                        <motion.div
-                          className="h-full bg-gradient-to-r from-cyan-500 to-purple-500 shimmer-bar rounded-full"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${(badge.progress! / badge.target!) * 100}%` }}
-                          transition={{ duration: 0.8, ease: "easeOut" }}
-                        />
-                      </div>
-                      <span className="text-xs text-white/60 min-w-[50px] text-right">{badge.progress}/{badge.target}</span>
-                    </div>
-                  </motion.div>
-                ))}
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -520,6 +533,16 @@ export default function ProfilePage() {
               {loading ? (
                 <div className="flex items-center justify-center py-12">
                   <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-4">
+                  <p className="text-red-400 text-sm">{error}</p>
+                  <button
+                    onClick={handleRetry}
+                    className="px-4 py-2 bg-cyan-500/20 border border-cyan-500/50 rounded-lg text-cyan-400 text-sm hover:bg-cyan-500/30 transition-colors"
+                  >
+                    Try Again
+                  </button>
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-3">

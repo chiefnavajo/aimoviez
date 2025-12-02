@@ -33,8 +33,13 @@ export async function POST(req: NextRequest) {
     const {
       clear_votes = false,
       reset_clip_counts = false,
-      start_slot = 1,
+      start_slot: rawStartSlot = 1,
     } = body;
+
+    // Validate start_slot parameter
+    const start_slot = typeof rawStartSlot === 'number' && rawStartSlot >= 1 && rawStartSlot <= 75
+      ? Math.floor(rawStartSlot)
+      : 1;
 
     // 1. Get active season
     const { data: season, error: seasonError } = await supabase

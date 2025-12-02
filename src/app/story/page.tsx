@@ -143,56 +143,6 @@ async function fetchSeasons(): Promise<Season[]> {
 }
 
 // ============================================================================
-// INFINITY VOTE BUTTON
-// ============================================================================
-
-function InfinityVoteButton({ onClick, label, size = 'normal' }: { onClick: () => void; label?: string; size?: 'small' | 'normal' }) {
-  const btnSize = size === 'small' ? 'w-12 h-12' : 'w-16 h-16';
-  const textSize = size === 'small' ? 'text-xl' : 'text-3xl';
-  
-  return (
-    <div className="flex flex-col items-center gap-1">
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        onClick={onClick}
-        className={`relative ${btnSize} flex items-center justify-center`}
-      >
-        <motion.div
-          className="absolute inset-[-3px] rounded-full opacity-50"
-          animate={{
-            boxShadow: [
-              '0 0 12px rgba(56, 189, 248, 0.5)',
-              '0 0 20px rgba(168, 85, 247, 0.6)',
-              '0 0 12px rgba(56, 189, 248, 0.5)',
-            ],
-          }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <svg className="absolute inset-0 w-full h-full drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]" viewBox="0 0 64 64">
-          <defs>
-            <linearGradient id="voteGradStory" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#3CF2FF" />
-              <stop offset="50%" stopColor="#A855F7" />
-              <stop offset="100%" stopColor="#EC4899" />
-            </linearGradient>
-          </defs>
-          <circle cx="32" cy="32" r="29" fill="rgba(0,0,0,0.3)" stroke="url(#voteGradStory)" strokeWidth="3" />
-        </svg>
-        <motion.span
-          className={`relative z-10 ${textSize} font-black text-white`}
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          style={{ textShadow: '0 0 8px rgba(56, 189, 248, 0.8), 0 0 16px rgba(168, 85, 247, 0.6)' }}
-        >
-          ∞
-        </motion.span>
-      </motion.button>
-      {label && <p className="text-white/70 text-xs font-medium">{label}</p>}
-    </div>
-  );
-}
-
-// ============================================================================
 // ACTION BUTTON
 // ============================================================================
 
@@ -263,31 +213,23 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setVideoLoaded(false);
   }, [currentIndex]);
 
-  // Auto-play when video is loaded and ready
+  // Consolidated video playback control - prevents race conditions
   useEffect(() => {
-    if (videoLoaded && isPlaying && completedSegments.length > 0) {
-      const video = videoRef.current;
-      if (video) {
-        // Video is loaded, now we can safely play
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            // Autoplay blocked - user needs to interact first
-          });
-        }
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (isPlaying && videoLoaded && completedSegments.length > 0) {
+      // Only play when video is loaded and we should be playing
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay blocked - user needs to interact first
+        });
       }
+    } else if (!isPlaying) {
+      video.pause();
     }
   }, [videoLoaded, isPlaying, completedSegments.length]);
-
-  // Handle pause when isPlaying becomes false
-  useEffect(() => {
-    if (!isPlaying) {
-      const video = videoRef.current;
-      if (video) {
-        video.pause();
-      }
-    }
-  }, [isPlaying]);
 
   // Note: Auto-advance is handled by video onEnded event
 
