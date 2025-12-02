@@ -219,7 +219,7 @@ interface VideoPlayerProps {
 }
 
 function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: VideoPlayerProps) {
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [showContributors, setShowContributors] = useState(false);
@@ -229,12 +229,23 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
+  const [clipDurations, setClipDurations] = useState<number[]>([]);
+  const [videoLoaded, setVideoLoaded] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const progressRef = useRef<HTMLDivElement>(null);
 
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
-  const totalDuration = completedSegments.length * 8;
+
+  // Calculate total duration based on known clip durations or estimate 8s per clip
+  const totalStoryDuration = clipDurations.length === completedSegments.length && clipDurations.length > 0
+    ? clipDurations.reduce((sum, d) => sum + d, 0)
+    : completedSegments.length * 8;
+
+  // Calculate current position in the overall story timeline
+  const timeBeforeCurrentClip = clipDurations.slice(0, currentIndex).reduce((sum, d) => sum + d, 0);
+  const overallCurrentTime = timeBeforeCurrentClip + currentTime;
+
   const isActive = season.status === 'active';
   const isCompleted = season.status === 'completed';
   const isComingSoon = season.status === 'coming_soon';
@@ -242,26 +253,41 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   // Reset when season changes
   useEffect(() => {
     setCurrentIndex(0);
-    setIsPlaying(false);
+    setIsPlaying(true); // Auto-play when season loads
+    setClipDurations([]);
+    setVideoLoaded(false);
   }, [season.id]);
 
-  // Control video playback when isPlaying changes or index changes
+  // Reset video loaded state when clip changes
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    
-    if (isPlaying) {
-      // Small delay to ensure video element is ready after index change
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Autoplay blocked - this is fine, user will tap to play
-        });
+    setVideoLoaded(false);
+  }, [currentIndex]);
+
+  // Auto-play when video is loaded and ready
+  useEffect(() => {
+    if (videoLoaded && isPlaying && completedSegments.length > 0) {
+      const video = videoRef.current;
+      if (video) {
+        // Video is loaded, now we can safely play
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Autoplay blocked - user needs to interact first
+          });
+        }
       }
-    } else {
-      video.pause();
     }
-  }, [isPlaying, currentIndex]);
+  }, [videoLoaded, isPlaying, completedSegments.length]);
+
+  // Handle pause when isPlaying becomes false
+  useEffect(() => {
+    if (!isPlaying) {
+      const video = videoRef.current;
+      if (video) {
+        video.pause();
+      }
+    }
+  }, [isPlaying]);
 
   // Note: Auto-advance is handled by video onEnded event
 
@@ -422,33 +448,48 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
           {currentSegment?.winning_clip?.video_url ? (
             <>
-              {/* Show thumbnail as background while video loads */}
-              {currentSegment.winning_clip.thumbnail_url && (
-                <img
-                  src={currentSegment.winning_clip.thumbnail_url}
-                  alt=""
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              )}
+              {/* Show video with first frame visible (paused until play) */}
               <video
                 ref={videoRef}
                 src={currentSegment.winning_clip.video_url}
                 poster={currentSegment.winning_clip.thumbnail_url || undefined}
                 className="absolute inset-0 w-full h-full object-cover"
-                autoPlay={isPlaying}
                 muted={isMuted}
                 playsInline
                 preload="auto"
+                autoPlay={isPlaying}
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
+                onLoadedMetadata={() => {
+                  handleLoadedMetadata();
+                  // Store this clip's duration
+                  if (videoRef.current) {
+                    const newDuration = videoRef.current.duration;
+                    setClipDurations(prev => {
+                      const updated = [...prev];
+                      updated[currentIndex] = newDuration;
+                      return updated;
+                    });
+                  }
+                }}
+                onCanPlay={() => {
+                  // Video can start playing - mark as loaded and play if needed
+                  setVideoLoaded(true);
+                  if (isPlaying && videoRef.current) {
+                    videoRef.current.play().catch(() => {});
+                  }
+                }}
+                onLoadedData={() => {
+                  // Video first frame is now available
+                  setVideoLoaded(true);
+                }}
                 onEnded={() => {
                   // Auto-advance to next segment, keep playing
                   if (currentIndex < completedSegments.length - 1) {
                     setCurrentIndex(prev => prev + 1);
                   } else {
-                    // End of season - loop back to start or stop
+                    // End of season - loop back to start and continue playing
                     setCurrentIndex(0);
-                    setIsPlaying(false);
+                    // Keep playing for continuous loop
                   }
                 }}
                 onPlay={() => setIsPlaying(true)}
@@ -456,8 +497,14 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                   // Only set to false if we didn't just finish (avoid pause during transition)
                 }}
               />
+              {/* Loading overlay - show while video first frame loads */}
+              {!videoLoaded && (
+                <div className="absolute inset-0 bg-gradient-to-br from-[#3CF2FF]/20 via-[#A020F0]/20 to-[#FF00C7]/20 flex items-center justify-center">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                </div>
+              )}
               {/* Play button overlay when paused */}
-              {!isPlaying && (
+              {!isPlaying && videoLoaded && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                   <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                     <Play className="w-8 h-8 text-white ml-1" fill="white" />
@@ -668,15 +715,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
-      {/* Progress Bar - Below video */}
-      {completedSegments.length > 0 && duration > 0 && (
+      {/* Story Timeline - Shows all clips with segment markers */}
+      {completedSegments.length > 0 && (
         <div className="absolute bottom-16 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {/* Play/Pause Button */}
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
-              className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center"
+              className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4 text-white" fill="white" />
@@ -685,34 +732,60 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
               )}
             </motion.button>
 
-            {/* Progress Bar */}
-            <div
-              ref={progressRef}
-              className="flex-1 h-1.5 bg-white/20 rounded-full cursor-pointer relative group"
-              onClick={handleProgressClick}
-              onMouseDown={handleDragStart}
-              onMouseMove={handleProgressDrag}
-              onMouseUp={handleDragEnd}
-              onMouseLeave={handleDragEnd}
-              onTouchStart={handleDragStart}
-              onTouchMove={handleProgressDrag}
-              onTouchEnd={handleDragEnd}
-            >
-              {/* Buffered/Progress */}
-              <div
-                className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full transition-all"
-                style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
-              />
-              {/* Draggable Handle */}
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ left: `calc(${duration > 0 ? (currentTime / duration) * 100 : 0}% - 6px)` }}
-              />
+            {/* Segmented Timeline - Each clip is a segment */}
+            <div className="flex-1 flex gap-0.5">
+              {completedSegments.map((segment, idx) => {
+                const clipDuration = clipDurations[idx] || 8;
+                const segmentWidth = (clipDuration / totalStoryDuration) * 100;
+                const isCurrentClip = idx === currentIndex;
+                const isPastClip = idx < currentIndex;
+                const clipProgress = isCurrentClip && duration > 0 ? (currentTime / duration) * 100 : 0;
+
+                return (
+                  <div
+                    key={segment.id}
+                    className="relative h-1.5 rounded-full overflow-hidden cursor-pointer group"
+                    style={{ width: `${segmentWidth}%`, minWidth: '8px' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentIndex(idx);
+                      setCurrentTime(0);
+                      if (videoRef.current) {
+                        videoRef.current.currentTime = 0;
+                      }
+                    }}
+                  >
+                    {/* Background */}
+                    <div className={`absolute inset-0 ${isPastClip ? 'bg-white/60' : 'bg-white/20'}`} />
+
+                    {/* Progress for current clip */}
+                    {isCurrentClip && (
+                      <div
+                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-all"
+                        style={{ width: `${clipProgress}%` }}
+                      />
+                    )}
+
+                    {/* Hover effect */}
+                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors" />
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Time Display */}
-            <span className="text-white/70 text-xs font-mono min-w-[70px] text-right">
-              {formatTime(currentTime)} / {formatTime(duration)}
+            {/* Time Display - Overall story progress */}
+            <span className="text-white/70 text-[10px] font-mono min-w-[60px] text-right flex-shrink-0">
+              {formatTime(overallCurrentTime)} / {formatTime(totalStoryDuration)}
+            </span>
+          </div>
+
+          {/* Clip indicator */}
+          <div className="flex justify-between mt-1 px-8">
+            <span className="text-white/50 text-[9px]">
+              Clip {currentIndex + 1}/{completedSegments.length}
+            </span>
+            <span className="text-white/40 text-[9px]">
+              Tap segment to jump
             </span>
           </div>
         </div>
@@ -816,6 +889,13 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
   const completedSegments = selectedSeason?.slots.filter(s => s.status === 'locked' && s.winning_clip) || [];
   const progressPercent = selectedSeason ? Math.round((completedSegments.length / selectedSeason.total_slots) * 100) : 0;
 
+  // Get the best available thumbnail - last completed segment or season thumbnail
+  const lastCompletedClip = completedSegments.length > 0
+    ? completedSegments[completedSegments.length - 1]?.winning_clip
+    : null;
+  const thumbnailUrl = lastCompletedClip?.thumbnail_url || selectedSeason?.thumbnail_url;
+  const videoUrl = lastCompletedClip?.video_url;
+
   const isActive = selectedSeason?.status === 'active';
   const isCompleted = selectedSeason?.status === 'completed';
   const isComingSoon = selectedSeason?.status === 'coming_soon';
@@ -874,44 +954,39 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
       <div className="px-4 pb-2">
         <div className="flex items-center gap-3">
           {/* Thumbnail */}
-          <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-white/5">
+          <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-white/10">
             {isComingSoon ? (
+              /* Coming soon - show lock */
               <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/30 to-pink-500/30">
                 <Lock className="w-4 h-4 text-white/50" />
               </div>
-            ) : completedSegments.length > 0 && completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url ? (
-              /* Has thumbnail - show it */
+            ) : thumbnailUrl ? (
+              /* Has thumbnail image - show it */
               <img
-                src={completedSegments[completedSegments.length - 1].winning_clip!.thumbnail_url}
+                src={thumbnailUrl}
                 alt=""
                 className="w-full h-full object-cover"
               />
-            ) : completedSegments.length > 0 && completedSegments[completedSegments.length - 1]?.winning_clip?.video_url ? (
-              /* No thumbnail but has video - show video first frame */
+            ) : videoUrl ? (
+              /* Has video but no thumbnail - show video first frame */
               <video
-                src={completedSegments[completedSegments.length - 1].winning_clip!.video_url}
+                src={videoUrl}
                 className="w-full h-full object-cover"
                 muted
                 playsInline
                 preload="metadata"
               />
-            ) : selectedSeason.thumbnail_url ? (
-              <img
-                src={selectedSeason.thumbnail_url}
-                alt=""
-                className="w-full h-full object-cover"
-              />
             ) : (
-              /* No thumbnail yet - show gradient with season number */
+              /* No content yet - show gradient with season number */
               <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/30 via-[#A020F0]/30 to-[#FF00C7]/30 flex flex-col items-center justify-center">
-                <span className="text-white/80 text-lg font-black">S{selectedSeason.number}</span>
+                <span className="text-white/90 text-base font-black">S{selectedSeason.number}</span>
                 {isActive && (
-                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mt-1" />
+                  <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse mt-0.5" />
                 )}
               </div>
             )}
-            {/* Only show badge if we have an actual thumbnail/video */}
-            {(completedSegments.length > 0 || selectedSeason.thumbnail_url) && (
+            {/* Badge - show if we have media content */}
+            {(thumbnailUrl || videoUrl) && (
               <div className="absolute top-0.5 left-0.5 px-1 py-0.5 rounded bg-black/70 text-white text-[7px] font-bold">
                 S{selectedSeason.number}
               </div>
