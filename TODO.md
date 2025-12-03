@@ -9,94 +9,119 @@
 
 ---
 
-## Pending Tasks
+## 🚨 CRITICAL Security Issues (Fix Before Production)
 
-### 1. Set Sentry Environment Variables
-Configure these in Vercel dashboard (Settings > Environment Variables):
-- `SENTRY_DSN` - Your Sentry DSN
-- `NEXT_PUBLIC_SENTRY_DSN` - Same DSN (for client-side)
-- `SENTRY_ORG` - Your Sentry organization slug
-- `SENTRY_PROJECT` - Your Sentry project slug
-- `SENTRY_AUTH_TOKEN` - Sentry auth token for source map uploads
+> See `SECURITY_AUDIT.md` for full details
 
-### 2. Run Database Migrations
-Execute the following SQL migration in Supabase SQL Editor:
+### 1. Vote DELETE Race Condition
+**File:** `src/app/api/vote/route.ts` (Lines 1148-1232)
+- Race condition allows negative vote scores
+- Missing authentication (uses only device fingerprint)
+- **Fix:** Add transaction + authentication
+
+### 2. CSRF Token Predictable
+**File:** `src/middleware.ts` (Lines 123-132)
+- Token uses only timestamp, no randomness
+- **Fix:** Add `crypto.randomBytes(16)` to token generation
+
+### 3. IDOR in Creator Endpoint
+**File:** `src/app/api/creator/[id]/route.ts`
+- `SELECT *` exposes all user fields
+- **Fix:** Select only public fields
+
+### 4. N+1 Query in Profile Stats
+**File:** `src/app/api/profile/stats/route.ts` (Lines 280-288)
+- Loads ALL votes to calculate rank
+- **Fix:** Use aggregate query or materialized view
+
+---
+
+## ⚠️ HIGH Priority Issues
+
+### 5. MiniLeaderboard Infinite Loop
+**File:** `src/components/MiniLeaderboard.tsx` (Lines 88-94)
+- `topClips` in useEffect deps causes infinite re-render
+- **Fix:** Remove from dependency array
+
+### 6. XSS in CommentsSection
+**File:** `src/components/CommentsSection.tsx` (Lines 627-629)
+- Comment text rendered without sanitization
+- **Fix:** Use DOMPurify or sanitize on server
+
+### 7. Missing Database Indexes
+```sql
+CREATE INDEX idx_votes_user_id_created ON votes(user_id, created_at DESC);
+CREATE INDEX idx_clips_season_slot_created ON tournament_clips(season_id, slot_position, created_at DESC);
+CREATE INDEX idx_comments_clip_deleted ON comments(clip_id, is_deleted) WHERE is_deleted = FALSE;
+```
+
+### 8. Session Too Long
+**File:** `src/lib/auth-options.ts`
+- 7-day session is too long
+- **Fix:** Reduce to 24 hours
+
+---
+
+## 📋 Deployment Tasks
+
+### 9. Set Sentry Environment Variables
+Configure in Vercel dashboard:
+- `SENTRY_DSN` / `NEXT_PUBLIC_SENTRY_DSN`
+- `SENTRY_ORG`
+- `SENTRY_PROJECT`
+- `SENTRY_AUTH_TOKEN`
+
+### 10. Run Database Migrations
+Execute in Supabase SQL Editor:
 ```
 supabase/sql/migration-contact-reports-blocks.sql
 ```
-This creates tables for:
-- `contact_submissions` - Contact form submissions
-- `content_reports` - User reports for clips/users/comments
-- `user_blocks` - User blocking functionality
 
-### 3. Enable RLS Policies in Production Supabase
-Ensure all Row Level Security policies are enabled:
+### 11. Enable RLS Policies
 ```
 supabase/sql/enable-rls-policies.sql
 ```
 
-### 4. Set Up Uptime Monitoring
-Configure uptime monitoring service (UptimeRobot, Better Stack, Checkly, etc.) to monitor:
+### 12. Set Up Uptime Monitoring
 - **Endpoint:** `https://your-domain.com/api/health`
 - **Method:** GET or HEAD
-- **Expected Status:** 200
-- **Check Interval:** 1-5 minutes
+- **Expected:** 200
+- **Interval:** 1-5 minutes
 
-### 5. Test CSRF Protection
-After deploying, verify CSRF protection works:
-1. Open browser dev tools
-2. Make a POST request without `x-csrf-token` header
-3. Should return 403 "CSRF validation failed"
-4. Refresh page (gets new token in cookie)
-5. Make request with `x-csrf-token` header matching cookie
-6. Should succeed
-
-### 6. Update Frontend Fetch Calls for CSRF
-Update components that make POST/PUT/DELETE requests to include CSRF token:
-
-**Option A: Use the useCsrf hook**
+### 13. Update Frontend for CSRF
+Update components making POST/PUT/DELETE to include CSRF token:
 ```tsx
 import { useCsrf } from '@/hooks/useCsrf';
-
-function MyComponent() {
-  const { post } = useCsrf();
-
-  const handleSubmit = async () => {
-    const result = await post('/api/my-endpoint', { data: 'value' });
-  };
-}
-```
-
-**Option B: Manual header inclusion**
-```tsx
-const token = document.cookie
-  .split('; ')
-  .find(row => row.startsWith('csrf-token='))
-  ?.split('=')[1];
-
-fetch('/api/my-endpoint', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-    'x-csrf-token': token || '',
-  },
-  body: JSON.stringify(data),
-});
+const { post } = useCsrf();
+await post('/api/endpoint', data);
 ```
 
 ---
 
-## Completed Items
+## 📝 Medium Priority (Next Sprint)
+
+- [ ] Add transactions to admin winner assignment
+- [ ] Fix memory leak in EnhancedUploadArea (Object URL not revoked)
+- [ ] Fix memory leak in Dashboard keyboard handler
+- [ ] Fix race condition in comment like/unlike
+- [ ] Add clip status validation in vote endpoint
+- [ ] Improve rate limiting (lower admin limits)
+- [ ] Add file upload polyglot validation
+- [ ] Fix genre vote race condition (use upsert)
+
+---
+
+## ✅ Completed Items
 
 - [x] Rate limiting with Upstash Redis
 - [x] Input validation with Zod
-- [x] XSS sanitization
+- [x] XSS sanitization library
 - [x] File signature verification for uploads
 - [x] RLS policies configured
-- [x] Database indexing
+- [x] Database indexing (partial)
 - [x] Structured logging
-- [x] Error sanitization (no internal errors exposed)
-- [x] Middleware protection for routes
+- [x] Error sanitization
+- [x] Middleware protection
 - [x] Admin authentication
 - [x] Session handling with JWT
 - [x] Terms of Service page
@@ -107,15 +132,14 @@ fetch('/api/my-endpoint', {
 - [x] Contact form
 - [x] Report content
 - [x] Block user
-- [x] Admin console (bulk ops, user management, audit logs)
+- [x] Admin console
 - [x] Skeleton loaders
 - [x] Toast notifications
 - [x] Focus traps for modals
 - [x] Accessible modal component
 - [x] Error boundaries
 - [x] Caching strategies
-- [x] Query optimization
 - [x] Sentry monitoring setup
-- [x] CSRF protection
-- [x] Security headers (CSP, HSTS, etc.)
+- [x] CSRF protection framework
+- [x] Security headers
 - [x] Health check endpoint
