@@ -317,7 +317,10 @@ export default function UploadPage() {
           Sign in with Google
         </motion.button>
         <p className="text-xs text-white/60">
-          By signing in, you agree to our Terms of Service and Privacy Policy.
+          By signing in, you agree to our{' '}
+          <a href="/terms" className="text-cyan-400 hover:underline">Terms of Service</a>
+          {' '}and{' '}
+          <a href="/privacy" className="text-cyan-400 hover:underline">Privacy Policy</a>.
         </p>
       </motion.div>
     </div>

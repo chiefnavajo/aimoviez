@@ -394,6 +394,7 @@ export default function ProfilePage() {
           <div className="space-y-2">
             <Link href="/story"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><BookOpen className="w-5 h-5 text-cyan-500" /><span>Watch Story</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
             <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
+            <Link href="/settings"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><SettingsIcon className="w-5 h-5 text-white/60" /><span>Settings & Privacy</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
           </div>
 
           {/* Admin Section - Only visible to admins */}
