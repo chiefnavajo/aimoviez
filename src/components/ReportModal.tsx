@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Flag, AlertTriangle, Loader2, Check } from 'lucide-react';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -26,6 +27,24 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+
+  const handleClose = () => {
+    setSelectedReason('');
+    setDescription('');
+    setSubmitted(false);
+    setError('');
+    onClose();
+  };
+
+  // Accessibility: unique IDs and focus trap
+  const titleId = useId();
+  const descId = useId();
+  const containerRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: handleClose,
+    autoFocus: true,
+    restoreFocus: true,
+  });
 
   const handleSubmit = async () => {
     if (!selectedReason) {
@@ -70,14 +89,6 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
     setSubmitting(false);
   };
 
-  const handleClose = () => {
-    setSelectedReason('');
-    setDescription('');
-    setSubmitted(false);
-    setError('');
-    onClose();
-  };
-
   const typeLabel = type === 'clip' ? 'Clip' : type === 'user' ? 'User' : 'Comment';
 
   return (
@@ -89,12 +100,18 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
           onClick={handleClose}
+          aria-hidden="true"
         >
           <motion.div
+            ref={containerRef}
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.9, opacity: 0 }}
             onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descId}
             className="bg-gray-900 rounded-2xl border border-white/20 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
           >
             {submitted ? (
@@ -125,7 +142,7 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
                       <Flag className="w-5 h-5 text-red-400" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-bold">Report {typeLabel}</h2>
+                      <h2 id={titleId} className="text-xl font-bold">Report {typeLabel}</h2>
                       {targetName && (
                         <p className="text-sm text-white/60">"{targetName}"</p>
                       )}
@@ -134,24 +151,27 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
                   <motion.button
                     whileTap={{ scale: 0.9 }}
                     onClick={handleClose}
-                    className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                    className="p-2 rounded-lg hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+                    aria-label="Close report dialog"
                   >
                     <X className="w-5 h-5" />
                   </motion.button>
                 </div>
 
                 {/* Reason Selection */}
-                <div className="space-y-3 mb-6">
-                  <label className="block text-sm font-medium text-white/90">
+                <div className="space-y-3 mb-6" role="radiogroup" aria-labelledby={descId}>
+                  <label id={descId} className="block text-sm font-medium text-white/90">
                     Why are you reporting this {type}?
                   </label>
                   {REPORT_REASONS.map((reason) => (
                     <motion.button
                       key={reason.id}
                       type="button"
+                      role="radio"
+                      aria-checked={selectedReason === reason.id}
                       whileTap={{ scale: 0.98 }}
                       onClick={() => setSelectedReason(reason.id)}
-                      className={`w-full p-4 rounded-xl border text-left transition-all ${
+                      className={`w-full p-4 rounded-xl border text-left transition-all focus:outline-none focus:ring-2 focus:ring-red-400 ${
                         selectedReason === reason.id
                           ? 'bg-red-500/20 border-red-500/50'
                           : 'bg-white/5 border-white/10 hover:border-white/20'
