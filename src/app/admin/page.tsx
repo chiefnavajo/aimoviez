@@ -75,7 +75,7 @@ interface Season {
 }
 
 type FilterStatus = 'all' | 'pending' | 'active' | 'rejected' | 'locked';
-type AdminTab = 'clips' | 'features';
+type AdminTab = 'clips' | 'features' | 'users';
 
 interface FeatureFlag {
   id: string;
@@ -178,6 +178,15 @@ export default function AdminDashboard() {
   // Multi-vote mode state (quick toggle)
   const [multiVoteEnabled, setMultiVoteEnabled] = useState(false);
   const [loadingMultiVote, setLoadingMultiVote] = useState(true);
+
+  // Bulk selection state
+  const [selectedClips, setSelectedClips] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{
+    success: boolean;
+    message: string;
+    updated?: number;
+  } | null>(null);
 
   // ============================================================================
   // FETCH SEASONS
@@ -732,6 +741,75 @@ export default function AdminDashboard() {
   };
 
   // ============================================================================
+  // BULK ACTIONS
+  // ============================================================================
+
+  const handleSelectClip = (clipId: string) => {
+    setSelectedClips((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(clipId)) {
+        newSet.delete(clipId);
+      } else {
+        newSet.add(clipId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const pendingClips = filteredClips.filter((c) => c.status === 'pending');
+    if (selectedClips.size === pendingClips.length) {
+      setSelectedClips(new Set());
+    } else {
+      setSelectedClips(new Set(pendingClips.map((c) => c.id)));
+    }
+  };
+
+  const handleBulkAction = async (action: 'approve' | 'reject') => {
+    if (selectedClips.size === 0) return;
+
+    setBulkProcessing(true);
+    setBulkResult(null);
+
+    try {
+      const response = await fetch('/api/admin/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action,
+          clipIds: Array.from(selectedClips),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setBulkResult({
+          success: true,
+          message: `Successfully ${action}d ${data.updated} clip${data.updated !== 1 ? 's' : ''}`,
+          updated: data.updated,
+        });
+        // Remove processed clips from the list
+        setClips((prev) => prev.filter((c) => !selectedClips.has(c.id)));
+        setSelectedClips(new Set());
+      } else {
+        setBulkResult({
+          success: false,
+          message: data.error || `Failed to ${action} clips`,
+        });
+      }
+    } catch (error) {
+      console.error(`Bulk ${action} error:`, error);
+      setBulkResult({
+        success: false,
+        message: `Network error - failed to ${action} clips`,
+      });
+    }
+
+    setBulkProcessing(false);
+  };
+
+  // ============================================================================
   // VIDEO CONTROLS
   // ============================================================================
 
@@ -934,6 +1012,16 @@ export default function AdminDashboard() {
               <Settings className="w-4 h-4" />
               Feature Flags
             </motion.button>
+            <Link href="/admin/users">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
+                type="button"
+              >
+                <Users className="w-4 h-4" />
+                Users
+              </motion.button>
+            </Link>
           </div>
         </div>
       </header>
@@ -1289,6 +1377,98 @@ export default function AdminDashboard() {
         </div>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {filter === 'pending' && filteredClips.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSelectAll}
+                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors font-medium flex items-center gap-2"
+                  type="button"
+                >
+                  {selectedClips.size === filteredClips.filter((c) => c.status === 'pending').length ? (
+                    <>
+                      <X className="w-4 h-4" />
+                      Deselect All
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Select All Pending
+                    </>
+                  )}
+                </motion.button>
+                <span className="text-white/60">
+                  {selectedClips.size} selected
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleBulkAction('reject')}
+                  disabled={selectedClips.size === 0 || bulkProcessing}
+                  className="px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                  Reject Selected
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleBulkAction('approve')}
+                  disabled={selectedClips.size === 0 || bulkProcessing}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-lg hover:shadow-green-500/20 transition-all font-bold flex items-center gap-2 disabled:opacity-50"
+                  type="button"
+                >
+                  {bulkProcessing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Approve Selected
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Bulk Result Message */}
+            <AnimatePresence>
+              {bulkResult && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`mt-4 p-3 rounded-lg ${
+                    bulkResult.success
+                      ? 'bg-green-500/20 border border-green-500/40'
+                      : 'bg-red-500/20 border border-red-500/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {bulkResult.success ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                    )}
+                    <p className={bulkResult.success ? 'text-green-300' : 'text-red-300'}>
+                      {bulkResult.message}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
+
       {/* Clips List */}
       <div className="max-w-7xl mx-auto px-4 pb-24">
         {loading ? (
@@ -1316,11 +1496,28 @@ export default function AdminDashboard() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -100 }}
-                  className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden"
+                  className={`bg-white/5 backdrop-blur-sm rounded-xl border overflow-hidden ${
+                    selectedClips.has(clip.id) ? 'border-cyan-500/50 ring-2 ring-cyan-500/20' : 'border-white/10'
+                  }`}
                 >
                   <div className="grid md:grid-cols-[300px,1fr] gap-6 p-6">
                     {/* Video Preview */}
                     <div className="relative aspect-[9/16] max-w-[300px] mx-auto rounded-xl overflow-hidden bg-black">
+                      {/* Selection Checkbox for pending clips */}
+                      {clip.status === 'pending' && (
+                        <motion.button
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => handleSelectClip(clip.id)}
+                          className={`absolute top-2 left-2 z-10 w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                            selectedClips.has(clip.id)
+                              ? 'bg-cyan-500 text-white'
+                              : 'bg-black/50 backdrop-blur-sm border border-white/30 hover:bg-white/20'
+                          }`}
+                          type="button"
+                        >
+                          {selectedClips.has(clip.id) && <Check className="w-5 h-5" />}
+                        </motion.button>
+                      )}
                       <video
                         ref={(el) => {
                           videoRefs.current[clip.id] = el;
