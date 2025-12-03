@@ -154,6 +154,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5b. Mark the winning clip as 'locked' (winner status)
+    // IMPORTANT: This must succeed before moving other clips to prevent race conditions
     const { error: lockWinnerError } = await supabase
       .from('tournament_clips')
       .update({ status: 'locked' })
@@ -161,7 +162,26 @@ export async function POST(req: NextRequest) {
 
     if (lockWinnerError) {
       console.error('[advance-slot] lockWinnerError:', lockWinnerError);
-      // Non-fatal - continue but log
+      // This is now a fatal error - we must lock the winner before proceeding
+      return NextResponse.json(
+        { ok: false, error: 'Failed to lock winning clip. Please try again.' },
+        { status: 500 }
+      );
+    }
+
+    // Verify the winner is locked before proceeding
+    const { data: verifyWinner } = await supabase
+      .from('tournament_clips')
+      .select('status')
+      .eq('id', winner.id)
+      .single();
+
+    if (verifyWinner?.status !== 'locked') {
+      console.error('[advance-slot] Winner status verification failed:', verifyWinner);
+      return NextResponse.json(
+        { ok: false, error: 'Winner status not updated correctly. Please try again.' },
+        { status: 500 }
+      );
     }
 
     // 6. Przygotuj następny slot
