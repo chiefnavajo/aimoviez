@@ -346,13 +346,26 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
               
               {/* Load More */}
               {hasMore && (
-                <button
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
                   onClick={loadMore}
                   disabled={loading}
-                  className="w-full py-2 text-sm text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                  className="w-full py-3 mt-2 text-sm font-medium text-cyan-400 hover:text-cyan-300
+                           bg-white/5 hover:bg-white/10 rounded-xl border border-white/10
+                           disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                 >
-                  {loading ? 'Loading...' : 'Load more comments'}
-                </button>
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Loading...
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Load more comments ({total - comments.length} remaining)
+                    </>
+                  )}
+                </motion.button>
               )}
             </>
           )}
