@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   images: {
@@ -31,14 +32,14 @@ const nextConfig: NextConfig = {
         : "script-src 'self' 'unsafe-inline'",
       // Styles: self + inline for styled-jsx/Tailwind
       "style-src 'self' 'unsafe-inline'",
-      // Images: self + Supabase storage + DiceBear avatars + Google profile pics
+      // Images: self + Supabase storage + DiceBear avatars + Google profile pics + Sentry
       "img-src 'self' data: blob: https://dxixqdmqomqzhilmdfzg.supabase.co https://api.dicebear.com https://lh3.googleusercontent.com",
       // Media (videos): self + Supabase storage
       "media-src 'self' blob: https://dxixqdmqomqzhilmdfzg.supabase.co",
       // Fonts: self + Google Fonts
       "font-src 'self' https://fonts.gstatic.com",
-      // Connect: API calls to self + Supabase + Google OAuth + Pusher for real-time
-      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com",
+      // Connect: API calls to self + Supabase + Google OAuth + Pusher for real-time + Sentry
+      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com https://*.sentry.io",
       // Worker: service worker
       "worker-src 'self'",
       // Frames: Google OAuth popup
@@ -104,4 +105,35 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry configuration options
+const sentryWebpackPluginOptions = {
+  // Suppress source map upload logs during build
+  silent: true,
+
+  // Organization and project (set via env vars)
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Auth token for uploading source maps
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  // Upload source maps only in production
+  disableServerWebpackPlugin: process.env.NODE_ENV !== 'production',
+  disableClientWebpackPlugin: process.env.NODE_ENV !== 'production',
+
+  // Hide source maps from production
+  hideSourceMaps: true,
+
+  // Automatically tree-shake Sentry logger statements
+  disableLogger: true,
+
+  // Tunnel route to avoid ad-blockers (optional)
+  // tunnelRoute: '/monitoring',
+};
+
+// Wrap config with Sentry only if DSN is configured
+const exportedConfig = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, sentryWebpackPluginOptions)
+  : nextConfig;
+
+export default exportedConfig;

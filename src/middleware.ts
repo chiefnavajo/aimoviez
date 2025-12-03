@@ -7,6 +7,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
+import crypto from 'crypto';
 
 // ============================================================================
 // CONFIGURATION
@@ -34,6 +35,12 @@ const ALLOWED_ORIGINS = [
 
 // Session timeout in seconds (30 minutes)
 const SESSION_TIMEOUT = 30 * 60;
+
+// CSRF configuration
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.NEXTAUTH_SECRET || 'default-csrf-secret';
+const CSRF_TOKEN_COOKIE = 'csrf-token';
+const CSRF_TOKEN_HEADER = 'x-csrf-token';
+const TOKEN_EXPIRY = 60 * 60; // 1 hour in seconds
 
 // ============================================================================
 // SECURITY HEADERS
@@ -107,6 +114,104 @@ function addRateLimitHeaders(response: NextResponse, request: NextRequest): Next
   response.headers.set('X-Client-IP', ip);
 
   return response;
+}
+
+// ============================================================================
+// CSRF TOKEN HANDLING
+// ============================================================================
+
+function generateCsrfToken(): string {
+  const timestamp = Date.now().toString();
+  const signature = crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(timestamp)
+    .digest('hex')
+    .slice(0, 32);
+
+  return `${timestamp}.${signature}`;
+}
+
+function addCsrfToken(response: NextResponse, request: NextRequest): NextResponse {
+  // Only set token if not already present or if it's a page request
+  const existingToken = request.cookies.get(CSRF_TOKEN_COOKIE)?.value;
+
+  // Check if token is still valid (not expired)
+  let needsNewToken = !existingToken;
+  if (existingToken) {
+    const parts = existingToken.split('.');
+    if (parts.length === 2) {
+      const timestamp = parseInt(parts[0], 10);
+      if (isNaN(timestamp) || Date.now() - timestamp > TOKEN_EXPIRY * 1000) {
+        needsNewToken = true;
+      }
+    } else {
+      needsNewToken = true;
+    }
+  }
+
+  if (needsNewToken) {
+    const token = generateCsrfToken();
+    response.cookies.set(CSRF_TOKEN_COOKIE, token, {
+      httpOnly: false, // Must be readable by JavaScript
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: TOKEN_EXPIRY,
+    });
+  }
+
+  return response;
+}
+
+function validateCsrfToken(request: NextRequest): { valid: boolean; error?: string } {
+  // Get token from header
+  const headerToken = request.headers.get(CSRF_TOKEN_HEADER);
+  // Get token from cookie
+  const cookieToken = request.cookies.get(CSRF_TOKEN_COOKIE)?.value;
+
+  if (!headerToken) {
+    return { valid: false, error: 'Missing CSRF token in header' };
+  }
+
+  if (!cookieToken) {
+    return { valid: false, error: 'Missing CSRF token in cookie' };
+  }
+
+  // Tokens must match (double-submit cookie pattern)
+  if (headerToken !== cookieToken) {
+    return { valid: false, error: 'CSRF token mismatch' };
+  }
+
+  // Verify the token format and signature
+  const parts = headerToken.split('.');
+  if (parts.length !== 2) {
+    return { valid: false, error: 'Invalid CSRF token format' };
+  }
+
+  const [timestamp, signature] = parts;
+  const timestampNum = parseInt(timestamp, 10);
+
+  if (isNaN(timestampNum)) {
+    return { valid: false, error: 'Invalid CSRF token timestamp' };
+  }
+
+  // Check expiry
+  if (Date.now() - timestampNum > TOKEN_EXPIRY * 1000) {
+    return { valid: false, error: 'CSRF token expired' };
+  }
+
+  // Verify signature
+  const expectedSignature = crypto
+    .createHmac('sha256', CSRF_SECRET)
+    .update(timestamp)
+    .digest('hex')
+    .slice(0, 32);
+
+  if (signature !== expectedSignature) {
+    return { valid: false, error: 'Invalid CSRF token signature' };
+  }
+
+  return { valid: true };
 }
 
 // ============================================================================
@@ -189,6 +294,41 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // CSRF validation for state-changing API requests
+  const isApiRoute = pathname.startsWith('/api/');
+  const isStateChangingMethod = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method);
+
+  // Routes exempt from CSRF (authentication flows, webhooks, health checks)
+  const csrfExemptRoutes = [
+    '/api/auth/',
+    '/api/csrf',
+    '/api/health',
+    '/api/cron/',
+    '/api/webhooks/',
+  ];
+  const isCsrfExempt = csrfExemptRoutes.some(route => pathname.startsWith(route));
+
+  if (isApiRoute && isStateChangingMethod && !isCsrfExempt) {
+    const csrfValidation = validateCsrfToken(request);
+    if (!csrfValidation.valid) {
+      console.warn('[CSRF] Validation failed:', {
+        error: csrfValidation.error,
+        method: request.method,
+        path: pathname,
+        ip: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim(),
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'CSRF validation failed',
+          message: 'Please refresh the page and try again',
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   // Continue with the request
   let response = NextResponse.next();
 
@@ -196,6 +336,11 @@ export async function middleware(request: NextRequest) {
   response = addSecurityHeaders(response);
   response = addCORSHeaders(response, origin);
   response = addRateLimitHeaders(response, request);
+
+  // Add CSRF token to page responses (not API routes)
+  if (!isApiRoute) {
+    response = addCsrfToken(response, request);
+  }
 
   return response;
 }
