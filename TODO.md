@@ -1,5 +1,14 @@
 # Production Deployment TODO
 
+## Security Notice
+
+**Keys Revoked:** API keys were rotated after exposure. Ensure all environment variables are updated in:
+- Vercel dashboard
+- Local `.env.local` file
+- Any CI/CD secrets
+
+---
+
 ## Pending Tasks
 
 ### 1. Set Sentry Environment Variables
