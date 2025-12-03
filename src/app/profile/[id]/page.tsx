@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, PlayCircle, CheckCircle, BookOpen, Plus } from 'lucide-react';
+import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, PlayCircle, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import ReportModal from '@/components/ReportModal';
 
 // ============================================================================
 // CREATOR PROFILE PAGE - View other creators
@@ -48,6 +49,10 @@ export default function CreatorProfilePage() {
   const [clips, setClips] = useState<CreatorClip[]>([]);
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   useEffect(() => {
     async function fetchCreatorData() {
@@ -125,8 +130,30 @@ export default function CreatorProfilePage() {
   };
 
   const handleShare = async () => {
-    try { await navigator.share({ title: `@${creator?.username} on AiMoviez`, url: window.location.href }); } 
+    try { await navigator.share({ title: `@${creator?.username} on AiMoviez`, url: window.location.href }); }
     catch { navigator.clipboard.writeText(window.location.href); }
+  };
+
+  const handleBlock = async () => {
+    if (!creator) return;
+    setBlocking(true);
+    try {
+      if (isBlocked) {
+        await fetch(`/api/user/block?userId=${creator.id}`, { method: 'DELETE' });
+        setIsBlocked(false);
+      } else {
+        await fetch('/api/user/block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: creator.id }),
+        });
+        setIsBlocked(true);
+      }
+    } catch (error) {
+      console.error('Block/unblock error:', error);
+    }
+    setBlocking(false);
+    setShowMoreMenu(false);
   };
 
   if (loading) return <div className="min-h-screen bg-black flex items-center justify-center"><div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" /></div>;
@@ -141,7 +168,23 @@ export default function CreatorProfilePage() {
         
         <div className="relative z-20 flex items-center justify-between px-4 md:px-6 pt-12 md:pt-6 pb-4">
           <button onClick={() => router.back()} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><ArrowLeft className="w-5 h-5" /></button>
-          <button onClick={handleShare} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><Share2 className="w-5 h-5" /></button>
+          <div className="relative">
+            <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><MoreVertical className="w-5 h-5" /></button>
+            {showMoreMenu && (
+              <div className="absolute right-0 top-12 w-48 bg-gray-900 border border-white/20 rounded-xl overflow-hidden shadow-xl z-50">
+                <button onClick={handleShare} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 transition-colors text-left">
+                  <Share2 className="w-4 h-4" /><span>Share Profile</span>
+                </button>
+                <button onClick={() => { setShowReportModal(true); setShowMoreMenu(false); }} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 transition-colors text-left text-red-400">
+                  <Flag className="w-4 h-4" /><span>Report User</span>
+                </button>
+                <button onClick={handleBlock} disabled={blocking} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-white/10 transition-colors text-left text-orange-400">
+                  {blocking ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+                  <span>{isBlocked ? 'Unblock User' : 'Block User'}</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="relative z-10 px-4 md:px-6 pb-6">
@@ -226,6 +269,20 @@ export default function CreatorProfilePage() {
         {renderProfileContent()}
         <BottomNavigation />
       </div>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        type="user"
+        targetId={creator.id}
+        targetName={creator.username}
+      />
+
+      {/* Click outside to close menu */}
+      {showMoreMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
+      )}
     </div>
   );
 }

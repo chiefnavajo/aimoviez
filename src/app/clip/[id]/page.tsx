@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Zap, Sparkles } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Zap, Sparkles, Flag, MoreVertical } from 'lucide-react';
+import ReportModal from '@/components/ReportModal';
 import BottomNavigation from '@/components/BottomNavigation';
 import CommentsSection from '@/components/CommentsSection';
 
@@ -80,6 +81,7 @@ export default function ClipDetailPage() {
   const [voteCount, setVoteCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Fetch clip data
   useEffect(() => {
@@ -309,6 +311,13 @@ export default function ClipDetailPage() {
             <span className="text-xs">Share</span>
           </button>
 
+          {/* Report */}
+          <button onClick={() => setShowReportModal(true)} className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-red-500/30 transition-colors">
+              <Flag className="w-5 h-5" />
+            </div>
+          </button>
+
           {/* Mute */}
           <button onClick={() => setIsMuted(!isMuted)} className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
@@ -365,6 +374,15 @@ export default function ClipDetailPage() {
         isOpen={showComments}
         onClose={() => setShowComments(false)}
         clipUsername={clip.username}
+      />
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        type="clip"
+        targetId={clip.id}
+        targetName={clip.title}
       />
     </div>
   );
