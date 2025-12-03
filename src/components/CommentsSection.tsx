@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
+import Image from 'next/image';
 import { 
   MessageCircle, Heart, Send, X, MoreHorizontal, 
   Trash2, Flag, ChevronDown, ChevronUp, Loader2,
@@ -490,10 +491,13 @@ function CommentItem({
     <div className={`${isReply ? 'ml-10 mt-3' : ''}`}>
       <div className="flex gap-3">
         {/* Avatar */}
-        <img
+        <Image
           src={comment.avatar_url}
           alt={comment.username}
+          width={isReply ? 32 : 40}
+          height={isReply ? 32 : 40}
           className={`rounded-full bg-white/10 flex-shrink-0 ${isReply ? 'w-8 h-8' : 'w-10 h-10'}`}
+          unoptimized={comment.avatar_url?.includes('dicebear')}
         />
 
         {/* Content */}

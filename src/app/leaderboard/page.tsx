@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   Trophy,
   TrendingUp,
@@ -533,10 +534,13 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <div className={`rounded-full p-0.5 ${rank <= 3 ? 'gradient-border-animated' : ''}`}>
-              <img
+              <Image
                 src={clip.avatar_url}
                 alt={clip.username}
+                width={24}
+                height={24}
                 className="w-6 h-6 rounded-full bg-black"
+                unoptimized={clip.avatar_url?.includes('dicebear')}
               />
             </div>
             <span className="font-bold truncate">@{clip.username}</span>
@@ -588,10 +592,13 @@ function LeaderboardRow({ entry, type }: { entry: LeaderboardEntry; type: 'votes
 
         {/* Avatar with colored border for top 3 */}
         <div className={`rounded-full ${entry.rank <= 3 ? `p-0.5 ${avatarBorderColors[entry.rank - 1]} border-2` : ''}`}>
-          <img
+          <Image
             src={entry.avatar_url}
             alt={entry.username}
+            width={40}
+            height={40}
             className="w-10 h-10 rounded-full bg-black"
+            unoptimized={entry.avatar_url?.includes('dicebear')}
           />
         </div>
 

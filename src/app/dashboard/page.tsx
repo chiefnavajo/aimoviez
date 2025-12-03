@@ -21,6 +21,7 @@ import Pusher from 'pusher-js';
 import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
+import Image from 'next/image';
 import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import MiniLeaderboard from '@/components/MiniLeaderboard';
@@ -659,6 +660,32 @@ function VotingArena() {
     setIsPaused(false);
   }, [activeIndex]);
 
+  // Preload next video for smoother transitions
+  useEffect(() => {
+    if (!votingData?.clips?.length) return;
+
+    const nextIndex = (activeIndex + 1) % votingData.clips.length;
+    const nextClip = votingData.clips[nextIndex];
+
+    if (nextClip?.video_url) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'video';
+      link.href = nextClip.video_url;
+      link.id = 'preload-next-video';
+
+      // Remove previous preload link if exists
+      const existing = document.getElementById('preload-next-video');
+      if (existing) existing.remove();
+
+      document.head.appendChild(link);
+
+      return () => {
+        link.remove();
+      };
+    }
+  }, [activeIndex, votingData?.clips]);
+
   // Vote mutation - supports standard, super, mega vote types
   const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType }, MutationContext>({
     mutationFn: async ({ clipId, voteType }) => {
@@ -1115,11 +1142,14 @@ function VotingArena() {
         {/* Creator Avatar */}
         <Link href={`/profile/${currentClip?.user_id}`}>
           <motion.div whileTap={{ scale: 0.9 }} className="relative">
-            <img
+            <Image
               src={currentClip?.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=default'}
               alt=""
+              width={48}
+              height={48}
               className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+              unoptimized={currentClip?.avatar_url?.includes('dicebear')}
             />
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
               <span className="text-white text-[10px] font-bold">+</span>
