@@ -21,6 +21,7 @@ import {
   assessDeviceRisk,
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
+import { createRequestLogger, logAudit } from '@/lib/logger';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -220,7 +221,7 @@ function startOfTodayUTC() {
 async function getUserVotesToday(
   supabase: SupabaseClient,
   voterKey: string
-): Promise<{ votes: VoteRow[]; count: number }> {
+): Promise<{ votes: VoteRow[]; count: number; error?: string }> {
   const startOfToday = startOfTodayUTC().toISOString();
 
   const { data, error, count } = await supabase
@@ -230,8 +231,9 @@ async function getUserVotesToday(
     .gte('created_at', startOfToday);
 
   if (error) {
-    console.error('[GET /api/vote] getUserVotesToday error:', error);
-    return { votes: [], count: 0 };
+    console.error('[vote] getUserVotesToday error:', error);
+    // Return error flag so caller can handle appropriately
+    return { votes: [], count: 0, error: 'Failed to fetch vote history' };
   }
 
   return { votes: (data as VoteRow[]) || [], count: count ?? 0 };
@@ -241,7 +243,7 @@ async function getUserVotesInSlot(
   supabase: SupabaseClient,
   voterKey: string,
   slotPosition: number
-): Promise<VoteRow[]> {
+): Promise<{ votes: VoteRow[]; error?: string }> {
   const { data, error } = await supabase
     .from('votes')
     .select('clip_id, vote_weight, vote_type, created_at, slot_position')
@@ -250,17 +252,17 @@ async function getUserVotesInSlot(
 
   if (error) {
     console.error('[vote] getUserVotesInSlot error:', error);
-    return [];
+    return { votes: [], error: 'Failed to fetch slot votes' };
   }
 
-  return (data as VoteRow[]) || [];
+  return { votes: (data as VoteRow[]) || [] };
 }
 
 async function hasVotedOnClip(
   supabase: SupabaseClient,
   voterKey: string,
   clipId: string
-): Promise<boolean> {
+): Promise<{ hasVoted: boolean; error?: string }> {
   const { data, error } = await supabase
     .from('votes')
     .select('id')
@@ -271,10 +273,11 @@ async function hasVotedOnClip(
 
   if (error) {
     console.error('[vote] hasVotedOnClip error:', error);
-    return false;
+    // SECURITY: Return error so we don't allow duplicate votes on DB failure
+    return { hasVoted: false, error: 'Failed to check vote status' };
   }
 
-  return !!data;
+  return { hasVoted: !!data };
 }
 
 interface VoteDetails {
@@ -637,7 +640,9 @@ export async function GET(req: NextRequest) {
     const activeSlot = storySlot as StorySlotRow;
 
     // 4. Get user's votes in current slot (for special vote tracking)
-    const slotVotes = await getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position);
+    const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position);
+    // For GET, we can proceed with empty votes if there's an error (graceful degradation)
+    const slotVotes = slotVotesResult.votes;
     const votedClipIds = slotVotes.map(v => v.clip_id);
     const specialVotesRemaining = calculateRemainingSpecialVotes(slotVotes);
     const votedIdsSet = new Set(votedClipIds);
@@ -903,8 +908,20 @@ export async function POST(req: NextRequest) {
 
     // 2. Check if already voted on this clip (skip if multi-vote mode is ON)
     if (!multiVoteEnabled) {
-      const alreadyVoted = await hasVotedOnClip(supabase, effectiveVoterKey, clipId);
-      if (alreadyVoted) {
+      const voteCheckResult = await hasVotedOnClip(supabase, effectiveVoterKey, clipId);
+      // SECURITY: If we can't verify vote status, reject the request
+      if (voteCheckResult.error) {
+        console.error('[POST /api/vote] Failed to check vote status:', voteCheckResult.error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to process vote. Please try again.',
+            code: 'DB_ERROR',
+          },
+          { status: 503 }
+        );
+      }
+      if (voteCheckResult.hasVoted) {
         return NextResponse.json(
           {
             success: false,
@@ -918,7 +935,20 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Check daily vote limit
-    const { count: totalVotesToday } = await getUserVotesToday(supabase, effectiveVoterKey);
+    const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
+    // SECURITY: If we can't verify daily votes, reject the request
+    if (votesTodayResult.error) {
+      console.error('[POST /api/vote] Failed to check daily votes:', votesTodayResult.error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unable to process vote. Please try again.',
+          code: 'DB_ERROR',
+        },
+        { status: 503 }
+      );
+    }
+    const totalVotesToday = votesTodayResult.count;
 
     if (totalVotesToday >= DAILY_VOTE_LIMIT) {
       return NextResponse.json(
@@ -951,8 +981,20 @@ export async function POST(req: NextRequest) {
 
     // 5. For super/mega votes: check if already used in this slot
     if (voteType === 'super' || voteType === 'mega') {
-      const slotVotes = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
-      const specialRemaining = calculateRemainingSpecialVotes(slotVotes);
+      const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
+      // SECURITY: If we can't verify slot votes, reject special votes
+      if (slotVotesResult.error) {
+        console.error('[POST /api/vote] Failed to check slot votes:', slotVotesResult.error);
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Unable to process special vote. Please try again.',
+            code: 'DB_ERROR',
+          },
+          { status: 503 }
+        );
+      }
+      const specialRemaining = calculateRemainingSpecialVotes(slotVotesResult.votes);
 
       if (voteType === 'super' && specialRemaining.super <= 0) {
         return NextResponse.json(
@@ -1037,8 +1079,9 @@ export async function POST(req: NextRequest) {
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + 1;
-    const slotVotesAfter = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
-    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfter);
+    const slotVotesAfterResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
+    // Non-critical: if this fails, we still return success but with estimated values
+    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
     const response: VoteResponseBody = {
       success: true,
@@ -1052,6 +1095,27 @@ export async function POST(req: NextRequest) {
         mega: specialRemaining.mega,
       },
     };
+
+    // Audit log for votes (especially flagged or special votes)
+    if (voteRisk.flagged || voteType !== 'standard') {
+      const logger = createRequestLogger('vote', req);
+      logAudit(logger, {
+        action: 'vote_cast',
+        userId: loggedInUserId || undefined,
+        resourceType: 'clip',
+        resourceId: clipId,
+        details: {
+          voteType,
+          weight,
+          slotPosition,
+          flagged: voteRisk.flagged,
+          riskScore: voteRisk.riskScore,
+          totalVotesToday: newTotalVotesToday,
+        },
+        ip: req.headers.get('x-forwarded-for')?.split(',')[0] || undefined,
+        userAgent: req.headers.get('user-agent') || undefined,
+      });
+    }
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
@@ -1168,13 +1232,15 @@ export async function DELETE(req: NextRequest) {
     }
 
     // 5. Calculate remaining votes (vote is now restored)
-    const { count: newTotalVotesToday } = await getUserVotesToday(supabase, voterKey);
-    const slotVotesAfter = await getUserVotesInSlot(
+    // Non-critical: if these fail, we still return success with fallback values
+    const votesTodayResult = await getUserVotesToday(supabase, voterKey);
+    const newTotalVotesToday = votesTodayResult.count;
+    const slotVotesAfterResult = await getUserVotesInSlot(
       supabase,
       voterKey,
       existingVote.slot_position
     );
-    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfter);
+    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
     const response: RevokeResponseBody = {
       success: true,

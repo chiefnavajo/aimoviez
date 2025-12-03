@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
     let updatedCount = 0;
-    let errors: string[] = [];
+    let hasErrors = false;
 
     if (action === 'approve') {
       const { data, error } = await supabase
@@ -70,7 +70,8 @@ export async function POST(request: NextRequest) {
         .select('id');
 
       if (error) {
-        errors.push(error.message);
+        console.error('[BULK] Approve error:', error);
+        hasErrors = true;
       } else {
         updatedCount = data?.length || 0;
       }
@@ -83,7 +84,8 @@ export async function POST(request: NextRequest) {
         .select('id');
 
       if (error) {
-        errors.push(error.message);
+        console.error('[BULK] Reject error:', error);
+        hasErrors = true;
       } else {
         updatedCount = data?.length || 0;
       }
@@ -108,7 +110,8 @@ export async function POST(request: NextRequest) {
         .select('id');
 
       if (error) {
-        errors.push(error.message);
+        console.error('[BULK] Delete error:', error);
+        hasErrors = true;
       } else {
         updatedCount = data?.length || 0;
       }
@@ -124,16 +127,17 @@ export async function POST(request: NextRequest) {
         bulkAction: action,
         clipIds,
         updatedCount,
-        errors: errors.length > 0 ? errors : undefined,
+        hasErrors,
       },
     });
 
     return NextResponse.json({
-      success: true,
+      success: !hasErrors,
       action,
       requested: clipIds.length,
       updated: updatedCount,
-      errors: errors.length > 0 ? errors : undefined,
+      // Don't expose internal error details - just indicate if there were errors
+      message: hasErrors ? 'Some operations failed' : undefined,
     });
   } catch (error) {
     console.error('Bulk operation error:', error);

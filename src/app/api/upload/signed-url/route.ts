@@ -120,10 +120,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[SIGNED-URL] Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    // Don't expose internal error details to client
     return NextResponse.json({
       success: false,
-      error: `Failed to create upload URL: ${errorMessage}`
+      error: 'Failed to create upload URL. Please try again.'
     }, { status: 500 });
   }
 }

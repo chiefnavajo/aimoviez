@@ -182,10 +182,10 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[REGISTER] Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    return NextResponse.json({ 
+    // Don't expose internal error details to client
+    return NextResponse.json({
       success: false,
-      error: `Registration failed: ${errorMessage}` 
+      error: 'Registration failed. Please try again.'
     }, { status: 500 });
   }
 }

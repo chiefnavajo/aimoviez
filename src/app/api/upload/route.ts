@@ -425,11 +425,14 @@ export async function POST(request: NextRequest) {
 
   } catch (error) {
     console.error('[UPLOAD] Unexpected error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('[UPLOAD] Error stack:', error instanceof Error ? error.stack : 'No stack trace');
-    return NextResponse.json({ 
+    // Log stack trace for debugging but don't expose to client
+    if (error instanceof Error && error.stack) {
+      console.error('[UPLOAD] Error stack:', error.stack);
+    }
+    // Don't expose internal error details to client
+    return NextResponse.json({
       success: false,
-      error: `Upload failed: ${errorMessage}. Please try again.` 
+      error: 'Upload failed. Please try again.'
     }, { status: 500 });
   }
 }
