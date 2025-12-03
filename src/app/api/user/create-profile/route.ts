@@ -33,18 +33,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid username format' }, { status: 400 });
     }
 
-    // Check if username exists
-    const { data: existing } = await supabase
-      .from('users')
-      .select('id')
-      .eq('username', username)
-      .single();
-
-    if (existing) {
-      return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 400 });
-    }
-
-    // Try to get session (if using NextAuth)
+    // SECURITY: Require authentication to create a profile
+    // This prevents account spoofing and ensures email ownership
     let email = null;
     let googleId = null;
     try {
@@ -54,7 +44,40 @@ export async function POST(req: NextRequest) {
         googleId = session.user.email; // Use email as google_id for simplicity
       }
     } catch {
-      // No session, that's okay for anonymous users
+      // No session
+    }
+
+    // Require authentication - anonymous profile creation is disabled
+    if (!email) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required. Please sign in with Google first.' },
+        { status: 401 }
+      );
+    }
+
+    // Check if this email already has a profile
+    const { data: existingByEmail } = await supabase
+      .from('users')
+      .select('id, username')
+      .eq('email', email)
+      .single();
+
+    if (existingByEmail) {
+      return NextResponse.json(
+        { success: false, error: 'Profile already exists for this account', existingUsername: existingByEmail.username },
+        { status: 409 }
+      );
+    }
+
+    // Check if username exists
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username)
+      .single();
+
+    if (existing) {
+      return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 400 });
     }
 
     // Create user

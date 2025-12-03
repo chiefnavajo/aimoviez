@@ -3,6 +3,8 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { Providers } from './providers';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ToastProvider } from '@/components/ui/Toast';
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -12,8 +14,29 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'AiMoviez · 8SEC MADNESS',
   description: 'The global 8-second movie, voted by you',
+  manifest: '/manifest.json',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icons/icon.svg',
+    apple: '/icons/icon-192x192.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'AiMoviez',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  openGraph: {
+    title: 'AiMoviez · 8SEC MADNESS',
+    description: 'The global 8-second movie, voted by you',
+    type: 'website',
+    siteName: 'AiMoviez',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'AiMoviez · 8SEC MADNESS',
+    description: 'The global 8-second movie, voted by you',
   },
 };
 
@@ -23,6 +46,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  themeColor: '#000000',
 };
 
 export default function RootLayout({
@@ -35,8 +59,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <Providers>
           <ErrorBoundary>
-            {children}
+            <ToastProvider>
+              {children}
+            </ToastProvider>
           </ErrorBoundary>
+          <ServiceWorkerRegistration />
         </Providers>
       </body>
     </html>

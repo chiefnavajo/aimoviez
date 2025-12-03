@@ -12,6 +12,7 @@ import {
   parseBody,
 } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
+import { sanitizeComment, sanitizeText } from '@/lib/sanitize';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -30,10 +31,12 @@ interface UserData {
 }
 
 async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
-  const userKey = getUserKey(req);
-  let username = `User${userKey.substring(0, 6)}`;
-  let avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${userKey}`;
-  
+  const deviceKey = getUserKey(req);
+  let username = `User${deviceKey.substring(0, 6)}`;
+  let avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${deviceKey}`;
+  let userId: string | null = null;
+  let isAuthenticated = false;
+
   try {
     const session = await getServerSession();
     if (session?.user?.email) {
@@ -42,27 +45,34 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
         .select('id, username, avatar_url')
         .eq('email', session.user.email)
         .single<UserData>();
-      
+
       if (userError && userError.code !== 'PGRST116') {
         // PGRST116 is "not found" which is expected for users without profiles
         console.error('[getUserInfo] Error fetching user data:', userError);
       }
-      
+
       if (userData) {
-        // Use actual username and avatar from profile, but still use userKey for identification
+        // Use authenticated user data
+        userId = userData.id;
         username = userData.username;
         avatar_url = userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`;
+        isAuthenticated = true;
       }
     }
   } catch (err) {
     // Fall back to generated username/avatar
     console.error('[getUserInfo] Error getting session:', err);
   }
-  
+
+  // Use user ID if authenticated, otherwise fall back to device key
+  const userKey = userId ? `user_${userId}` : deviceKey;
+
   return {
     userKey,
+    userId,
     username,
     avatar_url,
+    isAuthenticated,
   };
 }
 
@@ -209,7 +219,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[GET /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -246,13 +256,22 @@ export async function POST(req: NextRequest) {
 
     const { clipId, comment_text, parent_comment_id } = validation.data;
 
+    // Sanitize comment text to prevent XSS
+    const sanitizedComment = sanitizeComment(comment_text);
+    if (!sanitizedComment) {
+      return NextResponse.json(
+        { error: 'Comment text cannot be empty' },
+        { status: 400 }
+      );
+    }
+
     // Prepare insert data
     const insertData = {
       clip_id: clipId,
       user_key: userInfo.userKey,
-      username: userInfo.username,
+      username: sanitizeText(userInfo.username), // Sanitize username too
       avatar_url: userInfo.avatar_url,
-      comment_text: comment_text.trim(),
+      comment_text: sanitizedComment,
       parent_comment_id: parent_comment_id || null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -286,7 +305,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[POST /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -366,7 +385,7 @@ export async function PATCH(req: NextRequest) {
   } catch (err: any) {
     console.error('[PATCH /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -375,7 +394,8 @@ export async function PATCH(req: NextRequest) {
 /**
  * DELETE /api/comments
  * Delete own comment (soft delete)
- * 
+ * SECURITY: Requires authentication - users can only delete their own comments
+ *
  * Body: {
  *   comment_id: string
  * }
@@ -388,6 +408,15 @@ export async function DELETE(req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userInfo = await getUserInfo(req, supabase);
+
+    // SECURITY: Require authentication for comment deletion
+    if (!userInfo.isAuthenticated) {
+      return NextResponse.json(
+        { error: 'Authentication required to delete comments' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     // Validate request body with Zod
@@ -402,19 +431,20 @@ export async function DELETE(req: NextRequest) {
     const { comment_id } = validation.data;
 
     // Soft delete (set is_deleted = true)
+    // Uses authenticated userKey which is based on user ID, not device fingerprint
     const { data: comment, error } = await supabase
       .from('comments')
       .update({ is_deleted: true })
       .eq('id', comment_id)
-      .eq('user_key', userInfo.userKey) // Ensure user owns the comment
+      .eq('user_key', userInfo.userKey) // Secure: uses user_${userId} not device key
       .select()
       .single();
 
     if (error || !comment) {
-      console.error('[DELETE /api/clip/comments] error:', error);
+      // Don't reveal if comment exists but belongs to someone else
       return NextResponse.json(
-        { error: 'Failed to delete comment or comment not found' },
-        { status: 500 }
+        { error: 'Comment not found or you do not have permission to delete it' },
+        { status: 404 }
       );
     }
 
@@ -422,10 +452,10 @@ export async function DELETE(req: NextRequest) {
       success: true,
       message: 'Comment deleted successfully',
     }, { status: 200 });
-  } catch (err: any) {
-    console.error('[DELETE /api/clip/comments] Unexpected error:', err);
+  } catch (err: unknown) {
+    console.error('[DELETE /api/comments] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Failed to delete comment' },
       { status: 500 }
     );
   }

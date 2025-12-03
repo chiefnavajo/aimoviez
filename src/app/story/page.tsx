@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
+import StoryProgressBar from '@/components/StoryProgressBar';
 
 // ============================================================================
 // TYPES
@@ -208,9 +209,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setVideoLoaded(false);
   }, [season.id]);
 
-  // Reset video loaded state when clip changes
+  // Reset video state when clip changes
   useEffect(() => {
     setVideoLoaded(false);
+    setCurrentTime(0); // Reset time immediately to prevent progress bar jump
   }, [currentIndex]);
 
   // Consolidated video playback control - prevents race conditions
@@ -347,7 +349,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     return (
       <div className="relative h-full bg-gradient-to-br from-purple-900/30 via-black to-pink-900/30">
         <div className="absolute inset-0 flex flex-col items-center justify-center p-6">
-          <Lock className="w-16 h-16 text-white/30 mb-4" />
+          <Lock className="w-16 h-16 text-white/60 mb-4" />
           <h2 className="text-white text-2xl font-bold mb-2">Season {season.number}</h2>
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-4 h-4 text-purple-400" />
@@ -594,15 +596,59 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </AnimatePresence>
         </div>
         
-        {/* Vote Button - Always visible, same style on all seasons */}
+        {/* Vote Button - Dashboard style with infinity symbol */}
         <motion.button
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.9 }}
           onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
-          className="flex flex-col items-center gap-0.5 relative"
+          className="flex flex-col items-center gap-1 relative"
         >
-          <Heart 
-            className="w-7 h-7 md:w-9 md:h-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]"
-          />
+          {/* Glowing vote button */}
+          <div className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center">
+            {/* Outer glow animation */}
+            <motion.div
+              className="absolute inset-[-4px] rounded-full"
+              animate={{
+                boxShadow: [
+                  '0 0 15px rgba(56, 189, 248, 0.5)',
+                  '0 0 25px rgba(168, 85, 247, 0.6)',
+                  '0 0 15px rgba(56, 189, 248, 0.5)',
+                ],
+              }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+            />
+
+            {/* Progress ring SVG */}
+            <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 56 56">
+              <defs>
+                <linearGradient id="storyVoteGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3CF2FF" />
+                  <stop offset="50%" stopColor="#A855F7" />
+                  <stop offset="100%" stopColor="#EC4899" />
+                </linearGradient>
+              </defs>
+              {/* Background circle */}
+              <circle
+                cx="28"
+                cy="28"
+                r="25"
+                fill="rgba(0,0,0,0.3)"
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="3"
+              />
+            </svg>
+
+            {/* Infinity symbol */}
+            <motion.span
+              className="relative z-10 text-2xl md:text-3xl font-black text-white"
+              animate={{ scale: [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              style={{ textShadow: '0 0 20px rgba(56, 189, 248, 0.8)' }}
+            >
+              ∞
+            </motion.span>
+          </div>
+
+          {/* Vote count */}
           <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
             {formatNumber(season.total_votes)}
           </span>
@@ -657,79 +703,33 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
-      {/* Story Timeline - Shows all clips with segment markers */}
+      {/* Story Progress Bar - Clean single bar with segment grid modal */}
       {completedSegments.length > 0 && (
-        <div className="absolute bottom-16 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-2">
-            {/* Play/Pause Button */}
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={(e) => { e.stopPropagation(); handlePlayPause(); }}
-              className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center flex-shrink-0"
-            >
-              {isPlaying ? (
-                <Pause className="w-4 h-4 text-white" fill="white" />
-              ) : (
-                <Play className="w-4 h-4 text-white ml-0.5" fill="white" />
-              )}
-            </motion.button>
-
-            {/* Segmented Timeline - Each clip is a segment */}
-            <div className="flex-1 flex gap-0.5">
-              {completedSegments.map((segment, idx) => {
-                const clipDuration = clipDurations[idx] || 8;
-                const segmentWidth = (clipDuration / totalStoryDuration) * 100;
-                const isCurrentClip = idx === currentIndex;
-                const isPastClip = idx < currentIndex;
-                const clipProgress = isCurrentClip && duration > 0 ? (currentTime / duration) * 100 : 0;
-
-                return (
-                  <div
-                    key={segment.id}
-                    className="relative h-1.5 rounded-full overflow-hidden cursor-pointer group"
-                    style={{ width: `${segmentWidth}%`, minWidth: '8px' }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setCurrentIndex(idx);
-                      setCurrentTime(0);
-                      if (videoRef.current) {
-                        videoRef.current.currentTime = 0;
-                      }
-                    }}
-                  >
-                    {/* Background */}
-                    <div className={`absolute inset-0 ${isPastClip ? 'bg-white/60' : 'bg-white/20'}`} />
-
-                    {/* Progress for current clip */}
-                    {isCurrentClip && (
-                      <div
-                        className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-400 to-purple-500 transition-all"
-                        style={{ width: `${clipProgress}%` }}
-                      />
-                    )}
-
-                    {/* Hover effect */}
-                    <div className="absolute inset-0 bg-white/0 group-hover:bg-white/20 transition-colors" />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Time Display - Overall story progress */}
-            <span className="text-white/70 text-[10px] font-mono min-w-[60px] text-right flex-shrink-0">
-              {formatTime(overallCurrentTime)} / {formatTime(totalStoryDuration)}
-            </span>
-          </div>
-
-          {/* Clip indicator */}
-          <div className="flex justify-between mt-1 px-8">
-            <span className="text-white/50 text-[9px]">
-              Clip {currentIndex + 1}/{completedSegments.length}
-            </span>
-            <span className="text-white/40 text-[9px]">
-              Tap segment to jump
-            </span>
-          </div>
+        <div className="absolute bottom-16 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20">
+          <StoryProgressBar
+            segments={season.slots}
+            totalSegments={season.total_slots}
+            currentIndex={currentIndex}
+            currentTime={currentTime}
+            duration={duration}
+            isPlaying={isPlaying}
+            onPlayPause={handlePlayPause}
+            onSegmentSelect={(index) => {
+              setCurrentIndex(index);
+              setCurrentTime(0);
+              if (videoRef.current) {
+                videoRef.current.currentTime = 0;
+              }
+              setIsPlaying(true);
+            }}
+            onSeekWithinClip={(time) => {
+              if (videoRef.current) {
+                videoRef.current.currentTime = time;
+                setCurrentTime(time);
+              }
+            }}
+            clipDurations={clipDurations}
+          />
         </div>
       )}
 
@@ -789,7 +789,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                         <span className="text-white/60 text-xs">{formatNumber(segment.winning_clip?.vote_count || 0)}</span>
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-white/30" />
+                    <ChevronRight className="w-4 h-4 text-white/60" />
                   </motion.button>
                 ))}
               </div>
@@ -991,7 +991,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
           </div>
 
           {/* Swipe Hint Arrows */}
-          <div className="flex flex-col items-center gap-1 text-white/30">
+          <div className="flex flex-col items-center gap-1 text-white/60">
             {currentIndex > 0 && (
               <ChevronRight className="w-4 h-4 rotate-180" />
             )}
@@ -1004,7 +1004,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
 
       {/* Swipe hint text */}
       <div className="text-center pb-1">
-        <span className="text-white/30 text-[9px]">Swipe to change season</span>
+        <span className="text-white/60 text-[9px]">Swipe to change season</span>
       </div>
     </div>
   );
@@ -1050,7 +1050,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
       >
         {isComingSoon ? (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20">
-            <Lock className="w-6 h-6 text-white/40" />
+            <Lock className="w-6 h-6 text-white/60" />
           </div>
         ) : (
           <>
@@ -1119,7 +1119,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
               </div>
 
               {/* Stats */}
-              <div className="flex justify-between text-[10px] text-white/40">
+              <div className="flex justify-between text-[10px] text-white/60">
                 <span>{completedSegments.length}/{season.total_slots}</span>
                 <span>{formatDuration(completedSegments.length * 8)} / 10:00</span>
               </div>
@@ -1168,7 +1168,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
       </div>
 
       {/* Arrow */}
-      <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-white' : 'text-white/30'}`} />
+      <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-white' : 'text-white/60'}`} />
     </motion.button>
   );
 }

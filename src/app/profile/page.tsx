@@ -236,7 +236,7 @@ export default function ProfilePage() {
             </h2>
             {displayBadges.length === 0 ? (
               <div className="text-center py-8 glass-card">
-                <Award className="w-12 h-12 mx-auto mb-3 text-white/20" />
+                <Award className="w-12 h-12 mx-auto mb-3 text-white/60" />
                 <p className="text-white/60">Start voting to unlock badges!</p>
               </div>
             ) : (
@@ -257,7 +257,7 @@ export default function ProfilePage() {
                     {/* Lock overlay for locked badges */}
                     {!badge.unlocked && (
                       <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/30">
-                        <Lock className="w-4 h-4 text-white/40" />
+                        <Lock className="w-4 h-4 text-white/60" />
                       </div>
                     )}
                     <span className={`text-2xl mb-1 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
@@ -270,7 +270,7 @@ export default function ProfilePage() {
                             style={{ width: `${Math.min((badge.progress / badge.target) * 100, 100)}%` }}
                           />
                         </div>
-                        <span className="text-[8px] text-white/40 mt-0.5 block text-center">{badge.progress}/{badge.target}</span>
+                        <span className="text-[8px] text-white/60 mt-0.5 block text-center">{badge.progress}/{badge.target}</span>
                       </div>
                     )}
                     {/* Tooltip on hover */}
@@ -345,7 +345,7 @@ export default function ProfilePage() {
           </div>
           {clips.length === 0 ? (
             <div className="text-center py-12">
-              <Film className="w-16 h-16 mx-auto mb-4 text-white/20" />
+              <Film className="w-16 h-16 mx-auto mb-4 text-white/60" />
               <p className="text-white/60 mb-4">No clips uploaded yet</p>
             </div>
           ) : (
@@ -361,7 +361,7 @@ export default function ProfilePage() {
           <h2 className="text-lg font-bold">Recent Votes</h2>
           {history.length === 0 ? (
             <div className="text-center py-12">
-              <Calendar className="w-16 h-16 mx-auto mb-4 text-white/20" />
+              <Calendar className="w-16 h-16 mx-auto mb-4 text-white/60" />
               <p className="text-white/60">No voting history yet</p>
             </div>
           ) : (
@@ -375,7 +375,7 @@ export default function ProfilePage() {
                       <div className="text-sm text-white/60">Slot #{item.slot_position} • {new Date(item.voted_at).toLocaleDateString()}</div>
                     </div>
                     <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
-                    <ChevronRight className="w-5 h-5 text-white/40" />
+                    <ChevronRight className="w-5 h-5 text-white/60" />
                   </motion.div>
                 </Link>
               ))}
@@ -392,8 +392,8 @@ export default function ProfilePage() {
             <SettingToggle icon={PlayCircle} title="Autoplay Videos" description="Automatically play clips" value={settings.autoplay} onChange={(v) => setSettings({ ...settings, autoplay: v })} />
           </div>
           <div className="space-y-2">
-            <Link href="/story"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><BookOpen className="w-5 h-5 text-cyan-500" /><span>Watch Story</span></div><ChevronRight className="w-5 h-5 text-white/40" /></div></Link>
-            <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/40" /></div></Link>
+            <Link href="/story"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><BookOpen className="w-5 h-5 text-cyan-500" /><span>Watch Story</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
+            <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
           </div>
 
           {/* Admin Section - Only visible to admins */}
@@ -531,9 +531,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               {loading ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="w-8 h-8 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-                </div>
+                <ProfileStatsSkeleton />
               ) : error ? (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
                   <p className="text-red-400 text-sm">{error}</p>
@@ -621,9 +619,7 @@ export default function ProfilePage() {
               </div>
             </div>
             {loading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-6 h-6 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-              </div>
+              <ProfileStatsSkeleton />
             ) : (
               <div className="grid grid-cols-4 gap-2">
                 <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" index={0} iconColor="text-pink-500" />
@@ -666,7 +662,7 @@ function StatBox({ icon: Icon, label, value, subValue, index = 0, iconColor = 't
       <div className={`w-8 h-8 mx-auto mb-2 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors`}>
         <Icon className={`w-4 h-4 ${iconColor} group-hover:scale-110 transition-transform`} />
       </div>
-      <div className="text-lg font-black">{value}{subValue && <span className="text-xs text-white/40">{subValue}</span>}</div>
+      <div className="text-lg font-black">{value}{subValue && <span className="text-xs text-white/60">{subValue}</span>}</div>
       <div className="text-[10px] text-white/60 uppercase tracking-wide">{label}</div>
     </motion.div>
   );
@@ -715,7 +711,7 @@ function ClipCard({ clip }: { clip: UserClip }) {
           <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
           <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
         </div>
-        <div className="text-xs text-white/40 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
+        <div className="text-xs text-white/60 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
       </div>
     </motion.div>
   );
@@ -728,6 +724,23 @@ function SettingToggle({ icon: Icon, title, description, value, onChange }: { ic
       <button onClick={() => onChange(!value)} className={`w-12 h-6 rounded-full transition-all ${value ? 'bg-cyan-500' : 'bg-white/20'}`}>
         <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${value ? 'translate-x-6' : 'translate-x-0.5'}`} />
       </button>
+    </div>
+  );
+}
+
+function ProfileStatsSkeleton() {
+  return (
+    <div className="grid grid-cols-4 gap-2 md:gap-3">
+      {[1, 2, 3, 4].map((i) => (
+        <div
+          key={i}
+          className="p-3 rounded-2xl bg-white/5 border border-white/10 text-center"
+        >
+          <div className="w-8 h-8 mx-auto mb-2 rounded-lg bg-white/10 animate-pulse" />
+          <div className="h-5 w-10 mx-auto bg-white/10 rounded animate-pulse mb-1" />
+          <div className="h-2 w-12 mx-auto bg-white/10 rounded animate-pulse" />
+        </div>
+      ))}
     </div>
   );
 }

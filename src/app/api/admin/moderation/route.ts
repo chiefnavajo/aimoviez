@@ -4,7 +4,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -85,10 +86,10 @@ export async function GET(req: NextRequest) {
       page_size: limit,
       has_more: (count || 0) > offset + limit,
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[GET /api/admin/moderation] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -107,6 +108,9 @@ export async function POST(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -145,6 +149,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Audit log the action
+    await logAdminAction(req, {
+      action: 'approve_clip',
+      resourceType: 'clip',
+      resourceId: clip_id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousStatus: 'pending',
+        newStatus: 'active',
+        clipOwner: clip.username,
+        adminNotes: admin_notes || null,
+      },
+    });
+
     // TODO: Send notification to creator
 
     return NextResponse.json({
@@ -152,10 +171,10 @@ export async function POST(req: NextRequest) {
       clip,
       message: 'Clip approved successfully',
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[POST /api/admin/moderation/approve] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -174,6 +193,9 @@ export async function DELETE(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -212,6 +234,21 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    // Audit log the action
+    await logAdminAction(req, {
+      action: 'reject_clip',
+      resourceType: 'clip',
+      resourceId: clip_id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousStatus: 'pending',
+        newStatus: 'rejected',
+        clipOwner: clip.username,
+        reason: reason || null,
+      },
+    });
+
     // TODO: Send notification to creator with reason
 
     return NextResponse.json({
@@ -219,10 +256,10 @@ export async function DELETE(req: NextRequest) {
       clip,
       message: 'Clip rejected successfully',
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[DELETE /api/admin/moderation/reject] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -242,6 +279,9 @@ export async function PATCH(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -286,15 +326,29 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // Audit log the batch action
+    await logAdminAction(req, {
+      action: 'bulk_action',
+      resourceType: 'clip',
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        batchAction: action,
+        clipIds: clip_ids,
+        clipCount: clips?.length || 0,
+        reason: reason || null,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       updated_count: clips?.length || 0,
       message: `${clips?.length || 0} clips ${action}d successfully`,
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[PATCH /api/admin/moderation/batch] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

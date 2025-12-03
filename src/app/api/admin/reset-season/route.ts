@@ -6,7 +6,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -25,6 +26,9 @@ export async function POST(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -151,6 +155,22 @@ export async function POST(req: NextRequest) {
       .order('vote_count', { ascending: false })
       .limit(10);
 
+    // Audit log the action
+    await logAdminAction(req, {
+      action: 'reset_season',
+      resourceType: 'season',
+      resourceId: season.id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        seasonLabel: season.label,
+        startSlot: start_slot,
+        votesCleared: clear_votes,
+        clipCountsReset: reset_clip_counts,
+        clipsInSlot: clipCount || 0,
+      },
+    });
+
     return NextResponse.json({
       ok: true,
       message: `Season "${season.label || 'Season'}" reset successfully`,
@@ -166,10 +186,10 @@ export async function POST(req: NextRequest) {
       },
     }, { status: 200 });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[reset-season] Unexpected error:', err);
     return NextResponse.json(
-      { ok: false, error: 'Internal server error', details: err.message },
+      { ok: false, error: 'Internal server error' },
       { status: 500 }
     );
   }

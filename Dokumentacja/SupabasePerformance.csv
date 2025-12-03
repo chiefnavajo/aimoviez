@@ -1,0 +1,16 @@
+tablename,indexname,indexdef
+tournament_clips,idx_clips_season_slot_status,"CREATE INDEX idx_clips_season_slot_status ON public.tournament_clips USING btree (season_id, slot_position, status)"
+tournament_clips,idx_clips_user_id,CREATE INDEX idx_clips_user_id ON public.tournament_clips USING btree (user_id)
+tournament_clips,idx_clips_vote_count,CREATE INDEX idx_clips_vote_count ON public.tournament_clips USING btree (vote_count DESC)
+tournament_clips,idx_tournament_clips_clip_id,CREATE UNIQUE INDEX idx_tournament_clips_clip_id ON public.tournament_clips USING btree (clip_id)
+tournament_clips,idx_tournament_clips_season_id,CREATE INDEX idx_tournament_clips_season_id ON public.tournament_clips USING btree (season_id)
+tournament_clips,idx_tournament_clips_user_id,CREATE INDEX idx_tournament_clips_user_id ON public.tournament_clips USING btree (user_id)
+tournament_clips,tournament_clips_pkey,CREATE UNIQUE INDEX tournament_clips_pkey ON public.tournament_clips USING btree (id)
+votes,idx_votes_flagged,CREATE INDEX idx_votes_flagged ON public.votes USING btree (flagged) WHERE (flagged = true)
+votes,idx_votes_user_id,CREATE INDEX idx_votes_user_id ON public.votes USING btree (user_id) WHERE (user_id IS NOT NULL)
+votes,idx_votes_voter_clip,"CREATE INDEX idx_votes_voter_clip ON public.votes USING btree (voter_key, clip_id)"
+votes,idx_votes_voter_key,CREATE INDEX idx_votes_voter_key ON public.votes USING btree (voter_key)
+votes,idx_votes_voter_slot,"CREATE INDEX idx_votes_voter_slot ON public.votes USING btree (voter_key, slot_position)"
+votes,idx_votes_voter_slot_type,"CREATE INDEX idx_votes_voter_slot_type ON public.votes USING btree (voter_key, slot_position, vote_type)"
+votes,votes_pkey,CREATE UNIQUE INDEX votes_pkey ON public.votes USING btree (id)
+votes,votes_unique_voter_clip,"CREATE UNIQUE INDEX votes_unique_voter_clip ON public.votes USING btree (voter_key, clip_id)"

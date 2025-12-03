@@ -175,6 +175,10 @@ export default function AdminDashboard() {
   const [loadingFlags, setLoadingFlags] = useState(false);
   const [togglingFlag, setTogglingFlag] = useState<string | null>(null);
 
+  // Multi-vote mode state (quick toggle)
+  const [multiVoteEnabled, setMultiVoteEnabled] = useState(false);
+  const [loadingMultiVote, setLoadingMultiVote] = useState(true);
+
   // ============================================================================
   // FETCH SEASONS
   // ============================================================================
@@ -308,6 +312,51 @@ export default function AdminDashboard() {
       fetchFeatureFlags();
     }
   }, [activeTab]);
+
+  // ============================================================================
+  // MULTI-VOTE MODE (Quick Toggle)
+  // ============================================================================
+
+  const fetchMultiVoteStatus = async () => {
+    try {
+      const response = await fetch('/api/admin/feature-flags');
+      const data = await response.json();
+      if (data.ok && data.flags) {
+        const multiVoteFlag = data.flags.find((f: FeatureFlag) => f.key === 'multi_vote_mode');
+        setMultiVoteEnabled(multiVoteFlag?.enabled ?? false);
+      }
+    } catch (error) {
+      console.error('Failed to fetch multi-vote status:', error);
+    }
+    setLoadingMultiVote(false);
+  };
+
+  useEffect(() => {
+    fetchMultiVoteStatus();
+  }, []);
+
+  const handleToggleMultiVote = async () => {
+    setLoadingMultiVote(true);
+    try {
+      const response = await fetch('/api/admin/feature-flags', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: 'multi_vote_mode', enabled: !multiVoteEnabled }),
+      });
+
+      const data = await response.json();
+      if (data.ok) {
+        setMultiVoteEnabled(!multiVoteEnabled);
+        // Also update feature flags if on that tab
+        setFeatureFlags((prev) =>
+          prev.map((f) => (f.key === 'multi_vote_mode' ? { ...f, enabled: !multiVoteEnabled } : f))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to toggle multi-vote mode:', error);
+    }
+    setLoadingMultiVote(false);
+  };
 
   // ============================================================================
   // TOGGLE FEATURE FLAG
@@ -1068,6 +1117,54 @@ export default function AdminDashboard() {
                     <SkipForward className="w-5 h-5" />
                     Advance to Next Slot
                   </>
+                )}
+              </motion.button>
+            </div>
+          </div>
+
+          {/* Multi-Vote Mode Toggle */}
+          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${multiVoteEnabled ? 'bg-green-500/20' : 'bg-white/10'}`}>
+                  <Zap className={`w-5 h-5 ${multiVoteEnabled ? 'text-green-400' : 'text-white/60'}`} />
+                </div>
+                <div>
+                  <h3 className="font-bold flex items-center gap-2">
+                    Multi-Vote Mode
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      multiVoteEnabled
+                        ? 'bg-green-500/30 text-green-300'
+                        : 'bg-white/10 text-white/50'
+                    }`}>
+                      {multiVoteEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </h3>
+                  <p className="text-sm text-white/60">
+                    {multiVoteEnabled
+                      ? 'Users can vote on the same clip multiple times (up to 200 daily)'
+                      : 'Users can only vote once per clip'}
+                  </p>
+                </div>
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.9 }}
+                onClick={handleToggleMultiVote}
+                disabled={loadingMultiVote}
+                className={`p-3 rounded-xl transition-all ${
+                  multiVoteEnabled
+                    ? 'bg-green-500 hover:bg-green-600'
+                    : 'bg-white/10 hover:bg-white/20'
+                } disabled:opacity-50`}
+                type="button"
+              >
+                {loadingMultiVote ? (
+                  <RefreshCw className="w-6 h-6 animate-spin" />
+                ) : multiVoteEnabled ? (
+                  <ToggleRight className="w-6 h-6" />
+                ) : (
+                  <ToggleLeft className="w-6 h-6" />
                 )}
               </motion.button>
             </div>

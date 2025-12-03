@@ -88,7 +88,7 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
             <span className="text-xs font-bold text-cyan-400">
               {round.segmentNumber}/{round.totalSegments}
             </span>
-            <span className="text-xs text-white/40">•</span>
+            <span className="text-xs text-white/60">•</span>
             <span className={`text-xs font-mono font-bold ${
               countdown.isExpired ? 'text-red-400' : 'text-green-400'
             }`}>

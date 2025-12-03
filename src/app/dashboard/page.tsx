@@ -22,9 +22,10 @@ import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy } from 'lucide-react';
+import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import MiniLeaderboard from '@/components/MiniLeaderboard';
+import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 
@@ -558,14 +559,17 @@ interface ActionButtonProps {
   icon: React.ReactNode;
   label?: string | number;
   onClick?: () => void;
+  ariaLabel?: string;
 }
 
-function ActionButton({ icon, label, onClick }: ActionButtonProps) {
+function ActionButton({ icon, label, onClick, ariaLabel }: ActionButtonProps) {
   return (
     <motion.button
       whileTap={{ scale: 0.9 }}
       onClick={onClick}
       className="flex flex-col items-center gap-1"
+      aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
+      type="button"
     >
       <div className="w-12 h-12 rounded-full flex items-center justify-center">
         {icon}
@@ -592,24 +596,24 @@ interface NavButtonProps {
 
 function NavButton({ href, icon, label, isActive = false }: NavButtonProps) {
   const content = (
-    <motion.div 
-      whileTap={{ scale: 0.9 }} 
+    <motion.div
+      whileTap={{ scale: 0.9 }}
       className="flex flex-col items-center gap-1 py-2 px-6"
     >
       <div className={`text-2xl ${isActive ? 'text-white' : 'text-white/70'}`}>
         {icon}
       </div>
-      <span className={`text-xs font-medium ${isActive ? 'text-white' : 'text-white/60'}`}>
+      <span className={`text-xs font-medium ${isActive ? 'text-white' : 'text-white/70'}`}>
         {label}
       </span>
     </motion.div>
   );
 
   if (isActive) {
-    return <div>{content}</div>;
+    return <div role="button" aria-current="page" aria-label={label}>{content}</div>;
   }
 
-  return <Link href={href}>{content}</Link>;
+  return <Link href={href} aria-label={`Navigate to ${label}`}>{content}</Link>;
 }
 
 // ============================================================================
@@ -625,8 +629,23 @@ function VotingArena() {
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
   const [leaderboardCollapsed, setLeaderboardCollapsed] = useState(true); // Start collapsed
 
+  // Double-tap detection
+  const [lastTapTime, setLastTapTime] = useState(0);
+  const [doubleTapPosition, setDoubleTapPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
+
+  // Pull-to-refresh
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pullStartY = useRef<number>(0);
+  const isPulling = useRef<boolean>(false);
+  const PULL_THRESHOLD = 80;
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
+
+  // Onboarding tour
+  const { showTour, completeTour, skipTour, resetTour } = useOnboarding();
 
   // Feature flag for vote button daily progress fill
   const { enabled: showVoteProgress } = useFeature('vote_button_progress');
@@ -661,29 +680,41 @@ function VotingArena() {
   }, [activeIndex]);
 
   // Preload next video for smoother transitions
+  // Video prefetching - preload next 2 clips for smooth playback
   useEffect(() => {
     if (!votingData?.clips?.length) return;
 
-    const nextIndex = (activeIndex + 1) % votingData.clips.length;
-    const nextClip = votingData.clips[nextIndex];
+    const clipsToPreload = [
+      (activeIndex + 1) % votingData.clips.length,
+      (activeIndex + 2) % votingData.clips.length,
+    ];
 
-    if (nextClip?.video_url) {
-      const link = document.createElement('link');
-      link.rel = 'preload';
-      link.as = 'video';
-      link.href = nextClip.video_url;
-      link.id = 'preload-next-video';
+    const preloadedVideos: HTMLVideoElement[] = [];
 
-      // Remove previous preload link if exists
-      const existing = document.getElementById('preload-next-video');
-      if (existing) existing.remove();
+    clipsToPreload.forEach((index) => {
+      const clip = votingData.clips[index];
+      if (clip?.video_url) {
+        // Create hidden video element for preloading
+        const video = document.createElement('video');
+        video.preload = 'auto';
+        video.muted = true;
+        video.playsInline = true;
+        video.src = clip.video_url;
 
-      document.head.appendChild(link);
+        // Load just enough to have it buffered
+        video.load();
 
-      return () => {
-        link.remove();
-      };
-    }
+        preloadedVideos.push(video);
+      }
+    });
+
+    return () => {
+      // Cleanup preloaded videos
+      preloadedVideos.forEach((video) => {
+        video.src = '';
+        video.load();
+      });
+    };
   }, [activeIndex, votingData?.clips]);
 
   // Vote mutation - supports standard, super, mega vote types
@@ -888,22 +919,63 @@ function VotingArena() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeIndex, votingData?.clips?.length]);
 
-  // Touch handlers
+  // Touch handlers with pull-to-refresh
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
-    // Reset touchEndY to same position - prevents tap from triggering swipe
-    // (if user taps without moving, delta will be 0)
     touchEndY.current = e.touches[0].clientY;
+
+    // Pull-to-refresh: only start if at top of page
+    if (activeIndex === 0 && !isRefreshing) {
+      pullStartY.current = e.touches[0].clientY;
+      isPulling.current = true;
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (showComments) return;
     touchEndY.current = e.touches[0].clientY;
+
+    // Pull-to-refresh logic
+    if (isPulling.current && activeIndex === 0 && !isRefreshing) {
+      const distance = e.touches[0].clientY - pullStartY.current;
+      if (distance > 0) {
+        // Rubber band effect - diminishing returns
+        setPullDistance(Math.min(distance * 0.5, PULL_THRESHOLD * 1.5));
+      }
+    }
   };
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = async () => {
     if (showComments) return;
+
+    // Check for pull-to-refresh trigger
+    if (isPulling.current && pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+      setIsRefreshing(true);
+      setPullDistance(PULL_THRESHOLD);
+
+      // Haptic feedback
+      if (navigator.vibrate) navigator.vibrate(50);
+
+      try {
+        await refetch();
+        toast.success('Refreshed!');
+      } catch {
+        toast.error('Failed to refresh');
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }
+
+      isPulling.current = false;
+      return;
+    }
+
+    // Reset pull distance
+    setPullDistance(0);
+    isPulling.current = false;
+
+    // Normal swipe handling
     const delta = touchStartY.current - touchEndY.current;
     if (Math.abs(delta) < swipeThreshold) return;
 
@@ -948,15 +1020,66 @@ function VotingArena() {
     revokeMutation.mutate({ clipId: currentClip.clip_id });
   };
 
-  const handleVideoTap = () => {
-    if (!videoRef.current) return;
-    if (isPaused) {
-      videoRef.current.play();
-      setIsPaused(false);
-    } else {
-      videoRef.current.pause();
-      setIsPaused(true);
+  const handleVideoTap = (e?: React.MouseEvent | React.TouchEvent) => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 300;
+
+    // Get tap position (center of screen if no event)
+    let tapX = window.innerWidth / 2;
+    let tapY = window.innerHeight / 2;
+    if (e && 'touches' in e && e.touches.length > 0) {
+      tapX = e.touches[0].clientX;
+      tapY = e.touches[0].clientY;
+    } else if (e && 'clientX' in e) {
+      tapX = e.clientX;
+      tapY = e.clientY;
     }
+
+    // Check for double-tap
+    if (now - lastTapTime < DOUBLE_TAP_DELAY) {
+      // Double-tap detected - vote!
+      setLastTapTime(0);
+
+      if (!currentClip?.has_voted && votesToday < DAILY_GOAL && !isVoting) {
+        // Show heart animation at tap position
+        setDoubleTapPosition({ x: tapX, y: tapY });
+        setShowHeartAnimation(true);
+
+        // Haptic feedback
+        if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
+
+        // Trigger vote
+        handleVote('standard');
+
+        // Hide heart after animation
+        setTimeout(() => {
+          setShowHeartAnimation(false);
+          setDoubleTapPosition(null);
+        }, 1000);
+      } else if (currentClip?.has_voted) {
+        // Already voted - show feedback
+        toast('Already voted!', { icon: '❤️' });
+      }
+      return;
+    }
+
+    // Single tap - set timer to toggle play/pause
+    setLastTapTime(now);
+
+    // Use timeout to wait for potential second tap
+    setTimeout(() => {
+      // Only pause/play if this was a single tap (no double tap occurred)
+      if (Date.now() - now >= DOUBLE_TAP_DELAY - 20) {
+        if (!videoRef.current) return;
+        if (isPaused) {
+          videoRef.current.play();
+          setIsPaused(false);
+        } else {
+          videoRef.current.pause();
+          setIsPaused(true);
+        }
+      }
+    }, DOUBLE_TAP_DELAY);
   };
 
   const handleShare = async () => {
@@ -982,18 +1105,48 @@ function VotingArena() {
     }
   };
 
-  // Loading state
+  // Loading state with skeleton
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <motion.span
-          className="text-6xl font-black text-white"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
-          style={{ textShadow: '0 0 30px rgba(56, 189, 248, 0.8)' }}
-        >
-          ∞
-        </motion.span>
+      <div className="min-h-screen bg-black flex flex-col">
+        {/* Skeleton Header */}
+        <div className="flex items-center justify-between p-4">
+          <div className="h-6 w-32 bg-white/10 rounded animate-pulse" />
+          <div className="h-8 w-8 bg-white/10 rounded-full animate-pulse" />
+        </div>
+
+        {/* Skeleton Video */}
+        <div className="flex-1 relative mx-4 mb-4">
+          <div className="w-full h-full min-h-[60vh] bg-white/5 rounded-2xl animate-pulse flex items-center justify-center">
+            <div className="w-16 h-16 rounded-full bg-white/10 animate-pulse" />
+          </div>
+
+          {/* Skeleton Right Controls */}
+          <div className="absolute right-3 bottom-32 flex flex-col gap-4">
+            <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
+            <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
+            <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
+          </div>
+
+          {/* Skeleton Creator Info */}
+          <div className="absolute bottom-4 left-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/10 rounded-full animate-pulse" />
+            <div className="space-y-2">
+              <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
+              <div className="h-3 w-16 bg-white/10 rounded animate-pulse" />
+            </div>
+          </div>
+        </div>
+
+        {/* Skeleton Bottom Nav */}
+        <div className="h-16 border-t border-white/10 flex items-center justify-around px-4">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="w-6 h-6 bg-white/10 rounded animate-pulse" />
+              <div className="w-10 h-2 bg-white/10 rounded animate-pulse" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1045,6 +1198,75 @@ function VotingArena() {
       onTouchEnd={handleTouchEnd}
     >
       <Toaster position="top-center" />
+
+      {/* Pull-to-refresh indicator */}
+      <AnimatePresence>
+        {pullDistance > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="absolute top-0 left-0 right-0 z-50 flex justify-center pt-4"
+            style={{ transform: `translateY(${pullDistance}px)` }}
+          >
+            <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${
+              pullDistance >= PULL_THRESHOLD ? 'bg-cyan-500' : 'bg-white/20'
+            } backdrop-blur-sm transition-colors`}>
+              <motion.div
+                animate={{ rotate: isRefreshing ? 360 : 0 }}
+                transition={{ duration: 1, repeat: isRefreshing ? Infinity : 0, ease: 'linear' }}
+              >
+                {isRefreshing ? (
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                )}
+              </motion.div>
+              <span className="text-white text-sm font-medium">
+                {isRefreshing ? 'Refreshing...' : pullDistance >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Double-tap heart animation */}
+      <AnimatePresence>
+        {showHeartAnimation && doubleTapPosition && (
+          <motion.div
+            initial={{ scale: 0, opacity: 1 }}
+            animate={{ scale: [0, 1.5, 1], opacity: [1, 1, 0] }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            className="fixed z-50 pointer-events-none"
+            style={{
+              left: doubleTapPosition.x - 50,
+              top: doubleTapPosition.y - 50,
+            }}
+          >
+            <svg width="100" height="100" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                fill="url(#heartGradient)"
+              />
+              <defs>
+                <linearGradient id="heartGradient" x1="2" y1="3" x2="22" y2="21">
+                  <stop offset="0%" stopColor="#FF00C7" />
+                  <stop offset="50%" stopColor="#A020F0" />
+                  <stop offset="100%" stopColor="#3CF2FF" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Onboarding Tour */}
+      {showTour && (
+        <OnboardingTour onComplete={completeTour} onSkip={skipTour} />
+      )}
 
       {/* ============ VIDEO ============ */}
       <AnimatePresence mode="wait">
@@ -1112,6 +1334,16 @@ function VotingArena() {
           onToggleCollapse={() => setLeaderboardCollapsed(!leaderboardCollapsed)}
         />
       </div>
+
+      {/* ============ HELP BUTTON (Top Right) ============ */}
+      <motion.button
+        whileTap={{ scale: 0.9 }}
+        onClick={resetTour}
+        className="absolute top-14 right-4 z-30 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
+        title="Show tutorial"
+      >
+        <HelpCircle className="w-5 h-5 text-white/70" />
+      </motion.button>
 
 
       {/* ============ VOTING SEGMENT INFO ============ */}
@@ -1181,12 +1413,14 @@ function VotingArena() {
           icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
           label="Chat"
           onClick={() => setShowComments(true)}
+          ariaLabel="Open comments"
         />
 
         {/* Share */}
         <ActionButton
           icon={<Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
           onClick={handleShare}
+          ariaLabel="Share this clip"
         />
 
         {/* Mute/Unmute */}
@@ -1199,6 +1433,7 @@ function VotingArena() {
             )
           }
           onClick={() => setIsMuted(!isMuted)}
+          ariaLabel={isMuted ? "Unmute video" : "Mute video"}
         />
 
         {/* Daily Vote Progress */}
@@ -1236,9 +1471,10 @@ function VotingArena() {
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg ${activeIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
             type="button"
-            title="Previous clip (↑)"
+            aria-label="Previous clip"
+            disabled={activeIndex === 0}
           >
-            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
             </svg>
           </motion.button>
@@ -1259,9 +1495,10 @@ function VotingArena() {
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg ${activeIndex >= votingData.clips.length - 1 ? 'opacity-30' : 'opacity-100'}`}
             type="button"
-            title="Next clip (↓)"
+            aria-label="Next clip"
+            disabled={activeIndex >= votingData.clips.length - 1}
           >
-            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
           </motion.button>

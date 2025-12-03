@@ -227,7 +227,7 @@ export default function SearchPage() {
 
               {/* Search Input */}
               <div className="relative mb-6">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -241,7 +241,7 @@ export default function SearchPage() {
                     onClick={() => setSearchQuery('')}
                     className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-white/10 transition"
                   >
-                    <X className="w-5 h-5 text-white/40" />
+                    <X className="w-5 h-5 text-white/60" />
                   </button>
                 )}
               </div>
@@ -355,7 +355,7 @@ export default function SearchPage() {
                 {/* Empty State */}
                 {clips.length === 0 && creators.length === 0 && !loading && (
                   <div className="text-center py-20">
-                    <Search className="w-16 h-16 mx-auto mb-4 text-white/20" />
+                    <Search className="w-16 h-16 mx-auto mb-4 text-white/60" />
                     <h3 className="text-xl font-bold mb-2">No results found</h3>
                     <p className="text-white/60">
                       {searchQuery
@@ -394,7 +394,7 @@ export default function SearchPage() {
           <div className="px-4 pt-4 pb-3">
             {/* Search Input */}
             <div className="relative mb-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/60" />
               <input
                 type="text"
                 placeholder="Search clips, creators..."
@@ -546,7 +546,7 @@ export default function SearchPage() {
               {/* Empty State */}
               {clips.length === 0 && creators.length === 0 && !loading && (
                 <div className="text-center py-16">
-                  <Search className="w-12 h-12 mx-auto mb-3 text-white/20" />
+                  <Search className="w-12 h-12 mx-auto mb-3 text-white/60" />
                   <h3 className="text-lg font-bold mb-1">No results</h3>
                   <p className="text-sm text-white/60">
                     {searchQuery ? `Nothing found for "${searchQuery}"` : 'Search to discover'}
@@ -604,7 +604,7 @@ function ClipCard({ clip }: { clip: DiscoverClip }) {
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <Film className="w-8 h-8 text-white/20" />
+            <Film className="w-8 h-8 text-white/60" />
           </div>
         )}
 
@@ -687,7 +687,7 @@ function CreatorCard({ creator }: { creator: DiscoverCreator }) {
           </div>
         )}
 
-        <ChevronRight className="w-5 h-5 text-white/40" />
+        <ChevronRight className="w-5 h-5 text-white/60" />
       </motion.div>
     </Link>
   );

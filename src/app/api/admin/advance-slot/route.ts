@@ -6,7 +6,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   const supabase = createSupabaseServerClient();
 
@@ -185,6 +189,20 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Audit log season finish
+      await logAdminAction(req, {
+        action: 'advance_slot',
+        resourceType: 'season',
+        resourceId: seasonRow.id,
+        adminEmail: adminAuth.email || 'unknown',
+        adminId: adminAuth.userId || undefined,
+        details: {
+          slotLocked: storySlot.slot_position,
+          winnerClipId: winner.id,
+          seasonFinished: true,
+        },
+      });
+
       return NextResponse.json(
         {
           ok: true,
@@ -254,6 +272,21 @@ export async function POST(req: NextRequest) {
 
     const clipsMovedCount = movedClips?.length ?? 0;
     console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
+
+    // Audit log the slot advance
+    await logAdminAction(req, {
+      action: 'advance_slot',
+      resourceType: 'slot',
+      resourceId: storySlot.id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        slotLocked: storySlot.slot_position,
+        winnerClipId: winner.id,
+        nextSlotPosition: nextPosition,
+        clipsMovedCount,
+      },
+    });
 
     return NextResponse.json(
       {

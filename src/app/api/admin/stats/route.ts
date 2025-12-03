@@ -250,7 +250,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[GET /api/admin/stats] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -11,6 +11,7 @@ import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
 import { RegisterClipSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
+import { sanitizeText } from '@/lib/sanitize';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -129,6 +130,10 @@ export async function POST(request: NextRequest) {
 
     const slotPosition = votingSlot.slot_position;
 
+    // Sanitize user-provided text to prevent XSS
+    const sanitizedTitle = sanitizeText(title) || `Clip ${Date.now()}`;
+    const sanitizedDescription = sanitizeText(description) || '';
+
     // Insert into tournament_clips
     const { data: clipData, error: clipError } = await supabase
       .from('tournament_clips')
@@ -138,11 +143,11 @@ export async function POST(request: NextRequest) {
         track_id: 'track-main',
         video_url: videoUrl,
         thumbnail_url: videoUrl, // Use video URL as thumbnail for now
-        username: uploaderUsername,
+        username: sanitizeText(uploaderUsername),
         avatar_url: uploaderAvatar,
         genre: genre.toUpperCase(),
-        title: title || `Clip ${Date.now()}`,
-        description: description || '',
+        title: sanitizedTitle,
+        description: sanitizedDescription,
         vote_count: 0,
         weighted_score: 0,
         hype_score: 0,

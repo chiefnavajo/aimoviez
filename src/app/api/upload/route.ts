@@ -46,6 +46,86 @@ function generateFilename(originalName: string): string {
 }
 
 // ============================================================================
+// FILE SIGNATURE VERIFICATION (Magic Bytes)
+// Prevents malicious files with spoofed MIME types
+// ============================================================================
+
+interface FileSignature {
+  mime: string;
+  signatures: number[][];
+  offset?: number;
+}
+
+const VIDEO_SIGNATURES: FileSignature[] = [
+  // MP4 / M4V / MOV (ftyp box at start)
+  {
+    mime: 'video/mp4',
+    signatures: [
+      [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70], // ftyp at offset 0
+      [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70], // ftyp at offset 0
+      [0x00, 0x00, 0x00, 0x1C, 0x66, 0x74, 0x79, 0x70], // ftyp at offset 0
+      [0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70], // ftyp at offset 0
+    ],
+  },
+  // Also check for 'ftyp' at offset 4 (common for some encoders)
+  {
+    mime: 'video/mp4',
+    signatures: [[0x66, 0x74, 0x79, 0x70]], // 'ftyp'
+    offset: 4,
+  },
+  // QuickTime MOV
+  {
+    mime: 'video/quicktime',
+    signatures: [
+      [0x00, 0x00, 0x00, 0x14, 0x66, 0x74, 0x79, 0x70, 0x71, 0x74], // ftypqt
+    ],
+  },
+  // WebM (EBML header)
+  {
+    mime: 'video/webm',
+    signatures: [[0x1A, 0x45, 0xDF, 0xA3]],
+  },
+];
+
+async function verifyVideoSignature(file: File): Promise<{ valid: boolean; detectedType?: string; error?: string }> {
+  try {
+    // Read first 32 bytes for signature check
+    const buffer = await file.slice(0, 32).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+
+    for (const sig of VIDEO_SIGNATURES) {
+      const offset = sig.offset || 0;
+      for (const signature of sig.signatures) {
+        let match = true;
+        for (let i = 0; i < signature.length; i++) {
+          if (bytes[offset + i] !== signature[i]) {
+            match = false;
+            break;
+          }
+        }
+        if (match) {
+          return { valid: true, detectedType: sig.mime };
+        }
+      }
+    }
+
+    // Check for 'ftyp' anywhere in first 12 bytes (handles various MP4 variants)
+    const ftypStr = String.fromCharCode(...bytes.slice(0, 12));
+    if (ftypStr.includes('ftyp')) {
+      return { valid: true, detectedType: 'video/mp4' };
+    }
+
+    return {
+      valid: false,
+      error: 'File does not appear to be a valid video file. Please upload MP4, MOV, or WebM format.',
+    };
+  } catch (err) {
+    console.error('[verifyVideoSignature] Error:', err);
+    return { valid: false, error: 'Failed to verify file type' };
+  }
+}
+
+// ============================================================================
 // POST - Upload Video
 // ============================================================================
 
@@ -102,12 +182,26 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate file type
+    // Validate file type (client-reported MIME)
     const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
     if (!validTypes.includes(video.type)) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'Invalid format. Use MP4, MOV, or WebM' 
+        error: 'Invalid format. Use MP4, MOV, or WebM'
+      }, { status: 400 });
+    }
+
+    // SECURITY: Verify file signature (magic bytes) to prevent spoofed uploads
+    const signatureCheck = await verifyVideoSignature(video);
+    if (!signatureCheck.valid) {
+      console.warn('[UPLOAD] File signature verification failed:', {
+        reportedType: video.type,
+        filename: video.name,
+        error: signatureCheck.error,
+      });
+      return NextResponse.json({
+        success: false,
+        error: signatureCheck.error || 'Invalid video file',
       }, { status: 400 });
     }
 

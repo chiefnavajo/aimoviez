@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,9 +25,12 @@ export async function POST(request: NextRequest) {
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
+
   try {
     const body = await request.json();
-    const { clipId } = body;
+    const { clipId, reason } = body;
 
     if (!clipId) {
       return NextResponse.json(
@@ -36,6 +40,13 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+
+    // Get current clip status for audit log
+    const { data: currentClip } = await supabase
+      .from('tournament_clips')
+      .select('status, username')
+      .eq('id', clipId)
+      .single();
 
     // Update clip status to 'rejected'
     const { data, error } = await supabase
@@ -55,6 +66,21 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Audit log the action
+    await logAdminAction(request, {
+      action: 'reject_clip',
+      resourceType: 'clip',
+      resourceId: clipId,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousStatus: currentClip?.status,
+        newStatus: 'rejected',
+        clipOwner: currentClip?.username,
+        reason: reason || null,
+      },
+    });
 
     return NextResponse.json({
       success: true,

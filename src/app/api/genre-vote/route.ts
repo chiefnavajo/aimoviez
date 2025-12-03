@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[GET /api/genre-vote] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -222,7 +222,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[POST /api/genre-vote] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -257,7 +257,7 @@ export async function DELETE(req: NextRequest) {
   } catch (err: any) {
     console.error('[DELETE /api/genre-vote] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

@@ -21,6 +21,34 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   secret: process.env.NEXTAUTH_SECRET,
+
+  // Session security configuration
+  session: {
+    strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+    updateAge: 24 * 60 * 60, // Refresh session every 24 hours
+  },
+
+  // Secure cookie configuration
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === 'production'
+        ? '__Secure-next-auth.session-token'
+        : 'next-auth.session-token',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      },
+    },
+  },
+
+  // Security pages
+  pages: {
+    signIn: '/', // Redirect to home for sign in
+    error: '/', // Redirect to home on error
+  },
   callbacks: {
     async signIn({ user }) {
       const raw = process.env.ALLOWED_EMAILS || "";

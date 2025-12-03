@@ -3,6 +3,28 @@
 :root {
   --background: #000000;
   --foreground: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --muted: rgba(255, 255, 255, 0.6);
+  --accent: #3CF2FF;
+}
+
+/* Dark theme (default) */
+.dark-theme {
+  --background: #000000;
+  --foreground: #ffffff;
+  --card-bg: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --muted: rgba(255, 255, 255, 0.6);
+}
+
+/* Light theme */
+.light-theme {
+  --background: #f5f5f5;
+  --foreground: #111111;
+  --card-bg: rgba(0, 0, 0, 0.03);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --muted: rgba(0, 0, 0, 0.6);
 }
 
 @theme inline {
@@ -16,6 +38,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* Safe area utilities for mobile devices */
@@ -25,6 +48,48 @@ body {
 
 .pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Mobile-first responsive utilities */
+@media (max-width: 374px) {
+  /* Extra small phones (iPhone SE, etc.) */
+  .xs-text-xs { font-size: 0.65rem; }
+  .xs-gap-1 { gap: 0.25rem; }
+  .xs-p-1 { padding: 0.25rem; }
+  .xs-px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+}
+
+/* Touch-friendly tap targets */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent text selection on interactive elements */
+.no-select {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Smooth scrolling for mobile */
+.scroll-smooth-mobile {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Ensure videos play inline on iOS */
@@ -213,6 +278,16 @@ video::cue {
 /* Fade-up animation class */
 .animate-fade-up {
   animation: fade-up 0.4s ease-out forwards;
+}
+
+/* Slide-in animation for toasts */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
 }
 
 /* Stagger delay utilities */

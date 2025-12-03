@@ -5,7 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -76,8 +77,10 @@ export async function PUT(request: NextRequest) {
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
-  try {
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
+  try {
     const body = await request.json();
     const { key, enabled, config } = body;
 
@@ -107,6 +110,20 @@ export async function PUT(request: NextRequest) {
       console.error('[FEATURE-FLAGS] Error updating:', error);
       return NextResponse.json({ error: 'Failed to update feature flag' }, { status: 500 });
     }
+
+    // Audit log the action
+    await logAdminAction(request, {
+      action: 'toggle_feature',
+      resourceType: 'feature_flag',
+      resourceId: key,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        flagName: flag.name,
+        enabled: flag.enabled,
+        config: flag.config,
+      },
+    });
 
     return NextResponse.json({
       ok: true,

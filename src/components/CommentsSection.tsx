@@ -70,6 +70,64 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
   
   const inputRef = useRef<HTMLInputElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Focus trap and keyboard handling
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Store previously focused element to restore on close
+    const previouslyFocusedElement = document.activeElement as HTMLElement;
+
+    // Lock body scroll when modal is open
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    // Focus the close button when modal opens
+    setTimeout(() => {
+      closeButtonRef.current?.focus();
+    }, 100);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Close on Escape
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+
+      // Focus trap on Tab
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      // Restore body scroll
+      document.body.style.overflow = originalOverflow;
+      // Restore focus when modal closes
+      previouslyFocusedElement?.focus?.();
+    };
+  }, [isOpen, onClose]);
 
   // Fetch comments
   const fetchComments = async (pageNum: number = 1, append: boolean = false) => {
@@ -290,10 +348,12 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-black/60 z-50 md:bg-transparent md:pointer-events-none"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Comments Panel */}
       <motion.div
+        ref={modalRef}
         key="comments-panel"
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
@@ -301,15 +361,23 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
         className="fixed bottom-0 left-0 right-0 md:right-auto md:left-auto md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:w-[400px] md:max-h-[600px] md:mx-auto z-50 bg-[#1a1a1a] rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="comments-modal-title"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
           <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5" />
-            <span className="font-bold">{total} Comments</span>
+            <MessageCircle className="w-5 h-5" aria-hidden="true" />
+            <span id="comments-modal-title" className="font-bold">{total} Comments</span>
           </div>
-          <button onClick={onClose} className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center">
-            <X className="w-5 h-5" />
+          <button
+            ref={closeButtonRef}
+            onClick={onClose}
+            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]"
+            aria-label="Close comments"
+          >
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -320,11 +388,11 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
         >
           {loading && comments.length === 0 ? (
             <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-white/30" />
+              <Loader2 className="w-8 h-8 animate-spin text-white/60" />
             </div>
           ) : comments.length === 0 ? (
             <div className="text-center py-12 text-white/50">
-              <MessageCircle className="w-12 h-12 mx-auto mb-3 text-white/20" />
+              <MessageCircle className="w-12 h-12 mx-auto mb-3 text-white/60" />
               <p>No comments yet</p>
               <p className="text-sm">Be the first to comment!</p>
             </div>
@@ -424,7 +492,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
               onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
               placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
               maxLength={500}
-              className="flex-1 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm placeholder:text-white/40 focus:outline-none focus:border-cyan-500"
+              className="flex-1 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm placeholder:text-white/60 focus:outline-none focus:border-cyan-500"
             />
             
             <motion.button
@@ -434,7 +502,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
               className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
                 newComment.trim() && !posting
                   ? 'bg-gradient-to-r from-cyan-500 to-purple-500'
-                  : 'bg-white/10 text-white/30'
+                  : 'bg-white/10 text-white/60'
               }`}
             >
               {posting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
@@ -443,7 +511,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
           
           {/* Character count */}
           {newComment.length > 400 && (
-            <div className="text-right text-xs text-white/40 mt-1">
+            <div className="text-right text-xs text-white/60 mt-1">
               {newComment.length}/500
             </div>
           )}
@@ -507,7 +575,7 @@ function CommentItem({
               <span className={`font-bold ${isReply ? 'text-sm' : ''}`}>
                 @{comment.username}
               </span>
-              <span className="text-white/40 text-xs ml-2">
+              <span className="text-white/60 text-xs ml-2">
                 {timeAgo(comment.created_at)}
               </span>
               {comment.is_own && (
@@ -521,7 +589,7 @@ function CommentItem({
                 onClick={() => setShowMenu(!showMenu)}
                 className="w-6 h-6 rounded-full hover:bg-white/10 flex items-center justify-center"
               >
-                <MoreHorizontal className="w-4 h-4 text-white/40" />
+                <MoreHorizontal className="w-4 h-4 text-white/60" />
               </button>
 
               <AnimatePresence>

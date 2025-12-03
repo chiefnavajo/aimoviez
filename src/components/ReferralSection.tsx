@@ -124,7 +124,7 @@ export default function ReferralSection() {
 
         {data.current_tier && (
           <div className="text-right">
-            <div className="text-xs text-white/40">Current Tier</div>
+            <div className="text-xs text-white/60">Current Tier</div>
             <div className="font-bold text-purple-400">{data.current_tier.title}</div>
           </div>
         )}
@@ -161,7 +161,7 @@ export default function ReferralSection() {
               className="h-full bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full"
             />
           </div>
-          <div className="text-xs text-white/40 mt-1">
+          <div className="text-xs text-white/60 mt-1">
             +{data.next_tier.reward} XP per referral at this tier
           </div>
         </div>
@@ -169,7 +169,7 @@ export default function ReferralSection() {
 
       {/* Referral Code */}
       <div className="bg-black/30 rounded-xl p-4 mb-4">
-        <div className="text-xs text-white/40 mb-2">Your Referral Code</div>
+        <div className="text-xs text-white/60 mb-2">Your Referral Code</div>
         <div className="flex items-center justify-between">
           <span className="text-xl font-mono font-bold text-cyan-400">
             {data.referral_code}
@@ -253,7 +253,7 @@ export default function ReferralSection() {
                           {isAchieved ? (
                             <Check className="w-4 h-4 text-green-400" />
                           ) : (
-                            <Users className="w-4 h-4 text-white/40" />
+                            <Users className="w-4 h-4 text-white/60" />
                           )}
                         </div>
                         <div>
@@ -273,7 +273,7 @@ export default function ReferralSection() {
                       <div className="text-right">
                         <div className="font-bold text-cyan-400">+{tier.reward} XP</div>
                         {tier.badge && (
-                          <div className="text-xs text-white/40 flex items-center gap-1">
+                          <div className="text-xs text-white/60 flex items-center gap-1">
                             <Sparkles className="w-3 h-3" />
                             Badge
                           </div>

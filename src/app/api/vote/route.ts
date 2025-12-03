@@ -15,6 +15,12 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { VoteRequestSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
+import {
+  generateDeviceKey,
+  extractDeviceSignals,
+  assessDeviceRisk,
+  shouldFlagVote,
+} from '@/lib/device-fingerprint';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -22,6 +28,53 @@ const DAILY_VOTE_LIMIT = 200;
 const SUPER_VOTES_PER_SLOT = 1;
 const MEGA_VOTES_PER_SLOT = 1;
 const FRESH_CLIP_HOURS = 2;   // Clips < 2 hours old get boost
+
+// =========================
+// In-memory cache for frequently accessed data
+// =========================
+interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
+
+const cache = {
+  activeSeason: null as CacheEntry<any> | null,
+  activeSlot: null as CacheEntry<any> | null,
+  clips: new Map<string, CacheEntry<any>>(),
+};
+
+const CACHE_TTL = {
+  season: 60 * 1000,      // 1 minute for season
+  slot: 30 * 1000,        // 30 seconds for active slot
+  clips: 15 * 1000,       // 15 seconds for clips
+};
+
+function getCached<T>(key: 'activeSeason' | 'activeSlot', fallback?: T): T | null {
+  const entry = cache[key];
+  if (entry && Date.now() < entry.expires) {
+    return entry.data as T;
+  }
+  return fallback || null;
+}
+
+function setCache(key: 'activeSeason' | 'activeSlot', data: any, ttl: number) {
+  cache[key] = { data, expires: Date.now() + ttl };
+}
+
+function getCachedClips(slotPosition: number): any[] | null {
+  const key = `slot_${slotPosition}`;
+  const entry = cache.clips.get(key);
+  if (entry && Date.now() < entry.expires) {
+    return entry.data;
+  }
+  cache.clips.delete(key);
+  return null;
+}
+
+function setCachedClips(slotPosition: number, data: any[]) {
+  const key = `slot_${slotPosition}`;
+  cache.clips.set(key, { data, expires: Date.now() + CACHE_TTL.clips });
+}
 
 // =========================
 // Supabase client (server)
@@ -260,14 +313,19 @@ async function getVoteOnClip(
 }
 
 function getVoterKey(req: NextRequest): string {
-  const ip =
-    (req.headers.get('x-forwarded-for') || '').split(',')[0]?.trim() ||
-    req.headers.get('x-real-ip') ||
-    '0.0.0.0';
-  const ua = req.headers.get('user-agent') || 'unknown-ua';
-  const raw = `${ip}|${ua}`;
-  const hash = crypto.createHash('sha256').update(raw).digest('hex').slice(0, 16);
-  return `device_${hash}`;
+  // Use enhanced device fingerprinting
+  return generateDeviceKey(req);
+}
+
+// Check if vote should be flagged for suspicious activity
+function checkVoteRisk(req: NextRequest): { flagged: boolean; riskScore: number; reasons: string[] } {
+  const signals = extractDeviceSignals(req);
+  const risk = assessDeviceRisk(signals);
+  return {
+    flagged: shouldFlagVote(signals),
+    riskScore: risk.score,
+    reasons: risk.reasons,
+  };
 }
 
 function fallbackAvatar(seed: string) {
@@ -442,22 +500,53 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
+  // Get logged-in user's ID if available for secure vote tracking
+  let effectiveVoterKey = voterKey;
+  try {
+    const { getServerSession } = await import('next-auth');
+    const session = await getServerSession();
+    if (session?.user?.email) {
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .single();
+      if (userData) {
+        effectiveVoterKey = `user_${userData.id}`;
+      }
+    }
+  } catch {
+    // No session - use device fingerprint
+  }
+
   try {
     // 1. Get user's votes today
     const { votes: userVotesToday, count: totalVotesToday } = await getUserVotesToday(
       supabase,
-      voterKey
+      effectiveVoterKey
     );
     const dailyRemaining = Math.max(0, DAILY_VOTE_LIMIT - totalVotesToday);
 
-    // 2. Get active Season
-    const { data: season, error: seasonError } = await supabase
-      .from('seasons')
-      .select('*')
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // 2. Get active Season (with caching)
+    let season = getCached<SeasonRow>('activeSeason');
+    let seasonError = null;
+
+    if (!season) {
+      const result = await supabase
+        .from('seasons')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      season = result.data;
+      seasonError = result.error;
+
+      if (season) {
+        setCache('activeSeason', season, CACHE_TTL.season);
+      }
+    }
 
     if (seasonError) {
       console.error('[GET /api/vote] seasonError:', seasonError);
@@ -490,15 +579,32 @@ export async function GET(req: NextRequest) {
     const seasonRow = season as SeasonRow;
     const totalSlots = seasonRow.total_slots ?? 75;
 
-    // 3. Get active slot (status = 'voting')
-    const { data: storySlot, error: slotError } = await supabase
-      .from('story_slots')
-      .select('*')
-      .eq('season_id', seasonRow.id)
-      .eq('status', 'voting')
-      .order('slot_position', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // 3. Get active slot (status = 'voting') with caching
+    let storySlot = getCached<StorySlotRow>('activeSlot');
+    let slotError = null;
+
+    // Validate cached slot is for current season
+    if (storySlot && storySlot.season_id !== seasonRow.id) {
+      storySlot = null;
+    }
+
+    if (!storySlot) {
+      const result = await supabase
+        .from('story_slots')
+        .select('*')
+        .eq('season_id', seasonRow.id)
+        .eq('status', 'voting')
+        .order('slot_position', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      storySlot = result.data;
+      slotError = result.error;
+
+      if (storySlot) {
+        setCache('activeSlot', storySlot, CACHE_TTL.slot);
+      }
+    }
 
     if (slotError) {
       console.error('[GET /api/vote] storySlotError:', slotError);
@@ -531,7 +637,7 @@ export async function GET(req: NextRequest) {
     const activeSlot = storySlot as StorySlotRow;
 
     // 4. Get user's votes in current slot (for special vote tracking)
-    const slotVotes = await getUserVotesInSlot(supabase, voterKey, activeSlot.slot_position);
+    const slotVotes = await getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position);
     const votedClipIds = slotVotes.map(v => v.clip_id);
     const specialVotesRemaining = calculateRemainingSpecialVotes(slotVotes);
     const votedIdsSet = new Set(votedClipIds);
@@ -630,7 +736,7 @@ export async function GET(req: NextRequest) {
     const clipIdsToRecord = sampledClips.map(c => c.id);
     if (clipIdsToRecord.length > 0) {
       // Fire and forget - don't await, don't block response
-      recordClipViews(supabase, voterKey, clipIdsToRecord).catch(() => {});
+      recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
     // 9. Map clips for frontend
@@ -743,10 +849,12 @@ export async function POST(req: NextRequest) {
 
     // Get logged-in user's ID if available
     let loggedInUserId: string | null = null;
+    let userEmail: string | null = null;
     try {
       const { getServerSession } = await import('next-auth');
       const session = await getServerSession();
       if (session?.user?.email) {
+        userEmail = session.user.email;
         const { data: userData } = await supabase
           .from('users')
           .select('id')
@@ -760,22 +868,57 @@ export async function POST(req: NextRequest) {
       // No session - continue with voterKey only
     }
 
-    // 1. Check if already voted on this clip (HYBRID RULE: 1 vote per clip)
-    const alreadyVoted = await hasVotedOnClip(supabase, voterKey, clipId);
-    if (alreadyVoted) {
+    // Check if authentication is required for voting (security feature flag)
+    const { data: authRequiredFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'require_auth_voting')
+      .maybeSingle();
+
+    const requireAuth = authRequiredFlag?.enabled ?? false;
+
+    if (requireAuth && !loggedInUserId) {
       return NextResponse.json(
         {
           success: false,
-          error: 'Already voted on this clip',
-          code: 'ALREADY_VOTED',
-          clipId,
+          error: 'Authentication required to vote',
+          code: 'AUTH_REQUIRED',
         },
-        { status: 409 } // Conflict
+        { status: 401 }
       );
     }
 
-    // 2. Check daily vote limit
-    const { count: totalVotesToday } = await getUserVotesToday(supabase, voterKey);
+    // Use authenticated user ID for vote tracking when available (more secure)
+    // Fall back to device fingerprint only if auth not required
+    const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
+
+    // 1. Check multi-vote mode feature flag
+    const { data: multiVoteFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'multi_vote_mode')
+      .maybeSingle();
+
+    const multiVoteEnabled = multiVoteFlag?.enabled ?? false;
+
+    // 2. Check if already voted on this clip (skip if multi-vote mode is ON)
+    if (!multiVoteEnabled) {
+      const alreadyVoted = await hasVotedOnClip(supabase, effectiveVoterKey, clipId);
+      if (alreadyVoted) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Already voted on this clip',
+            code: 'ALREADY_VOTED',
+            clipId,
+          },
+          { status: 409 } // Conflict
+        );
+      }
+    }
+
+    // 3. Check daily vote limit
+    const { count: totalVotesToday } = await getUserVotesToday(supabase, effectiveVoterKey);
 
     if (totalVotesToday >= DAILY_VOTE_LIMIT) {
       return NextResponse.json(
@@ -789,7 +932,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Get clip's slot position for special vote tracking
+    // 4. Get clip's slot position for special vote tracking
     const { data: clipData, error: clipFetchError } = await supabase
       .from('tournament_clips')
       .select('slot_position, vote_count, weighted_score')
@@ -806,9 +949,9 @@ export async function POST(req: NextRequest) {
 
     const slotPosition = clipData.slot_position ?? 1;
 
-    // 4. For super/mega votes: check if already used in this slot
+    // 5. For super/mega votes: check if already used in this slot
     if (voteType === 'super' || voteType === 'mega') {
-      const slotVotes = await getUserVotesInSlot(supabase, voterKey, slotPosition);
+      const slotVotes = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
       const specialRemaining = calculateRemainingSpecialVotes(slotVotes);
 
       if (voteType === 'super' && specialRemaining.super <= 0) {
@@ -838,16 +981,29 @@ export async function POST(req: NextRequest) {
     const weight: number =
       voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
 
+    // 5.5. Check vote risk (for fraud detection)
+    const voteRisk = checkVoteRisk(req);
+    if (voteRisk.riskScore >= 70) {
+      // High risk - log but still allow (could be legitimate user behind VPN/proxy)
+      console.warn('[POST /api/vote] High risk vote detected:', {
+        voterKey: effectiveVoterKey.slice(0, 8) + '...',
+        riskScore: voteRisk.riskScore,
+        reasons: voteRisk.reasons,
+      });
+    }
+
     // 6. Insert vote
-    // - voter_key: always set (device fingerprint for rate limiting)
+    // - voter_key: uses effectiveVoterKey (user ID if logged in, device fingerprint otherwise)
     // - user_id: only set if logged in (null for anonymous users)
+    // - flagged: true if suspicious activity detected
     const { error: insertError } = await supabase.from('votes').insert({
       clip_id: clipId,
-      voter_key: voterKey,
+      voter_key: effectiveVoterKey,
       user_id: loggedInUserId, // null if not logged in
       vote_weight: weight,
       vote_type: voteType,
       slot_position: slotPosition,
+      flagged: voteRisk.flagged || undefined, // Only set if flagged
     });
 
     if (insertError) {
@@ -881,7 +1037,7 @@ export async function POST(req: NextRequest) {
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + 1;
-    const slotVotesAfter = await getUserVotesInSlot(supabase, voterKey, slotPosition);
+    const slotVotesAfter = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
     const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfter);
 
     const response: VoteResponseBody = {

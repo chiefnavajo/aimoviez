@@ -316,7 +316,7 @@ export default function UploadPage() {
           </svg>
           Sign in with Google
         </motion.button>
-        <p className="text-xs text-white/40">
+        <p className="text-xs text-white/60">
           By signing in, you agree to our Terms of Service and Privacy Policy.
         </p>
       </motion.div>
@@ -362,7 +362,7 @@ export default function UploadPage() {
                     <p className="text-lg font-bold mb-1">Drop your video here</p>
                     <p className="text-sm text-white/50">or click to browse</p>
                   </div>
-                  <p className="text-xs text-white/40">MP4, WebM, MOV • Max 8 seconds • Max 50MB</p>
+                  <p className="text-xs text-white/60">MP4, WebM, MOV • Max 8 seconds • Max 50MB</p>
                 </div>
               )}
               <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
@@ -419,7 +419,7 @@ export default function UploadPage() {
               whileTap={{ scale: 0.98 }} 
               onClick={handleSubmit} 
               disabled={!genre || isUploading} 
-              className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/40'}`}
+              className={`w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 ${genre && !isUploading ? 'bg-gradient-to-r from-cyan-500 to-purple-500' : 'bg-white/10 text-white/60'}`}
             >
               {isUploading ? <><Loader2 className="w-5 h-5 animate-spin" />{uploadStatus || 'Uploading...'}</> : 'Submit Clip'}
             </motion.button>
@@ -462,7 +462,7 @@ export default function UploadPage() {
               <Check className="w-12 h-12 text-white" />
             </motion.div>
             <div><h1 className="text-2xl font-bold">Upload Complete! 🎉</h1><p className="text-white/60">Your clip is pending review</p></div>
-            <p className="text-sm text-white/40">Redirecting to voting arena...</p>
+            <p className="text-sm text-white/60">Redirecting to voting arena...</p>
           </motion.div>
         )}
       </AnimatePresence>

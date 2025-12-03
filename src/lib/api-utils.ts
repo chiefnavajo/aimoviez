@@ -500,6 +500,65 @@ export async function retry<T>(
 }
 
 // ============================================================================
+// SAFE ERROR RESPONSES (Production-ready)
+// ============================================================================
+
+/**
+ * Create a production-safe error response
+ * Logs full error details server-side but returns sanitized message to client
+ */
+export function safeErrorResponse(
+  message: string,
+  status: number,
+  error?: unknown,
+  context?: string
+): NextResponse {
+  // Always log the full error server-side
+  if (error) {
+    console.error(`[API Error${context ? ` - ${context}` : ''}]:`, error);
+  }
+
+  // Return sanitized response - never expose internal details
+  return NextResponse.json({ error: message }, { status });
+}
+
+/**
+ * Create a production-safe error response with error code
+ */
+export function safeErrorWithCode(
+  message: string,
+  code: string,
+  status: number,
+  error?: unknown,
+  context?: string
+): NextResponse {
+  if (error) {
+    console.error(`[API Error${context ? ` - ${context}` : ''}]:`, error);
+  }
+
+  return NextResponse.json({ error: message, code }, { status });
+}
+
+/**
+ * Sanitize string input for safe storage/display
+ */
+export function sanitizeString(input: string | undefined | null): string {
+  if (!input) return '';
+  // Remove control characters (except newlines and tabs)
+  // eslint-disable-next-line no-control-regex
+  return input.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+}
+
+/**
+ * Validate UUID format
+ */
+export function validateUUID(input: string | undefined | null): string | null {
+  if (!input) return null;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  return uuidRegex.test(input) ? input.toLowerCase() : null;
+}
+
+// ============================================================================
 // EXPORTS
 // ============================================================================
 

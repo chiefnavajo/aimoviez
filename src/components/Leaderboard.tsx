@@ -91,7 +91,7 @@ export default function Leaderboard({ leaders }: LeaderboardProps) {
           >
             {leaders.length === 0 ? (
               <div className="py-12 text-center">
-                <TrendingUp size={48} className="mx-auto text-white/20 mb-3" />
+                <TrendingUp size={48} className="mx-auto text-white/60 mb-3" />
                 <p className="text-white/60">No creators yet. Be the first!</p>
               </div>
             ) : (

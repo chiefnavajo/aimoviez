@@ -5,6 +5,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // In-memory cache with TTL (shorter for story due to active voting)
@@ -71,6 +72,10 @@ interface StoryResponse {
 // ============================================================================
 
 export async function GET(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check cache first
     const cacheKey = 'story_seasons';

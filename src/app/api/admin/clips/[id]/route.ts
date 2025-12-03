@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -75,6 +76,9 @@ export async function PUT(
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
+
   try {
     const { id } = await params;
     const body = await request.json();
@@ -104,6 +108,13 @@ export async function PUT(
 
     const supabase = getSupabaseClient();
 
+    // Get current clip for audit log
+    const { data: currentClip } = await supabase
+      .from('tournament_clips')
+      .select('title, genre, status, username')
+      .eq('id', id)
+      .single();
+
     // Update clip
     const { data, error } = await supabase
       .from('tournament_clips')
@@ -125,6 +136,24 @@ export async function PUT(
         { status: 500 }
       );
     }
+
+    // Audit log the action
+    await logAdminAction(request, {
+      action: 'edit_clip',
+      resourceType: 'clip',
+      resourceId: id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousTitle: currentClip?.title,
+        previousGenre: currentClip?.genre,
+        previousStatus: currentClip?.status,
+        newTitle: title.trim(),
+        newGenre: genre.toLowerCase().trim(),
+        newStatus: status,
+        clipOwner: currentClip?.username,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -149,9 +178,19 @@ export async function DELETE(
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
+
   try {
     const { id } = await params;
     const supabase = getSupabaseClient();
+
+    // Get clip info before deletion for audit log
+    const { data: clipToDelete } = await supabase
+      .from('tournament_clips')
+      .select('title, username, genre, status')
+      .eq('id', id)
+      .single();
 
     const { error } = await supabase
       .from('tournament_clips')
@@ -165,6 +204,21 @@ export async function DELETE(
         { status: 500 }
       );
     }
+
+    // Audit log the action
+    await logAdminAction(request, {
+      action: 'delete_clip',
+      resourceType: 'clip',
+      resourceId: id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        deletedTitle: clipToDelete?.title,
+        deletedOwner: clipToDelete?.username,
+        deletedGenre: clipToDelete?.genre,
+        deletedStatus: clipToDelete?.status,
+      },
+    });
 
     return NextResponse.json({
       success: true,

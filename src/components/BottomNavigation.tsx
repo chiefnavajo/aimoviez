@@ -16,24 +16,25 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/90 backdrop-blur-lg border-t border-white/10 md:hidden">
-      <div className="flex justify-around items-center h-16 px-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/95 backdrop-blur-lg border-t border-white/10 md:hidden safe-area-bottom">
+      {/* Safe area spacer for devices with home indicator */}
+      <div className="flex justify-around items-center h-14 px-1 pb-safe">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
-          
+
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center flex-1 py-2 transition-colors ${
-                isActive 
-                  ? 'text-cyan-400' 
-                  : 'text-white/60 hover:text-white/80'
+              className={`flex flex-col items-center justify-center flex-1 py-1.5 min-w-0 transition-colors ${
+                isActive
+                  ? 'text-cyan-400'
+                  : 'text-white/60 active:text-white/80'
               }`}
             >
-              <Icon className={`w-5 h-5 ${isActive ? 'text-cyan-400' : ''}`} />
-              <span className="text-xs mt-1">{item.label}</span>
+              <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-cyan-400' : ''}`} />
+              <span className="text-[10px] mt-0.5 truncate max-w-full">{item.label}</span>
             </Link>
           );
         })}

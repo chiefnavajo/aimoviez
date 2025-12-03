@@ -6,7 +6,8 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -32,6 +33,9 @@ export async function POST(req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
 
   const supabase = createSupabaseServerClient();
 
@@ -179,6 +183,22 @@ export async function POST(req: NextRequest) {
           console.error('[assign-winner] finishError:', finishError);
         }
 
+        // Audit log the action
+        await logAdminAction(req, {
+          action: 'assign_winner',
+          resourceType: 'clip',
+          resourceId: clipId,
+          adminEmail: adminAuth.email || 'unknown',
+          adminId: adminAuth.userId || undefined,
+          details: {
+            clipTitle: clip.title,
+            clipOwner: clip.username,
+            slotPosition: activeSlot.slot_position,
+            voteCount: clip.vote_count,
+            seasonFinished: true,
+          },
+        });
+
         return NextResponse.json({
           ok: true,
           message: `Winner assigned: "${clip.title}" by ${clip.username}. Season finished!`,
@@ -236,6 +256,24 @@ export async function POST(req: NextRequest) {
         clipsMovedCount = movedClips?.length ?? 0;
       }
     }
+
+    // Audit log the action
+    await logAdminAction(req, {
+      action: 'assign_winner',
+      resourceType: 'clip',
+      resourceId: clipId,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        clipTitle: clip.title,
+        clipOwner: clip.username,
+        slotPosition: activeSlot.slot_position,
+        voteCount: clip.vote_count,
+        advancedSlot: advanceSlot,
+        nextSlotPosition: nextSlotInfo?.position || null,
+        clipsMovedCount,
+      },
+    });
 
     return NextResponse.json({
       ok: true,

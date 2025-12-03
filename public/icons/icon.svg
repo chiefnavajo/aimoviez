@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- Deep dark background -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#050508"/>
+      <stop offset="100%" style="stop-color:#0a0a12"/>
+    </linearGradient>
+
+    <!-- Main gradient - your signature colors -->
+    <linearGradient id="infinityGrad" x1="0%" y1="50%" x2="100%" y2="50%">
+      <stop offset="0%" style="stop-color:#3CF2FF"/>
+      <stop offset="30%" style="stop-color:#A020F0"/>
+      <stop offset="70%" style="stop-color:#FF00C7"/>
+      <stop offset="100%" style="stop-color:#3CF2FF"/>
+    </linearGradient>
+
+    <!-- Sharp outer glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Play button glow -->
+    <filter id="playGlow" x="-100%" y="-100%" width="300%" height="300%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Play button drop shadow -->
+    <filter id="playShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="115" fill="url(#bgGrad)"/>
+
+  <!-- Ambient glow behind infinity -->
+  <ellipse cx="150" cy="256" rx="90" ry="70" fill="#3CF2FF" opacity="0.12"/>
+  <ellipse cx="362" cy="256" rx="90" ry="70" fill="#FF00C7" opacity="0.12"/>
+
+  <!-- Main infinity symbol - THICK and SHARP -->
+  <g filter="url(#glow)">
+    <path
+      d="M256,220
+         C190,220 160,164 120,164
+         C65,164 28,208 28,256
+         C28,304 65,348 120,348
+         C160,348 190,292 256,292
+         C322,292 352,348 392,348
+         C447,348 484,304 484,256
+         C484,208 447,164 392,164
+         C352,164 322,220 256,220 Z"
+      fill="none"
+      stroke="url(#infinityGrad)"
+      stroke-width="52"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+
+  <!-- Sharp highlight on top edge -->
+  <path
+    d="M256,220
+       C190,220 160,164 120,164
+       C65,164 28,208 28,256
+       C28,304 65,348 120,348
+       C160,348 190,292 256,292
+       C322,292 352,348 392,348
+       C447,348 484,304 484,256
+       C484,208 447,164 392,164
+       C352,164 322,220 256,220 Z"
+    fill="none"
+    stroke="#fff"
+    stroke-width="52"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.08"
+    transform="translate(0,-4)"
+  />
+
+  <!-- Play button circle background -->
+  <g filter="url(#playShadow)">
+    <circle cx="256" cy="256" r="58" fill="#000" opacity="0.6"/>
+    <circle cx="256" cy="256" r="58" fill="url(#infinityGrad)" opacity="0.3"/>
+    <circle cx="256" cy="256" r="56" fill="none" stroke="#fff" stroke-width="3" opacity="0.9"/>
+  </g>
+
+  <!-- Play triangle - large and centered -->
+  <g filter="url(#playGlow)">
+    <polygon
+      points="240,220 240,292 296,256"
+      fill="#fff"
+    />
+  </g>
+</svg>

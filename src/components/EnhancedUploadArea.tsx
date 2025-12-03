@@ -341,7 +341,7 @@ export default function EnhancedUploadArea({
               <p className="text-sm text-white/60">
                 Drag and drop or click to browse
               </p>
-              <div className="flex items-center justify-center gap-2 text-xs text-white/40 pt-2">
+              <div className="flex items-center justify-center gap-2 text-xs text-white/60 pt-2">
                 <FileVideo size={14} />
                 <span>
                   MP4, MOV, WEBM • Max {maxSizeMB}MB • {minDurationSeconds}-{maxDurationSeconds}s • Vertical (9:16)

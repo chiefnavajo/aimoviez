@@ -194,7 +194,7 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
             onChange={(e) => setTitle(e.target.value)}
             placeholder="e.g., Epic Chase Scene"
             maxLength={50}
-            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all"
+            className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/60 focus:outline-none focus:ring-2 focus:ring-cyan-400 focus:border-transparent transition-all"
           />
           <p className="text-xs text-white/60 mt-1">
             {title.length}/50 characters

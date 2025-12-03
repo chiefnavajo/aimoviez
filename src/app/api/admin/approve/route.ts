@@ -6,7 +6,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +25,9 @@ export async function POST(request: NextRequest) {
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
+
   try {
     const body = await request.json();
     const { clipId } = body;
@@ -37,10 +41,17 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
+    // Get current clip status for audit log
+    const { data: currentClip } = await supabase
+      .from('tournament_clips')
+      .select('status, username')
+      .eq('id', clipId)
+      .single();
+
     // Update clip status to 'active'
     const { data, error } = await supabase
       .from('tournament_clips')
-      .update({ 
+      .update({
         status: 'active',
         updated_at: new Date().toISOString()
       })
@@ -55,6 +66,20 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Audit log the action
+    await logAdminAction(request, {
+      action: 'approve_clip',
+      resourceType: 'clip',
+      resourceId: clipId,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousStatus: currentClip?.status,
+        newStatus: 'active',
+        clipOwner: currentClip?.username,
+      },
+    });
 
     return NextResponse.json({
       success: true,

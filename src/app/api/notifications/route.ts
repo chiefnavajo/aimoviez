@@ -110,7 +110,7 @@ export async function GET(req: NextRequest) {
   } catch (err: any) {
     console.error('[GET /api/notifications] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
   } catch (err: any) {
     console.error('[POST /api/notifications] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -247,7 +247,7 @@ export async function PATCH(req: NextRequest) {
   } catch (err: any) {
     console.error('[PATCH /api/notifications] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -297,7 +297,7 @@ export async function DELETE(req: NextRequest) {
   } catch (err: any) {
     console.error('[DELETE /api/notifications] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error', details: err.message },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

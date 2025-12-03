@@ -262,9 +262,7 @@ export default function LeaderboardPage() {
 
             {/* Content */}
             {loading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-white/50" />
-              </div>
+              <LeaderboardSkeleton />
             ) : error ? (
               <div className="text-center py-20 text-white/50">
                 <p>{error}</p>
@@ -389,9 +387,7 @@ export default function LeaderboardPage() {
         {/* Content */}
         <div className="px-4">
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <Loader2 className="w-8 h-8 animate-spin text-white/50" />
-            </div>
+            <LeaderboardSkeleton />
           ) : error ? (
             <div className="text-center py-20 text-white/50">
               <p>{error}</p>
@@ -511,7 +507,7 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
               <Medal className={`w-8 h-8 ${medalColors[rank - 1]}`} />
             </div>
           ) : (
-            <span className="text-2xl font-black text-white/40">#{rank}</span>
+            <span className="text-2xl font-black text-white/60">#{rank}</span>
           )}
         </div>
 
@@ -555,9 +551,37 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
           </div>
         </div>
 
-        <ChevronRight className="w-5 h-5 text-white/30 self-center group-hover:text-white/50 transition-colors" />
+        <ChevronRight className="w-5 h-5 text-white/60 self-center group-hover:text-white/70 transition-colors" />
       </motion.div>
     </Link>
+  );
+}
+
+function LeaderboardSkeleton() {
+  return (
+    <div className="space-y-3">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white/5 border border-white/10"
+        >
+          {/* Rank */}
+          <div className="w-10 flex justify-center">
+            <div className="w-6 h-6 rounded-full bg-white/10 animate-pulse" />
+          </div>
+          {/* Thumbnail or Avatar */}
+          <div className="w-16 h-24 md:w-20 md:h-28 rounded-lg bg-white/10 animate-pulse flex-shrink-0" />
+          {/* Info */}
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-24 bg-white/10 rounded animate-pulse" />
+            <div className="h-3 w-32 bg-white/10 rounded animate-pulse" />
+            <div className="h-3 w-16 bg-white/10 rounded animate-pulse" />
+          </div>
+          {/* Arrow */}
+          <div className="w-5 h-5 bg-white/10 rounded animate-pulse" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -567,7 +591,7 @@ function LeaderboardRow({ entry, type }: { entry: LeaderboardEntry; type: 'votes
   const bgClasses = ['rank-gold-bg', 'rank-silver-bg', 'rank-bronze-bg'];
   const avatarBorderColors = ['border-yellow-500/50', 'border-gray-400/50', 'border-amber-600/50'];
   const TrendIcon = entry.trend === 'up' ? TrendingUp : entry.trend === 'down' ? TrendingDown : Minus;
-  const trendColor = entry.trend === 'up' ? 'text-green-500' : entry.trend === 'down' ? 'text-red-500' : 'text-white/30';
+  const trendColor = entry.trend === 'up' ? 'text-green-500' : entry.trend === 'down' ? 'text-red-500' : 'text-white/60';
 
   return (
     <Link href={`/profile/${entry.username}`}>
@@ -586,7 +610,7 @@ function LeaderboardRow({ entry, type }: { entry: LeaderboardEntry; type: 'votes
               <Medal className={`w-6 h-6 ${medalColors[entry.rank - 1]}`} />
             </div>
           ) : (
-            <span className="font-bold text-white/40">#{entry.rank}</span>
+            <span className="font-bold text-white/60">#{entry.rank}</span>
           )}
         </div>
 

@@ -32,6 +32,9 @@ export const RATE_LIMITS = {
 
   // Leaderboard/read-heavy endpoints - cached, more lenient
   read: { requests: 200, window: '1m' as const },
+
+  // Auth endpoints - strict to prevent brute force
+  auth: { requests: 10, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;

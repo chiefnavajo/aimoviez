@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // In-memory cache with TTL
@@ -37,6 +38,10 @@ function getSupabaseClient() {
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(request, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check cache first
     const cacheKey = 'leaderboard_main';
