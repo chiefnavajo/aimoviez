@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -33,6 +33,63 @@ interface LockedSlot {
   };
 }
 
+// Memoized playlist item to prevent unnecessary re-renders
+interface PlaylistItemProps {
+  slot: LockedSlot;
+  index: number;
+  isActive: boolean;
+  isPlaying: boolean;
+  onSelect: () => void;
+}
+
+const PlaylistItem = memo(function PlaylistItem({
+  slot,
+  index,
+  isActive,
+  isPlaying,
+  onSelect
+}: PlaylistItemProps) {
+  return (
+    <button
+      onClick={onSelect}
+      className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
+        isActive
+          ? 'bg-cyan-500/20 border-2 border-cyan-500'
+          : 'bg-white/5 hover:bg-white/10 border-2 border-transparent'
+      }`}
+    >
+      <div className="relative w-16 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
+        <Image
+          src={slot.clip.thumbnail_url}
+          alt={slot.clip.title}
+          fill
+          sizes="64px"
+          className="object-cover"
+        />
+        {isActive && isPlaying && (
+          <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+            <Play className="w-6 h-6 text-cyan-500" />
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 text-left">
+        <div className="text-sm font-bold text-white/40 mb-1">
+          Slot {slot.slot_position}
+        </div>
+        <div className="font-bold mb-1">{slot.clip.title}</div>
+        <div className="text-xs text-white/60">
+          @{slot.clip.username} • {slot.clip.genre}
+        </div>
+      </div>
+
+      <div className="text-sm text-white/40">
+        8s
+      </div>
+    </button>
+  );
+});
+
 function WatchMoviePageContent() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -62,31 +119,54 @@ function WatchMoviePageContent() {
   const currentSlot = lockedSlots?.[currentSlotIndex];
   const totalSlots = lockedSlots?.length || 0;
 
-  // Video event handlers
+  // Use refs to access current values in event handlers without causing re-renders
+  const currentSlotIndexRef = useRef(currentSlotIndex);
+  const totalSlotsRef = useRef(totalSlots);
+  const autoplayEnabledRef = useRef(autoplayEnabled);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    currentSlotIndexRef.current = currentSlotIndex;
+  }, [currentSlotIndex]);
+
+  useEffect(() => {
+    totalSlotsRef.current = totalSlots;
+  }, [totalSlots]);
+
+  useEffect(() => {
+    autoplayEnabledRef.current = autoplayEnabled;
+  }, [autoplayEnabled]);
+
+  // Memoized event handlers to prevent re-creation on every render
+  const handleTimeUpdate = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setCurrentTime(video.currentTime);
+    setProgress((video.currentTime / video.duration) * 100);
+  }, []);
+
+  const handleLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    setDuration(video.duration);
+  }, []);
+
+  const handleEnded = useCallback(() => {
+    if (autoplayEnabledRef.current && currentSlotIndexRef.current < totalSlotsRef.current - 1) {
+      // Auto-play next slot
+      setCurrentSlotIndex(prev => prev + 1);
+    } else {
+      setIsPlaying(false);
+    }
+  }, []);
+
+  const handlePlay = useCallback(() => setIsPlaying(true), []);
+  const handlePause = useCallback(() => setIsPlaying(false), []);
+
+  // Video event handlers - only re-attaches when handlers change (they're stable via useCallback)
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-
-    const handleTimeUpdate = () => {
-      setCurrentTime(video.currentTime);
-      setProgress((video.currentTime / video.duration) * 100);
-    };
-
-    const handleLoadedMetadata = () => {
-      setDuration(video.duration);
-    };
-
-    const handleEnded = () => {
-      if (autoplayEnabled && currentSlotIndex < totalSlots - 1) {
-        // Auto-play next slot
-        setCurrentSlotIndex(currentSlotIndex + 1);
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
 
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
@@ -101,7 +181,7 @@ function WatchMoviePageContent() {
       video.removeEventListener('play', handlePlay);
       video.removeEventListener('pause', handlePause);
     };
-  }, [currentSlotIndex, totalSlots, autoplayEnabled]);
+  }, [handleTimeUpdate, handleLoadedMetadata, handleEnded, handlePlay, handlePause]);
 
   // Auto-hide controls
   useEffect(() => {
@@ -400,44 +480,14 @@ function WatchMoviePageContent() {
 
               <div className="p-4 space-y-2">
                 {lockedSlots.map((slot, index) => (
-                  <button
+                  <PlaylistItem
                     key={slot.id}
-                    onClick={() => jumpToSlot(index)}
-                    className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${
-                      index === currentSlotIndex
-                        ? 'bg-cyan-500/20 border-2 border-cyan-500'
-                        : 'bg-white/5 hover:bg-white/10 border-2 border-transparent'
-                    }`}
-                  >
-                    <div className="relative w-16 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-                      <Image
-                        src={slot.clip.thumbnail_url}
-                        alt={slot.clip.title}
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                      />
-                      {index === currentSlotIndex && isPlaying && (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-cyan-500" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 text-left">
-                      <div className="text-sm font-bold text-white/40 mb-1">
-                        Slot {slot.slot_position}
-                      </div>
-                      <div className="font-bold mb-1">{slot.clip.title}</div>
-                      <div className="text-xs text-white/60">
-                        @{slot.clip.username} • {slot.clip.genre}
-                      </div>
-                    </div>
-
-                    <div className="text-sm text-white/40">
-                      8s
-                    </div>
-                  </button>
+                    slot={slot}
+                    index={index}
+                    isActive={index === currentSlotIndex}
+                    isPlaying={isPlaying}
+                    onSelect={() => jumpToSlot(index)}
+                  />
                 ))}
               </div>
             </motion.div>

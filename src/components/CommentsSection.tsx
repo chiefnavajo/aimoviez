@@ -46,7 +46,19 @@ interface CommentsSectionProps {
   clipUsername?: string;
 }
 
-const EMOJIS = ['❤️', '🔥', '😂', '😮', '👏', '💯', '🎬', '👻', '🚀', '✨'];
+// Emoji picker options with accessible labels for screen readers
+const EMOJIS: { emoji: string; label: string }[] = [
+  { emoji: '❤️', label: 'heart' },
+  { emoji: '🔥', label: 'fire' },
+  { emoji: '😂', label: 'laughing' },
+  { emoji: '😮', label: 'surprised' },
+  { emoji: '👏', label: 'clapping' },
+  { emoji: '💯', label: '100' },
+  { emoji: '🎬', label: 'movie' },
+  { emoji: '👻', label: 'ghost' },
+  { emoji: '🚀', label: 'rocket' },
+  { emoji: '✨', label: 'sparkles' },
+];
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -483,11 +495,13 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
               exit={{ opacity: 0, height: 0 }}
               className="px-4 py-2 bg-white/5 border-t border-white/10 flex gap-2 overflow-x-auto"
             >
-              {EMOJIS.map((emoji) => (
+              {EMOJIS.map(({ emoji, label }) => (
                 <button
                   key={emoji}
                   onClick={() => addEmoji(emoji)}
                   className="text-2xl hover:scale-125 transition-transform"
+                  aria-label={`Add ${label} emoji`}
+                  title={label}
                 >
                   {emoji}
                 </button>

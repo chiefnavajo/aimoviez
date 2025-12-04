@@ -58,6 +58,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        {/* Skip link for keyboard navigation - visible on focus */}
+        <a
+          href="#main-content"
+          className="sr-only sr-only-focusable"
+        >
+          Skip to main content
+        </a>
         <Providers>
           <ErrorBoundary>
             <ToastProvider>

@@ -11,7 +11,7 @@
 // - Current clip rank highlight
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Trophy, Flame, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
@@ -44,8 +44,11 @@ export default function MiniLeaderboard({
   const [_lastVoteTime, _setLastVoteTime] = useState<Date | null>(null);
   const [showPulse, setShowPulse] = useState(false);
 
-  // Fetch top clips
-  const fetchTopClips = async () => {
+  // Use ref to store topClips for voting activity calculation without causing re-renders
+  const topClipsRef = useRef<LeaderClip[]>([]);
+
+  // Memoized fetch functions to prevent interval memory leaks
+  const fetchTopClips = useCallback(async () => {
     try {
       const response = await fetch('/api/leaderboard/clips?limit=5');
       if (response.ok) {
@@ -59,18 +62,19 @@ export default function MiniLeaderboard({
           rank: index + 1,
         }));
         setTopClips(clips);
+        topClipsRef.current = clips;
       }
     } catch (error) {
       console.error('Failed to fetch leaderboard:', error);
     }
     setIsLoading(false);
-  };
+  }, []);
 
-  // Fetch votes per minute (simulated from recent activity)
-  const fetchVotingActivity = async () => {
+  // Memoized voting activity fetch - uses ref to avoid dependency on topClips state
+  const fetchVotingActivity = useCallback(() => {
     try {
       // Calculate from leaderboard data or use estimate
-      const totalVotes = topClips.reduce((sum, clip) => sum + clip.vote_count, 0);
+      const totalVotes = topClipsRef.current.reduce((sum, clip) => sum + clip.vote_count, 0);
       // Simulate activity based on total votes (in real app, track actual rate)
       const baseRate = Math.max(5, Math.floor(totalVotes / 100));
       const variance = Math.floor(Math.random() * 10) - 5;
@@ -78,23 +82,21 @@ export default function MiniLeaderboard({
     } catch {
       setVotesPerMinute(Math.floor(Math.random() * 20) + 5);
     }
-  };
+  }, []);
 
   // Initial fetch
   useEffect(() => {
     fetchTopClips();
-  }, []);
+  }, [fetchTopClips]);
 
-  // Refresh every 10 seconds
-  // FIX: Removed topClips from dependency array to prevent infinite re-render loop
+  // Refresh every 10 seconds with stable callbacks
   useEffect(() => {
     const interval = setInterval(() => {
       fetchTopClips();
       fetchVotingActivity();
     }, 10000);
     return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchTopClips, fetchVotingActivity]);
 
   // Pulse effect when votes change
   const voteCountsKey = topClips.map(c => c.vote_count).join(',');

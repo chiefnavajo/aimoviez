@@ -115,10 +115,22 @@ function cleanupInMemoryLimits() {
   }
 }
 
-// Cleanup every 5 minutes
-if (typeof setInterval !== 'undefined') {
-  setInterval(cleanupInMemoryLimits, 5 * 60 * 1000);
+// Track if cleanup has been initialized to prevent multiple intervals on serverless platforms
+let cleanupInitialized = false;
+
+/**
+ * Initialize the cleanup interval - only runs once per server instance
+ * This prevents multiple setInterval instances on serverless platforms like Vercel
+ */
+function initializeCleanup() {
+  if (!cleanupInitialized && typeof setInterval !== 'undefined') {
+    setInterval(cleanupInMemoryLimits, 5 * 60 * 1000);
+    cleanupInitialized = true;
+  }
 }
+
+// Initialize cleanup on module load (safe: only runs once due to flag)
+initializeCleanup();
 
 /**
  * In-memory rate limiting fallback
