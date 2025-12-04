@@ -1,16 +1,11 @@
 // AiMoviez Service Worker
-const CACHE_NAME = 'aimoviez-v1';
-const STATIC_CACHE = 'aimoviez-static-v1';
-const DYNAMIC_CACHE = 'aimoviez-dynamic-v1';
+const CACHE_NAME = 'aimoviez-v2';
+const STATIC_CACHE = 'aimoviez-static-v2';
+const DYNAMIC_CACHE = 'aimoviez-dynamic-v2';
 
-// Static assets to cache on install
+// Static assets to cache on install (only public/static assets, not protected routes)
 const STATIC_ASSETS = [
   '/',
-  '/dashboard',
-  '/leaderboard',
-  '/profile',
-  '/story',
-  '/upload',
   '/manifest.json',
   '/icons/icon.svg',
 ];
@@ -21,7 +16,18 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(STATIC_CACHE).then((cache) => {
       console.log('[SW] Caching static assets');
-      return cache.addAll(STATIC_ASSETS);
+      // Use individual fetches to handle failures gracefully
+      return Promise.allSettled(
+        STATIC_ASSETS.map((url) =>
+          fetch(url).then((response) => {
+            if (response.ok && response.status === 200) {
+              return cache.put(url, response);
+            }
+          }).catch(() => {
+            console.log('[SW] Failed to cache:', url);
+          })
+        )
+      );
     })
   );
   // Activate immediately
