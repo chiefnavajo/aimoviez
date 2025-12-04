@@ -652,6 +652,9 @@ function VotingArena() {
   // Feature flag for vote button daily progress fill
   const { enabled: showVoteProgress } = useFeature('vote_button_progress');
 
+  // Feature flag for multi-vote mode (allows voting multiple times on same clip)
+  const { enabled: multiVoteMode } = useFeature('multi_vote_mode');
+
   // CAPTCHA for bot protection
   const { isRequired: captchaRequired } = useCaptchaRequired();
   const captchaTokenRef = useRef<string | null>(null);
@@ -1026,12 +1029,13 @@ function VotingArena() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleNext, handlePrevious]);
 
-  // Handle vote - if already voted, revoke; otherwise cast new vote
+  // Handle vote - if already voted, revoke (unless multi-vote mode); otherwise cast new vote
   const handleVote = async (voteType: VoteType = 'standard') => {
     if (!currentClip || isVoting) return;
 
-    // If already voted on this clip, revoke the vote (only on tap, not hold)
-    if (currentClip.has_voted && voteType === 'standard') {
+    // If already voted on this clip and multi-vote mode is OFF, revoke the vote
+    // When multi-vote mode is ON, allow voting again (no revoke)
+    if (currentClip.has_voted && voteType === 'standard' && !multiVoteMode) {
       revokeMutation.mutate({ clipId: currentClip.clip_id });
       return;
     }
