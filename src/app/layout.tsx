@@ -57,6 +57,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Preconnect to critical domains for faster resource loading */}
+        <link rel="preconnect" href="https://dxixqdmqomqzhilmdfzg.supabase.co" />
+        <link rel="preconnect" href="https://dxixqdmqomqzhilmdfzg.supabase.co" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://api.dicebear.com" />
+      </head>
       <body className={inter.className}>
         {/* Skip link for keyboard navigation - visible on focus */}
         <a

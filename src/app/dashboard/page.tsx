@@ -27,7 +27,13 @@ import { useFeature } from '@/hooks/useFeatureFlags';
 import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
-import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
+import { useOnboarding } from '@/components/OnboardingTour';
+
+// Lazy load OnboardingTour - only shown once per user
+const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
+  ssr: false,
+  loading: () => null,
+});
 
 // Dynamically import heavy libraries that are only used conditionally
 let PusherClass: typeof import('pusher-js').default | null = null;
@@ -741,7 +747,10 @@ function VotingArena() {
       return transformAPIResponse(apiResponse);
     },
     staleTime: Infinity, // Never consider data stale - user controls navigation
+    gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     retry: 3,
+    refetchOnMount: false, // Don't refetch if data exists
+    placeholderData: (previousData) => previousData, // Show cached data immediately
   });
 
   const votesToday = votingData?.totalVotesToday ?? 0;
@@ -752,15 +761,16 @@ function VotingArena() {
     setIsPaused(false);
   }, [activeIndex]);
 
-  // Video prefetching - preload next 2 clips for smooth playback
+  // Video prefetching - preload next clip for smooth playback
   // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
+  // PERF: Reduced from 2 to 1 clip preload, use 'metadata' instead of 'auto'
   useEffect(() => {
     if (!votingData?.clips?.length) return;
 
     const cache = preloadedVideosRef.current;
+    // Only preload next 1 clip (reduced from 2 for better performance)
     const clipsToPreload = [
       (activeIndex + 1) % votingData.clips.length,
-      (activeIndex + 2) % votingData.clips.length,
     ];
 
     // Get clip IDs that should be preloaded
@@ -773,7 +783,7 @@ function VotingArena() {
         // Only create video element if not already cached
         if (!cache.has(clip.clip_id)) {
           const video = document.createElement('video');
-          video.preload = 'auto';
+          video.preload = 'metadata'; // Changed from 'auto' - loads faster
           video.muted = true;
           video.playsInline = true;
           video.src = clip.video_url;

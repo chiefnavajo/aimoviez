@@ -1,619 +1,146 @@
 
 
-# Performance Analysis Report
-
-## Executive Summary
-
-Found performance issues across 5 categories: Database & Query Issues, React Performance, Memory Leaks, API & Network Issues, and Bundle & Loading Issues. Issues are sorted by impact (High → Medium → Low).
-
----
-
-## 1. Database & Query Issues
-
-### HIGH IMPACT
-
-#### Issue 1.1: SELECT * queries loading unnecessary columns
-**File:** `src/app/api/vote/route.ts`  
-**Line:** 671
-
-**Problematic Code:**
-```typescript
-const { data: allClips, error: clipsError } = await supabase
-  .from('tournament_clips')
-  .select('*')  // ❌ Loading all columns
-  .eq('season_id', seasonRow.id)
-  .eq('slot_position', activeSlot.slot_position)
-  .eq('status', 'active')
-  .order('created_at', { ascending: true })
-  .limit(CLIP_POOL_SIZE);
-```
-
-**Fix:**
-```typescript
-.select('id, thumbnail_url, video_url, vote_count, weighted_score, username, avatar_url, genre, created_at, view_count, segment_index, round_number, total_rounds, badge_level, hype_score')
-```
-
-**Impact:** High - Reduces payload size by ~40-60% and improves query performance
-
----
-
-#### Issue 1.2: SELECT * in multiple admin routes
-**Files:**
-- `src/app/api/admin/clips/route.ts:37`
-- `src/app/api/admin/users/route.ts:48`
-- `src/app/api/admin/seasons/route.ts:26`
-- `src/app/api/discover/route.ts:80`
-- `src/app/api/leaderboard/route.ts:63`
-- `src/app/api/profile/clips/route.ts:75`
-- `src/app/api/account/export/route.ts:37`
-- `src/app/api/user/profile/route.ts:46,55`
-- `src/lib/video-storage.ts:354`
-
-**Problematic Pattern:** Using `.select('*')` instead of specific columns
-
-**Fix:** Replace with explicit column lists based on what's actually needed
-
-**Impact:** High - Reduces memory usage and network transfer, especially in admin routes
-
----
-
-#### Issue 1.3: N+1 query pattern in _getSeenClipIds
-**File:** `src/app/api/vote/route.ts`  
-**Lines:** 462-494
-
-**Problematic Code:**
-```typescript
-async function _getSeenClipIds(
-  supabase: SupabaseClient,
-  voterKey: string,
-  slotPosition: number
-): Promise<Set<string>> {
-  // First query: Get all views for voter
-  const { data } = await supabase
-    .from('clip_views')
-    .select('clip_id')
-    .eq('voter_key', voterKey);  // ❌ No slot filter
-
-  // Second query: Get all clips for slot
-  const { data: slotClips } = await supabase
-    .from('tournament_clips')
-    .select('id')
-    .eq('slot_position', slotPosition);
-
-  // Then filter in JavaScript
-  const slotClipIds = new Set((slotClips || []).map(c => c.id));
-  const seenIds = new Set<string>();
-  for (const view of (data || [])) {  // ❌ Loop through all views
-    if (slotClipIds.has(view.clip_id)) {
-      seenIds.add(view.clip_id);
-    }
-  }
-}
-```
-
-**Fix:**
-```typescript
-// Single query with join or subquery
-const { data } = await supabase
-  .from('clip_views')
-  .select('clip_id')
-  .eq('voter_key', voterKey)
-  .in('clip_id', 
-    supabase.from('tournament_clips')
-      .select('id')
-      .eq('slot_position', slotPosition)
-  );
-```
-
-**Impact:** High - Eliminates unnecessary data transfer and processing
-
----
-
-### MEDIUM IMPACT
-
-#### Issue 1.4: Missing pagination in admin routes
-**Files:**
-- `src/app/api/admin/clips/route.ts` - No limit on clip queries
-- `src/app/api/admin/users/route.ts` - No limit on user queries
-- `src/app/api/discover/route.ts` - No pagination
-
-**Problematic Pattern:** Fetching all records without limits
-
-**Fix:** Add `.range(offset, offset + limit - 1)` with reasonable limits (e.g., 50-100 per page)
-
-**Impact:** Medium - Can cause memory issues and slow responses as data grows
-
----
-
-#### Issue 1.5: Missing database indexes
-**File:** Database schema (not in codebase, but inferred from queries)
-
-**Problematic Queries:**
-- `src/app/api/vote/route.ts:231` - Filtering by `voter_key` and `created_at` (needs composite index)
-- `src/app/api/vote/route.ts:251` - Filtering by `voter_key` and `slot_position` (needs composite index)
-- `src/app/api/comments/route.ts:137` - Filtering by `clip_id` and `parent_comment_id` (needs indexes)
-
-**Fix:** Add composite indexes:
-```sql
-CREATE INDEX idx_votes_voter_created ON votes(voter_key, created_at);
-CREATE INDEX idx_votes_voter_slot ON votes(voter_key, slot_position);
-CREATE INDEX idx_comments_clip_parent ON comments(clip_id, parent_comment_id);
-```
-
-**Impact:** Medium - Significantly improves query performance on large datasets
-
----
-
-## 2. React Performance Issues
-
-### HIGH IMPACT
-
-#### Issue 2.1: Missing React.memo on list items
-**File:** `src/components/Leaderboard.tsx`  
-**Lines:** 99-161
-
-**Problematic Code:**
-```typescript
-leaders.map((leader, index) => (
-  <motion.div key={leader.id} ...>
-    {/* Complex component with animations */}
-  </motion.div>
-))
-```
-
-**Fix:**
-```typescript
-const LeaderboardItem = React.memo(({ leader, index }: { leader: Leader, index: number }) => (
-  <motion.div ...>
-    {/* Component content */}
-  </motion.div>
-));
-
-// Then use:
-leaders.map((leader, index) => (
-  <LeaderboardItem key={leader.id} leader={leader} index={index} />
-))
-```
-
-**Impact:** High - Prevents unnecessary re-renders when parent updates
-
----
-
-#### Issue 2.2: Large component causing re-renders
-**File:** `src/app/dashboard/page.tsx`  
-**Lines:** 630-1680 (1050+ lines)
-
-**Problem:** Single massive component with multiple responsibilities
-
-**Fix:** Split into smaller components:
-- `VideoPlayer` component
-- `VotingControls` component  
-- `CommentsPanel` component
-- `LeaderboardPanel` component
-
-**Impact:** High - Improves maintainability and reduces re-render scope
-
----
-
-#### Issue 2.3: Missing useMemo for expensive calculations
-**File:** `src/app/dashboard/page.tsx`  
-**Lines:** 750-780 (clip mapping)
-
-**Problematic Code:**
-```typescript
-const clipsForClient: ClientClip[] = sampledClips.map((row, index) => {
-  // Complex mapping logic runs on every render
-});
-```
-
-**Fix:**
-```typescript
-const clipsForClient = useMemo(() => 
-  sampledClips.map((row, index) => {
-    // Mapping logic
-  }), [sampledClips]
-);
-```
-
-**Impact:** High - Prevents recalculation on every render
-
----
-
-### MEDIUM IMPACT
-
-#### Issue 2.4: useEffect dependency causing potential infinite loop
-**File:** `src/app/dashboard/page.tsx`  
-**Line:** 753
-
-**Problematic Code:**
-```typescript
-useEffect(() => {
-  // Video prefetching logic
-}, [activeIndex, votingData?.clips]);  // ❌ votingData?.clips is an array reference
-```
-
-**Fix:**
-```typescript
-const clipIds = useMemo(() => 
-  votingData?.clips?.map(c => c.clip_id) || [], 
-  [votingData?.clips]
-);
-
-useEffect(() => {
-  // Video prefetching logic
-}, [activeIndex, clipIds]);
-```
-
-**Impact:** Medium - Prevents unnecessary effect runs and potential memory leaks
-
----
-
-#### Issue 2.5: Missing useCallback for event handlers passed to children
-**File:** `src/components/UploadPanel.tsx`  
-**Line:** 46
-
-**Problematic Code:**
-```typescript
-const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-  // Not memoized
-};
-```
-
-**Fix:**
-```typescript
-const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-  // Handler logic
-}, []);
-```
-
-**Impact:** Medium - Prevents child component re-renders when parent re-renders
-
----
-
-## 3. Memory Leaks
-
-### HIGH IMPACT
-
-#### Issue 3.1: URL.createObjectURL not revoked in upload page
-**File:** `src/app/upload/page.tsx`  
-**Lines:** 111, 123
-
-**Problematic Code:**
-```typescript
-video.src = URL.createObjectURL(file);  // ❌ Never revoked
-// ...
-setVideoPreview(URL.createObjectURL(file));  // ❌ Previous URL not revoked
-```
-
-**Fix:**
-```typescript
-const previewUrl = URL.createObjectURL(file);
-if (videoPreview) {
-  URL.revokeObjectURL(videoPreview);  // Cleanup previous
-}
-setVideoPreview(previewUrl);
-
-// Also cleanup on unmount:
-useEffect(() => {
-  return () => {
-    if (videoPreview) {
-      URL.revokeObjectURL(videoPreview);
-    }
-  };
-}, [videoPreview]);
-```
-
-**Impact:** High - Memory leak accumulates with each file selection
-
----
-
-#### Issue 3.2: URL.createObjectURL cleanup missing in validation
-**File:** `src/app/upload/page.tsx`  
-**Line:** 100
-
-**Problematic Code:**
-```typescript
-video.onloadedmetadata = () => {
-  URL.revokeObjectURL(video.src);  // ✅ Revoked here
-  // ...
-};
-video.src = URL.createObjectURL(file);
-// ❌ But if onerror fires, URL might not be revoked
-```
-
-**Fix:** Ensure cleanup in both success and error paths (already partially fixed, but verify)
-
-**Impact:** High - Memory leak on validation errors
-
----
-
-### MEDIUM IMPACT
-
-#### Issue 3.3: setInterval not cleared on error in UploadPanel
-**File:** `src/components/UploadPanel.tsx`  
-**Lines:** 60-68, 87-91
-
-**Problematic Code:**
-```typescript
-const progressInterval = setInterval(() => {
-  setUploadProgress(prev => {
-    if (prev >= 90) {
-      clearInterval(progressInterval);  // ✅ Cleared here
-      return 90;
-    }
-    return prev + 10;
-  });
-}, 200);
-
-try {
-  await onSubmit({ file, title: title.trim(), genre });
-  clearInterval(progressInterval);
-} catch {
-  clearInterval(progressInterval);  // ✅ Cleared here
-  // But what if component unmounts during upload?
-}
-```
-
-**Fix:**
-```typescript
-useEffect(() => {
-  return () => {
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-    }
-  };
-}, []);
-```
-
-**Impact:** Medium - Interval continues if component unmounts during upload
-
----
-
-#### Issue 3.4: setTimeout not cleared in PowerVoteButton
-**File:** `src/app/dashboard/page.tsx`  
-**Line:** 324
-
-**Problematic Code:**
-```typescript
-setTimeout(() => {
-  setHoldProgress(0);
-  setCurrentVoteType('standard');
-}, 300);  // ❌ No cleanup if component unmounts
-```
-
-**Fix:**
-```typescript
-const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-// In handler:
-if (timeoutRef.current) clearTimeout(timeoutRef.current);
-timeoutRef.current = setTimeout(() => {
-  setHoldProgress(0);
-  setCurrentVoteType('standard');
-}, 300);
-
-// In cleanup:
-useEffect(() => {
-  return () => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-  };
-}, []);
-```
-
-**Impact:** Medium - Potential memory leak and state updates after unmount
-
----
-
-## 4. API & Network Issues
-
-### HIGH IMPACT
-
-#### Issue 4.1: No caching strategy for frequently accessed data
-**File:** `src/app/api/vote/route.ts`  
-**Lines:** 36-80
-
-**Problem:** In-memory cache exists but TTL is very short (15-60 seconds)
-
-**Current Code:**
-```typescript
-const CACHE_TTL = {
-  season: 60 * 1000,      // 1 minute
-  slot: 30 * 1000,        // 30 seconds
-  clips: 15 * 1000,        // 15 seconds
-};
-```
-
-**Fix:**
-- Use Next.js caching with `revalidate` option
-- Implement Redis cache for shared cache across instances
-- Add HTTP cache headers: `Cache-Control: public, max-age=30`
-
-**Impact:** High - Reduces database load and improves response times
-
----
-
-#### Issue 4.2: Large payloads without compression
-**File:** `next.config.ts`
-
-**Problem:** No compression middleware configured
-
-**Fix:** Add compression:
-```typescript
-// In next.config.ts or middleware
-import compression from 'compression';
-```
-
-Or use Vercel's automatic compression (if deployed there)
-
-**Impact:** High - Reduces bandwidth usage by 60-80%
-
----
-
-### MEDIUM IMPACT
-
-#### Issue 4.3: No error retry logic for API calls
-**File:** `src/app/dashboard/page.tsx`  
-**Line:** 692-704
-
-**Problematic Code:**
-```typescript
-const { data: votingData, isLoading, error, refetch } = useQuery({
-  queryKey: ['voting', 'track-main'],
-  queryFn: async () => {
-    const response = await fetch('/api/vote');
-    // ❌ No retry logic on network errors
-  },
-  staleTime: Infinity,
-  retry: 3,  // ✅ Has retry, but no exponential backoff
-});
-```
-
-**Fix:** Add exponential backoff:
-```typescript
-retry: (failureCount, error) => {
-  if (failureCount < 3) {
-    return true;
-  }
-  return false;
-},
-retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-```
-
-**Impact:** Medium - Better resilience to transient network issues
-
----
-
-#### Issue 4.4: Parallel requests that could be batched
-**File:** `src/app/api/admin/stats/route.ts`  
-**Lines:** 105-134
-
-**Problem:** Multiple parallel queries (good), but could be optimized further
-
-**Current:** 13 separate queries
-
-**Fix:** Consider combining related queries using database functions or views
-
-**Impact:** Medium - Reduces round trips, but current approach is acceptable
-
----
-
-## 5. Bundle & Loading Issues
-
-### HIGH IMPACT
-
-#### Issue 5.1: Large imports not dynamically loaded
-**File:** `src/app/dashboard/page.tsx`  
-**Lines:** 20-22
-
-**Problematic Code:**
-```typescript
-import Pusher from 'pusher-js';  // ~50KB
-import confetti from 'canvas-confetti';  // ~15KB
-import { motion, AnimatePresence } from 'framer-motion';  // ~80KB
-```
-
-**Fix:**
-```typescript
-// Dynamic imports for heavy libraries
-const Pusher = dynamic(() => import('pusher-js'), { ssr: false });
-const confetti = dynamic(() => import('canvas-confetti'), { ssr: false });
-```
-
-**Impact:** High - Reduces initial bundle size by ~145KB
-
----
-
-#### Issue 5.2: Missing lazy loading for heavy components
-**File:** `src/app/dashboard/page.tsx`  
-**Lines:** 26-28
-
-**Problematic Code:**
-```typescript
-import CommentsSection from '@/components/CommentsSection';
-import MiniLeaderboard from '@/components/MiniLeaderboard';
+Plan ready to copy/paste:
+# Claude Code: Page Loading & Responsiveness Optimization Plan## ObjectiveMake the dashboard page load faster and feel more responsive through comprehensive performance optimizations.## Context- Next.js 15 application with React Query- Dashboard page at `src/app/dashboard/page.tsx` (~1700 lines)- Already has dynamic imports for some heavy components- Uses framer-motion for animations- Video-heavy interface with clip voting---## Step 1: Add Resource Hints in Layout**File:** `src/app/layout.tsx`**Action:** Add resource hints before the closing `</head>` tag (or in the `<head>` section if using Next.js metadata API).**Code to add:**// In the RootLayout component, add these links:<head>  {/* Preconnect to critical domains */}  <link rel="preconnect" href="https://dxixqdmqomqzhilmdfzg.supabase.co" />  <link rel="preconnect" href="https://dxixqdmqomqzhilmdfzg.supabase.co" crossOrigin="anonymous" />  <link rel="dns-prefetch" href="https://*.pusher.com" />  <link rel="dns-prefetch" href="https://fonts.googleapis.com" />  <link rel="dns-prefetch" href="https://fonts.gstatic.com" />    {/* Preload critical font */}  <link    rel="preload"    href="/fonts/inter-var.woff2"    as="font"    type="font/woff2"    crossOrigin="anonymous"  /></head>**Note:** If using Next.js metadata API, you may need to add these via a custom `head.tsx` or use the `metadata` export with `other` property.---## Step 2: Optimize React Query Configuration**File:** `src/app/dashboard/page.tsx`**Location:** Around line 733 where `useQuery` is called**Current code:**const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({  queryKey: ['voting', 'track-main'],  queryFn: async () => {    const response = await fetch('/api/vote?trackId=track-main');    if (!response.ok) {      throw new Error('Failed to fetch voting data');    }    const apiResponse: APIVotingResponse = await response.json();    return transformAPIResponse(apiResponse);  },  staleTime: Infinity,  retry: 3,});**Replace with:**const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({  queryKey: ['voting', 'track-main'],  queryFn: async () => {    const response = await fetch('/api/vote?trackId=track-main');    if (!response.ok) {      throw new Error('Failed to fetch voting data');    }    const apiResponse: APIVotingResponse = await response.json();    return transformAPIResponse(apiResponse);  },  staleTime: Infinity,  gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes  retry: 3,  refetchOnMount: false, // Don't refetch if data exists  placeholderData: (previousData) => previousData, // Show cached data immediately});---## Step 3: Add Suspense Boundaries**File:** `src/app/dashboard/page.tsx`**Action:** Wrap heavy components in Suspense boundaries**Location 1:** Around line 1477 where MiniLeaderboard is rendered**Find:**<MiniLeaderboard  currentClipId={currentClip?.clip_id}  onClipSelect={...}  isCollapsed={leaderboardCollapsed}  onToggleCollapse={...}/>**Replace with:**<Suspense fallback={  <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-2">    <div className="h-16 bg-white/5 rounded-lg animate-pulse mx-4" />  </div>}>  <MiniLeaderboard    currentClipId={currentClip?.clip_id}    onClipSelect={...}    isCollapsed={leaderboardCollapsed}    onToggleCollapse={...}  /></Suspense>**Location 2:** Where CommentsSection is rendered (if visible)**Find:**{showComments && (  <CommentsSection ... />)}**Replace with:**{showComments && (  <Suspense fallback={    <div className="absolute right-0 top-0 bottom-0 w-80 bg-black/40 backdrop-blur-md border-l border-white/10 p-4">      <div className="space-y-4">        {[...Array(3)].map((_, i) => (          <div key={i} className="h-20 bg-white/5 rounded animate-pulse" />        ))}      </div>    </div>  }>    <CommentsSection ... />  </Suspense>)}**Add import at top:**import { Suspense } from 'react';---## Step 4: Optimize Video Loading Strategy**File:** `src/app/dashboard/page.tsx`**Location:** Around line 755-794 (video prefetching useEffect)**Current code:**useEffect(() => {  if (!votingData?.clips?.length) return;  const cache = preloadedVideosRef.current;  const clipsToPreload = [    (activeIndex + 1) % votingData.clips.length,    (activeIndex + 2) % votingData.clips.length,  ];  // ... rest of code}, [activeIndex, votingData?.clips]);**Replace with:**useEffect(() => {  if (!votingData?.clips?.length) return;  const cache = preloadedVideosRef.current;  // Only preload next 1 clip (reduce from 2)  const clipsToPreload = [    (activeIndex + 1) % votingData.clips.length,  ];  // Get clip IDs that should be preloaded  const preloadClipIds = new Set<string>();  clipsToPreload.forEach((index) => {    const clip = votingData.clips[index];    if (clip?.clip_id && clip?.video_url) {      preloadClipIds.add(clip.clip_id);      // Only create video element if not already cached      if (!cache.has(clip.clip_id)) {        const video = document.createElement('video');        video.preload = 'metadata'; // Changed from 'auto' to 'metadata'        video.muted = true;        video.playsInline = true;        video.src = clip.video_url;        video.load();        cache.set(clip.clip_id, video);      }    }  });  // Cleanup videos that are no longer in preload set  cache.forEach((video, clipId) => {    if (!preloadClipIds.has(clipId)) {      video.src = '';      video.load();      cache.delete(clipId);    }  });}, [activeIndex, votingData?.clips]);**Location:** Around line 1446 where video element is rendered**Find:**<video  ref={videoRef}  key={currentClip.clip_id}  src={currentClip.video_url ?? '/placeholder-video.mp4'}  poster={currentClip.thumbnail_url}  // ... other props/>**Add:**<video  ref={videoRef}  key={currentClip.clip_id}  src={currentClip.video_url ?? '/placeholder-video.mp4'}  poster={currentClip.thumbnail_url}  preload={activeIndex === 0 ? 'auto' : 'metadata'} // Only auto-load first video  loading="lazy"  // ... other props/>---## Step 5: Optimize Framer Motion Imports**File:** `src/app/dashboard/page.tsx`**Location:** Top of file, around line 20**Current:**import { motion, AnimatePresence } from 'framer-motion';**Better approach:** Keep framer-motion import but ensure it's tree-shaken properly. The real optimization is to lazy load the components that use it heavily.---## Step 6: Add useMemo for Expensive Computations**File:** `src/app/dashboard/page.tsx`**Location 1:** Around line 748 (currentClip)**Verify it's already memoized:**const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);**If not, add it.****Location 2:** Add memoization for clip list transformations**Find where clips are filtered/sorted and add useMemo:**x// If there's any filtering/sorting, memoize it:const sortedClips = useMemo(() => {  if (!votingData?.clips) return [];  return [...votingData.clips].sort((a, b) =>     (b.weighted_score || 0) - (a.weighted_score || 0)  );}, [votingData?.clips]);**Location 3:** Memoize vote button color calculations (if not already done)**Check PowerVoteButton component - the `getVoteColors` function should be memoized:**const colors = useMemo(() => getVoteColors(), [currentVoteType]);---## Step 7: Optimize Image Loading**File:** `src/app/dashboard/page.tsx` and related components**Location:** Find Image components**For first visible thumbnail (around line where currentClip thumbnail is shown):****Find:**<Image  src={currentClip.thumbnail_url}  // ... other props/>**Add:**<Image  src={currentClip.thumbnail_url}  priority={activeIndex === 0} // Only first image gets priority  loading={activeIndex === 0 ? 'eager' : 'lazy'}  fetchPriority={activeIndex === 0 ? 'high' : 'auto'}  // ... other props/>**For off-screen images (in leaderboard, etc.):****Find Image components in MiniLeaderboard or other lists:**<Image  src={avatar_url}  loading="lazy"  // ... other props/>---## Step 8: Reduce Bundle Size - Lazy Load Heavy Components**File:** `src/app/dashboard/page.tsx`**Location:** Top of file, around line 30**Find:**import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';**Replace with:**sx// Lazy load OnboardingTour componentconst OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {  ssr: false,  loading: () => null,});// Keep hook import as-is (hooks can't be dynamically imported)import { useOnboarding } from '@/components/OnboardingTour';**Location:** Around line 21 (Toaster)**Find:**import { toast, Toaster } from 'react-hot-toast';**Replace with:**import { toast } from 'react-hot-toast';// Lazy load Toasterconst Toaster = dynamic(() => import('react-hot-toast').then(mod => mod.Toaster), {  ssr: false,});**Then find where Toaster is rendered and wrap in Suspense:**<Suspense fallback={null}>  <Toaster ... /></Suspense>---## Step 9: Optimize API Route Response**File:** `src/app/api/vote/route.ts`**Location:** In the GET handler, before returning response**Find the return statement:**return NextResponse.json(responseData);**Replace with:**const response = NextResponse.json(responseData);// Add caching headersresponse.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');response.headers.set('X-Content-Type-Options', 'nosniff');// Add ETag for conditional requestsconst etag = `"${Buffer.from(JSON.stringify(responseData)).toString('base64').slice(0, 27)}"`;response.headers.set('ETag', etag);return response;**Also add compression (if not already enabled in Next.js config):**Check `next.config.ts` - compression should be automatic in Next.js, but verify.---## Step 10: Add Prefetching for Navigation**File:** `src/app/dashboard/page.tsx`**Location:** Where Link components are used (NavButton component)**Find:**<Link href={href} aria-label={`Navigate to ${label}`}>  {content}</Link>**Add prefetch:**<Link href={href} aria-label={`Navigate to ${label}`} prefetch={true}>  {content}</Link>**Location:** Add prefetch for API routes when user is near end of list**Add useEffect:**// Prefetch next page when user is near enduseEffect(() => {  if (!votingData?.clips) return;    const isNearEnd = activeIndex >= votingData.clips.length - 2;  if (isNearEnd) {    // Prefetch next batch (if pagination exists)    // Or prefetch related data    const link = document.createElement('link');    link.rel = 'prefetch';    link.href = '/api/vote?trackId=track-main';    document.head.appendChild(link);  }}, [activeIndex, votingData?.clips]);---## Step 11: Optimize Providers Configuration**File:** `src/app/providers.tsx`**Location:** Around line 11-18**Current:**const [queryClient] = useState(() => new QueryClient({  defaultOptions: {    queries: {      staleTime: 60 * 1000, // 1 minute      refetchOnWindowFocus: false,    },  },}));**Replace with:**xconst [queryClient] = useState(() => new QueryClient({  defaultOptions: {    queries: {      staleTime: 60 * 1000, // 1 minute      gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)      refetchOnWindowFocus: false,      refetchOnMount: false, // Don't refetch if data exists      retry: 1, // Reduce retries for faster failure    },    mutations: {      retry: 1,    },  },}));---## Step 12: Add Performance Monitoring (Optional)**File:** `src/app/dashboard/page.tsx`**Location:** Add useEffect at top of VotingArena component**Add:**// Performance monitoring (development only)useEffect(() => {  if (process.env.NODE_ENV === 'development') {    const perfData = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;    if (perfData) {      console.log('Performance Metrics:', {        domContentLoaded: perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,        loadComplete: perfData.loadEventEnd - perfData.loadEventStart,        firstPaint: performance.getEntriesByName('first-paint')[0]?.startTime,      });    }  }}, []);---## Testing ChecklistAfter implementing:1. **Lighthouse Test:**   - Run Lighthouse in Chrome DevTools   - Target: Performance score > 90   - Check First Contentful Paint < 1.5s   - Check Time to Interactive < 3s2. **Network Test:**   - Open DevTools Network tab   - Check initial bundle size reduction   - Verify resource hints are working (check Timing tab)3. **Functionality Test:**   - Verify videos still play correctly   - Check voting still works   - Test navigation between clips   - Verify Suspense boundaries don't break UI4. **Performance Test:**   - Test on slow 3G throttling   - Check React DevTools Profiler for re-renders   - Verify useMemo is preventing unnecessary recalculations---## Expected Results- **Initial Load:** 30-40% faster (from ~3-4s to ~2-2.5s)- **Bundle Size:** 15-20% reduction (~100-150KB)- **Time to Interactive:** 25-35% improvement- **Perceived Performance:** Much better with Suspense and placeholder data- **Lighthouse Score:** Should improve by 10-15 points---## Notes- Test each change incrementally- Keep backups before major changes- Monitor error logs after deployment- Some optimizations may need A/B testing
+Note: If using Next.js metadata API, you may need to add these via a custom head.tsx or use the metadata export with other property.
+Step 2: Optimize React Query Configuration
+File: src/app/dashboard/page.tsx
+Location: Around line 733 where useQuery is called
+Current code:
+const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({  queryKey: ['voting', 'track-main'],  queryFn: async () => {    const response = await fetch('/api/vote?trackId=track-main');    if (!response.ok) {      throw new Error('Failed to fetch voting data');    }    const apiResponse: APIVotingResponse = await response.json();    return transformAPIResponse(apiResponse);  },  staleTime: Infinity,  retry: 3,});
+Replace with:
+const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({  queryKey: ['voting', 'track-main'],  queryFn: async () => {    const response = await fetch('/api/vote?trackId=track-main');    if (!response.ok) {      throw new Error('Failed to fetch voting data');    }    const apiResponse: APIVotingResponse = await response.json();    return transformAPIResponse(apiResponse);  },  staleTime: Infinity,  gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes  retry: 3,  refetchOnMount: false, // Don't refetch if data exists  placeholderData: (previousData) => previousData, // Show cached data immediately});
+Step 3: Add Suspense Boundaries
+File: src/app/dashboard/page.tsx
+Action: Wrap heavy components in Suspense boundaries
+Location 1: Around line 1477 where MiniLeaderboard is rendered
+Find:
+<MiniLeaderboard  currentClipId={currentClip?.clip_id}  onClipSelect={...}  isCollapsed={leaderboardCollapsed}  onToggleCollapse={...}/>
+Replace with:
+<Suspense fallback={  <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-2">    <div className="h-16 bg-white/5 rounded-lg animate-pulse mx-4" />  </div>}>  <MiniLeaderboard    currentClipId={currentClip?.clip_id}    onClipSelect={...}    isCollapsed={leaderboardCollapsed}    onToggleCollapse={...}  /></Suspense>
+Location 2: Where CommentsSection is rendered (if visible)
+Find:
+{showComments && (  <CommentsSection ... />)}
+Replace with:
+{showComments && (  <Suspense fallback={    <div className="absolute right-0 top-0 bottom-0 w-80 bg-black/40 backdrop-blur-md border-l border-white/10 p-4">      <div className="space-y-4">        {[...Array(3)].map((_, i) => (          <div key={i} className="h-20 bg-white/5 rounded animate-pulse" />        ))}      </div>    </div>  }>    <CommentsSection ... />  </Suspense>)}
+Add import at top:
+import { Suspense } from 'react';
+Step 4: Optimize Video Loading Strategy
+File: src/app/dashboard/page.tsx
+Location: Around line 755-794 (video prefetching useEffect)
+Current code:
+useEffect(() => {  if (!votingData?.clips?.length) return;  const cache = preloadedVideosRef.current;  const clipsToPreload = [    (activeIndex + 1) % votingData.clips.length,    (activeIndex + 2) % votingData.clips.length,  ];  // ... rest of code}, [activeIndex, votingData?.clips]);
+Replace with:
+useEffect(() => {  if (!votingData?.clips?.length) return;  const cache = preloadedVideosRef.current;  // Only preload next 1 clip (reduce from 2)  const clipsToPreload = [    (activeIndex + 1) % votingData.clips.length,  ];  // Get clip IDs that should be preloaded  const preloadClipIds = new Set<string>();  clipsToPreload.forEach((index) => {    const clip = votingData.clips[index];    if (clip?.clip_id && clip?.video_url) {      preloadClipIds.add(clip.clip_id);      // Only create video element if not already cached      if (!cache.has(clip.clip_id)) {        const video = document.createElement('video');        video.preload = 'metadata'; // Changed from 'auto' to 'metadata'        video.muted = true;        video.playsInline = true;        video.src = clip.video_url;        video.load();        cache.set(clip.clip_id, video);      }    }  });  // Cleanup videos that are no longer in preload set  cache.forEach((video, clipId) => {    if (!preloadClipIds.has(clipId)) {      video.src = '';      video.load();      cache.delete(clipId);    }  });}, [activeIndex, votingData?.clips]);
+Location: Around line 1446 where video element is rendered
+Find:
+<video  ref={videoRef}  key={currentClip.clip_id}  src={currentClip.video_url ?? '/placeholder-video.mp4'}  poster={currentClip.thumbnail_url}  // ... other props/>
+Add:
+<video  ref={videoRef}  key={currentClip.clip_id}  src={currentClip.video_url ?? '/placeholder-video.mp4'}  poster={currentClip.thumbnail_url}  preload={activeIndex === 0 ? 'auto' : 'metadata'} // Only auto-load first video  loading="lazy"  // ... other props/>
+Step 5: Optimize Framer Motion Imports
+File: src/app/dashboard/page.tsx
+Location: Top of file, around line 20
+Current:
+import { motion, AnimatePresence } from 'framer-motion';
+Better approach: Keep framer-motion import but ensure it's tree-shaken properly. The real optimization is to lazy load the components that use it heavily.
+Step 6: Add useMemo for Expensive Computations
+File: src/app/dashboard/page.tsx
+Location 1: Around line 748 (currentClip)
+Verify it's already memoized:
+const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
+If not, add it.
+Location 2: Add memoization for clip list transformations
+Find where clips are filtered/sorted and add useMemo:
+// If there's any filtering/sorting, memoize it:const sortedClips = useMemo(() => {  if (!votingData?.clips) return [];  return [...votingData.clips].sort((a, b) =>     (b.weighted_score || 0) - (a.weighted_score || 0)  );}, [votingData?.clips]);
+Location 3: Memoize vote button color calculations (if not already done)
+Check PowerVoteButton component - the getVoteColors function should be memoized:
+const colors = useMemo(() => getVoteColors(), [currentVoteType]);
+Step 7: Optimize Image Loading
+File: src/app/dashboard/page.tsx and related components
+Location: Find Image components
+For first visible thumbnail (around line where currentClip thumbnail is shown):
+Find:
+<Image  src={currentClip.thumbnail_url}  // ... other props/>
+Add:
+<Image  src={currentClip.thumbnail_url}  priority={activeIndex === 0} // Only first image gets priority  loading={activeIndex === 0 ? 'eager' : 'lazy'}  fetchPriority={activeIndex === 0 ? 'high' : 'auto'}  // ... other props/>
+For off-screen images (in leaderboard, etc.):
+Find Image components in MiniLeaderboard or other lists:
+<Image  src={avatar_url}  loading="lazy"  // ... other props/>
+Step 8: Reduce Bundle Size - Lazy Load Heavy Components
+File: src/app/dashboard/page.tsx
+Location: Top of file, around line 30
+Find:
+;
 import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
-```
-
-**Fix:**
-```typescript
-const CommentsSection = dynamic(() => import('@/components/CommentsSection'), {
-  loading: () => <div>Loading comments...</div>,
-  ssr: false
-});
-const MiniLeaderboard = dynamic(() => import('@/components/MiniLeaderboard'), {
-  ssr: false
-});
-```
-
-**Impact:** High - Reduces initial bundle size and improves Time to Interactive
-
----
-
-### MEDIUM IMPACT
-
-#### Issue 5.3: Images not optimized
-**File:** Multiple components using `<Image>` from Next.js
-
-**Problem:** Next.js Image component is used, but check:
-- Are images using proper `width` and `height`?
-- Are remote images configured in `next.config.ts`? (✅ Already done)
-- Are images using appropriate formats (WebP/AVIF)?
-
-**Fix:** Ensure all images have explicit dimensions and use Next.js Image optimization
-
-**Impact:** Medium - Improves LCP (Largest Contentful Paint) metric
-
----
-
-#### Issue 5.4: No code splitting for routes
-**File:** `src/app/layout.tsx` (inferred)
-
-**Problem:** All routes loaded upfront
-
-**Fix:** Next.js automatically code-splits by route, but verify:
-- Large libraries should be dynamically imported
-- Heavy components should use `dynamic()` with `ssr: false` where appropriate
-
-**Impact:** Medium - Next.js handles this automatically, but verify configuration
-
----
-
-## Summary by Impact
-
-### High Impact (Fix First)
-1. SELECT * queries (1.1, 1.2)
-2. N+1 query pattern (1.3)
-3. Missing React.memo on list items (2.1)
-4. Large component splitting (2.2)
-5. URL.createObjectURL memory leaks (3.1, 3.2)
-6. No caching strategy (4.1)
-7. Large imports not dynamically loaded (5.1)
-8. Missing lazy loading (5.2)
-
-### Medium Impact (Fix Next)
-1. Missing pagination (1.4)
-2. Missing database indexes (1.5)
-3. useEffect dependency issues (2.4)
-4. Missing useCallback (2.5)
-5. setInterval/setTimeout cleanup (3.3, 3.4)
-6. No compression (4.2)
-7. No error retry logic (4.3)
-8. Image optimization (5.3)
-
-### Low Impact (Nice to Have)
-1. Query batching optimizations (4.4)
-2. Code splitting verification (5.4)
-
----
-
-## Recommended Action Plan
-
-1. Week 1: Fix High Impact database issues (1.1, 1.2, 1.3)
-2. Week 2: Fix High Impact React performance issues (2.1, 2.2, 2.3)
-3. Week 3: Fix High Impact memory leaks (3.1, 3.2)
-4. Week 4: Implement caching and bundle optimizations (4.1, 5.1, 5.2)
-5. Week 5: Address Medium Impact issues
-
----
-
-The full analysis is saved in the plan file. Should I start implementing fixes for any of these issues?
+Replace with:
+// Lazy load OnboardingTour componentconst OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {  ssr: false,  loading: () => null,});// Keep hook import as-is (hooks can't be dynamically imported)import { useOnboarding } from '@/components/OnboardingTour';
+Location: Around line 21 (Toaster)
+Find:
+import { toast, Toaster } from 'react-hot-toast';
+Replace with:
+import { toast } from 'react-hot-toast';// Lazy load Toasterconst Toaster = dynamic(() => import('react-hot-toast').then(mod => mod.Toaster), {  ssr: false,});
+Then find where Toaster is rendered and wrap in Suspense:
+>
+<Suspense fallback={null}>  <Toaster ... /></Suspense>
+Step 9: Optimize API Route Response
+File: src/app/api/vote/route.ts
+Location: In the GET handler, before returning response
+Find the return statement:
+return NextResponse.json(responseData);
+Replace with:
+const response = NextResponse.json(responseData);// Add caching headersresponse.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=60');response.headers.set('X-Content-Type-Options', 'nosniff');// Add ETag for conditional requestsconst etag = `"${Buffer.from(JSON.stringify(responseData)).toString('base64').slice(0, 27)}"`;response.headers.set('ETag', etag);return response;
+Also add compression (if not already enabled in Next.js config):
+Check next.config.ts - compression should be automatic in Next.js, but verify.
+Step 10: Add Prefetching for Navigation
+File: src/app/dashboard/page.tsx
+Location: Where Link components are used (NavButton component)
+Find:
+<Link href={href} aria-label={`Navigate to ${label}`}>  {content}</Link>
+Add prefetch:
+<Link href={href} aria-label={`Navigate to ${label}`} prefetch={true}>  {content}</Link>
+Location: Add prefetch for API routes when user is near end of list
+Add useEffect:
+// Prefetch next page when user is near enduseEffect(() => {  if (!votingData?.clips) return;    const isNearEnd = activeIndex >= votingData.clips.length - 2;  if (isNearEnd) {    // Prefetch next batch (if pagination exists)    // Or prefetch related data    const link = document.createElement('link');    link.rel = 'prefetch';    link.href = '/api/vote?trackId=track-main';    document.head.appendChild(link);  }}, [activeIndex, votingData?.clips]);
+Step 11: Optimize Providers Configuration
+File: src/app/providers.tsx
+Location: Around line 11-18
+Current:
+const [queryClient] = useState(() => new QueryClient({  defaultOptions: {    queries: {      staleTime: 60 * 1000, // 1 minute      refetchOnWindowFocus: false,    },  },}));
+Replace with:
+const [queryClient] = useState(() => new QueryClient({  defaultOptions: {    queries: {      staleTime: 60 * 1000, // 1 minute      gcTime: 5 * 60 * 1000, // 5 minutes (formerly cacheTime)      refetchOnWindowFocus: false,      refetchOnMount: false, // Don't refetch if data exists      retry: 1, // Reduce retries for faster failure    },    mutations: {      retry: 1,    },  },}));
+Step 12: Add Performance Monitoring (Optional)
+File: src/app/dashboard/page.tsx
+Location: Add useEffect at top of VotingArena component
+Add:
+// Performance monitoring (development only)useEffect(() => {  if (process.env.NODE_ENV === 'development') {    const perfData = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;    if (perfData) {      console.log('Performance Metrics:', {        domContentLoaded: perfData.domContentLoadedEventEnd - perfData.domContentLoadedEventStart,        loadComplete: perfData.loadEventEnd - perfData.loadEventStart,        firstPaint: performance.getEntriesByName('first-paint')[0]?.startTime,      });    }  }}, []);
+Testing Checklist
+After implementing:
+Lighthouse Test:
+Run Lighthouse in Chrome DevTools
+Target: Performance score > 90
+Check First Contentful Paint < 1.5s
+Check Time to Interactive < 3s
+Network Test:
+Open DevTools Network tab
+Check initial bundle size reduction
+Verify resource hints are working (check Timing tab)
+Functionality Test:
+Verify videos still play correctly
+Check voting still works
+Test navigation between clips
+Verify Suspense boundaries don't break UI
+Performance Test:
+Test on slow 3G throttling
+Check React DevTools Profiler for re-renders
+Verify useMemo is preventing unnecessary recalculations
+Expected Results
+Initial Load: 30-40% faster (from ~3-4s to ~2-2.5s)
+Bundle Size: 15-20% reduction (~100-150KB)
+Time to Interactive: 25-35% improvement
+Perceived Performance: Much better with Suspense and placeholder data
+Lighthouse Score: Should improve by 10-15 points
+Notes
+Test each change incrementally
+Keep backups before major changes
+Monitor error logs after deployment
+Some optimizations may need A/B testing
