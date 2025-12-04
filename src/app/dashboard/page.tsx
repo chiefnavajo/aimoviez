@@ -223,6 +223,7 @@ interface PowerVoteButtonProps {
   votesToday?: number;
   dailyGoal?: number;
   showDailyProgress?: boolean;
+  multiVoteMode?: boolean;
 }
 
 function PowerVoteButton({
@@ -235,6 +236,7 @@ function PowerVoteButton({
   votesToday = 0,
   dailyGoal = 200,
   showDailyProgress = false,
+  multiVoteMode = false,
 }: PowerVoteButtonProps) {
   const [holdProgress, setHoldProgress] = useState(0);
   const [currentVoteType, setCurrentVoteType] = useState<VoteType>('standard');
@@ -266,8 +268,9 @@ function PowerVoteButton({
     setHoldProgress(0);
     setCurrentVoteType('standard');
 
-    // Only start progress interval for new votes (not for revoke)
-    if (!hasVoted) {
+    // Start progress interval for new votes, OR for multi-vote mode (allows super/mega on already-voted clips)
+    const canVoteAgain = !hasVoted || multiVoteMode;
+    if (canVoteAgain) {
       // Update progress every 50ms
       progressIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTimeRef.current;
@@ -308,10 +311,11 @@ function PowerVoteButton({
 
     // Execute vote or revoke
     if (!isDisabled) {
-      if (hasVoted) {
-        // Tap on voted clip = revoke
+      if (hasVoted && !multiVoteMode) {
+        // Tap on voted clip = revoke (only in normal mode)
         onVote('standard'); // This will trigger revoke in handleVote
       } else {
+        // New vote, or multi-vote mode allows additional votes
         onVote(finalVoteType);
       }
     }
@@ -1466,6 +1470,7 @@ function VotingArena() {
             votesToday={votesToday}
             dailyGoal={DAILY_GOAL}
             showDailyProgress={showVoteProgress}
+            multiVoteMode={multiVoteMode}
           />
           {/* Vote Count */}
           <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">

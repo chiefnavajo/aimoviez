@@ -1,0 +1,422 @@
+13:32:08.059 Running build in Washington, D.C., USA (East) – iad1
+13:32:08.059 Build machine configuration: 4 cores, 8 GB
+13:32:08.068 Cloning github.com/chiefnavajo/aimoviez (Branch: main, Commit: 02ae1c8)
+13:32:08.069 Skipping build cache, deployment was triggered without cache.
+13:32:08.670 Cloning completed: 602.000ms
+13:32:09.239 Running "vercel build"
+13:32:09.662 Vercel CLI 48.12.0
+13:32:10.030 Installing dependencies...
+13:32:14.092 npm warn deprecated path-match@1.2.4: This package is archived and no longer maintained. For support, visit https://github.com/expressjs/express/discussions
+13:32:15.054 npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+13:32:15.707 npm warn deprecated domexception@4.0.0: Use your platform's native DOMException instead
+13:32:16.044 npm warn deprecated abab@2.0.6: Use your platform's native atob() and btoa() methods instead
+13:32:18.521 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:18.767 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:18.933 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:19.121 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:19.311 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:19.312 npm warn deprecated glob@7.2.3: Glob versions prior to v9 are no longer supported
+13:32:32.203 
+13:32:32.204 added 1113 packages in 22s
+13:32:32.204 
+13:32:32.204 209 packages are looking for funding
+13:32:32.204   run `npm fund` for details
+13:32:32.500 Detected Next.js version: 15.5.7
+13:32:32.508 Running "npm run build"
+13:32:32.723 
+13:32:32.723 > aimoviez-app@0.1.0 build
+13:32:32.724 > next build
+13:32:32.724 
+13:32:34.386 Attention: Next.js now collects completely anonymous telemetry regarding usage.
+13:32:34.386 This information is used to shape Next.js' roadmap and prioritize features.
+13:32:34.387 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+13:32:34.387 https://nextjs.org/telemetry
+13:32:34.387 
+13:32:34.475    ▲ Next.js 15.5.7
+13:32:34.475 
+13:32:34.562    Creating an optimized production build ...
+13:32:55.560  ⚠ Compiled with warnings in 19.9s
+13:32:55.560 
+13:32:55.560 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+13:32:55.560 Critical dependency: the request of a dependency is an expression
+13:32:55.560 
+13:32:55.560 Import trace for requested module:
+13:32:55.560 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+13:32:55.560 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+13:32:55.560 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+13:32:55.560 ./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+13:32:55.560 ./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+13:32:55.561 ./node_modules/@sentry/node/build/cjs/index.js
+13:32:55.561 ./node_modules/@sentry/nextjs/build/cjs/index.server.js
+13:32:55.561 ./sentry.server.config.ts
+13:32:55.561 
+13:33:09.445  ✓ Compiled successfully in 31.2s
+13:33:09.449    Linting and checking validity of types ...
+13:33:28.993 
+13:33:28.993 ./src/__tests__/components/BottomNavigation.test.tsx
+13:33:28.993 38:13  Warning: 'container' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:28.993 
+13:33:28.993 ./src/__tests__/lib/sounds.test.ts
+13:33:28.993 8:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.994 84:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.994 
+13:33:28.994 ./src/app/admin/page.tsx
+13:33:28.994 112:9  Warning: 'router' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:28.994 215:6  Warning: React Hook useEffect has a missing dependency: 'fetchSeasons'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:28.994 236:6  Warning: React Hook useEffect has a missing dependency: 'fetchClips'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:28.994 1629:27  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:28.994 2024:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:28.994 
+13:33:28.994 ./src/app/admin/users/page.tsx
+13:33:28.995 112:6  Warning: React Hook useEffect has a missing dependency: 'fetchUsers'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:28.995 327:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:28.995 474:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:28.995 
+13:33:28.995 ./src/app/api/admin/moderation/route.ts
+13:33:28.995 127:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.995 212:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.995 305:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.995 
+13:33:28.995 ./src/app/api/admin/seasons/route.ts
+13:33:28.995 219:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 
+13:33:28.996 ./src/app/api/admin/slots/route.ts
+13:33:28.996 196:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 
+13:33:28.996 ./src/app/api/leaderboard/clips/route.ts
+13:33:28.996 14:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 26:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 
+13:33:28.996 ./src/app/api/leaderboard/creators/route.ts
+13:33:28.996 15:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 27:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 107:64  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.996 
+13:33:28.996 ./src/app/api/leaderboard/route.ts
+13:33:28.996 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.997 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.997 
+13:33:28.997 ./src/app/api/leaderboard/voters/route.ts
+13:33:28.998 110:60  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.998 
+13:33:28.998 ./src/app/api/notifications/route.ts
+13:33:28.998 36:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:28.999 
+13:33:28.999 ./src/app/api/notifications/subscribe/route.ts
+13:33:28.999 42:13  Warning: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:28.999 
+13:33:28.999 ./src/app/api/story/route.ts
+13:33:29.000 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.000 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.000 66:11  Warning: 'StoryResponse' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.000 146:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.000 
+13:33:29.001 ./src/app/api/vote/route.ts
+13:33:29.001 15:8  Warning: 'crypto' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.001 44:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.001 45:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.001 46:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.002 63:61  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.002 67:10  Warning: 'getCachedClips' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.002 67:48  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.002 77:10  Warning: 'setCachedClips' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.002 77:53  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.003 372:10  Warning: 'smartSampleClips' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.003 462:16  Warning: 'getSeenClipIds' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.003 529:20  Warning: 'userVotesToday' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.003 904:9  Warning: 'userEmail' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.004 
+13:33:29.004 ./src/app/clip/[id]/ClipPageClient.tsx
+13:33:29.004 245:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.004 
+13:33:29.004 ./src/app/dashboard/page.tsx
+13:33:29.005 1077:9  Warning: 'handleRevokeVote' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.005 
+13:33:29.005 ./src/app/global-error.tsx
+13:33:29.005 66:13  Warning: Do not use an `<a>` element to navigate to `/`. Use `<Link />` from `next/link` instead. See: https://nextjs.org/docs/messages/no-html-link-for-pages  @next/next/no-html-link-for-pages
+13:33:29.005 
+13:33:29.005 ./src/app/join/[code]/page.tsx
+13:33:29.006 33:6  Warning: React Hook useEffect has a missing dependency: 'trackReferralAndRedirect'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.006 
+13:33:29.006 ./src/app/leaderboard/page.tsx
+13:33:29.006 106:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.006 122:76  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.006 136:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.006 
+13:33:29.006 ./src/app/profile/[id]/page.tsx
+13:33:29.006 80:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.007 194:17  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.007 233:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.007 
+13:33:29.007 ./src/app/profile/page.tsx
+13:33:29.007 114:9  Warning: 'avatarSeed' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.007 153:69  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.007 169:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.007 196:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.007 371:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.007 490:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.008 562:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.008 584:19  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.008 640:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.008 657:106  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.008 695:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.008 724:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.008 
+13:33:29.008 ./src/app/search/page.tsx
+13:33:29.009 147:6  Warning: React Hook useEffect has a missing dependency: 'fetchData'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.010 593:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.010 631:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.010 661:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.010 
+13:33:29.010 ./src/app/settings/page.tsx
+13:33:29.010 149:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.010 
+13:33:29.010 ./src/app/story/page.tsx
+13:33:29.010 56:6  Warning: 'Genre' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 149:10  Warning: 'ActionButton' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 191:9  Warning: 'totalStoryDuration' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 197:9  Warning: 'overallCurrentTime' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 304:9  Warning: 'handleProgressClick' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 317:9  Warning: 'handleProgressDrag' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 330:9  Warning: 'handleDragStart' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 335:9  Warning: 'handleDragEnd' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.011 340:9  Warning: 'formatTime' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.012 367:34  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 532:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 581:76  Warning: 'idx' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.012 583:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 775:25  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 881:31  Warning: 'idx' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.012 922:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 1022:10  Warning: 'SeasonListItem' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.012 1058:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.012 
+13:33:29.013 ./src/app/upload/page.tsx
+13:33:29.013 41:10  Warning: 'generateFilename' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.013 54:52  Warning: 'user' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.013 
+13:33:29.013 ./src/app/watch/page.tsx
+13:33:29.013 47:27  Warning: 'setAutoplayEnabled' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.013 108:25  Warning: Assignments to the 'controlsTimeout' variable from inside React Hook useEffect will be lost after each render. To preserve the value over time, store it in a useRef Hook and keep the mutable value in the '.current' property. Otherwise, you can move this variable directly inside useEffect.  react-hooks/exhaustive-deps
+13:33:29.013 408:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.013 
+13:33:29.014 ./src/components/CaptchaVerification.tsx
+13:33:29.014 56:9  Warning: 'reset' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.014 61:9  Warning: 'execute' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.014 
+13:33:29.014 ./src/components/CommentsSection.tsx
+13:33:29.014 60:68  Warning: 'clipUsername' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.014 178:6  Warning: React Hook useEffect has a missing dependency: 'fetchComments'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.014 
+13:33:29.014 ./src/components/EnhancedUploadArea.tsx
+13:33:29.014 20:3  Warning: 'Pause' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.015 174:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+13:33:29.015 228:6  Warning: React Hook useCallback has a missing dependency: 'handleFileProcessing'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.015 238:6  Warning: React Hook useCallback has a missing dependency: 'handleFileProcessing'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.015 
+13:33:29.015 ./src/components/Leaderboard.tsx
+13:33:29.015 118:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.015 
+13:33:29.015 ./src/components/MiniLeaderboard.tsx
+13:33:29.016 43:10  Warning: 'lastVoteTime' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.016 43:24  Warning: 'setLastVoteTime' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.016 52:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.016 77:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+13:33:29.016 95:6  Warning: React Hook useEffect has a missing dependency: 'fetchVotingActivity'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.016 104:6  Warning: React Hook useEffect has a missing dependency: 'topClips.length'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.016 104:7  Warning: React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked.  react-hooks/exhaustive-deps
+13:33:29.017 198:36  Warning: 'index' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.017 211:21  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.017 
+13:33:29.017 ./src/components/Navbar.tsx
+13:33:29.017 109:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.017 
+13:33:29.017 ./src/components/NotificationSettings.tsx
+13:33:29.017 5:41  Warning: 'X' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.017 
+13:33:29.017 ./src/components/OnboardingTour.tsx
+13:33:29.018 169:6  Warning: React Hook useEffect has missing dependencies: 'handleNext', 'handlePrev', and 'handleSkip'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.018 
+13:33:29.019 ./src/components/ReferralSection.tsx
+13:33:29.019 20:3  Warning: 'ExternalLink' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.019 
+13:33:29.019 ./src/components/StoryProgressBar.tsx
+13:33:29.020 192:6  Warning: React Hook useEffect has a missing dependency: 'handleSeek'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+13:33:29.020 
+13:33:29.020 ./src/components/StoryTimeline.tsx
+13:33:29.020 97:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.020 183:23  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.021 
+13:33:29.021 ./src/components/UploadPanel.tsx
+13:33:29.021 7:18  Warning: 'X' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.021 9:10  Warning: 'GenreBadge' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.021 87:14  Warning: 'error' is defined but never used.  @typescript-eslint/no-unused-vars
+13:33:29.021 
+13:33:29.021 ./src/components/VideoCard.tsx
+13:33:29.021 60:9  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.021 106:11  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+13:33:29.022 
+13:33:29.022 ./src/hooks/useAuth.tsx
+13:33:29.022 20:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.022 133:39  Warning: 'hasProfile' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.022 
+13:33:29.022 ./src/lib/api-errors.ts
+13:33:29.022 185:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.022 
+13:33:29.023 ./src/lib/api-utils.ts
+13:33:29.023 15:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 24:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 31:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 48:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 97:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 121:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 167:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.023 202:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 239:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 240:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 241:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 271:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 319:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 343:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 348:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.024 356:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.025 548:3  Warning: Unused eslint-disable directive (no problems were reported from 'no-control-regex').
+13:33:29.025 
+13:33:29.025 ./src/lib/csrf.ts
+13:33:29.025 137:35  Warning: 'error' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.025 
+13:33:29.025 ./src/lib/notifications.ts
+13:33:29.026 29:14  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.026 
+13:33:29.026 ./src/lib/pusher-realtime.ts
+13:33:29.027 34:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.027 76:10  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.039 
+13:33:29.039 ./src/lib/rate-limit.ts
+13:33:29.039 302:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.039 306:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.040 
+13:33:29.040 ./src/lib/sanitize.ts
+13:33:29.040 17:5  Warning: Unused eslint-disable directive (no problems were reported from 'no-control-regex').
+13:33:29.040 95:5  Warning: Unused eslint-disable directive (no problems were reported from 'no-control-regex').
+13:33:29.040 
+13:33:29.040 ./src/lib/sounds.ts
+13:33:29.045 15:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.045 
+13:33:29.045 ./src/lib/validations.ts
+13:33:29.045 47:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+13:33:29.045 
+13:33:29.045 ./src/lib/video-storage.ts
+13:33:29.045 21:7  Warning: 'CLOUDINARY_API_KEY' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.045 22:7  Warning: 'CLOUDINARY_API_SECRET' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.045 26:7  Warning: 'AWS_REGION' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.045 27:7  Warning: 'AWS_BUCKET' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.045 31:7  Warning: 'MAX_DURATION' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 79:13  Warning: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 117:11  Warning: 'params' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 153:27  Warning: 'file' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 153:39  Warning: 'fileId' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 279:19  Warning: 'clip' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+13:33:29.046 
+13:33:29.046 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+13:33:29.050    Collecting page data ...
+13:33:33.984    Generating static pages (0/60) ...
+13:33:34.961    Generating static pages (15/60) 
+13:33:34.961    Generating static pages (30/60) 
+13:33:34.993    Generating static pages (45/60) 
+13:33:35.396  ✓ Generating static pages (60/60)
+13:33:36.638    Finalizing page optimization ...
+13:33:36.638    Collecting build traces ...
+13:33:43.745 
+13:33:43.756 Route (app)                                 Size  First Load JS
+13:33:43.757 ┌ ○ /                                    4.01 kB         152 kB
+13:33:43.757 ├ ○ /_not-found                            999 B         103 kB
+13:33:43.757 ├ ○ /about                               3.51 kB         146 kB
+13:33:43.757 ├ ○ /admin                               14.4 kB         166 kB
+13:33:43.757 ├ ○ /admin/users                         4.61 kB         158 kB
+13:33:43.757 ├ ƒ /api/account/delete                    265 B         102 kB
+13:33:43.757 ├ ƒ /api/account/export                    265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/advance-slot                265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/approve                     265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/assign-winner               265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/audit-logs                  265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/bulk                        265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/clips                       265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/clips/[id]                  265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/comments                    265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/feature-flags               265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/moderation                  265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/reject                      265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/reset-season                265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/seasons                     265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/slots                       265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/stats                       265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/users                       265 B         102 kB
+13:33:43.757 ├ ƒ /api/admin/users/[id]                  265 B         102 kB
+13:33:43.757 ├ ƒ /api/auth/[...nextauth]                265 B         102 kB
+13:33:43.757 ├ ƒ /api/captcha/status                    265 B         102 kB
+13:33:43.758 ├ ƒ /api/clip/[id]                         265 B         102 kB
+13:33:43.758 ├ ƒ /api/comments                          265 B         102 kB
+13:33:43.758 ├ ƒ /api/contact                           265 B         102 kB
+13:33:43.758 ├ ƒ /api/creator/[id]                      265 B         102 kB
+13:33:43.758 ├ ƒ /api/cron/auto-advance                 265 B         102 kB
+13:33:43.758 ├ ƒ /api/csrf                              265 B         102 kB
+13:33:43.758 ├ ƒ /api/discover                          265 B         102 kB
+13:33:43.758 ├ ƒ /api/features                          265 B         102 kB
+13:33:43.758 ├ ƒ /api/genre-vote                        265 B         102 kB
+13:33:43.758 ├ ƒ /api/genres                            265 B         102 kB
+13:33:43.758 ├ ƒ /api/health                            265 B         102 kB
+13:33:43.758 ├ ƒ /api/leaderboard                       265 B         102 kB
+13:33:43.758 ├ ƒ /api/leaderboard/clips                 265 B         102 kB
+13:33:43.758 ├ ƒ /api/leaderboard/creators              265 B         102 kB
+13:33:43.758 ├ ƒ /api/leaderboard/live                  265 B         102 kB
+13:33:43.758 ├ ƒ /api/leaderboard/voters                265 B         102 kB
+13:33:43.758 ├ ƒ /api/notifications                     265 B         102 kB
+13:33:43.758 ├ ƒ /api/notifications/subscribe           265 B         102 kB
+13:33:43.758 ├ ƒ /api/notifications/unsubscribe         265 B         102 kB
+13:33:43.758 ├ ƒ /api/profile/clips                     265 B         102 kB
+13:33:43.758 ├ ƒ /api/profile/history                   265 B         102 kB
+13:33:43.758 ├ ƒ /api/profile/stats                     265 B         102 kB
+13:33:43.758 ├ ƒ /api/referral                          265 B         102 kB
+13:33:43.758 ├ ƒ /api/report                            265 B         102 kB
+13:33:43.758 ├ ƒ /api/story                             265 B         102 kB
+13:33:43.758 ├ ƒ /api/upload                            265 B         102 kB
+13:33:43.758 ├ ƒ /api/upload/register                   265 B         102 kB
+13:33:43.759 ├ ƒ /api/upload/signed-url                 265 B         102 kB
+13:33:43.759 ├ ƒ /api/user/block                        265 B         102 kB
+13:33:43.759 ├ ƒ /api/user/check-username               265 B         102 kB
+13:33:43.759 ├ ƒ /api/user/create-profile               265 B         102 kB
+13:33:43.759 ├ ƒ /api/user/profile                      265 B         102 kB
+13:33:43.759 ├ ƒ /api/vote                              265 B         102 kB
+13:33:43.759 ├ ƒ /clip/[id]                           6.17 kB         168 kB
+13:33:43.759 ├ ○ /contact                             3.48 kB         146 kB
+13:33:43.759 ├ ○ /dashboard                           43.5 kB         224 kB
+13:33:43.759 ├ ƒ /join/[code]                         2.73 kB         150 kB
+13:33:43.759 ├ ○ /leaderboard                         7.28 kB         165 kB
+13:33:43.759 ├ ○ /privacy                             2.63 kB         145 kB
+13:33:43.759 ├ ○ /profile                             10.9 kB         172 kB
+13:33:43.759 ├ ƒ /profile/[id]                        4.26 kB         152 kB
+13:33:43.759 ├ ○ /search                              7.03 kB         150 kB
+13:33:43.759 ├ ○ /settings                            5.58 kB         157 kB
+13:33:43.759 ├ ○ /story                               10.4 kB         191 kB
+13:33:43.759 ├ ○ /terms                               2.29 kB         145 kB
+13:33:43.759 ├ ○ /upload                              8.79 kB         160 kB
+13:33:43.759 └ ○ /watch                                4.9 kB         166 kB
+13:33:43.759 + First Load JS shared by all             102 kB
+13:33:43.759   ├ chunks/1255-e71b3dd36b136308.js      45.9 kB
+13:33:43.759   ├ chunks/4bd1b696-f785427dddbba9fb.js  54.2 kB
+13:33:43.759   └ other shared chunks (total)          1.94 kB
+13:33:43.759 
+13:33:43.759 
+13:33:43.759 ƒ Middleware                              103 kB
+13:33:43.759 
+13:33:43.760 ○  (Static)   prerendered as static content
+13:33:43.761 ƒ  (Dynamic)  server-rendered on demand
+13:33:43.761 
+13:33:44.011 Traced Next.js server files in: 105.001ms
+13:33:44.358 Created all serverless functions in: 345.831ms
+13:33:44.479 Collected static files (public/, static/, .next/static): 18.475ms
+13:33:44.640 Build Completed in /vercel/output [2m]
+13:33:44.836 Deploying outputs...
+13:33:55.395 Deployment completed
+13:33:56.045 Creating build cache...
