@@ -36,8 +36,23 @@ export function useCsrf() {
 
   // Get token on mount and when cookie changes
   useEffect(() => {
-    const updateToken = () => {
-      setToken(getCsrfTokenFromCookie());
+    const updateToken = async () => {
+      let currentToken = getCsrfTokenFromCookie();
+
+      // If no token in cookie, fetch one from the API
+      if (!currentToken) {
+        try {
+          const response = await fetch('/api/csrf', { credentials: 'include' });
+          if (response.ok) {
+            // The API sets the cookie, so read it again
+            currentToken = getCsrfTokenFromCookie();
+          }
+        } catch (error) {
+          console.warn('[CSRF] Failed to fetch token:', error);
+        }
+      }
+
+      setToken(currentToken);
     };
 
     updateToken();
@@ -63,12 +78,39 @@ export function useCsrf() {
       const currentToken = getCsrfTokenFromCookie();
       if (currentToken) {
         headers[CSRF_TOKEN_HEADER] = currentToken;
+      } else {
+        // Token not in cookie - this is an error condition
+        // The component should have fetched it on mount
+        console.warn('[CSRF] No token available in cookie');
       }
 
       return headers;
     },
     [] // No dependencies - always reads fresh from cookie
   );
+
+  /**
+   * Ensure CSRF token is available before making requests
+   * Call this before any state-changing operation if token might be missing
+   */
+  const ensureToken = useCallback(async (): Promise<string | null> => {
+    let currentToken = getCsrfTokenFromCookie();
+
+    if (!currentToken) {
+      try {
+        const response = await fetch('/api/csrf', { credentials: 'include' });
+        if (response.ok) {
+          // Wait a tick for the cookie to be set
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          currentToken = getCsrfTokenFromCookie();
+        }
+      } catch (error) {
+        console.error('[CSRF] Failed to fetch token:', error);
+      }
+    }
+
+    return currentToken;
+  }, []);
 
   /**
    * Fetch wrapper that includes CSRF token
@@ -161,6 +203,7 @@ export function useCsrf() {
   return {
     token,
     getHeaders,
+    ensureToken,
     fetch: secureFetch,
     post,
     put,
