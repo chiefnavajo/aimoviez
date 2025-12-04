@@ -26,6 +26,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
 // TYPES
@@ -73,7 +74,7 @@ function getBadge(rank: number): string | undefined {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function LeaderboardPage() {
+function LeaderboardPageContent() {
   const [activeTab, setActiveTab] = useState<TabType>('clips');
   const [topClips, setTopClips] = useState<TopClip[]>([]);
   const [topVoters, setTopVoters] = useState<LeaderboardEntry[]>([]);
@@ -460,6 +461,15 @@ export default function LeaderboardPage() {
         <BottomNavigation />
       </div>
     </div>
+  );
+}
+
+// Wrap with AuthGuard for protected route
+export default function LeaderboardPage() {
+  return (
+    <AuthGuard>
+      <LeaderboardPageContent />
+    </AuthGuard>
   );
 }
 

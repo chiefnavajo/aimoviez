@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReferralSection from '@/components/ReferralSection';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
 // ============================================================================
@@ -84,7 +84,7 @@ function formatNumber(num: number): string {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const { user, session } = useAuth();
   const { isAdmin } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
@@ -746,5 +746,14 @@ function ProfileStatsSkeleton() {
         </div>
       ))}
     </div>
+  );
+}
+
+// Wrap with AuthGuard for protected route
+export default function ProfilePage() {
+  return (
+    <AuthGuard>
+      <ProfilePageContent />
+    </AuthGuard>
   );
 }

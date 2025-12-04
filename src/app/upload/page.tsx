@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Upload, Check, X, Loader2, AlertCircle, BookOpen, User, Play, Volume2, VolumeX, Plus, Heart, Trophy, LogIn } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { signIn } from 'next-auth/react';
 
 // ============================================================================
@@ -49,7 +49,7 @@ function generateFilename(originalName: string): string {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function UploadPage() {
+function UploadPageContent() {
   const router = useRouter();
   const { isLoading: authLoading, isAuthenticated, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -503,5 +503,14 @@ export default function UploadPage() {
         <BottomNavigation />
       </div>
     </div>
+  );
+}
+
+// Wrap with AuthGuard for protected route
+export default function UploadPage() {
+  return (
+    <AuthGuard>
+      <UploadPageContent />
+    </AuthGuard>
   );
 }

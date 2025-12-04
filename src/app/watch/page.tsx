@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import BottomNavigation from '@/components/BottomNavigation';
+import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
 // WATCH MOVIE PAGE
@@ -31,7 +32,7 @@ interface LockedSlot {
   };
 }
 
-export default function WatchMoviePage() {
+function WatchMoviePageContent() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
@@ -440,5 +441,14 @@ export default function WatchMoviePage() {
       {/* Bottom Navigation (only visible when not fullscreen) */}
       {!isFullscreen && <BottomNavigation />}
     </div>
+  );
+}
+
+// Wrap with AuthGuard for protected route
+export default function WatchMoviePage() {
+  return (
+    <AuthGuard>
+      <WatchMoviePageContent />
+    </AuthGuard>
   );
 }

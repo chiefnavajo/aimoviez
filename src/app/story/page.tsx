@@ -47,6 +47,7 @@ import {
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import StoryProgressBar from '@/components/StoryProgressBar';
+import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
 // TYPES
@@ -1459,8 +1460,10 @@ const queryClient = new QueryClient({
 
 export default function StoryPageWithProvider() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <StoryPage />
-    </QueryClientProvider>
+    <AuthGuard>
+      <QueryClientProvider client={queryClient}>
+        <StoryPage />
+      </QueryClientProvider>
+    </AuthGuard>
   );
 }
