@@ -23,6 +23,7 @@ import {
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
+import { broadcastVoteUpdate } from '@/lib/pusher-server';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -1223,6 +1224,12 @@ export async function POST(req: NextRequest) {
         userAgent: req.headers.get('user-agent') || undefined,
       });
     }
+
+    // Broadcast real-time vote update to all connected clients
+    // This runs async and doesn't block the response
+    broadcastVoteUpdate(clipId, newVoteCount).catch(() => {
+      // Silently ignore broadcast errors - vote was still successful
+    });
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {
