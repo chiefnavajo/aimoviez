@@ -7,7 +7,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import crypto from 'crypto';
 
 // ============================================================================
 // CONFIGURATION
@@ -123,19 +122,36 @@ function addRateLimitHeaders(response: NextResponse, request: NextRequest): Next
 // CSRF TOKEN HANDLING
 // ============================================================================
 
-function generateCsrfToken(): string {
+// Web Crypto API helpers for Edge Runtime
+async function getRandomHex(bytes: number): Promise<string> {
+  const array = new Uint8Array(bytes);
+  crypto.getRandomValues(array);
+  return Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function hmacSha256(key: string, data: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(key);
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    keyData,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, encoder.encode(data));
+  return Array.from(new Uint8Array(signature)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function generateCsrfToken(): Promise<string> {
   const timestamp = Date.now().toString();
-  const randomBytes = crypto.randomBytes(16).toString('hex');
-  const signature = crypto
-    .createHmac('sha256', CSRF_SECRET)
-    .update(timestamp + randomBytes)
-    .digest('hex')
-    .slice(0, 32);
+  const randomBytes = await getRandomHex(16);
+  const signature = (await hmacSha256(CSRF_SECRET, timestamp + randomBytes)).slice(0, 32);
 
   return `${timestamp}.${randomBytes}.${signature}`;
 }
 
-function addCsrfToken(response: NextResponse, request: NextRequest): NextResponse {
+async function addCsrfToken(response: NextResponse, request: NextRequest): Promise<NextResponse> {
   // Only set token if not already present or if it's a page request
   const existingToken = request.cookies.get(CSRF_TOKEN_COOKIE)?.value;
 
@@ -155,7 +171,7 @@ function addCsrfToken(response: NextResponse, request: NextRequest): NextRespons
   }
 
   if (needsNewToken) {
-    const token = generateCsrfToken();
+    const token = await generateCsrfToken();
     response.cookies.set(CSRF_TOKEN_COOKIE, token, {
       httpOnly: false, // Must be readable by JavaScript
       secure: process.env.NODE_ENV === 'production',
@@ -168,7 +184,7 @@ function addCsrfToken(response: NextResponse, request: NextRequest): NextRespons
   return response;
 }
 
-function validateCsrfToken(request: NextRequest): { valid: boolean; error?: string } {
+async function validateCsrfToken(request: NextRequest): Promise<{ valid: boolean; error?: string }> {
   // Get token from header
   const headerToken = request.headers.get(CSRF_TOKEN_HEADER);
   // Get token from cookie
@@ -210,13 +226,9 @@ function validateCsrfToken(request: NextRequest): { valid: boolean; error?: stri
     return { valid: false, error: 'CSRF token expired' };
   }
 
-  // Verify signature (include randomBytes if new format)
+  // Verify signature using Web Crypto API (include randomBytes if new format)
   const dataToSign = isNewFormat ? timestamp + randomBytes : timestamp;
-  const expectedSignature = crypto
-    .createHmac('sha256', CSRF_SECRET)
-    .update(dataToSign)
-    .digest('hex')
-    .slice(0, 32);
+  const expectedSignature = (await hmacSha256(CSRF_SECRET, dataToSign)).slice(0, 32);
 
   if (signature !== expectedSignature) {
     return { valid: false, error: 'Invalid CSRF token signature' };
@@ -320,7 +332,7 @@ export async function middleware(request: NextRequest) {
   const isCsrfExempt = csrfExemptRoutes.some(route => pathname.startsWith(route));
 
   if (isApiRoute && isStateChangingMethod && !isCsrfExempt) {
-    const csrfValidation = validateCsrfToken(request);
+    const csrfValidation = await validateCsrfToken(request);
     if (!csrfValidation.valid) {
       console.warn('[CSRF] Validation failed:', {
         error: csrfValidation.error,
@@ -350,7 +362,7 @@ export async function middleware(request: NextRequest) {
 
   // Add CSRF token to page responses (not API routes)
   if (!isApiRoute) {
-    response = addCsrfToken(response, request);
+    response = await addCsrfToken(response, request);
   }
 
   return response;
