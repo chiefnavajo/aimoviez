@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       success: true,
       subscription_id: subscriptionId,
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[POST /api/notifications/subscribe] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

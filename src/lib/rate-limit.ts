@@ -47,7 +47,7 @@ export type RateLimitType = keyof typeof RATE_LIMITS;
 // ============================================================================
 
 let redis: Redis | null = null;
-let rateLimiters: Map<RateLimitType, Ratelimit> = new Map();
+const rateLimiters: Map<RateLimitType, Ratelimit> = new Map();
 
 /**
  * Get or create Redis client

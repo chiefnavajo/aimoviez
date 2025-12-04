@@ -35,10 +35,10 @@ interface ProfileClipsResponse {
  * GET /api/profile/clips
  * Returns all clips uploaded by the user
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    
+
     // Get user from session
     let userId: string | null = null;
     try {
@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/profile/clips] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

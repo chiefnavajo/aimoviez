@@ -22,7 +22,7 @@ import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Share2, X, BookOpen, Plus, User, Search, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
+import { MessageCircle, Share2, BookOpen, Plus, User, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import MiniLeaderboard from '@/components/MiniLeaderboard';
 import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';

@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
         replies: [],
       },
     }, { status: 201 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[POST /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -385,7 +385,7 @@ export async function PATCH(req: NextRequest) {
       comment_id,
       likes_count: comment?.likes_count || 0,
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[PATCH /api/clip/comments] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

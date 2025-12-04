@@ -130,3 +130,119 @@ export interface VoteResponse {
   error?: string;
   code?: 'ALREADY_VOTED' | 'DAILY_LIMIT' | 'SUPER_LIMIT' | 'MEGA_LIMIT';
 }
+
+// =========================
+// API CACHE TYPES
+// =========================
+
+export interface CacheEntry<T> {
+  data: T;
+  expires: number;
+}
+
+// =========================
+// DATABASE TYPES (Supabase)
+// =========================
+
+export interface DbSeason {
+  id: string;
+  name: string;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface DbSlot {
+  id: string;
+  season_id: string;
+  slot_position: number;
+  genre: string;
+  status: 'upcoming' | 'voting' | 'completed';
+  voting_starts_at: string | null;
+  voting_ends_at: string | null;
+  winner_clip_id: string | null;
+  created_at: string;
+}
+
+export interface DbClip {
+  id: string;
+  user_id: string;
+  slot_id: string;
+  video_url: string;
+  thumbnail_url: string;
+  duration: number;
+  status: 'pending' | 'approved' | 'rejected';
+  vote_count: number;
+  weighted_score: number;
+  created_at: string;
+}
+
+export interface DbUser {
+  id: string;
+  username: string;
+  avatar_url: string | null;
+  xp: number;
+  badge_level: string | null;
+  created_at: string;
+}
+
+export interface DbNotification {
+  id: string;
+  user_key: string;
+  type: string;
+  title: string;
+  message: string;
+  action_url: string | null;
+  metadata: Record<string, unknown>;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+}
+
+// =========================
+// LEADERBOARD TYPES
+// =========================
+
+export interface LeaderboardCreator {
+  rank: number;
+  userId: string;
+  username: string;
+  avatarUrl: string | null;
+  badgeLevel: string | null;
+  totalClips: number;
+  totalVotes: number;
+  avgVotesPerClip: number;
+  topClipVotes: number;
+  winCount: number;
+}
+
+export interface LeaderboardVoter {
+  rank: number;
+  oddsOfWinning: number;
+  username: string;
+  avatarUrl: string | null;
+  badgeLevel: string | null;
+  totalVotes: number;
+  clipsVotedOn: number;
+  superVotesUsed: number;
+  megaVotesUsed: number;
+  streak: number;
+}
+
+export interface LeaderboardClip {
+  rank: number;
+  clipId: string;
+  thumbnailUrl: string;
+  videoUrl: string;
+  voteCount: number;
+  weightedScore: number;
+  creator: {
+    userId: string;
+    username: string;
+    avatarUrl: string | null;
+    badgeLevel: string | null;
+  };
+  slotPosition: number;
+  genre: string;
+}

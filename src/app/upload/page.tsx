@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Upload, Check, X, Loader2, AlertCircle, BookOpen, User, Play, Volume2, VolumeX, Plus, Heart, Trophy, LogIn } from 'lucide-react';
+import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { signIn } from 'next-auth/react';

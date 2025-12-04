@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { signOut, useSession } from 'next-auth/react';
+import { signOut } from 'next-auth/react';
 import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
-  CheckCircle, Clock, Bell, LogOut, Heart,
+  Clock, Bell, LogOut, Heart,
   ChevronRight, BookOpen, Plus, ShieldCheck
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';

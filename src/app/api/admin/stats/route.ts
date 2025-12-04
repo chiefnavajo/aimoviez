@@ -64,7 +64,7 @@ interface AdminStatsResponse {
  * Requires admin authentication
  * OPTIMIZED: Uses COUNT queries instead of loading all rows
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -247,7 +247,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/admin/stats] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

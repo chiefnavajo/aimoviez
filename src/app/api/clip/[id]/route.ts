@@ -198,7 +198,7 @@ export async function GET(
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/clip/[id]] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

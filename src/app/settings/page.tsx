@@ -17,7 +17,6 @@ import {
   Cookie,
   LogOut,
   User,
-  Bell,
   X,
 } from 'lucide-react';
 

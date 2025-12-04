@@ -201,7 +201,7 @@ export async function GET(req: NextRequest) {
       has_more: total_voters > offset + limit,
       current_user_rank: currentUserRank > 0 ? currentUserRank : undefined,
     } satisfies LeaderboardVotersResponse);
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/leaderboard/voters] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
       seasonStatus: activeSeason.status,
       clipsInSlot: clipsInSlot || 0,
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/admin/slots] Unexpected error:', err);
     return NextResponse.json(
       { ok: false, error: 'Internal server error' },
@@ -253,7 +253,7 @@ export async function PATCH(req: NextRequest) {
       slot,
       message: 'Slot updated successfully',
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[PATCH /api/admin/slots] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
       },
       message: `Slot #${slot_position} locked with winning clip`,
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[POST /api/admin/slots/auto-lock] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

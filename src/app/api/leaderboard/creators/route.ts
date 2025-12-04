@@ -271,7 +271,7 @@ export async function GET(req: NextRequest) {
         'X-Cache': 'MISS',
       },
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/leaderboard/creators] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

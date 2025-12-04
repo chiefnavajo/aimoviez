@@ -14,7 +14,6 @@ import {
   TrendingDown,
   Minus,
   Crown,
-  Flame,
   Heart,
   BookOpen,
   Plus,
@@ -23,7 +22,6 @@ import {
   Users,
   Film,
   ChevronRight,
-  Loader2,
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';

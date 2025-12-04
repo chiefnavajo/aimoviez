@@ -86,8 +86,8 @@ export async function GET(request: NextRequest) {
     // Get clip counts and vote counts for each user
     const userIds = users?.map(u => u.id) || [];
 
-    let clipCounts: Record<string, number> = {};
-    let voteCounts: Record<string, number> = {};
+    const clipCounts: Record<string, number> = {};
+    const voteCounts: Record<string, number> = {};
 
     if (userIds.length > 0) {
       // Get clip counts

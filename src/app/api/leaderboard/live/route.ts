@@ -222,7 +222,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/leaderboard/live] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

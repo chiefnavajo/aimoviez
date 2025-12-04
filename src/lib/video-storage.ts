@@ -93,8 +93,9 @@ async function uploadToSupabase(file: File, fileId: string): Promise<{ url: stri
       .getPublicUrl(fileName);
 
     return { url: publicUrl };
-  } catch (error: any) {
-    return { url: '', error: error.message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { url: '', error: message };
   }
 }
 
@@ -142,8 +143,9 @@ async function uploadToCloudinary(file: File, fileId: string): Promise<{ url: st
 
     const data = await response.json();
     return { url: data.secure_url };
-  } catch (error: any) {
-    return { url: '', error: error.message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { url: '', error: message };
   }
 }
 
@@ -186,8 +188,9 @@ async function uploadToS3(file: File, fileId: string): Promise<{ url: string; er
     */
     
     return { url: '', error: 'S3 upload not implemented. Install @aws-sdk/client-s3' };
-  } catch (error: any) {
-    return { url: '', error: error.message };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return { url: '', error: message };
   }
 }
 
@@ -317,10 +320,11 @@ export async function POST(req: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('[POST /api/upload] Error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: 'Upload failed', details: error.message },
+      { success: false, error: 'Upload failed', details: message },
       { status: 500 }
     );
   }
@@ -370,7 +374,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('[GET /api/upload] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to get upload status' },

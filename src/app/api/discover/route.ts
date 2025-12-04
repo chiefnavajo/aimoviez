@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
         });
 
         // Convert to array and sort
-        let creatorsArray = Array.from(creatorMap.values());
+        const creatorsArray = Array.from(creatorMap.values());
 
         if (sort === 'top' || sort === 'trending') {
           creatorsArray.sort((a, b) => b.total_votes - a.total_votes);
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
     };
 
     return NextResponse.json(response, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/discover] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

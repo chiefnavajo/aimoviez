@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       success: true,
       message: 'Subscription removed successfully',
     });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[POST /api/notifications/unsubscribe] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },

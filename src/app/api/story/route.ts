@@ -301,10 +301,11 @@ export async function GET(req: NextRequest) {
       },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('[story] Unexpected error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error', message: error?.message || 'Unknown error', seasons: [] },
+      { error: 'Internal server error', message, seasons: [] },
       { status: 500 }
     );
   }

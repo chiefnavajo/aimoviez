@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Perform moderation action
-    let updateData: Record<string, unknown> = {
+    const updateData: Record<string, unknown> = {
       moderated_by: adminUser.id,
       moderated_at: new Date().toISOString(),
     };

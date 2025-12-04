@@ -37,12 +37,10 @@ import {
   User,
   Lock,
   Clock,
-  Bell,
   Check,
   Maximize2,
   Minimize2,
   X,
-  Pause,
 } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';

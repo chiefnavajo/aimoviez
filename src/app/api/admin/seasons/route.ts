@@ -13,7 +13,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
  * GET /api/admin/seasons
  * List all seasons with stats
  */
-export async function GET(req: NextRequest) {
+export async function GET(_req: NextRequest) {
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json({ seasons: enrichedSeasons }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[GET /api/admin/seasons] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
       },
       message: `Season "${name}" created with ${total_slots} slots`,
     }, { status: 201 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[POST /api/admin/seasons] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
@@ -258,7 +258,7 @@ export async function PATCH(req: NextRequest) {
       season,
       message: 'Season updated successfully',
     }, { status: 200 });
-  } catch (err: any) {
+  } catch (err) {
     console.error('[PATCH /api/admin/seasons] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
