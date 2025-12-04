@@ -1130,7 +1130,6 @@ export async function POST(req: NextRequest) {
           .update({
             vote_weight: existingVote.vote_weight + weight,
             vote_type: voteType, // Update to latest vote type
-            updated_at: new Date().toISOString(),
           })
           .eq('id', existingVote.id);
         insertError = error;
