@@ -303,7 +303,7 @@ function WatchMoviePageContent() {
   }
 
   return (
-    <div className="relative h-screen w-screen bg-black overflow-hidden">
+    <div className="relative min-h-screen min-h-[100dvh] w-full bg-black overflow-hidden">
       {/* Video Player */}
       <div className="absolute inset-0 flex items-center justify-center">
         <video

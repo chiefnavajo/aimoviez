@@ -1291,7 +1291,7 @@ function StoryPage() {
   }
 
   return (
-    <div className="h-screen bg-black overflow-hidden">
+    <div className="min-h-screen min-h-[100dvh] bg-black overflow-hidden">
       {/* Desktop Layout - TikTok Style */}
       <div className="hidden md:flex h-full relative">
         {/* Full Screen Video Background */}
@@ -1415,7 +1415,7 @@ function StoryPage() {
             height: isFullscreen ? '100vh' : 'auto',
           }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ minHeight: isFullscreen ? '100vh' : 'calc(100vh - 170px)' }}
+          style={{ minHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 170px)' }}
         >
           <VideoPlayer
             season={selectedSeason}

@@ -520,7 +520,7 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
         </div>
 
         {/* Video Thumbnail with hover effect */}
-        <div className="w-16 h-24 md:w-20 md:h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
+        <div className="w-12 h-18 sm:w-16 sm:h-24 md:w-20 md:h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
           <video
             src={clip.video_url}
             className="w-full h-full object-cover"
@@ -550,8 +550,8 @@ function ClipCard({ clip, rank }: { clip: TopClip; rank: number }) {
             <span className="font-bold truncate">@{clip.username}</span>
             {rank === 1 && <span className="text-sm">👑</span>}
           </div>
-          <div className="text-sm text-white/60 mb-2">
-            Season {clip.season_number} • Slot #{clip.slot_position} • {clip.genre}
+          <div className="text-xs sm:text-sm text-white/60 mb-2 truncate">
+            S{clip.season_number} • #{clip.slot_position} • {clip.genre}
           </div>
           <div className="flex items-center gap-2">
             <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />

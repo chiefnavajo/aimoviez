@@ -1,0 +1,121 @@
+[30 tools called]
+
+Below are the most significant issues I found (ordered by severity). Each item includes path, line reference, problem, fix, and severity.
+
+- `src/app/api/profile/history/route.ts` lines 14-18, 63-78 and `src/app/api/profile/stats/route.ts` lines 14-20, 96-170: Device identity is derived from client-controlled `x-forwarded-for` + `user-agent` headers, hashed into `voter_key`, and the Supabase service role is used. Any caller can spoof `x-forwarded-for` to impersonate another device and read their vote history/stats (IDOR/data exposure). Use trusted IP from the platform (e.g., `request.ip`/Edge runtime), strip or overwrite client `x-forwarded-for`, require authenticated user IDs for personal data, and/or store device keys server-side with RLS enforced via anon key.
+
+```
+14:20:src/app/api/profile/history/route.ts
+function getVoterKey(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
+  const ua = req.headers.get('user-agent') || 'unknown';
+  return crypto.createHash('sha256').update(ip + ua).digest('hex');
+}
+```
+
+- `src/app/api/profile/history/route.ts` lines 72-105: Public vote history endpoint uses the service-role key for unauthenticated reads. With the spoofed voter key above, an attacker can enumerate another user’s voting history because RLS is bypassed. Switch to the anon key + strict RLS and tie history access to authenticated `user_id`, not device fingerprint.
+
+```
+72:105:src/app/api/profile/history/route.ts
+const { data: votes, error: votesError } = await supabase
+  .from('votes')
+  .select('id, created_at, vote_weight, clip_id')
+  .eq('voter_key', voterKey)
+  .order('created_at', { ascending: false })
+  .range(offset, offset + limit - 1);
+```
+
+- `src/app/api/profile/stats/route.ts` lines 96-170: Same device-key spoofing plus service-role reads for personalized stats (total votes, streaks, etc.) without authentication. Use authenticated `user_id` (session) as the primary key, avoid trusting IP headers, and run with anon client/RLS.
+
+```
+96:120:src/app/api/profile/stats/route.ts
+const supabase = createClient(supabaseUrl, supabaseKey);
+const voterKey = getVoterKey(req);
+// …later queries aggregate votes by voter_key with service role
+```
+
+- `src/app/api/clip/[id]/route.ts` lines 73-135 and similar public GET endpoints (leaderboard, comments): Service-role key is used for fully public reads. Any bug in these handlers exposes the full database because RLS is bypassed. Swap to the anon key for read-only/public data and reserve the service role for authenticated/admin paths.
+
+```
+73:80:src/app/api/clip/[id]/route.ts
+const supabase = createClient(supabaseUrl, supabaseKey);
+const { data: clip } = await supabase
+  .from('tournament_clips')
+  .select('*')
+  .eq('id', clipId)
+  .maybeSingle();
+```
+
+- `src/app/api/comments/route.ts` lines 169-195: N+1 query on replies. For each top-level comment, the route issues a separate query to fetch replies, which will degrade under load (20 comments → 21 queries). Fetch replies in a single `.in('parent_comment_id', ids)` call and map in memory, or use a single hierarchical query.
+
+```
+169:195:src/app/api/comments/route.ts
+const enrichedComments = await Promise.all(
+  (topLevelComments || []).map(async (comment) => {
+    const { data: replies } = await supabase
+      .from('comments')
+      .select('*')
+      .eq('parent_comment_id', comment.id)
+      .eq('is_deleted', false)
+      .in('moderation_status', ['approved', null])
+      .order('created_at', { ascending: true })
+      .limit(5);
+    …
+  })
+);
+```
+
+Database design note: Relying on `voter_key`/`device_key` derived from client headers for identity encourages bypassing auth and RLS. Consider persisting authenticated `user_id` as the canonical key, limiting device fingerprints to supplemental anti-abuse signals, and enforcing RLS with the anon key to reduce blast radius.
+
+Severity labels:
+- IDOR via spoofed headers + service-role reads (above): High
+- Service role on public reads (least-privilege violation): Medium
+- N+1 comment replies: Medium (performance)
+
+
+
+
+@codebase Analyze this Next.js app for performance problems. Find and report:
+
+## 1. Database & Query Issues
+- N+1 queries (loading all records when not needed)
+- Missing pagination or limits
+- Queries inside loops
+- SELECT * instead of specific columns
+- Missing database indexes
+
+## 2. React Performance Issues
+- Infinite re-render risks (wrong useEffect dependencies)
+- Missing useMemo or useCallback where needed
+- Large components that should be split
+- Props drilling causing unnecessary re-renders
+- Missing React.memo on list items
+
+## 3. Memory Leaks
+- Event listeners not cleaned up
+- setInterval/setTimeout not cleared
+- Object URLs not revoked (URL.createObjectURL)
+- Subscriptions not unsubscribed
+
+## 4. API & Network Issues
+- No caching strategy
+- Missing rate limiting
+- Parallel requests that should be batched
+- Large payloads without compression
+- No error retry logic
+
+## 5. Bundle & Loading Issues
+- Large imports that could be dynamic
+- Missing lazy loading
+- Images not optimized
+- No code splitting
+
+For each issue found, show:
+- 📁 File path
+- 📍 Line number
+- ❌ Current problematic code
+- ✅ How to fix it
+- 🎯 Impact (High/Medium/Low)
+
+Sort by impact, highest first.

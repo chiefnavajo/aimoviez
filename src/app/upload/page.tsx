@@ -328,9 +328,9 @@ function UploadPageContent() {
         {/* STEP 1: Select Video */}
         {isAuthenticated && step === 1 && (
           <motion.div key="step1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
-            <div className="text-center mb-8">
-              <h1 className="text-2xl md:text-3xl font-black mb-2">Upload Your 8-Second Clip</h1>
-              <p className="text-white/60">Compete for a spot in the global movie</p>
+            <div className="text-center mb-6 sm:mb-8">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-2">Upload Your 8-Second Clip</h1>
+              <p className="text-sm sm:text-base text-white/60">Compete for a spot in the global movie</p>
             </div>
 
             {/* Drop Zone */}
@@ -339,7 +339,7 @@ function UploadPageContent() {
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`relative border-2 border-dashed rounded-2xl p-8 md:p-12 text-center cursor-pointer transition-all ${isDragging ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/20 hover:border-white/40 bg-white/5'}`}
+              className={`relative border-2 border-dashed rounded-2xl p-4 sm:p-8 md:p-12 text-center cursor-pointer transition-all ${isDragging ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/20 hover:border-white/40 bg-white/5'}`}
             >
               {videoPreview ? (
                 <div className="relative aspect-[9/16] max-h-[400px] mx-auto rounded-xl overflow-hidden">
@@ -391,11 +391,11 @@ function UploadPageContent() {
               <p className="text-white/60">What category best fits your clip?</p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
               {GENRES.map((g) => (
-                <motion.button key={g.id} whileTap={{ scale: 0.95 }} onClick={() => setGenre(g.id)} className={`p-4 rounded-xl border-2 transition-all ${genre === g.id ? 'border-cyan-500 bg-cyan-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
-                  <span className="text-2xl mb-2 block">{g.emoji}</span>
-                  <span className="font-bold">{g.name}</span>
+                <motion.button key={g.id} whileTap={{ scale: 0.95 }} onClick={() => setGenre(g.id)} className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${genre === g.id ? 'border-cyan-500 bg-cyan-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
+                  <span className="text-xl sm:text-2xl mb-1 sm:mb-2 block">{g.emoji}</span>
+                  <span className="font-bold text-sm sm:text-base">{g.name}</span>
                 </motion.button>
               ))}
             </div>

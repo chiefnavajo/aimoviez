@@ -581,13 +581,13 @@ function ProfilePageContent() {
                 {/* Outer glow ring */}
                 <div className="absolute -inset-1.5 rounded-full avatar-glow-ring opacity-50" />
                 {/* Animated gradient border */}
-                <div className="w-20 h-20 rounded-full gradient-border-animated p-[2px] relative">
-                  <Image src={avatarUrl} alt="Avatar" fill sizes="80px" className="rounded-full bg-black object-cover" />
+                <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full gradient-border-animated p-[2px] relative">
+                  <Image src={avatarUrl} alt="Avatar" fill sizes="(max-width: 640px) 64px, 80px" className="rounded-full bg-black object-cover" />
                 </div>
                 {/* Level badge */}
                 <motion.div
                   whileTap={{ scale: 1.1 }}
-                  className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm border-4 border-black glow-gold"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-yellow-400 via-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-xs sm:text-sm border-2 sm:border-4 border-black glow-gold"
                 >
                   {displayStats.level}
                 </motion.div>
@@ -626,7 +626,7 @@ function ProfilePageContent() {
             {loading ? (
               <ProfileStatsSkeleton />
             ) : (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 <StatBox icon={Heart} label="Today" value={displayStats.votesToday} subValue="/200" index={0} iconColor="text-pink-500" />
                 <StatBox icon={TrendingUp} label="Total" value={formatNumber(displayStats.totalVotesCast)} index={1} iconColor="text-cyan-500" />
                 <StatBox icon={Film} label="Clips" value={displayStats.clipsUploaded} index={2} iconColor="text-purple-500" />

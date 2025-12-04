@@ -1,0 +1,169 @@
+19:51:39.904 Running build in Washington, D.C., USA (East) – iad1
+19:51:39.905 Build machine configuration: 4 cores, 8 GB
+19:51:40.099 Cloning github.com/chiefnavajo/aimoviez (Branch: main, Commit: 97397d9)
+19:51:40.796 Cloning completed: 697.000ms
+19:51:42.818 Restored build cache from previous deployment (DtKLLVsx2WiqEVLjDA7zRSAWxASU)
+19:51:43.660 Running "vercel build"
+19:51:44.104 Vercel CLI 48.12.1
+19:51:44.467 Installing dependencies...
+19:51:46.539 
+19:51:46.539 up to date in 2s
+19:51:46.539 
+19:51:46.539 209 packages are looking for funding
+19:51:46.539   run `npm fund` for details
+19:51:46.572 Detected Next.js version: 15.5.7
+19:51:46.579 Running "npm run build"
+19:51:46.697 
+19:51:46.697 > aimoviez-app@0.1.0 build
+19:51:46.697 > next build
+19:51:46.697 
+19:51:48.204    ▲ Next.js 15.5.7
+19:51:48.204 
+19:51:48.294    Creating an optimized production build ...
+19:51:58.608  ⚠ Compiled with warnings in 9.1s
+19:51:58.608 
+19:51:58.609 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+19:51:58.609 Critical dependency: the request of a dependency is an expression
+19:51:58.609 
+19:51:58.609 Import trace for requested module:
+19:51:58.609 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+19:51:58.609 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+19:51:58.609 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+19:51:58.609 ./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+19:51:58.609 ./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+19:51:58.609 ./node_modules/@sentry/node/build/cjs/index.js
+19:51:58.609 ./node_modules/@sentry/nextjs/build/cjs/index.server.js
+19:51:58.609 ./sentry.server.config.ts
+19:51:58.609 
+19:52:05.033  ✓ Compiled successfully in 13.2s
+19:52:05.038    Linting and checking validity of types ...
+19:52:23.278 
+19:52:23.278 ./src/__tests__/lib/sounds.test.ts
+19:52:23.278 8:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.278 84:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.278 
+19:52:23.279 ./src/app/api/admin/moderation/route.ts
+19:52:23.279 127:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.279 212:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.279 305:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.279 
+19:52:23.279 ./src/app/api/admin/seasons/route.ts
+19:52:23.279 219:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.279 
+19:52:23.279 ./src/app/api/admin/slots/route.ts
+19:52:23.279 196:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.279 
+19:52:23.279 ./src/app/api/leaderboard/clips/route.ts
+19:52:23.280 14:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 26:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 
+19:52:23.280 ./src/app/api/leaderboard/creators/route.ts
+19:52:23.280 15:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 27:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 107:64  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 
+19:52:23.280 ./src/app/api/leaderboard/route.ts
+19:52:23.280 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.280 
+19:52:23.280 ./src/app/api/leaderboard/voters/route.ts
+19:52:23.281 110:60  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 
+19:52:23.281 ./src/app/api/notifications/route.ts
+19:52:23.281 36:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 
+19:52:23.281 ./src/app/api/story/route.ts
+19:52:23.281 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 146:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 
+19:52:23.281 ./src/app/api/vote/route.ts
+19:52:23.281 44:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.281 45:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 46:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 63:61  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 67:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 77:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 
+19:52:23.282 ./src/app/leaderboard/page.tsx
+19:52:23.282 106:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 122:76  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 136:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.282 
+19:52:23.282 ./src/app/profile/[id]/page.tsx
+19:52:23.283 81:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 
+19:52:23.283 ./src/app/profile/page.tsx
+19:52:23.283 154:69  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 170:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 197:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 563:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 641:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 658:106  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 725:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.283 
+19:52:23.283 ./src/components/MiniLeaderboard.tsx
+19:52:23.283 53:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 
+19:52:23.284 ./src/hooks/useAuth.tsx
+19:52:23.284 20:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 
+19:52:23.284 ./src/lib/api-errors.ts
+19:52:23.284 185:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 
+19:52:23.284 ./src/lib/api-utils.ts
+19:52:23.284 15:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 24:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 31:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 48:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 97:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 121:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.284 167:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 202:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 239:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 240:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 241:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 271:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 319:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 343:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 348:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 356:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 
+19:52:23.285 ./src/lib/notifications.ts
+19:52:23.285 29:14  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.285 
+19:52:23.285 ./src/lib/pusher-realtime.ts
+19:52:23.286 34:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 76:10  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 
+19:52:23.286 ./src/lib/rate-limit.ts
+19:52:23.286 302:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 306:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 
+19:52:23.286 ./src/lib/sounds.ts
+19:52:23.286 15:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 
+19:52:23.286 ./src/lib/validations.ts
+19:52:23.286 47:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+19:52:23.286 
+19:52:23.287 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+19:52:24.912 Failed to compile.
+19:52:24.912 
+19:52:24.912 ./src/app/upload/page.tsx:201:42
+19:52:24.912 Type error: No overload matches this call.
+19:52:24.912   Overload 1 of 2, '(input: string | Request | URL, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+19:52:24.912     Argument of type 'string | undefined' is not assignable to parameter of type 'string | Request | URL'.
+19:52:24.912       Type 'undefined' is not assignable to type 'string | Request | URL'.
+19:52:24.912   Overload 2 of 2, '(input: URL | RequestInfo, init?: RequestInit | undefined): Promise<Response>', gave the following error.
+19:52:24.912     Argument of type 'string | undefined' is not assignable to parameter of type 'URL | RequestInfo'.
+19:52:24.912       Type 'undefined' is not assignable to type 'URL | RequestInfo'.
+19:52:24.912 
+19:52:24.912 [0m [90m 199 |[39m
+19:52:24.912  [90m 200 |[39m       [90m// Upload using the signed URL[39m
+19:52:24.912 [31m[1m>[22m[39m[90m 201 |[39m       [36mconst[39m uploadResponse [33m=[39m [36mawait[39m fetch(signedUrl[33m,[39m {
+19:52:24.912  [90m     |[39m                                          [31m[1m^[22m[39m
+19:52:24.912  [90m 202 |[39m         method[33m:[39m [32m'PUT'[39m[33m,[39m
+19:52:24.912  [90m 203 |[39m         headers[33m:[39m {
+19:52:24.912  [90m 204 |[39m           [32m'Content-Type'[39m[33m:[39m video[33m.[39mtype[33m,[39m[0m
+19:52:24.953 Next.js build worker exited with code: 1 and signal: null
+19:52:24.976 Error: Command "npm run build" exited with 1

@@ -1,0 +1,619 @@
+
+
+# Performance Analysis Report
+
+## Executive Summary
+
+Found performance issues across 5 categories: Database & Query Issues, React Performance, Memory Leaks, API & Network Issues, and Bundle & Loading Issues. Issues are sorted by impact (High → Medium → Low).
+
+---
+
+## 1. Database & Query Issues
+
+### HIGH IMPACT
+
+#### Issue 1.1: SELECT * queries loading unnecessary columns
+**File:** `src/app/api/vote/route.ts`  
+**Line:** 671
+
+**Problematic Code:**
+```typescript
+const { data: allClips, error: clipsError } = await supabase
+  .from('tournament_clips')
+  .select('*')  // ❌ Loading all columns
+  .eq('season_id', seasonRow.id)
+  .eq('slot_position', activeSlot.slot_position)
+  .eq('status', 'active')
+  .order('created_at', { ascending: true })
+  .limit(CLIP_POOL_SIZE);
+```
+
+**Fix:**
+```typescript
+.select('id, thumbnail_url, video_url, vote_count, weighted_score, username, avatar_url, genre, created_at, view_count, segment_index, round_number, total_rounds, badge_level, hype_score')
+```
+
+**Impact:** High - Reduces payload size by ~40-60% and improves query performance
+
+---
+
+#### Issue 1.2: SELECT * in multiple admin routes
+**Files:**
+- `src/app/api/admin/clips/route.ts:37`
+- `src/app/api/admin/users/route.ts:48`
+- `src/app/api/admin/seasons/route.ts:26`
+- `src/app/api/discover/route.ts:80`
+- `src/app/api/leaderboard/route.ts:63`
+- `src/app/api/profile/clips/route.ts:75`
+- `src/app/api/account/export/route.ts:37`
+- `src/app/api/user/profile/route.ts:46,55`
+- `src/lib/video-storage.ts:354`
+
+**Problematic Pattern:** Using `.select('*')` instead of specific columns
+
+**Fix:** Replace with explicit column lists based on what's actually needed
+
+**Impact:** High - Reduces memory usage and network transfer, especially in admin routes
+
+---
+
+#### Issue 1.3: N+1 query pattern in _getSeenClipIds
+**File:** `src/app/api/vote/route.ts`  
+**Lines:** 462-494
+
+**Problematic Code:**
+```typescript
+async function _getSeenClipIds(
+  supabase: SupabaseClient,
+  voterKey: string,
+  slotPosition: number
+): Promise<Set<string>> {
+  // First query: Get all views for voter
+  const { data } = await supabase
+    .from('clip_views')
+    .select('clip_id')
+    .eq('voter_key', voterKey);  // ❌ No slot filter
+
+  // Second query: Get all clips for slot
+  const { data: slotClips } = await supabase
+    .from('tournament_clips')
+    .select('id')
+    .eq('slot_position', slotPosition);
+
+  // Then filter in JavaScript
+  const slotClipIds = new Set((slotClips || []).map(c => c.id));
+  const seenIds = new Set<string>();
+  for (const view of (data || [])) {  // ❌ Loop through all views
+    if (slotClipIds.has(view.clip_id)) {
+      seenIds.add(view.clip_id);
+    }
+  }
+}
+```
+
+**Fix:**
+```typescript
+// Single query with join or subquery
+const { data } = await supabase
+  .from('clip_views')
+  .select('clip_id')
+  .eq('voter_key', voterKey)
+  .in('clip_id', 
+    supabase.from('tournament_clips')
+      .select('id')
+      .eq('slot_position', slotPosition)
+  );
+```
+
+**Impact:** High - Eliminates unnecessary data transfer and processing
+
+---
+
+### MEDIUM IMPACT
+
+#### Issue 1.4: Missing pagination in admin routes
+**Files:**
+- `src/app/api/admin/clips/route.ts` - No limit on clip queries
+- `src/app/api/admin/users/route.ts` - No limit on user queries
+- `src/app/api/discover/route.ts` - No pagination
+
+**Problematic Pattern:** Fetching all records without limits
+
+**Fix:** Add `.range(offset, offset + limit - 1)` with reasonable limits (e.g., 50-100 per page)
+
+**Impact:** Medium - Can cause memory issues and slow responses as data grows
+
+---
+
+#### Issue 1.5: Missing database indexes
+**File:** Database schema (not in codebase, but inferred from queries)
+
+**Problematic Queries:**
+- `src/app/api/vote/route.ts:231` - Filtering by `voter_key` and `created_at` (needs composite index)
+- `src/app/api/vote/route.ts:251` - Filtering by `voter_key` and `slot_position` (needs composite index)
+- `src/app/api/comments/route.ts:137` - Filtering by `clip_id` and `parent_comment_id` (needs indexes)
+
+**Fix:** Add composite indexes:
+```sql
+CREATE INDEX idx_votes_voter_created ON votes(voter_key, created_at);
+CREATE INDEX idx_votes_voter_slot ON votes(voter_key, slot_position);
+CREATE INDEX idx_comments_clip_parent ON comments(clip_id, parent_comment_id);
+```
+
+**Impact:** Medium - Significantly improves query performance on large datasets
+
+---
+
+## 2. React Performance Issues
+
+### HIGH IMPACT
+
+#### Issue 2.1: Missing React.memo on list items
+**File:** `src/components/Leaderboard.tsx`  
+**Lines:** 99-161
+
+**Problematic Code:**
+```typescript
+leaders.map((leader, index) => (
+  <motion.div key={leader.id} ...>
+    {/* Complex component with animations */}
+  </motion.div>
+))
+```
+
+**Fix:**
+```typescript
+const LeaderboardItem = React.memo(({ leader, index }: { leader: Leader, index: number }) => (
+  <motion.div ...>
+    {/* Component content */}
+  </motion.div>
+));
+
+// Then use:
+leaders.map((leader, index) => (
+  <LeaderboardItem key={leader.id} leader={leader} index={index} />
+))
+```
+
+**Impact:** High - Prevents unnecessary re-renders when parent updates
+
+---
+
+#### Issue 2.2: Large component causing re-renders
+**File:** `src/app/dashboard/page.tsx`  
+**Lines:** 630-1680 (1050+ lines)
+
+**Problem:** Single massive component with multiple responsibilities
+
+**Fix:** Split into smaller components:
+- `VideoPlayer` component
+- `VotingControls` component  
+- `CommentsPanel` component
+- `LeaderboardPanel` component
+
+**Impact:** High - Improves maintainability and reduces re-render scope
+
+---
+
+#### Issue 2.3: Missing useMemo for expensive calculations
+**File:** `src/app/dashboard/page.tsx`  
+**Lines:** 750-780 (clip mapping)
+
+**Problematic Code:**
+```typescript
+const clipsForClient: ClientClip[] = sampledClips.map((row, index) => {
+  // Complex mapping logic runs on every render
+});
+```
+
+**Fix:**
+```typescript
+const clipsForClient = useMemo(() => 
+  sampledClips.map((row, index) => {
+    // Mapping logic
+  }), [sampledClips]
+);
+```
+
+**Impact:** High - Prevents recalculation on every render
+
+---
+
+### MEDIUM IMPACT
+
+#### Issue 2.4: useEffect dependency causing potential infinite loop
+**File:** `src/app/dashboard/page.tsx`  
+**Line:** 753
+
+**Problematic Code:**
+```typescript
+useEffect(() => {
+  // Video prefetching logic
+}, [activeIndex, votingData?.clips]);  // ❌ votingData?.clips is an array reference
+```
+
+**Fix:**
+```typescript
+const clipIds = useMemo(() => 
+  votingData?.clips?.map(c => c.clip_id) || [], 
+  [votingData?.clips]
+);
+
+useEffect(() => {
+  // Video prefetching logic
+}, [activeIndex, clipIds]);
+```
+
+**Impact:** Medium - Prevents unnecessary effect runs and potential memory leaks
+
+---
+
+#### Issue 2.5: Missing useCallback for event handlers passed to children
+**File:** `src/components/UploadPanel.tsx`  
+**Line:** 46
+
+**Problematic Code:**
+```typescript
+const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Not memoized
+};
+```
+
+**Fix:**
+```typescript
+const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handler logic
+}, []);
+```
+
+**Impact:** Medium - Prevents child component re-renders when parent re-renders
+
+---
+
+## 3. Memory Leaks
+
+### HIGH IMPACT
+
+#### Issue 3.1: URL.createObjectURL not revoked in upload page
+**File:** `src/app/upload/page.tsx`  
+**Lines:** 111, 123
+
+**Problematic Code:**
+```typescript
+video.src = URL.createObjectURL(file);  // ❌ Never revoked
+// ...
+setVideoPreview(URL.createObjectURL(file));  // ❌ Previous URL not revoked
+```
+
+**Fix:**
+```typescript
+const previewUrl = URL.createObjectURL(file);
+if (videoPreview) {
+  URL.revokeObjectURL(videoPreview);  // Cleanup previous
+}
+setVideoPreview(previewUrl);
+
+// Also cleanup on unmount:
+useEffect(() => {
+  return () => {
+    if (videoPreview) {
+      URL.revokeObjectURL(videoPreview);
+    }
+  };
+}, [videoPreview]);
+```
+
+**Impact:** High - Memory leak accumulates with each file selection
+
+---
+
+#### Issue 3.2: URL.createObjectURL cleanup missing in validation
+**File:** `src/app/upload/page.tsx`  
+**Line:** 100
+
+**Problematic Code:**
+```typescript
+video.onloadedmetadata = () => {
+  URL.revokeObjectURL(video.src);  // ✅ Revoked here
+  // ...
+};
+video.src = URL.createObjectURL(file);
+// ❌ But if onerror fires, URL might not be revoked
+```
+
+**Fix:** Ensure cleanup in both success and error paths (already partially fixed, but verify)
+
+**Impact:** High - Memory leak on validation errors
+
+---
+
+### MEDIUM IMPACT
+
+#### Issue 3.3: setInterval not cleared on error in UploadPanel
+**File:** `src/components/UploadPanel.tsx`  
+**Lines:** 60-68, 87-91
+
+**Problematic Code:**
+```typescript
+const progressInterval = setInterval(() => {
+  setUploadProgress(prev => {
+    if (prev >= 90) {
+      clearInterval(progressInterval);  // ✅ Cleared here
+      return 90;
+    }
+    return prev + 10;
+  });
+}, 200);
+
+try {
+  await onSubmit({ file, title: title.trim(), genre });
+  clearInterval(progressInterval);
+} catch {
+  clearInterval(progressInterval);  // ✅ Cleared here
+  // But what if component unmounts during upload?
+}
+```
+
+**Fix:**
+```typescript
+useEffect(() => {
+  return () => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+  };
+}, []);
+```
+
+**Impact:** Medium - Interval continues if component unmounts during upload
+
+---
+
+#### Issue 3.4: setTimeout not cleared in PowerVoteButton
+**File:** `src/app/dashboard/page.tsx`  
+**Line:** 324
+
+**Problematic Code:**
+```typescript
+setTimeout(() => {
+  setHoldProgress(0);
+  setCurrentVoteType('standard');
+}, 300);  // ❌ No cleanup if component unmounts
+```
+
+**Fix:**
+```typescript
+const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+// In handler:
+if (timeoutRef.current) clearTimeout(timeoutRef.current);
+timeoutRef.current = setTimeout(() => {
+  setHoldProgress(0);
+  setCurrentVoteType('standard');
+}, 300);
+
+// In cleanup:
+useEffect(() => {
+  return () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  };
+}, []);
+```
+
+**Impact:** Medium - Potential memory leak and state updates after unmount
+
+---
+
+## 4. API & Network Issues
+
+### HIGH IMPACT
+
+#### Issue 4.1: No caching strategy for frequently accessed data
+**File:** `src/app/api/vote/route.ts`  
+**Lines:** 36-80
+
+**Problem:** In-memory cache exists but TTL is very short (15-60 seconds)
+
+**Current Code:**
+```typescript
+const CACHE_TTL = {
+  season: 60 * 1000,      // 1 minute
+  slot: 30 * 1000,        // 30 seconds
+  clips: 15 * 1000,        // 15 seconds
+};
+```
+
+**Fix:**
+- Use Next.js caching with `revalidate` option
+- Implement Redis cache for shared cache across instances
+- Add HTTP cache headers: `Cache-Control: public, max-age=30`
+
+**Impact:** High - Reduces database load and improves response times
+
+---
+
+#### Issue 4.2: Large payloads without compression
+**File:** `next.config.ts`
+
+**Problem:** No compression middleware configured
+
+**Fix:** Add compression:
+```typescript
+// In next.config.ts or middleware
+import compression from 'compression';
+```
+
+Or use Vercel's automatic compression (if deployed there)
+
+**Impact:** High - Reduces bandwidth usage by 60-80%
+
+---
+
+### MEDIUM IMPACT
+
+#### Issue 4.3: No error retry logic for API calls
+**File:** `src/app/dashboard/page.tsx`  
+**Line:** 692-704
+
+**Problematic Code:**
+```typescript
+const { data: votingData, isLoading, error, refetch } = useQuery({
+  queryKey: ['voting', 'track-main'],
+  queryFn: async () => {
+    const response = await fetch('/api/vote');
+    // ❌ No retry logic on network errors
+  },
+  staleTime: Infinity,
+  retry: 3,  // ✅ Has retry, but no exponential backoff
+});
+```
+
+**Fix:** Add exponential backoff:
+```typescript
+retry: (failureCount, error) => {
+  if (failureCount < 3) {
+    return true;
+  }
+  return false;
+},
+retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+```
+
+**Impact:** Medium - Better resilience to transient network issues
+
+---
+
+#### Issue 4.4: Parallel requests that could be batched
+**File:** `src/app/api/admin/stats/route.ts`  
+**Lines:** 105-134
+
+**Problem:** Multiple parallel queries (good), but could be optimized further
+
+**Current:** 13 separate queries
+
+**Fix:** Consider combining related queries using database functions or views
+
+**Impact:** Medium - Reduces round trips, but current approach is acceptable
+
+---
+
+## 5. Bundle & Loading Issues
+
+### HIGH IMPACT
+
+#### Issue 5.1: Large imports not dynamically loaded
+**File:** `src/app/dashboard/page.tsx`  
+**Lines:** 20-22
+
+**Problematic Code:**
+```typescript
+import Pusher from 'pusher-js';  // ~50KB
+import confetti from 'canvas-confetti';  // ~15KB
+import { motion, AnimatePresence } from 'framer-motion';  // ~80KB
+```
+
+**Fix:**
+```typescript
+// Dynamic imports for heavy libraries
+const Pusher = dynamic(() => import('pusher-js'), { ssr: false });
+const confetti = dynamic(() => import('canvas-confetti'), { ssr: false });
+```
+
+**Impact:** High - Reduces initial bundle size by ~145KB
+
+---
+
+#### Issue 5.2: Missing lazy loading for heavy components
+**File:** `src/app/dashboard/page.tsx`  
+**Lines:** 26-28
+
+**Problematic Code:**
+```typescript
+import CommentsSection from '@/components/CommentsSection';
+import MiniLeaderboard from '@/components/MiniLeaderboard';
+import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
+```
+
+**Fix:**
+```typescript
+const CommentsSection = dynamic(() => import('@/components/CommentsSection'), {
+  loading: () => <div>Loading comments...</div>,
+  ssr: false
+});
+const MiniLeaderboard = dynamic(() => import('@/components/MiniLeaderboard'), {
+  ssr: false
+});
+```
+
+**Impact:** High - Reduces initial bundle size and improves Time to Interactive
+
+---
+
+### MEDIUM IMPACT
+
+#### Issue 5.3: Images not optimized
+**File:** Multiple components using `<Image>` from Next.js
+
+**Problem:** Next.js Image component is used, but check:
+- Are images using proper `width` and `height`?
+- Are remote images configured in `next.config.ts`? (✅ Already done)
+- Are images using appropriate formats (WebP/AVIF)?
+
+**Fix:** Ensure all images have explicit dimensions and use Next.js Image optimization
+
+**Impact:** Medium - Improves LCP (Largest Contentful Paint) metric
+
+---
+
+#### Issue 5.4: No code splitting for routes
+**File:** `src/app/layout.tsx` (inferred)
+
+**Problem:** All routes loaded upfront
+
+**Fix:** Next.js automatically code-splits by route, but verify:
+- Large libraries should be dynamically imported
+- Heavy components should use `dynamic()` with `ssr: false` where appropriate
+
+**Impact:** Medium - Next.js handles this automatically, but verify configuration
+
+---
+
+## Summary by Impact
+
+### High Impact (Fix First)
+1. SELECT * queries (1.1, 1.2)
+2. N+1 query pattern (1.3)
+3. Missing React.memo on list items (2.1)
+4. Large component splitting (2.2)
+5. URL.createObjectURL memory leaks (3.1, 3.2)
+6. No caching strategy (4.1)
+7. Large imports not dynamically loaded (5.1)
+8. Missing lazy loading (5.2)
+
+### Medium Impact (Fix Next)
+1. Missing pagination (1.4)
+2. Missing database indexes (1.5)
+3. useEffect dependency issues (2.4)
+4. Missing useCallback (2.5)
+5. setInterval/setTimeout cleanup (3.3, 3.4)
+6. No compression (4.2)
+7. No error retry logic (4.3)
+8. Image optimization (5.3)
+
+### Low Impact (Nice to Have)
+1. Query batching optimizations (4.4)
+2. Code splitting verification (5.4)
+
+---
+
+## Recommended Action Plan
+
+1. Week 1: Fix High Impact database issues (1.1, 1.2, 1.3)
+2. Week 2: Fix High Impact React performance issues (2.1, 2.2, 2.3)
+3. Week 3: Fix High Impact memory leaks (3.1, 3.2)
+4. Week 4: Implement caching and bundle optimizations (4.1, 5.1, 5.2)
+5. Week 5: Address Medium Impact issues
+
+---
+
+The full analysis is saved in the plan file. Should I start implementing fixes for any of these issues?

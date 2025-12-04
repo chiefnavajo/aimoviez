@@ -36,6 +36,8 @@
 
 body {
   background: var(--background);
+  /* Gradient background to prevent pure black screen flash */
+  background-image: linear-gradient(to bottom right, #050510, #0a0a18, #050510);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;

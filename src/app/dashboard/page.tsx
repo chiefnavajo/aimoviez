@@ -1291,7 +1291,7 @@ function VotingArena() {
           </div>
 
           {/* Skeleton Right Controls */}
-          <div className="absolute right-3 bottom-32 flex flex-col gap-4">
+          <div className="absolute right-2 sm:right-3 bottom-28 sm:bottom-32 flex flex-col gap-3 sm:gap-4">
             <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
             <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
             <div className="w-12 h-12 bg-white/10 rounded-full animate-pulse" />
@@ -1361,7 +1361,7 @@ function VotingArena() {
 
   return (
     <div
-      className="relative h-screen w-screen overflow-hidden bg-black"
+      className="relative min-h-screen min-h-[100dvh] w-full overflow-hidden bg-black"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
@@ -1551,7 +1551,7 @@ function VotingArena() {
       )}
 
       {/* ============ RIGHT COLUMN ============ */}
-      <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4">
+      <div className="absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4">
         {/* Creator Avatar */}
         <Link href={`/profile/${currentClip?.username}`}>
           <motion.div whileTap={{ scale: 0.9 }} className="relative">
