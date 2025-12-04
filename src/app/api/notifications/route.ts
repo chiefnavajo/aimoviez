@@ -303,38 +303,4 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-/**
- * Helper function to create a notification (can be called from other APIs)
- */
-export async function createNotification(params: {
-  user_key: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  action_url?: string;
-  metadata?: any;
-}) {
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  const { data, error } = await supabase
-    .from('notifications')
-    .insert({
-      user_key: params.user_key,
-      type: params.type,
-      title: params.title,
-      message: params.message,
-      action_url: params.action_url,
-      metadata: params.metadata || {},
-      is_read: false,
-      created_at: new Date().toISOString(),
-    })
-    .select()
-    .single();
-
-  if (error) {
-    console.error('[createNotification] error:', error);
-    return null;
-  }
-
-  return data;
-}
+// Note: createNotification helper moved to @/lib/notifications.ts
