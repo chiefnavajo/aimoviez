@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  Maximize, Settings, Share2, List, X, Loader2
+  Maximize, Share2, List, X, Loader2
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import BottomNavigation from '@/components/BottomNavigation';

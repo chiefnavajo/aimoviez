@@ -11,7 +11,6 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   Search,
-  User,
   Users,
   Ban,
   CheckCircle,

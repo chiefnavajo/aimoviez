@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     const now = new Date();
     const votingEndsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
 
-    const { data: votingSlot, error: setVotingError } = await supabase
+    const { data: _votingSlot, error: setVotingError } = await supabase
       .from('story_slots')
       .update({
         status: 'voting',

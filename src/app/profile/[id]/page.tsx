@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, PlayCircle, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
+import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
 

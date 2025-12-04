@@ -37,7 +37,7 @@ interface StorySlotRow {
   voting_duration_hours?: number | null;
 }
 
-interface TournamentClipRow {
+interface _TournamentClipRow {
   id: string;
   slot_position: number;
   vote_count: number | null;

@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       }
     } else if (action === 'delete') {
       // First get clip info for logging
-      const { data: clips } = await supabase
+      const { data: _clips } = await supabase
         .from('tournament_clips')
         .select('id, title')
         .in('id', clipIds);
