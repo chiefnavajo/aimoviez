@@ -131,8 +131,27 @@ export function useAuth(): UseAuthReturn {
 // Simple wrapper component for protected pages
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated, hasProfile } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
 
+  useEffect(() => {
+    // If done loading and not authenticated, redirect to home
+    if (!isLoading && !isAuthenticated) {
+      router.push(`/?callbackUrl=${encodeURIComponent(pathname)}`);
+    }
+  }, [isLoading, isAuthenticated, router, pathname]);
+
+  // Show loading while checking auth
   if (isLoading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Don't render children if not authenticated
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />

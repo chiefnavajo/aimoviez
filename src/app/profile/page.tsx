@@ -416,8 +416,12 @@ export default function ProfilePage() {
           )}
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
             <h3 className="font-bold text-red-500 mb-3">Account</h3>
-            <button 
-              onClick={() => signOut({ callbackUrl: '/' })} 
+            <button
+              onClick={() => {
+                // Clear cached user profile on sign out
+                localStorage.removeItem('user_profile');
+                signOut({ callbackUrl: '/' });
+              }}
               className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
             >
               <LogOut className="w-5 h-5" />

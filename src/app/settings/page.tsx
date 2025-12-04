@@ -100,7 +100,8 @@ export default function SettingsPage() {
         throw new Error(data.error || 'Deletion failed');
       }
 
-      // Sign out and redirect
+      // Clear local storage and sign out
+      localStorage.removeItem('user_profile');
       await signOut({ redirect: false });
       router.push('/?deleted=true');
     } catch (error) {
