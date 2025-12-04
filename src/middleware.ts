@@ -266,8 +266,9 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Check session timeout
-  if (token) {
+  // Check session timeout - only for protected routes to avoid redirect loops
+  // Skip timeout check on home page and other public routes
+  if (token && (isProtectedRoute || isAdminRoute)) {
     const tokenIssuedAt = token.iat as number | undefined;
     const now = Math.floor(Date.now() / 1000);
 
