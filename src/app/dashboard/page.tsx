@@ -14,23 +14,50 @@
 // ✅ ~95% video visibility
 // ============================================================================
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
 import { useQuery, useMutation, useQueryClient, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import Pusher from 'pusher-js';
-import confetti from 'canvas-confetti';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MessageCircle, Share2, BookOpen, Plus, User, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
-import CommentsSection from '@/components/CommentsSection';
-import MiniLeaderboard from '@/components/MiniLeaderboard';
-import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
+import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
+
+// Dynamically import heavy libraries that are only used conditionally
+let PusherClass: typeof import('pusher-js').default | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let confettiLib: any = null;
+
+// Lazy load Pusher and confetti when needed
+const loadPusher = async () => {
+  if (!PusherClass) {
+    PusherClass = (await import('pusher-js')).default;
+  }
+  return PusherClass;
+};
+
+const loadConfetti = async () => {
+  if (!confettiLib) {
+    confettiLib = (await import('canvas-confetti')).default;
+  }
+  return confettiLib;
+};
+
+// Dynamically import heavy components to reduce initial bundle
+const CommentsSection = dynamic(() => import('@/components/CommentsSection'), { 
+  ssr: false,
+  loading: () => null 
+});
+const MiniLeaderboard = dynamic(() => import('@/components/MiniLeaderboard'), { 
+  ssr: false,
+  loading: () => null 
+});
 
 // ============================================================================
 // TYPES
@@ -226,7 +253,7 @@ interface PowerVoteButtonProps {
   multiVoteMode?: boolean;
 }
 
-function PowerVoteButton({
+const PowerVoteButton = memo(function PowerVoteButton({
   onVote,
   isVoting,
   isDisabled,
@@ -407,7 +434,21 @@ function PowerVoteButton({
         onMouseLeave={handlePressEnd}
         onTouchStart={handlePressStart}
         onTouchEnd={handlePressEnd}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handlePressStart();
+          }
+        }}
+        onKeyUp={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handlePressEnd();
+          }
+        }}
         disabled={isVoting || isDisabled}
+        aria-label={hasVoted ? 'Remove vote from this clip' : 'Vote for this clip. Hold for super or mega vote'}
+        aria-pressed={hasVoted}
         className="relative w-16 h-16 flex items-center justify-center touch-none select-none"
       >
         {/* Outer glow - intensifies with hold, green when voted */}
@@ -556,7 +597,7 @@ function PowerVoteButton({
       ) : null}
     </div>
   );
-}
+});
 
 // ============================================================================
 // RIGHT COLUMN ACTION BUTTON
@@ -569,7 +610,7 @@ interface ActionButtonProps {
   ariaLabel?: string;
 }
 
-function ActionButton({ icon, label, onClick, ariaLabel }: ActionButtonProps) {
+const ActionButton = memo(function ActionButton({ icon, label, onClick, ariaLabel }: ActionButtonProps) {
   return (
     <motion.button
       whileTap={{ scale: 0.9 }}
@@ -588,7 +629,7 @@ function ActionButton({ icon, label, onClick, ariaLabel }: ActionButtonProps) {
       )}
     </motion.button>
   );
-}
+});
 
 // ============================================================================
 // NAV BUTTON (Bigger size)
@@ -682,7 +723,7 @@ function VotingArena() {
   const swipeThreshold = 50;
 
   // Pusher instance ref to prevent memory leaks from multiple connections
-  const pusherRef = useRef<Pusher | null>(null);
+  const pusherRef = useRef<InstanceType<typeof import('pusher-js').default> | null>(null);
 
   // Video preload cache to prevent DOM accumulation on swipes
   const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -704,7 +745,7 @@ function VotingArena() {
   });
 
   const votesToday = votingData?.totalVotesToday ?? 0;
-  const currentClip = votingData?.clips?.[activeIndex];
+  const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
 
   // Reset pause state on clip change
   useEffect(() => {
@@ -824,19 +865,22 @@ function VotingArena() {
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: (_data, { voteType }) => {
+    onSuccess: async (_data, { voteType }) => {
       // Sound effects and confetti for milestones and special votes
       if (voteType === 'mega') {
         sounds.play('megaVote');
-        confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
+        const confettiLib = await loadConfetti();
+        confettiLib({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
         toast.success('MEGA VOTE! 10x Power!', { icon: '💎' });
       } else if (voteType === 'super') {
         sounds.play('superVote');
-        confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
+        const confettiLib = await loadConfetti();
+        confettiLib({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
         toast.success('SUPER VOTE! 3x Power!', { icon: '⚡' });
       } else if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
         sounds.play('milestone');
-        confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        const confettiLib = await loadConfetti();
+        confettiLib({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
       } else {
         sounds.play('vote');
       }
@@ -928,36 +972,45 @@ function VotingArena() {
   // Pusher real-time - single instance stored in ref to prevent memory leaks
   // FIX: Removed queryClient from deps to prevent reconnection on every render
   // The callback captures queryClient via closure which is stable
+  // FIX: Lazy load Pusher to reduce initial bundle size
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
-    // Only create Pusher instance if we don't have one
-    if (!pusherRef.current) {
-      pusherRef.current = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-      });
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let channel: any = null;
 
-    const pusher = pusherRef.current;
-    const channel = pusher.subscribe('voting-track-main');
+    // Lazy load Pusher when needed
+    loadPusher().then((PusherClass) => {
+      // Only create Pusher instance if we don't have one
+      if (!pusherRef.current) {
+        pusherRef.current = new PusherClass(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
+          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
+        });
+      }
 
-    channel.bind('vote-update', (data: { clipId: string; voteCount?: number }) => {
-      queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          clips: prev.clips.map((clip) =>
-            clip.clip_id === data.clipId
-              ? { ...clip, vote_count: data.voteCount ?? clip.vote_count }
-              : clip
-          ),
-        };
+      const pusher = pusherRef.current;
+      channel = pusher.subscribe('voting-track-main');
+
+      channel.bind('vote-update', (data: { clipId: string; voteCount?: number }) => {
+        queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            clips: prev.clips.map((clip) =>
+              clip.clip_id === data.clipId
+                ? { ...clip, vote_count: data.voteCount ?? clip.vote_count }
+                : clip
+            ),
+          };
+        });
       });
     });
 
     return () => {
-      channel.unbind_all();
-      channel.unsubscribe();
+      if (channel) {
+        channel.unbind_all();
+        channel.unsubscribe();
+      }
       // Don't disconnect here - will be done in separate cleanup effect
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1221,10 +1274,10 @@ function VotingArena() {
     }
   };
 
-  // Loading state with skeleton
+  // Loading state with skeleton - improved with gradient background
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-[#050510] via-[#0a0a18] to-[#050510] flex flex-col">
         {/* Skeleton Header */}
         <div className="flex items-center justify-between p-4">
           <div className="h-6 w-32 bg-white/10 rounded animate-pulse" />
@@ -1233,7 +1286,7 @@ function VotingArena() {
 
         {/* Skeleton Video */}
         <div className="flex-1 relative mx-4 mb-4">
-          <div className="w-full h-full min-h-[60vh] bg-white/5 rounded-2xl animate-pulse flex items-center justify-center">
+          <div className="w-full h-full min-h-[60vh] bg-gradient-to-br from-white/5 to-white/10 rounded-2xl animate-pulse flex items-center justify-center border border-white/10">
             <div className="w-16 h-16 rounded-full bg-white/10 animate-pulse" />
           </div>
 
@@ -1256,7 +1309,7 @@ function VotingArena() {
 
         {/* Skeleton Bottom Nav */}
         <div className="h-16 border-t border-white/10 flex items-center justify-around px-4">
-          {[...Array(5)].map((_, i) => (
+          {[...Array(4)].map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">
               <div className="w-6 h-6 bg-white/10 rounded animate-pulse" />
               <div className="w-10 h-2 bg-white/10 rounded animate-pulse" />
@@ -1396,6 +1449,15 @@ function VotingArena() {
           exit={{ opacity: 0 }}
           className="absolute inset-0"
           onClick={handleVideoTap}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              handleVideoTap();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={currentClip ? `Video by ${currentClip.username}. Press space to play or pause` : 'Video player'}
         >
           {videoError ? (
             <div className="w-full h-full flex items-center justify-center bg-black">
@@ -1459,9 +1521,9 @@ function VotingArena() {
         whileTap={{ scale: 0.9 }}
         onClick={resetTour}
         className="absolute top-14 right-4 z-30 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
-        title="Show tutorial"
+        aria-label="Show tutorial"
       >
-        <HelpCircle className="w-5 h-5 text-white/70" />
+        <HelpCircle className="w-5 h-5 text-white/70" aria-hidden="true" />
       </motion.button>
 
 

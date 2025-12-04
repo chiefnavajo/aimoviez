@@ -539,7 +539,7 @@ export async function GET(req: NextRequest) {
     if (!season) {
       const result = await supabase
         .from('seasons')
-        .select('*')
+        .select('id, total_slots, status')
         .eq('status', 'active')
         .order('created_at', { ascending: true })
         .limit(1)
@@ -596,7 +596,7 @@ export async function GET(req: NextRequest) {
     if (!storySlot) {
       const result = await supabase
         .from('story_slots')
-        .select('*')
+        .select('id, season_id, slot_position, status, genre, voting_ends_at, voting_started_at')
         .eq('season_id', seasonRow.id)
         .eq('status', 'voting')
         .order('slot_position', { ascending: true })
@@ -666,22 +666,15 @@ export async function GET(req: NextRequest) {
     // 6. Fetch ALL active clips for this slot (both voted and unvoted)
     // This ensures user can always navigate between clips and revoke votes
     // Filter by season_id to only get clips from the current active season
+    // PERFORMANCE: Select only needed columns instead of *
     const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, thumbnail_url, video_url, username, avatar_url, badge_level, genre, segment_index, round_number, vote_count, weighted_score, hype_score')
       .eq('season_id', seasonRow.id)
       .eq('slot_position', activeSlot.slot_position)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
       .limit(CLIP_POOL_SIZE);
-
-    console.log('[GET /api/vote] Query params:', {
-      season_id: seasonRow.id,
-      slot_position: activeSlot.slot_position,
-      status: 'active',
-      clipsFound: allClips?.length || 0,
-      clipsError: clipsError?.message || null,
-    });
 
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
@@ -952,7 +945,6 @@ export async function POST(req: NextRequest) {
 
     // Handle various truthy values (boolean true, string "true", number 1, etc.)
     const multiVoteEnabled = Boolean(multiVoteFlag?.enabled);
-    console.log('[POST /api/vote] Multi-vote mode:', { multiVoteEnabled, rawValue: multiVoteFlag?.enabled, flagData: multiVoteFlag });
 
     // 2. Check if already voted on this clip (skip if multi-vote mode is ON)
     if (!multiVoteEnabled) {
