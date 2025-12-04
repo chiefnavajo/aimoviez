@@ -205,3 +205,51 @@ HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000
 ### Deployment & Monitoring
 - [ ] Set Sentry environment variables in Vercel
 - [ ] Set up uptime monitoring for `/api/health`
+
+---
+
+## 📋 Code Quality Technical Debt
+
+### ESLint Warnings (228 total - not blocking build)
+
+The ESLint config was updated to allow warnings instead of errors for these rules. Fix incrementally as you modify files:
+
+#### High Priority: Type Safety (96 instances)
+Replace `any` types with proper interfaces:
+- `catch (err: any)` → `catch (err: unknown)` or just `catch`
+- Cache Map types → Use `CacheEntry<T>` from `@/types`
+- API response types → Use proper interfaces from `@/types`
+- Supabase row mappings → Use `DbUser`, `DbClip`, `DbSlot` from `@/types`
+
+**Files with most `any` types:**
+- `src/app/api/admin/moderation/route.ts`
+- `src/app/api/admin/slots/route.ts`
+- `src/app/api/admin/seasons/route.ts`
+- `src/app/api/leaderboard/*.ts`
+- `src/app/api/vote/route.ts`
+
+#### Medium Priority: Code Quality (93 instances)
+- **Unused variables (79):** Remove or prefix with `_`
+- **exhaustive-deps (14):** Fix React hook dependency arrays
+
+#### Low Priority: Style (39 instances)
+- **no-img-element (29):** Replace `<img>` with Next.js `<Image>`
+- **prefer-const (5):** Change `let` to `const` where not reassigned
+- **Unused eslint-disable (2+):** Remove stale disable comments
+
+### Shared Types Added
+New types added to `src/types/index.ts`:
+- `CacheEntry<T>` - For typed cache Maps
+- `DbSeason`, `DbSlot`, `DbClip`, `DbUser`, `DbNotification` - Database row types
+- `LeaderboardCreator`, `LeaderboardVoter`, `LeaderboardClip` - API response types
+
+### How to Fix Incrementally
+When modifying a file, run:
+```bash
+npm run lint -- --fix src/path/to/file.ts
+```
+
+To check remaining warnings:
+```bash
+npm run lint 2>&1 | grep "warning" | wc -l
+```

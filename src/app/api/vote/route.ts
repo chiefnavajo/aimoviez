@@ -939,13 +939,19 @@ export async function POST(req: NextRequest) {
     const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
 
     // 1. Check multi-vote mode feature flag
-    const { data: multiVoteFlag } = await supabase
+    const { data: multiVoteFlag, error: flagError } = await supabase
       .from('feature_flags')
       .select('enabled')
       .eq('key', 'multi_vote_mode')
       .maybeSingle();
 
-    const multiVoteEnabled = multiVoteFlag?.enabled ?? false;
+    if (flagError) {
+      console.warn('[POST /api/vote] Failed to fetch multi_vote_mode flag:', flagError.message);
+    }
+
+    // Handle various truthy values (boolean true, string "true", number 1, etc.)
+    const multiVoteEnabled = Boolean(multiVoteFlag?.enabled);
+    console.log('[POST /api/vote] Multi-vote mode:', { multiVoteEnabled, rawValue: multiVoteFlag?.enabled, flagData: multiVoteFlag });
 
     // 2. Check if already voted on this clip (skip if multi-vote mode is ON)
     if (!multiVoteEnabled) {
@@ -1092,7 +1098,10 @@ export async function POST(req: NextRequest) {
     // - voter_key: uses effectiveVoterKey (user ID if logged in, device fingerprint otherwise)
     // - user_id: only set if logged in (null for anonymous users)
     // - flagged: true if suspicious activity detected
-    const { error: insertError } = await supabase.from('votes').insert({
+    //
+    // When multi_vote_mode is enabled, we update the existing vote instead of failing
+    // This allows users to "add" to their vote weight on the same clip
+    const voteData = {
       clip_id: clipId,
       voter_key: effectiveVoterKey,
       user_id: loggedInUserId, // null if not logged in
@@ -1100,11 +1109,56 @@ export async function POST(req: NextRequest) {
       vote_type: voteType,
       slot_position: slotPosition,
       flagged: voteRisk.flagged || undefined, // Only set if flagged
-    });
+    };
+
+    let insertError;
+
+    if (multiVoteEnabled) {
+      // In multi-vote mode, update existing vote to add weight, or insert new
+      // First try to update existing vote
+      const { data: existingVote } = await supabase
+        .from('votes')
+        .select('id, vote_weight')
+        .eq('clip_id', clipId)
+        .eq('voter_key', effectiveVoterKey)
+        .maybeSingle();
+
+      if (existingVote) {
+        // Update existing vote - add to the weight
+        const { error } = await supabase
+          .from('votes')
+          .update({
+            vote_weight: existingVote.vote_weight + weight,
+            vote_type: voteType, // Update to latest vote type
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existingVote.id);
+        insertError = error;
+
+        // Also update clip's weighted_score directly since trigger won't fire on update
+        if (!error) {
+          await supabase
+            .from('tournament_clips')
+            .update({
+              vote_count: (clipData?.vote_count || 0) + 1,
+              weighted_score: (clipData?.weighted_score || 0) + weight,
+            })
+            .eq('id', clipId);
+        }
+      } else {
+        // No existing vote, insert new
+        const { error } = await supabase.from('votes').insert(voteData);
+        insertError = error;
+      }
+    } else {
+      // Normal mode - just insert (unique constraint will reject duplicates)
+      const { error } = await supabase.from('votes').insert(voteData);
+      insertError = error;
+    }
 
     if (insertError) {
       console.error('[POST /api/vote] insertError:', insertError);
-      
+
       // Check for unique constraint violation
       if (insertError.code === '23505') {
         return NextResponse.json(

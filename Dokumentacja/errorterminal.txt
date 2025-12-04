@@ -1,0 +1,666 @@
+NODE_OPTIONS='--no-warnings=DEP0169' next dev
+
+   ▲ Next.js 15.5.7
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.0.200:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ○ Compiling /instrumentation ...
+ ✓ Compiled /instrumentation in 726ms (1069 modules)
+ ✓ Ready in 2.8s
+ ✓ Compiled /middleware in 233ms (592 modules)
+ ○ Compiling /api/leaderboard/clips ...
+ ✓ Compiled /api/leaderboard/clips in 976ms (1134 modules)
+ GET /api/leaderboard/clips?limit=5 200 in 1552ms
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 534ms (1363 modules)
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /api/auth/session 200 in 656ms
+ POST /api/auth/_log 200 in 460ms
+ ○ Compiling / ...
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /?callbackUrl=%2Fdashboard 200 in 1746ms
+ GET /api/auth/session 200 in 92ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ ⚠ Fast Refresh had to perform a full reload. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+ GET /api/auth/session 200 in 373ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ POST /api/auth/_log 200 in 236ms
+ GET /api/auth/session 200 in 110ms
+ GET /api/story 200 in 568ms
+ GET /?callbackUrl=%2Fdashboard 200 in 51ms
+ GET /api/auth/providers 200 in 18ms
+ GET /api/auth/csrf 200 in 14ms
+ POST /api/auth/signin/google 200 in 160ms
+ GET /api/auth/callback/google?state=twyc2YEO6xdw094qL6AdAz9vMviIbJLh7t7DrMu80lg&code=4%2F0Ab32j90x3QvC8ChrvInhZM_TtMtS3obk2uu2QnkTu6UwPXkuo0ifyVn3cbXs1OJztpuAXg&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&authuser=1&prompt=none 302 in 470ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /dashboard 200 in 1222ms
+ GET /dashboard 200 in 69ms
+ GET /api/auth/session 200 in 232ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /api/captcha/status 200 in 1172ms
+ GET /api/features 200 in 1286ms
+ GET /api/captcha/status 200 in 117ms
+[GET /api/vote] Query params: {
+  season_id: '3c2c1602-45a7-4367-8fa3-cae3938c1ad3',
+  slot_position: 1,
+  status: 'active',
+  clipsFound: 4,
+  clipsError: null
+}
+ GET /api/vote?trackId=track-main 200 in 1956ms
+ GET /api/leaderboard/clips?limit=5 200 in 223ms
+ GET /api/leaderboard/clips?limit=5 200 in 51ms
+ DELETE /api/vote 200 in 374ms
+ POST /api/vote 200 in 762ms
+ DELETE /api/vote 200 in 386ms
+ POST /api/vote 200 in 737ms
+ DELETE /api/vote 200 in 380ms
+ POST /api/vote 200 in 742ms
+ GET /api/leaderboard/clips?limit=5 200 in 50ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /profile 200 in 1297ms
+ GET /api/referral 200 in 1200ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/stats 200 in 1475ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/profile/stats 200 in 1753ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /api/admin/stats 200 in 316ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /api/profile/clips 200 in 607ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /api/profile/stats 200 in 719ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /api/profile/clips 200 in 727ms
+ GET /api/profile/history?limit=20 200 in 881ms
+ GET /api/profile/history?limit=20 200 in 166ms
+ GET /api/profile/stats 200 in 1146ms
+ GET /api/profile/clips 200 in 181ms
+ GET /api/profile/history?limit=20 200 in 183ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+ GET /admin 200 in 755ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/stats 200 in 591ms
+ ⚠ ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+Critical dependency: the request of a dependency is an expression
+
+Import trace for requested module:
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+./node_modules/@sentry/node/build/cjs/index.js
+./node_modules/@sentry/nextjs/build/cjs/index.server.js
+./sentry.server.config.ts
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/feature-flags 200 in 1519ms
+ GET /api/admin/clips?status=all 200 in 1551ms
+ GET /api/admin/seasons 200 in 1620ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+ GET /api/admin/slots 200 in 1684ms
+ GET /api/admin/stats 200 in 942ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/clips?status=all 200 in 249ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/feature-flags 200 in 314ms
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/clips?status=all&season_id=3c2c1602-45a7-4367-8fa3-cae3938c1ad3 200 in 294ms
+ GET /api/admin/seasons 200 in 361ms
+ GET /api/admin/slots 200 in 455ms
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+ GET /dashboard 200 in 50ms
+ GET /api/leaderboard/clips?limit=5 200 in 70ms
+ GET /api/captcha/status 200 in 320ms
+ GET /api/captcha/status 200 in 249ms
+ GET /profile 200 in 49ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/stats 200 in 850ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/profile/stats 200 in 1167ms
+ GET /api/auth/csrf 200 in 20ms
+ POST /api/auth/signout 200 in 14ms
+ GET /api/profile/stats 200 in 119ms
+ GET /api/profile/clips 200 in 120ms
+ GET /api/admin/stats 200 in 443ms
+ GET / 200 in 441ms
+ GET /api/auth/session 200 in 23ms
+ GET /api/auth/providers 200 in 32ms
+ GET /api/auth/csrf 200 in 15ms
+ POST /api/auth/signin/google 200 in 166ms
+ GET /api/auth/callback/google?state=cH2YE1FjG2PdqOYm4E2BOykBXQ0uM3nNAO2ccv7J_00&code=4%2F0Ab32j93xNfWTQ73v9GZV0rE2AZkQbuB6HqawZUQ4nO50-vMIGzqoAgsRoCR81WlAq-aVBw&scope=email+profile+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.profile&authuser=1&prompt=none 302 in 445ms
+ GET /dashboard 200 in 130ms
+ GET /api/auth/session 200 in 96ms
+ GET /api/captcha/status 200 in 104ms
+ GET /api/features 200 in 241ms
+ GET /api/captcha/status 200 in 164ms
+[GET /api/vote] Query params: {
+  season_id: '3c2c1602-45a7-4367-8fa3-cae3938c1ad3',
+  slot_position: 1,
+  status: 'active',
+  clipsFound: 4,
+  clipsError: null
+}
+ GET /api/vote?trackId=track-main 200 in 1046ms
+ GET /api/leaderboard/clips?limit=5 200 in 42ms
+ GET /api/leaderboard/clips?limit=5 200 in 38ms
+ GET /profile 200 in 32ms
+ GET /api/referral 200 in 129ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/stats 200 in 420ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/profile/stats 200 in 712ms
+ GET /api/admin/stats 200 in 492ms
+ GET /api/profile/clips 200 in 215ms
+ GET /api/profile/history?limit=20 200 in 197ms
+ GET /api/profile/stats 200 in 657ms
+ GET /api/profile/clips 200 in 193ms
+ GET /api/profile/history?limit=20 200 in 197ms
+ GET /api/profile/stats 200 in 1048ms
+ GET /api/profile/clips 200 in 178ms
+ GET /api/profile/history?limit=20 200 in 189ms
+ GET /admin 200 in 44ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/clips?status=all 200 in 340ms
+ GET /api/admin/feature-flags 200 in 344ms
+ GET /api/admin/stats 200 in 401ms
+ GET /api/admin/slots 200 in 485ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+ GET /api/admin/seasons 200 in 489ms
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Session check: { hasSession: true, hasUser: true, email: 'salopur2020@gmail.com' }
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/clips?status=all 200 in 330ms
+ GET /api/admin/feature-flags 200 in 315ms
+[admin-auth] Database check: {
+  email: 'salopur2020@gmail.com',
+  found: true,
+  is_admin: true,
+  error: undefined
+}
+ GET /api/admin/stats 200 in 355ms
+ GET /api/admin/clips?status=all&season_id=3c2c1602-45a7-4367-8fa3-cae3938c1ad3 200 in 291ms
+ GET /api/admin/seasons 200 in 388ms
+ GET /api/admin/slots 200 in 439ms
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+[CSRF] Validation failed: {
+  error: 'Missing CSRF token in header',
+  method: 'PUT',
+  path: '/api/admin/feature-flags',
+  ip: '::1'
+}
+
