@@ -156,48 +156,36 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 3b. Get a preview thumbnail from active clips for each season (fallback)
-    // This map stores season_id -> preview_thumbnail_url
+    // 3b. Get preview thumbnails from active clips for all seasons in ONE batch query
+    // PERFORMANCE FIX: Previously N+1 queries (one per season), now single batch query
     const seasonPreviewMap = new Map<string, string>();
 
-    // For each season with a voting slot, fetch a preview clip thumbnail
-    for (const seasonRow of seasons) {
-      const seasonSlots = (slots || []).filter(s => s.season_id === seasonRow.id);
-      const votingSlot = seasonSlots.find(s => s.status === 'voting');
+    // Find all voting slots to get their positions
+    const votingSlots = (slots || []).filter(s => s.status === 'voting');
 
-      if (votingSlot) {
-        // Try to get any clip with a thumbnail or video from the current voting slot
-        // First try with season_id filter
-        let { data: previewClips, error: previewError } = await supabase
-          .from('tournament_clips')
-          .select('thumbnail_url, video_url')
-          .eq('season_id', seasonRow.id)
-          .eq('slot_position', votingSlot.slot_position)
-          .eq('status', 'active')
-          .order('vote_count', { ascending: false })
-          .limit(5);
+    if (votingSlots.length > 0) {
+      // Get unique slot positions that are in voting status
+      const votingSlotPositions = [...new Set(votingSlots.map(s => s.slot_position))];
 
-        // If no clips found with season_id, try without it (for legacy data)
-        if ((!previewClips || previewClips.length === 0) && !previewError) {
-          const fallbackResult = await supabase
-            .from('tournament_clips')
-            .select('thumbnail_url, video_url')
-            .eq('slot_position', votingSlot.slot_position)
-            .eq('status', 'active')
-            .order('vote_count', { ascending: false })
-            .limit(5);
+      // Single batch query for all preview clips across all voting slots
+      const { data: allPreviewClips } = await supabase
+        .from('tournament_clips')
+        .select('season_id, slot_position, thumbnail_url, video_url, vote_count')
+        .in('slot_position', votingSlotPositions)
+        .eq('status', 'active')
+        .order('vote_count', { ascending: false });
 
-          previewClips = fallbackResult.data;
-          previewError = fallbackResult.error;
-        }
+      // Group clips by season_id and pick the best thumbnail for each
+      if (allPreviewClips && allPreviewClips.length > 0) {
+        // Sort by vote_count descending to get best clips first
+        const sortedClips = allPreviewClips.sort((a, b) => (b.vote_count || 0) - (a.vote_count || 0));
 
-        if (!previewError && previewClips && previewClips.length > 0) {
-          // Find first clip that has a thumbnail or video
-          for (const clip of previewClips) {
+        for (const clip of sortedClips) {
+          // Only set if we don't already have a preview for this season
+          if (clip.season_id && !seasonPreviewMap.has(clip.season_id)) {
             const previewUrl = clip.thumbnail_url || clip.video_url;
             if (previewUrl && previewUrl.length > 0) {
-              seasonPreviewMap.set(seasonRow.id, previewUrl);
-              break;
+              seasonPreviewMap.set(clip.season_id, previewUrl);
             }
           }
         }

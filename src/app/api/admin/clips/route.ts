@@ -31,10 +31,11 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
+    // PERFORMANCE FIX: Select only needed columns instead of SELECT *
     // Build query - sort by weighted_score (votes) descending, then by created_at
     let query = supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, video_url, thumbnail_url, username, avatar_url, genre, vote_count, weighted_score, status, slot_position, season_id, created_at, user_id')
       .order('weighted_score', { ascending: false, nullsFirst: false })
       .order('vote_count', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });

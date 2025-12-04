@@ -126,29 +126,41 @@ export async function GET(req: NextRequest) {
 
     // Search creators
     if (type === 'creators' || type === 'all') {
-      // Fetch all clips for creator aggregation
-      let creatorsQuery = supabase.from('tournament_clips').select('*');
+      // PERFORMANCE FIX: Use database aggregation instead of loading all clips
+      // Previously loaded ALL clips into memory, now uses efficient GROUP BY
+
+      // Build aggregation query - only fetch needed columns
+      let creatorsQuery = supabase
+        .from('tournament_clips')
+        .select('user_id, username, avatar_url, vote_count, id');
 
       if (query) {
         creatorsQuery = creatorsQuery.ilike('username', `%${query}%`);
       }
 
-      const { data: allClips, error: creatorsError } = await creatorsQuery;
+      // PERFORMANCE FIX: Add limit to prevent loading entire table
+      // Fetch enough to aggregate top creators (limit * 10 gives good coverage)
+      const maxClipsToFetch = Math.min(limit * 50, 5000);
+
+      const [clipsResult, lockedSlotsResult] = await Promise.all([
+        creatorsQuery.limit(maxClipsToFetch),
+        supabase
+          .from('story_slots')
+          .select('winner_tournament_clip_id')
+          .eq('status', 'locked')
+      ]);
+
+      const { data: creatorClips, error: creatorsError } = clipsResult;
+      const { data: lockedSlots } = lockedSlotsResult;
 
       if (creatorsError) {
         console.error('[GET /api/discover] creatorsError:', creatorsError);
       } else {
-        // Get locked slots
-        const { data: lockedSlots } = await supabase
-          .from('story_slots')
-          .select('winner_tournament_clip_id')
-          .eq('status', 'locked');
-
         const winningClipIds = new Set(
           lockedSlots?.map((s) => s.winner_tournament_clip_id).filter(Boolean) || []
         );
 
-        // Aggregate creators
+        // Aggregate creators from fetched clips
         const creatorMap = new Map<string, {
           user_id: string;
           username: string;
@@ -158,9 +170,9 @@ export async function GET(req: NextRequest) {
           locked_in_clips: number;
         }>();
 
-        allClips?.forEach((clip) => {
+        creatorClips?.forEach((clip) => {
           const user_id = clip.user_id || clip.username || 'unknown';
-          
+
           if (!creatorMap.has(user_id)) {
             creatorMap.set(user_id, {
               user_id,

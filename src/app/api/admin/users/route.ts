@@ -90,23 +90,28 @@ export async function GET(request: NextRequest) {
     const voteCounts: Record<string, number> = {};
 
     if (userIds.length > 0) {
-      // Get clip counts
-      const { data: clips } = await supabase
-        .from('tournament_clips')
-        .select('user_id')
-        .in('user_id', userIds);
+      // PERFORMANCE FIX: Run both queries in parallel instead of sequentially
+      const [clipsResult, votesResult] = await Promise.all([
+        // Get clip counts
+        supabase
+          .from('tournament_clips')
+          .select('user_id')
+          .in('user_id', userIds),
+        // Get vote counts
+        supabase
+          .from('votes')
+          .select('user_id')
+          .in('user_id', userIds)
+      ]);
+
+      const { data: clips } = clipsResult;
+      const { data: votes } = votesResult;
 
       if (clips) {
         clips.forEach(c => {
           clipCounts[c.user_id] = (clipCounts[c.user_id] || 0) + 1;
         });
       }
-
-      // Get vote counts
-      const { data: votes } = await supabase
-        .from('votes')
-        .select('user_id')
-        .in('user_id', userIds);
 
       if (votes) {
         votes.forEach(v => {

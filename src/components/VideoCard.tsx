@@ -1,8 +1,9 @@
 'use client';
 
 // VideoCard - Voting card for a single 8-second clip
+// PERFORMANCE: Wrapped with React.memo to prevent unnecessary re-renders in lists
 
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThumbsUp, Play } from 'lucide-react';
@@ -15,12 +16,25 @@ interface VideoCardProps {
   isAuthenticated: boolean;
 }
 
-export default function VideoCard({ clip, onVote, isAuthenticated }: VideoCardProps) {
+function VideoCard({ clip, onVote, isAuthenticated }: VideoCardProps) {
   const [hasVoted, setHasVoted] = useState(false);
   const [showPulse, setShowPulse] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
-  const handleVote = () => {
+  // MEMORY LEAK FIX: Store timeout ID in ref for cleanup
+  const pulseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeout on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (pulseTimeoutRef.current) {
+        clearTimeout(pulseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // PERFORMANCE: Memoize handleVote to prevent re-renders
+  const handleVote = useCallback(() => {
     if (!isAuthenticated) {
       // Handled by parent (should show sign-in)
       return;
@@ -32,8 +46,12 @@ export default function VideoCard({ clip, onVote, isAuthenticated }: VideoCardPr
     setShowPulse(true);
     onVote(clip.id);
 
-    setTimeout(() => setShowPulse(false), 1000);
-  };
+    // Clear any existing timeout before setting new one
+    if (pulseTimeoutRef.current) {
+      clearTimeout(pulseTimeoutRef.current);
+    }
+    pulseTimeoutRef.current = setTimeout(() => setShowPulse(false), 1000);
+  }, [isAuthenticated, hasVoted, onVote, clip.id]);
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
@@ -169,3 +187,6 @@ export default function VideoCard({ clip, onVote, isAuthenticated }: VideoCardPr
     </motion.div>
   );
 }
+
+// PERFORMANCE: Export memoized component to prevent re-renders when props haven't changed
+export default memo(VideoCard);
