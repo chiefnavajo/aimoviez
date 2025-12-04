@@ -267,8 +267,8 @@ export async function middleware(request: NextRequest) {
     const now = Math.floor(Date.now() / 1000);
 
     if (tokenIssuedAt && (now - tokenIssuedAt) > SESSION_TIMEOUT) {
-      // Session expired - redirect to login
-      const loginUrl = new URL('/login', request.url);
+      // Session expired - redirect to home page
+      const loginUrl = new URL('/', request.url);
       loginUrl.searchParams.set('expired', 'true');
       loginUrl.searchParams.set('callbackUrl', pathname);
 
@@ -283,7 +283,8 @@ export async function middleware(request: NextRequest) {
 
   // Protected routes require authentication
   if (isProtectedRoute && !token) {
-    const loginUrl = new URL('/login', request.url);
+    // Redirect to home page (which has the login button)
+    const loginUrl = new URL('/', request.url);
     loginUrl.searchParams.set('callbackUrl', pathname);
 
     let response = NextResponse.redirect(loginUrl);
@@ -298,8 +299,8 @@ export async function middleware(request: NextRequest) {
   // This middleware provides early rejection for non-authenticated users
   if (isAdminRoute) {
     if (!token) {
-      // Not authenticated at all
-      const loginUrl = new URL('/login', request.url);
+      // Not authenticated at all - redirect to home page
+      const loginUrl = new URL('/', request.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       loginUrl.searchParams.set('admin', 'required');
 
