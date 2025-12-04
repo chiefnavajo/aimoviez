@@ -684,6 +684,11 @@ function ClipCard({ clip }: { clip: UserClip }) {
   };
   const config = statusConfig[clip.status] || statusConfig.approved;
 
+  // Check if thumbnail is an actual image (not a video URL used as placeholder)
+  const isActualImage = clip.thumbnail_url &&
+    !clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) &&
+    clip.thumbnail_url !== clip.video_url;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -692,10 +697,10 @@ function ClipCard({ clip }: { clip: UserClip }) {
       className={`flex gap-4 p-4 glass-card glass-card-hover ${config.glow || ''}`}
     >
       <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
-        {clip.thumbnail_url ? (
-          <Image src={clip.thumbnail_url} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
+        {isActualImage ? (
+          <Image src={clip.thumbnail_url!} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
         ) : (
-          <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+          <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
         )}
         {/* Play icon overlay */}
         <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">

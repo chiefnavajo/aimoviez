@@ -227,13 +227,19 @@ export default function CreatorProfilePage() {
           <div className="text-center py-12 text-white/60"><Film className="w-16 h-16 mx-auto mb-4 text-white/20" /><p>No clips uploaded yet</p></div>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            {clips.map((clip) => (
+            {clips.map((clip) => {
+              // Check if thumbnail is an actual image (not a video URL used as placeholder)
+              const isActualImage = clip.thumbnail_url &&
+                !clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) &&
+                clip.thumbnail_url !== clip.video_url;
+
+              return (
               <Link key={clip.id} href={`/clip/${clip.id}`}>
                 <motion.div whileTap={{ scale: 0.95 }} className="relative aspect-[9/16] rounded-lg overflow-hidden bg-white/10">
-                  {clip.thumbnail_url ? (
+                  {isActualImage ? (
                     <Image src={clip.thumbnail_url} alt="" fill sizes="(max-width: 768px) 33vw, 20vw" className="object-cover" />
                   ) : (
-                    <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
+                    <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                   {clip.status === 'locked' && <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-cyan-500/80 flex items-center gap-1"><Lock className="w-3 h-3" /><span className="text-[10px] font-bold">Winner</span></div>}
@@ -241,7 +247,8 @@ export default function CreatorProfilePage() {
                   <div className="absolute bottom-2 left-2 right-2 flex items-center gap-1 text-white text-xs font-bold"><Heart className="w-3 h-3" fill="white" />{formatNumber(clip.vote_count)}</div>
                 </motion.div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
