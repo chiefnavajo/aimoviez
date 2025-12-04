@@ -50,6 +50,7 @@ export function useCsrf() {
 
   /**
    * Get headers with CSRF token included
+   * Always reads fresh token from cookie to avoid stale state issues
    */
   const getHeaders = useCallback(
     (additionalHeaders?: Record<string, string>): Record<string, string> => {
@@ -58,13 +59,15 @@ export function useCsrf() {
         ...additionalHeaders,
       };
 
-      if (token) {
-        headers[CSRF_TOKEN_HEADER] = token;
+      // Always get fresh token from cookie
+      const currentToken = getCsrfTokenFromCookie();
+      if (currentToken) {
+        headers[CSRF_TOKEN_HEADER] = currentToken;
       }
 
       return headers;
     },
-    [token]
+    [] // No dependencies - always reads fresh from cookie
   );
 
   /**
