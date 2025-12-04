@@ -177,6 +177,11 @@ HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000
 - [ ] Test authentication flow after redeployment
 - [ ] Test database connections after redeployment
 
+### Bug Fix: Multi-Vote Mode
+- [ ] Fix multi-vote mode: fetch `multi_vote_mode` feature flag on frontend
+- [ ] Only allow vote revoke when multi-vote mode is OFF
+- [ ] When multi-vote mode is ON, tapping again should add another vote (not revoke)
+
 ### CAPTCHA Setup
 - [ ] Sign up for hCaptcha at dashboard.hcaptcha.com
 - [ ] Add site to hCaptcha (localhost + production domain)
