@@ -144,14 +144,25 @@ export function useCsrf() {
    */
   const post = useCallback(
     async <T = unknown>(url: string, data: unknown): Promise<T> => {
-      const response = await secureFetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
+      let response: Response;
+      try {
+        response = await secureFetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        });
+      } catch (networkError) {
+        // Network error (no connection, CORS blocked, etc.)
+        console.error('[CSRF] Network error during POST:', networkError);
+        throw new Error('Network error: Please check your connection and try again');
+      }
 
       if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Request failed' }));
+        // For 403 errors (CSRF validation failures), add a helpful message
+        if (response.status === 403) {
+          throw new Error(error.message || 'Session expired. Please refresh the page and try again.');
+        }
         throw new Error(error.error || error.message || 'Request failed');
       }
 
