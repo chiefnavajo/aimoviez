@@ -18,6 +18,9 @@ const PROTECTED_ROUTES = [
   '/dashboard',
   '/profile',
   '/upload',
+  '/story',
+  '/watch',
+  '/leaderboard',
 ];
 
 // Routes that require admin access
