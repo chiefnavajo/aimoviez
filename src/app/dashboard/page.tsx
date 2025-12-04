@@ -681,6 +681,12 @@ function VotingArena() {
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
+  // Pusher instance ref to prevent memory leaks from multiple connections
+  const pusherRef = useRef<Pusher | null>(null);
+
+  // Video preload cache to prevent DOM accumulation on swipes
+  const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
@@ -705,43 +711,58 @@ function VotingArena() {
     setIsPaused(false);
   }, [activeIndex]);
 
-  // Preload next video for smoother transitions
   // Video prefetching - preload next 2 clips for smooth playback
+  // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
   useEffect(() => {
     if (!votingData?.clips?.length) return;
 
+    const cache = preloadedVideosRef.current;
     const clipsToPreload = [
       (activeIndex + 1) % votingData.clips.length,
       (activeIndex + 2) % votingData.clips.length,
     ];
 
-    const preloadedVideos: HTMLVideoElement[] = [];
-
+    // Get clip IDs that should be preloaded
+    const preloadClipIds = new Set<string>();
     clipsToPreload.forEach((index) => {
       const clip = votingData.clips[index];
-      if (clip?.video_url) {
-        // Create hidden video element for preloading
-        const video = document.createElement('video');
-        video.preload = 'auto';
-        video.muted = true;
-        video.playsInline = true;
-        video.src = clip.video_url;
+      if (clip?.clip_id && clip?.video_url) {
+        preloadClipIds.add(clip.clip_id);
 
-        // Load just enough to have it buffered
-        video.load();
-
-        preloadedVideos.push(video);
+        // Only create video element if not already cached
+        if (!cache.has(clip.clip_id)) {
+          const video = document.createElement('video');
+          video.preload = 'auto';
+          video.muted = true;
+          video.playsInline = true;
+          video.src = clip.video_url;
+          video.load();
+          cache.set(clip.clip_id, video);
+        }
       }
     });
 
+    // Cleanup videos that are no longer in preload set
+    cache.forEach((video, clipId) => {
+      if (!preloadClipIds.has(clipId)) {
+        video.src = '';
+        video.load();
+        cache.delete(clipId);
+      }
+    });
+  }, [activeIndex, votingData?.clips]);
+
+  // Cleanup all preloaded videos on unmount
+  useEffect(() => {
+    const cache = preloadedVideosRef.current;
     return () => {
-      // Cleanup preloaded videos
-      preloadedVideos.forEach((video) => {
+      cache.forEach((video) => {
         video.src = '';
         video.load();
       });
+      cache.clear();
     };
-  }, [activeIndex, votingData?.clips]);
+  }, []);
 
   // Vote mutation - supports standard, super, mega vote types
   const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType; captchaToken?: string | null }, MutationContext>({
@@ -904,15 +925,22 @@ function VotingArena() {
     },
   });
 
-  // Pusher real-time
+  // Pusher real-time - single instance stored in ref to prevent memory leaks
+  // FIX: Removed queryClient from deps to prevent reconnection on every render
+  // The callback captures queryClient via closure which is stable
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
 
-    const pusher = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
-      cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
-    });
+    // Only create Pusher instance if we don't have one
+    if (!pusherRef.current) {
+      pusherRef.current = new Pusher(process.env.NEXT_PUBLIC_PUSHER_KEY, {
+        cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER,
+      });
+    }
 
+    const pusher = pusherRef.current;
     const channel = pusher.subscribe('voting-track-main');
+
     channel.bind('vote-update', (data: { clipId: string; voteCount?: number }) => {
       queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
         if (!prev) return prev;
@@ -930,9 +958,20 @@ function VotingArena() {
     return () => {
       channel.unbind_all();
       channel.unsubscribe();
-      pusher.disconnect();
+      // Don't disconnect here - will be done in separate cleanup effect
     };
-  }, [queryClient]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - connect once on mount
+
+  // Separate cleanup effect for Pusher disconnect on unmount only
+  useEffect(() => {
+    return () => {
+      if (pusherRef.current) {
+        pusherRef.current.disconnect();
+        pusherRef.current = null;
+      }
+    };
+  }, []);
 
   // Touch handlers with pull-to-refresh
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -1149,8 +1188,19 @@ function VotingArena() {
   };
 
   const handleShare = async () => {
-    const shareUrl = `${window.location.origin}/clip/${currentClip?.clip_id}`;
-    
+    // FIX: Validate clip_id to prevent open redirect / URL injection attacks
+    // UUID v4 format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const clipId = currentClip?.clip_id;
+
+    if (!clipId || !UUID_REGEX.test(clipId)) {
+      toast.error('Invalid clip ID');
+      return;
+    }
+
+    // Use URL constructor to safely build the share URL
+    const shareUrl = new URL(`/clip/${encodeURIComponent(clipId)}`, window.location.origin).href;
+
     if (navigator.share) {
       try {
         await navigator.share({
