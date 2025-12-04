@@ -44,3 +44,5 @@ Archiv.zip
 # Environment files with secrets
 .env.local
 .env.*.local
+
+certificates
