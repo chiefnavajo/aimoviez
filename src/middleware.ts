@@ -39,7 +39,12 @@ const ALLOWED_ORIGINS = [
 const SESSION_TIMEOUT = 30 * 60;
 
 // CSRF configuration
-const CSRF_SECRET = process.env.CSRF_SECRET || process.env.NEXTAUTH_SECRET || 'default-csrf-secret';
+// In production, CSRF_SECRET or NEXTAUTH_SECRET must be set - no fallback for security
+const CSRF_SECRET = process.env.CSRF_SECRET || process.env.NEXTAUTH_SECRET || (
+  process.env.NODE_ENV === 'production'
+    ? (() => { throw new Error('CSRF_SECRET or NEXTAUTH_SECRET must be set in production'); })()
+    : 'dev-only-csrf-secret-not-for-production'
+);
 const CSRF_TOKEN_COOKIE = 'csrf-token';
 const CSRF_TOKEN_HEADER = 'x-csrf-token';
 const TOKEN_EXPIRY = 60 * 60; // 1 hour in seconds

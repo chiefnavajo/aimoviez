@@ -3,6 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +23,10 @@ export async function GET(
   try {
     const { id } = await params;
     const username = decodeURIComponent(id);
+
+    // Get current user session for follow status check
+    const session = await getServerSession(authOptions);
+    const currentUserId = session?.user?.userId;
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -64,6 +70,20 @@ export async function GET(
     const totalVotesReceived = clipsList.reduce((sum, clip) => sum + (clip.vote_count || 0), 0);
     const clipsLocked = clipsList.filter(clip => clip.status === 'locked').length;
 
+    // Check if current user follows this creator
+    let isFollowing = false;
+    if (currentUserId && user?.id && currentUserId !== user.id) {
+      // Check if following relationship exists
+      const { data: followRecord } = await supabase
+        .from('followers')
+        .select('id')
+        .eq('follower_id', currentUserId)
+        .eq('following_id', user.id)
+        .maybeSingle();
+
+      isFollowing = !!followRecord;
+    }
+
     // Build creator profile
     const creator = {
       id: user?.id || username,
@@ -74,7 +94,7 @@ export async function GET(
       clips_uploaded: user?.clips_uploaded || clipsList.length,
       clips_locked: user?.clips_locked || clipsLocked,
       followers_count: user?.followers_count || 0,
-      is_following: false, // TODO: Check if current user follows this creator
+      is_following: isFollowing,
     };
 
     return NextResponse.json({

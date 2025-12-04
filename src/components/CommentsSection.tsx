@@ -4,11 +4,12 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
-import { 
-  MessageCircle, Heart, Send, X, MoreHorizontal, 
+import {
+  MessageCircle, Heart, Send, X, MoreHorizontal,
   Trash2, Flag, ChevronDown, ChevronUp, Loader2,
   Reply, Smile
 } from 'lucide-react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // ============================================================================
 // COMMENTS SECTION COMPONENT
@@ -73,6 +74,9 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // CSRF protection for API calls
+  const { getHeaders } = useCsrf();
 
   // Focus trap and keyboard handling
   useEffect(() => {
@@ -181,7 +185,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     try {
       const res = await fetch('/api/comments', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           clipId,
           comment_text: newComment.trim(),
@@ -262,7 +267,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     try {
       const res = await fetch('/api/comments', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ comment_id: comment.id, action }),
       });
 
@@ -293,11 +299,12 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
   // Delete comment
   const handleDelete = async (comment: Comment) => {
     if (!confirm('Delete this comment?')) return;
-    
+
     try {
       const res = await fetch('/api/comments', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ comment_id: comment.id }),
       });
       
