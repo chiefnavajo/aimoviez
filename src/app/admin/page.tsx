@@ -44,6 +44,7 @@ import {
   Crown,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // ============================================================================
 // TYPES
@@ -113,6 +114,7 @@ const GENRES = [
 export default function AdminDashboard() {
   const router = useRouter();
   const { isLoading: authLoading, isAdmin, error: authError } = useAdminAuth();
+  const { getHeaders } = useCsrf();
 
   const [clips, setClips] = useState<Clip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -349,7 +351,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/feature-flags', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ key: 'multi_vote_mode', enabled: !multiVoteEnabled }),
       });
 
@@ -376,7 +379,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/feature-flags', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ key: flag.key, enabled: !flag.enabled }),
       });
 
@@ -418,7 +422,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/reset-season', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           clear_votes: clearVotes,
           reset_clip_counts: clearVotes,
@@ -488,7 +493,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/reset-season', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           clear_votes: true,
           reset_clip_counts: true,
@@ -545,7 +551,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/assign-winner', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           clipId: winnerCandidate.id,
           advanceSlot: true,
@@ -598,7 +605,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/advance-slot', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
       });
 
       const data = await response.json();
@@ -639,7 +647,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/approve', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ clipId }),
       });
 
@@ -657,7 +666,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/reject', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ clipId }),
       });
 
@@ -696,7 +706,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/admin/clips/${editingClip.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(editForm),
       });
 
@@ -729,6 +740,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch(`/api/admin/clips/${clipId}`, {
         method: 'DELETE',
+        headers: getHeaders(),
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -774,7 +787,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/bulk', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           action,
           clipIds: Array.from(selectedClips),
