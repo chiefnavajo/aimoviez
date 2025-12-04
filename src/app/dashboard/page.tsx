@@ -30,6 +30,7 @@ import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // ============================================================================
 // TYPES
@@ -655,6 +656,9 @@ function VotingArena() {
   // Feature flag for multi-vote mode (allows voting multiple times on same clip)
   const { enabled: multiVoteMode } = useFeature('multi_vote_mode');
 
+  // CSRF protection for API calls
+  const { getHeaders } = useCsrf();
+
   // CAPTCHA for bot protection
   const { isRequired: captchaRequired } = useCaptchaRequired();
   const captchaTokenRef = useRef<string | null>(null);
@@ -740,7 +744,8 @@ function VotingArena() {
     mutationFn: async ({ clipId, voteType, captchaToken }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ clipId, voteType, captchaToken }),
       });
       if (!res.ok) {
@@ -826,7 +831,8 @@ function VotingArena() {
     mutationFn: async ({ clipId }) => {
       const res = await fetch('/api/vote', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ clipId }),
       });
       if (!res.ok) {
