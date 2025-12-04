@@ -170,7 +170,7 @@ function UploadPageContent() {
         contentType: video.type,
       });
 
-      if (!signedUrlResult.success) {
+      if (!signedUrlResult.success || !signedUrlResult.signedUrl || !signedUrlResult.publicUrl) {
         addLog(`Failed to get upload URL: ${signedUrlResult.error}`);
         throw new Error(signedUrlResult.error || 'Failed to get upload permission');
       }
