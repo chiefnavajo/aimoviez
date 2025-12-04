@@ -18,6 +18,7 @@ interface UseAuthReturn {
   hasProfile: boolean;
   user: UserProfile | null;
   session: any;
+  hasMounted: boolean;
 }
 
 // Pages that don't require authentication
@@ -30,10 +31,27 @@ export function useAuth(): UseAuthReturn {
   const { data: session, status } = useSession();
   const router = useRouter();
   const pathname = usePathname();
-  
+
   const [hasProfile, setHasProfile] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isChecking, setIsChecking] = useState(true);
+  const [hasMounted, setHasMounted] = useState(false);
+
+  // Check localStorage immediately after mount (client-side only)
+  useEffect(() => {
+    setHasMounted(true);
+    try {
+      const cached = localStorage.getItem('user_profile');
+      if (cached) {
+        const profile = JSON.parse(cached);
+        setHasProfile(true);
+        setUserProfile(profile);
+        setIsChecking(false);
+      }
+    } catch {
+      // Invalid cache, continue with normal flow
+    }
+  }, []);
 
   useEffect(() => {
     const checkProfile = async () => {
@@ -48,21 +66,7 @@ export function useAuth(): UseAuthReturn {
         return;
       }
 
-      // Check if session already has profile info
-      if (session?.user?.hasProfile && session?.user?.username) {
-        setHasProfile(true);
-        setUserProfile({
-          id: session.user.userId || '',
-          username: session.user.username || '',
-          display_name: session.user.name || session.user.username || '',
-          avatar_url: session.user.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.username}`,
-          level: 1,
-        });
-        setIsChecking(false);
-        return;
-      }
-
-      // Check localStorage for cached profile
+      // FAST PATH 1: Check localStorage first (instant, no network)
       const cachedProfile = localStorage.getItem('user_profile');
       if (cachedProfile) {
         try {
@@ -76,11 +80,27 @@ export function useAuth(): UseAuthReturn {
         }
       }
 
-      // Fetch profile from API
+      // FAST PATH 2: Check if session already has profile info
+      if (session?.user?.hasProfile && session?.user?.username) {
+        const profile = {
+          id: session.user.userId || '',
+          username: session.user.username || '',
+          display_name: session.user.name || session.user.username || '',
+          avatar_url: session.user.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.username}`,
+          level: 1,
+        };
+        setHasProfile(true);
+        setUserProfile(profile);
+        localStorage.setItem('user_profile', JSON.stringify(profile));
+        setIsChecking(false);
+        return;
+      }
+
+      // SLOW PATH: Fetch profile from API (only if no cache)
       try {
         const res = await fetch('/api/user/profile');
         const data = await res.json();
-        
+
         if (data.exists && data.user) {
           setHasProfile(true);
           setUserProfile(data.user);
@@ -92,7 +112,7 @@ export function useAuth(): UseAuthReturn {
         console.error('Failed to check profile:', err);
         setHasProfile(false);
       }
-      
+
       setIsChecking(false);
     };
 
@@ -125,12 +145,13 @@ export function useAuth(): UseAuthReturn {
     hasProfile,
     user: userProfile,
     session,
+    hasMounted,
   };
 }
 
 // Simple wrapper component for protected pages
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoading, isAuthenticated, hasProfile: _hasProfile } = useAuth();
+  const { isLoading, isAuthenticated, hasProfile, hasMounted } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -141,20 +162,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, router, pathname]);
 
-  // Show loading while checking auth
-  if (isLoading) {
+  // Always show loading screen on server and before mount to prevent hydration mismatch
+  // After mount, if user has cached profile, render content immediately
+  if (!hasMounted || isLoading || !isAuthenticated) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // Don't render children if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4">
+        {/* Animated logo */}
+        <div
+          className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] animate-pulse"
+          style={{ textShadow: '0 0 30px rgba(60, 242, 255, 0.5)' }}
+        >
+          ∞
+        </div>
+        <div className="text-white/60 text-sm">Loading...</div>
+        {/* Spinner */}
+        <div className="w-8 h-8 border-2 border-cyan-500/30 border-t-cyan-500 rounded-full animate-spin" />
       </div>
     );
   }

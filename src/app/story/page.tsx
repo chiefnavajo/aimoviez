@@ -1305,7 +1305,7 @@ function StoryPage() {
         </div>
 
         {/* Left Sidebar - Navigation (Fully Transparent) */}
-        <div className="w-56 h-full flex flex-col py-4 px-3 relative z-10" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+        <div className="w-56 h-full flex flex-col py-4 px-3 relative z-30" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] drop-shadow-lg">

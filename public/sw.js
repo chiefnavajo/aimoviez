@@ -64,8 +64,16 @@ self.addEventListener('fetch', (event) => {
   // Skip API requests (always fetch from network)
   if (url.pathname.startsWith('/api/')) return;
 
+  // Skip Next.js internal requests (fonts, RSC, etc.)
+  if (url.pathname.startsWith('/__nextjs')) return;
+  if (url.pathname.includes('_next/static')) return;
+  if (url.pathname.includes('_rsc')) return;
+
   // Skip video requests (too large to cache)
   if (request.destination === 'video') return;
+
+  // Skip font requests (handled by browser)
+  if (request.destination === 'font') return;
 
   // Skip external requests
   if (url.origin !== location.origin) return;
@@ -105,7 +113,8 @@ self.addEventListener('fetch', (event) => {
           if (request.destination === 'document') {
             return caches.match('/');
           }
-          return null;
+          // Return empty response for other failed requests
+          return new Response('', { status: 408, statusText: 'Request Timeout' });
         });
     })
   );

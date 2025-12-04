@@ -88,20 +88,10 @@ export async function GET(req: NextRequest) {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // FIX: Combined query with JOIN to eliminate N+1 problem
-    // Previously: 2 separate queries (tournament_clips + story_slots) = 200-400ms
-    // Now: Single query with nested relation = ~50-100ms
-    // Uses Supabase's nested select syntax for the story_slots relation
+    // Simple query without JOIN - more reliable across database configurations
     let query = supabase
       .from('tournament_clips')
-      .select(`
-        *,
-        story_slots!tournament_clips_slot_position_fkey (
-          slot_position,
-          status,
-          winner_tournament_clip_id
-        )
-      `, { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('vote_count', { ascending: false })
       .order('weighted_score', { ascending: false });
 
@@ -128,20 +118,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Enrich clips with rank and status using the joined slot data
+    // Enrich clips with rank - status defaults to competing
     const enrichedClips: LeaderboardClip[] = (clips || []).map((clip, index) => {
-      // story_slots comes from the JOIN - can be object, array, or null
-      const slotData = clip.story_slots;
-      const slot = Array.isArray(slotData) ? slotData[0] : slotData;
-      const is_winner = slot?.winner_tournament_clip_id === clip.id;
-
-      let status: 'competing' | 'locked_in' | 'eliminated' = 'competing';
-      if (is_winner) {
-        status = 'locked_in';
-      } else if (slot?.status === 'locked') {
-        status = 'eliminated';
-      }
-
       return {
         rank: offset + index + 1,
         id: clip.id,
@@ -154,7 +132,7 @@ export async function GET(req: NextRequest) {
         vote_count: clip.vote_count || 0,
         weighted_score: clip.weighted_score || 0,
         hype_score: clip.hype_score || 0,
-        status,
+        status: 'competing' as const,
         created_at: clip.created_at,
       };
     });
