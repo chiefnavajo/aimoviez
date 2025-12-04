@@ -1099,7 +1099,10 @@ function VotingArena() {
       // Double-tap detected - vote!
       setLastTapTime(0);
 
-      if (!currentClip?.has_voted && votesToday < DAILY_GOAL && !isVoting) {
+      // Allow voting if: not voted yet, OR multi-vote mode is ON
+      const canVote = (!currentClip?.has_voted || multiVoteMode) && votesToday < DAILY_GOAL && !isVoting;
+
+      if (canVote) {
         // Show heart animation at tap position
         setDoubleTapPosition({ x: tapX, y: tapY });
         setShowHeartAnimation(true);
@@ -1115,8 +1118,8 @@ function VotingArena() {
           setShowHeartAnimation(false);
           setDoubleTapPosition(null);
         }, 1000);
-      } else if (currentClip?.has_voted) {
-        // Already voted - show feedback
+      } else if (currentClip?.has_voted && !multiVoteMode) {
+        // Already voted and multi-vote is OFF - show feedback
         toast('Already voted!', { icon: '❤️' });
       }
       return;
