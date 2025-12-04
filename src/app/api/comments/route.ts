@@ -165,50 +165,66 @@ export async function GET(req: NextRequest) {
 
     const likedCommentIds = new Set(userLikes?.map((l) => l.comment_id) || []);
 
-    // Fetch replies for each top-level comment
-    const enrichedComments = await Promise.all(
-      (topLevelComments || []).map(async (comment) => {
-        // Get replies (only approved ones)
-        const { data: replies } = await supabase
-          .from('comments')
-          .select('*')
-          .eq('parent_comment_id', comment.id)
-          .eq('is_deleted', false)
-          .in('moderation_status', ['approved', null])
-          .order('created_at', { ascending: true })
-          .limit(5); // Limit replies per comment
+    // PERFORMANCE FIX: Batch fetch all replies in a single query instead of N+1
+    // Previously: 1 query per comment = N+1 queries
+    // Now: 1 query for all replies = 2 total queries
+    const commentIds = (topLevelComments || []).map((c) => c.id);
+    const { data: allReplies } = await supabase
+      .from('comments')
+      .select('*')
+      .in('parent_comment_id', commentIds)
+      .eq('is_deleted', false)
+      .in('moderation_status', ['approved', null])
+      .order('created_at', { ascending: true });
 
-        const enrichedReplies: Comment[] = (replies || []).map((reply) => ({
-          id: reply.id,
-          clip_id: reply.clip_id,
-          user_key: reply.user_key || '',
-          username: reply.username,
-          avatar_url: reply.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.username}`,
-          comment_text: reply.comment_text,
-          likes_count: reply.likes_count || 0,
-          parent_comment_id: reply.parent_comment_id,
-          created_at: reply.created_at,
-          updated_at: reply.updated_at,
-          is_own: reply.user_key === userInfo.userKey,
-          is_liked: likedCommentIds.has(reply.id),
-        }));
+    // Group replies by parent comment ID
+    const repliesByParent = new Map<string, typeof allReplies>();
+    (allReplies || []).forEach((reply) => {
+      const parentId = reply.parent_comment_id;
+      if (!repliesByParent.has(parentId)) {
+        repliesByParent.set(parentId, []);
+      }
+      const parentReplies = repliesByParent.get(parentId)!;
+      // Limit to 5 replies per comment (same as before)
+      if (parentReplies.length < 5) {
+        parentReplies.push(reply);
+      }
+    });
 
-        return {
-          id: comment.id,
-          clip_id: comment.clip_id,
-          user_key: comment.user_key || '',
-          username: comment.username,
-          avatar_url: comment.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.username}`,
-          comment_text: comment.comment_text,
-          likes_count: comment.likes_count || 0,
-          created_at: comment.created_at,
-          updated_at: comment.updated_at,
-          is_own: comment.user_key === userInfo.userKey,
-          is_liked: likedCommentIds.has(comment.id),
-          replies: enrichedReplies,
-        };
-      })
-    );
+    // Build enriched comments with their replies
+    const enrichedComments = (topLevelComments || []).map((comment) => {
+      const replies = repliesByParent.get(comment.id) || [];
+
+      const enrichedReplies: Comment[] = replies.map((reply) => ({
+        id: reply.id,
+        clip_id: reply.clip_id,
+        user_key: reply.user_key || '',
+        username: reply.username,
+        avatar_url: reply.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.username}`,
+        comment_text: reply.comment_text,
+        likes_count: reply.likes_count || 0,
+        parent_comment_id: reply.parent_comment_id,
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+        is_own: reply.user_key === userInfo.userKey,
+        is_liked: likedCommentIds.has(reply.id),
+      }));
+
+      return {
+        id: comment.id,
+        clip_id: comment.clip_id,
+        user_key: comment.user_key || '',
+        username: comment.username,
+        avatar_url: comment.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${comment.username}`,
+        comment_text: comment.comment_text,
+        likes_count: comment.likes_count || 0,
+        created_at: comment.created_at,
+        updated_at: comment.updated_at,
+        is_own: comment.user_key === userInfo.userKey,
+        is_liked: likedCommentIds.has(comment.id),
+        replies: enrichedReplies,
+      };
+    });
 
     const response: CommentsResponse = {
       comments: enrichedComments,

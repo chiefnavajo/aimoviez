@@ -1,20 +1,17 @@
 // app/api/clip/[id]/route.ts
 // Single Clip API - Fetch clip details by ID
+// SECURITY: Uses anon key for public clip data, requires auth for user-specific data
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+import { getServerSession } from 'next-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function getVoterKey(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const ua = req.headers.get('user-agent') || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
+// Use anon key for public reads (defense in depth with RLS)
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Service role only for user lookup
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 interface ClipResponse {
   clip: {
@@ -59,6 +56,7 @@ interface ClipResponse {
 /**
  * GET /api/clip/[id]
  * Returns detailed information about a specific clip
+ * SECURITY: Uses anon key for public data, auth for user-specific vote status
  */
 export async function GET(
   req: NextRequest,
@@ -70,8 +68,25 @@ export async function GET(
 
   try {
     const { id: clipId } = await params;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const voterKey = getVoterKey(req);
+    // SECURITY FIX: Use anon key for public clip data (RLS enforced)
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get authenticated user ID if logged in (for vote status)
+    let userId: string | null = null;
+    try {
+      const session = await getServerSession();
+      if (session?.user?.email) {
+        const { data: userData } = await supabaseAdmin
+          .from('users')
+          .select('id')
+          .eq('email', session.user.email)
+          .single();
+        userId = userData?.id || null;
+      }
+    } catch {
+      // No session - anonymous user
+    }
 
     // 1. Fetch the clip
     const { data: clip, error: clipError } = await supabase
@@ -95,13 +110,18 @@ export async function GET(
       );
     }
 
-    // 2. Check if user has voted on this clip
-    const { data: userVote } = await supabase
-      .from('votes')
-      .select('vote_type')
-      .eq('voter_key', voterKey)
-      .eq('clip_id', clipId)
-      .maybeSingle();
+    // 2. Check if authenticated user has voted on this clip
+    // SECURITY FIX: Only check vote status for authenticated users by user_id
+    let userVote = null;
+    if (userId) {
+      const { data: voteData } = await supabaseAdmin
+        .from('votes')
+        .select('vote_type')
+        .eq('user_id', userId)
+        .eq('clip_id', clipId)
+        .maybeSingle();
+      userVote = voteData;
+    }
 
     // 3. Get slot info
     const { data: slot } = await supabase

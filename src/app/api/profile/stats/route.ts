@@ -1,24 +1,15 @@
 // app/api/profile/stats/route.ts
 // Profile Stats API - Returns user statistics and achievements
+// SECURITY: Requires authentication - no anonymous access to personal stats
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
-import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-/**
- * Generate voter key from IP + User-Agent
- */
-function getVoterKey(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const ua = req.headers.get('user-agent') || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
+// Service role for user lookup and stats queries
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 interface UserProfile {
   id: string;
@@ -87,6 +78,7 @@ interface ProfileStatsResponse {
 /**
  * GET /api/profile/stats
  * Returns comprehensive user stats and achievements
+ * SECURITY: Requires authentication - uses user_id from session, not spoofable headers
  */
 export async function GET(req: NextRequest) {
   // Rate limiting - 60 requests per minute
@@ -94,79 +86,48 @@ export async function GET(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
-    const voterKey = getVoterKey(req);
-
-    // Try to get logged-in user profile
-    let userProfile: UserProfile | null = null;
-    let userId: string | null = null;
-
-    try {
-      const session = await getServerSession();
-      if (session?.user?.email) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, username, avatar_url, email')
-          .eq('email', session.user.email)
-          .single();
-
-        if (userData) {
-          userProfile = userData;
-          userId = userData.id;
-        }
-      }
-    } catch {
-      // No session
+    // SECURITY FIX: Require authentication for stats access
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: 'Authentication required to view profile stats' },
+        { status: 401 }
+      );
     }
 
-    // 1. Get user's total votes
-    // For logged-in users: get votes by BOTH user_id AND voter_key (covers votes before and after login)
-    // For anonymous users: get votes by voter_key only
-    let allVotes: { created_at: string; vote_weight: number }[] = [];
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    if (userId) {
-      // Logged in: get votes by user_id OR voter_key (union of both)
-      // This ensures we capture votes made before login (voter_key only) and after (user_id set)
-      const { data: userIdVotes, error: userIdError } = await supabase
-        .from('votes')
-        .select('created_at, vote_weight')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+    // Get authenticated user profile
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, username, avatar_url, email')
+      .eq('email', session.user.email)
+      .single();
 
-      const { data: voterKeyVotes, error: voterKeyError } = await supabase
-        .from('votes')
-        .select('created_at, vote_weight')
-        .eq('voter_key', voterKey)
-        .is('user_id', null) // Only get anonymous votes (not already counted by user_id)
-        .order('created_at', { ascending: true });
+    if (userError || !userData) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
 
-      if (userIdError) {
-        console.error('[GET /api/profile/stats] userIdError:', userIdError);
-      }
-      if (voterKeyError) {
-        console.error('[GET /api/profile/stats] voterKeyError:', voterKeyError);
-      }
+    const userProfile: UserProfile = userData;
+    const userId = userData.id;
 
-      // Merge both sets of votes
-      allVotes = [...(userIdVotes || []), ...(voterKeyVotes || [])];
-      // Sort by date
-      allVotes.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-    } else {
-      // Not logged in - use voter_key only
-      const { data, error } = await supabase
-        .from('votes')
-        .select('created_at, vote_weight')
-        .eq('voter_key', voterKey)
-        .order('created_at', { ascending: true });
+    // SECURITY FIX: Query votes by authenticated user_id only
+    // No longer using spoofable voter_key for identity
+    const { data: allVotes, error: votesError } = await supabase
+      .from('votes')
+      .select('created_at, vote_weight')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('[GET /api/profile/stats] votesError:', error);
-        return NextResponse.json(
-          { error: 'Failed to fetch votes' },
-          { status: 500 }
-        );
-      }
-      allVotes = data || [];
+    if (votesError) {
+      console.error('[GET /api/profile/stats] votesError:', votesError);
+      return NextResponse.json(
+        { error: 'Failed to fetch votes' },
+        { status: 500 }
+      );
     }
 
     const total_votes = allVotes?.length || 0;
@@ -177,27 +138,16 @@ export async function GET(req: NextRequest) {
     const xp_needed = xpForNextLevel(level);
     const xp_progress = ((total_xp % xp_needed) / xp_needed) * 100;
 
-    // 2. Get votes today (use user_id if logged in, otherwise voter_key)
+    // 2. Get votes today - always use authenticated user_id
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const todayStr = today.toISOString();
 
-    let todayVotes: { id: string }[] = [];
-    if (userId) {
-      const { data } = await supabase
-        .from('votes')
-        .select('id')
-        .eq('user_id', userId)
-        .gte('created_at', todayStr);
-      todayVotes = data || [];
-    } else {
-      const { data } = await supabase
-        .from('votes')
-        .select('id')
-        .eq('voter_key', voterKey)
-        .gte('created_at', todayStr);
-      todayVotes = data || [];
-    }
+    const { data: todayVotes } = await supabase
+      .from('votes')
+      .select('id')
+      .eq('user_id', userId)
+      .gte('created_at', todayStr);
 
     const votes_today = todayVotes?.length || 0;
 
@@ -276,38 +226,51 @@ export async function GET(req: NextRequest) {
       clips_locked_in = lockedSlots?.length || 0;
     }
 
-    // 5. Calculate global rank (based on total votes)
-    // N+1 FIX: Use efficient RPC function instead of loading all votes
+    // 5. Calculate global rank (based on total votes by user_id)
+    // SECURITY FIX: Use user_id based ranking, not voter_key
     let global_rank = 0;
     let total_users = 0;
 
-    // Try fast method first (materialized view)
+    // Try RPC with user_id first
     const { data: rankDataFast, error: rankErrorFast } = await supabase.rpc(
-      'get_user_rank_fast',
-      { p_voter_key: voterKey }
+      'get_user_rank_by_id',
+      { p_user_id: userId }
     );
 
     if (!rankErrorFast && rankDataFast && rankDataFast.length > 0) {
       global_rank = Number(rankDataFast[0].global_rank) || 1;
       total_users = Number(rankDataFast[0].total_users) || 1;
     } else {
-      // Fallback to slower but reliable method
-      const { data: rankData, error: rankError } = await supabase.rpc(
-        'get_user_global_rank',
-        { p_voter_key: voterKey }
-      );
+      // Fallback: calculate rank based on vote count comparison
+      // Count users with more votes than current user
+      const { count: higherRanked } = await supabase
+        .from('votes')
+        .select('user_id', { count: 'exact', head: true })
+        .not('user_id', 'is', null);
 
-      if (!rankError && rankData && rankData.length > 0) {
-        global_rank = rankData[0].global_rank || 1;
-        total_users = rankData[0].total_users || 1;
+      // Count distinct users who have voted
+      const { data: distinctUsers } = await supabase
+        .from('votes')
+        .select('user_id')
+        .not('user_id', 'is', null);
+
+      const uniqueUserIds = new Set(distinctUsers?.map(v => v.user_id) || []);
+      total_users = uniqueUserIds.size || 1;
+
+      // Simple rank estimate based on vote count percentile
+      if (total_votes > 0 && total_users > 0) {
+        // Count how many users have more votes
+        const userVoteCounts = new Map<string, number>();
+        distinctUsers?.forEach(v => {
+          userVoteCounts.set(v.user_id, (userVoteCounts.get(v.user_id) || 0) + 1);
+        });
+        let usersWithMoreVotes = 0;
+        userVoteCounts.forEach((count) => {
+          if (count > total_votes) usersWithMoreVotes++;
+        });
+        global_rank = usersWithMoreVotes + 1;
       } else {
-        // Ultimate fallback: simple count-based estimate
-        console.warn('[profile/stats] RPC not available, using fallback rank calculation');
-        const { count: userCount } = await supabase
-          .from('votes')
-          .select('voter_key', { count: 'exact', head: true });
-        total_users = userCount || 1;
-        global_rank = Math.ceil(total_users / 2); // Estimate middle rank
+        global_rank = total_users;
       }
     }
 
@@ -389,14 +352,14 @@ export async function GET(req: NextRequest) {
       },
     ];
 
-    // 8. Use profile data if logged in, otherwise generate
-    const username = userProfile?.username || `User${voterKey.substring(0, 6)}`;
-    const avatar_url = userProfile?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
+    // 8. Use authenticated user profile data
+    const username = userProfile.username || `User${userId.substring(0, 6)}`;
+    const avatar_url = userProfile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`;
 
     // 9. Build response
     const response: ProfileStatsResponse = {
       user: {
-        voter_key: voterKey,
+        voter_key: userId, // Use user_id as identifier (kept as voter_key for API compatibility)
         username,
         avatar_url,
         level,
