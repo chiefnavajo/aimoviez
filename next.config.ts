@@ -30,8 +30,8 @@ const nextConfig: NextConfig = {
       process.env.NODE_ENV === 'development'
         ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
         : "script-src 'self' 'unsafe-inline'",
-      // Styles: self + inline for styled-jsx/Tailwind
-      "style-src 'self' 'unsafe-inline'",
+      // Styles: self + inline for styled-jsx/Tailwind + Google Fonts CSS
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Images: self + Supabase storage + DiceBear avatars + Google profile pics + Sentry
       "img-src 'self' data: blob: https://dxixqdmqomqzhilmdfzg.supabase.co https://api.dicebear.com https://lh3.googleusercontent.com",
       // Media (videos): self + Supabase storage

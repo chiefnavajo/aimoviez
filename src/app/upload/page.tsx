@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth, AuthGuard } from '@/hooks/useAuth';
+import { useCsrf } from '@/hooks/useCsrf';
 import { signIn } from 'next-auth/react';
 
 // ============================================================================
@@ -51,7 +52,8 @@ function _generateFilename(originalName: string): string {
 
 function UploadPageContent() {
   const router = useRouter();
-  const { isLoading: authLoading, isAuthenticated, user } = useAuth();
+  const { isLoading: authLoading, isAuthenticated } = useAuth();
+  const { post: csrfPost, ensureToken } = useCsrf();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -160,18 +162,15 @@ function UploadPageContent() {
       addLog('Step 1: Getting upload permission...');
       setUploadStatus('Preparing upload...');
 
-      const signedUrlResponse = await fetch('/api/upload/signed-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filename: video.name,
-          contentType: video.type,
-        }),
+      // Ensure CSRF token is available before making request
+      await ensureToken();
+
+      const signedUrlResult = await csrfPost<{ success: boolean; signedUrl?: string; publicUrl?: string; error?: string }>('/api/upload/signed-url', {
+        filename: video.name,
+        contentType: video.type,
       });
 
-      const signedUrlResult = await signedUrlResponse.json();
-
-      if (!signedUrlResponse.ok || !signedUrlResult.success) {
+      if (!signedUrlResult.success) {
         addLog(`Failed to get upload URL: ${signedUrlResult.error}`);
         throw new Error(signedUrlResult.error || 'Failed to get upload permission');
       }
@@ -226,20 +225,14 @@ function UploadPageContent() {
       addLog('Step 3: Saving to database...');
       setUploadStatus('Saving clip info...');
 
-      const registerResponse = await fetch('/api/upload/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoUrl: publicUrl,
-          genre,
-          title: `Clip ${Date.now()}`,
-          description: '',
-        }),
+      const registerResult = await csrfPost<{ success: boolean; error?: string }>('/api/upload/register', {
+        videoUrl: publicUrl,
+        genre,
+        title: `Clip ${Date.now()}`,
+        description: '',
       });
 
-      const registerResult = await registerResponse.json();
-
-      if (!registerResponse.ok || !registerResult.success) {
+      if (!registerResult.success) {
         addLog(`Database save failed: ${registerResult.error}`);
         throw new Error(registerResult.error || 'Failed to save clip info');
       }
