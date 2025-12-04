@@ -4,9 +4,9 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, CheckCircle, Loader } from 'lucide-react';
+import { Upload, CheckCircle, Loader } from 'lucide-react';
 import { Genre, UploadPayload } from '@/types';
-import { GenreBadge, GENRES, GENRE_META } from '@/lib/genre';
+import { GENRES, GENRE_META } from '@/lib/genre';
 
 interface UploadPanelProps {
   onSubmit: (payload: UploadPayload) => Promise<void>;
@@ -84,7 +84,7 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
         setUploadProgress(0);
       }, 2000);
 
-    } catch (error) {
+    } catch {
       clearInterval(progressInterval);
       setIsUploading(false);
       setUploadProgress(0);

@@ -3,6 +3,7 @@
 // VideoCard - Voting card for a single 8-second clip
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ThumbsUp, Play } from 'lucide-react';
 import { Clip } from '@/types';
@@ -57,10 +58,12 @@ export default function VideoCard({ clip, onVote, isAuthenticated }: VideoCardPr
     >
       {/* Video Preview */}
       <div className="relative aspect-[9/16] bg-gradient-to-br from-slate-900 to-slate-800 overflow-hidden">
-        <img
+        <Image
           src={clip.thumbnailUrl}
           alt={clip.title}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+          fill
+          sizes="(max-width: 768px) 50vw, 25vw"
+          className="object-cover transition-transform duration-500 group-hover:scale-110"
         />
         
         {/* Overlay gradient */}
@@ -103,9 +106,11 @@ export default function VideoCard({ clip, onVote, isAuthenticated }: VideoCardPr
 
         {/* Creator */}
         <div className="flex items-center gap-2">
-          <img
+          <Image
             src={clip.user.avatar}
             alt={clip.user.name}
+            width={32}
+            height={32}
             className="w-8 h-8 rounded-full border-2 border-white/20"
           />
           <div className="flex-1 min-w-0">

@@ -57,7 +57,7 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(seconds / 604800)}w`;
 }
 
-export default function CommentsSection({ clipId, isOpen, onClose, clipUsername }: CommentsSectionProps) {
+export default function CommentsSection({ clipId, isOpen, onClose, clipUsername: _clipUsername }: CommentsSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -175,6 +175,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
     if (isOpen && clipId) {
       fetchComments(1, false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, clipId]);
 
   // Post new comment

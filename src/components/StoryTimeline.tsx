@@ -3,6 +3,7 @@
 // StoryTimeline - Shows all 75 segments with progress
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Film, X } from 'lucide-react';
 import { TimelineSegment } from '@/types';
@@ -94,10 +95,12 @@ export default function StoryTimeline({ segments }: StoryTimelineProps) {
                   {/* Thumbnail overlay for completed */}
                   {segment.status === 'done' && segment.thumbUrl && (
                     <div className="absolute inset-0 rounded-lg overflow-hidden opacity-0 hover:opacity-100 transition-opacity">
-                      <img
+                      <Image
                         src={segment.thumbUrl}
                         alt={`Scene ${segment.segment}`}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="48px"
+                        className="object-cover"
                       />
                       <div className="absolute inset-0 bg-black/40" />
                     </div>
@@ -179,11 +182,13 @@ export default function StoryTimeline({ segments }: StoryTimelineProps) {
                   )}
 
                   {selectedSegment.status === 'done' && selectedSegment.thumbUrl && (
-                    <div className="aspect-[9/16] rounded-xl overflow-hidden">
-                      <img
+                    <div className="relative aspect-[9/16] rounded-xl overflow-hidden">
+                      <Image
                         src={selectedSegment.thumbUrl}
                         alt={`Scene ${selectedSegment.segment}`}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="200px"
+                        className="object-cover"
                       />
                     </div>
                   )}

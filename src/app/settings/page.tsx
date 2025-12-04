@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ArrowLeft,
@@ -146,9 +147,11 @@ export default function SettingsPage() {
           </h2>
           <div className="bg-white/5 rounded-xl border border-white/10 divide-y divide-white/10">
             <div className="p-4 flex items-center gap-4">
-              <img
+              <Image
                 src={session.user?.image || '/default-avatar.png'}
                 alt="Profile"
+                width={48}
+                height={48}
                 className="w-12 h-12 rounded-full"
               />
               <div>

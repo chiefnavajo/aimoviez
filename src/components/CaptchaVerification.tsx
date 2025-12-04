@@ -53,12 +53,12 @@ export function CaptchaVerification({
   );
 
   // Reset captcha (useful after form submission)
-  const reset = useCallback(() => {
+  const _reset = useCallback(() => {
     captchaRef.current?.resetCaptcha();
   }, []);
 
   // Execute invisible captcha programmatically
-  const execute = useCallback(() => {
+  const _execute = useCallback(() => {
     if (size === 'invisible') {
       captchaRef.current?.execute();
     }

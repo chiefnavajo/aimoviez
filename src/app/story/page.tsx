@@ -18,6 +18,7 @@
 // ============================================================================
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -53,7 +54,7 @@ import { AuthGuard } from '@/hooks/useAuth';
 
 type SlotStatus = 'upcoming' | 'voting' | 'locked';
 type SeasonStatus = 'completed' | 'active' | 'coming_soon';
-type Genre = 'Thriller' | 'Comedy' | 'Action' | 'Sci-Fi' | 'Romance' | 'Animation' | 'Horror';
+type _Genre = 'Thriller' | 'Comedy' | 'Action' | 'Sci-Fi' | 'Romance' | 'Animation' | 'Horror';
 
 interface WinningClip {
   id: string;
@@ -146,7 +147,7 @@ async function fetchSeasons(): Promise<Season[]> {
 // ACTION BUTTON
 // ============================================================================
 
-function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?: string | number; onClick?: (e: React.MouseEvent) => void }) {
+function _ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?: string | number; onClick?: (e: React.MouseEvent) => void }) {
   return (
     <motion.button whileTap={{ scale: 0.9 }} onClick={onClick} className="flex flex-col items-center gap-0.5">
       <div className="w-10 h-10 rounded-full flex items-center justify-center">{icon}</div>
@@ -188,13 +189,13 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const currentSegment = completedSegments[currentIndex];
 
   // Calculate total duration based on known clip durations or estimate 8s per clip
-  const totalStoryDuration = clipDurations.length === completedSegments.length && clipDurations.length > 0
+  const _totalStoryDuration = clipDurations.length === completedSegments.length && clipDurations.length > 0
     ? clipDurations.reduce((sum, d) => sum + d, 0)
     : completedSegments.length * 8;
 
   // Calculate current position in the overall story timeline
   const timeBeforeCurrentClip = clipDurations.slice(0, currentIndex).reduce((sum, d) => sum + d, 0);
-  const overallCurrentTime = timeBeforeCurrentClip + currentTime;
+  const _overallCurrentTime = timeBeforeCurrentClip + currentTime;
 
   const isActive = season.status === 'active';
   const isCompleted = season.status === 'completed';
@@ -301,7 +302,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     }
   };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const _handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     e.stopPropagation();
     if (!progressRef.current || !videoRef.current) return;
 
@@ -314,7 +315,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setCurrentTime(newTime);
   };
 
-  const handleProgressDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
+  const _handleProgressDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
     if (!isDragging || !progressRef.current || !videoRef.current) return;
 
     const rect = progressRef.current.getBoundingClientRect();
@@ -327,17 +328,17 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setCurrentTime(newTime);
   };
 
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
+  const _handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
     e.stopPropagation();
     setIsDragging(true);
   };
 
-  const handleDragEnd = () => {
+  const _handleDragEnd = () => {
     setIsDragging(false);
   };
 
   // Format time for display
-  const formatTime = (seconds: number): string => {
+  const _formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -364,7 +365,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   if (completedSegments.length === 0) {
     return (
       <div className="relative h-full bg-black" onClick={handlePlayPause}>
-        {season.thumbnail_url && <img src={season.thumbnail_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50" />}
+        {season.thumbnail_url && <Image src={season.thumbnail_url} alt="" fill sizes="100vw" className="object-cover opacity-50" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <motion.span
@@ -529,9 +530,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         {/* Creator Avatar - Hidden on very small screens, visible on md+ */}
         {currentSegment?.winning_clip && (
           <div className="hidden sm:block relative">
-            <img
+            <Image
               src={currentSegment.winning_clip.avatar_url}
               alt=""
+              width={48}
+              height={48}
               className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
             />
@@ -578,9 +581,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 
                 {/* Scrollable List */}
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(60vh - 44px)' }}>
-                  {getTopContributors(completedSegments).map((contributor, idx) => (
+                  {getTopContributors(completedSegments).map((contributor, _idx) => (
                     <div key={contributor.username} className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 border-b border-white/5 last:border-b-0">
-                      <img src={contributor.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                      <Image src={contributor.avatar_url} alt="" width={32} height={32} className="w-8 h-8 rounded-full" />
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">@{contributor.username}</p>
                         <p className="text-white/50 text-xs">
@@ -772,7 +775,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                   <motion.button key={segment.id} whileTap={{ scale: 0.98 }} onClick={() => jumpToSegment(index)} className="w-full flex items-center gap-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 mb-2 border border-white/10">
                     <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20">
                       {segment.winning_clip?.thumbnail_url ? (
-                        <img src={segment.winning_clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                        <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
                       ) : (
                         <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline />
                       )}
@@ -878,7 +881,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
     >
       {/* Season Indicator Dots */}
       <div className="flex justify-center gap-1.5 pt-2 pb-1">
-        {seasons.map((season, idx) => (
+        {seasons.map((season, _idx) => (
           <button
             key={season.id}
             onClick={() => onSelectSeason(season.id)}
@@ -905,7 +908,8 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
               /* Has media - check if it's a video or image */
               (() => {
                 const mediaUrl = thumbnailUrl || videoUrl;
-                const isVideo = mediaUrl?.match(/\.(mp4|webm|mov|m4v)(\?|$)/i);
+                if (!mediaUrl) return null;
+                const isVideo = mediaUrl.match(/\.(mp4|webm|mov|m4v)(\?|$)/i);
 
                 if (isVideo) {
                   return (
@@ -919,10 +923,12 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
                   );
                 } else {
                   return (
-                    <img
+                    <Image
                       src={mediaUrl}
                       alt=""
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="100vw"
+                      className="object-cover"
                     />
                   );
                 }
@@ -1019,6 +1025,7 @@ interface SeasonListItemProps {
   onSelect: () => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Component kept for future desktop sidebar use
 function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
   const router = useRouter();
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
@@ -1054,11 +1061,13 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
         ) : (
           <>
             {/* Thumbnail - use video preview if no thumbnail */}
-            {completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url ? (
-              <img
-                src={completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url}
+            {(completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url) ? (
+              <Image
+                src={(completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url) as string}
                 alt=""
-                className="w-full h-full object-cover"
+                fill
+                sizes="64px"
+                className="object-cover"
               />
             ) : completedSegments[completedSegments.length - 1]?.winning_clip?.video_url ? (
               <video

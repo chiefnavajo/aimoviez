@@ -12,12 +12,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
-  X, 
-  CheckCircle, 
+  X,
+  CheckCircle,
   AlertCircle,
   FileVideo,
   Play,
-  Pause,
+  // Pause, // Unused - keeping for future use
   Volume2,
   VolumeX
 } from 'lucide-react';
@@ -171,7 +171,7 @@ export default function EnhancedUploadArea({
         });
       }
 
-    } catch (error) {
+    } catch {
       validationErrors.push({
         type: 'general',
         message: 'Could not validate video. File may be corrupted.'
@@ -225,16 +225,18 @@ export default function EnhancedUploadArea({
     if (selectedFile) {
       handleFileProcessing(selectedFile);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile && droppedFile.type.startsWith('video/')) {
       handleFileProcessing(droppedFile);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {

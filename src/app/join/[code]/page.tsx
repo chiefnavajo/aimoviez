@@ -30,6 +30,7 @@ export default function JoinPage() {
     if (status === 'authenticated' && session?.user) {
       trackReferralAndRedirect();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session]);
 
   const trackReferralAndRedirect = async () => {

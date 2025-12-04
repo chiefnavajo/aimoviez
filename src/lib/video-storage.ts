@@ -18,17 +18,17 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 // Cloudinary config (if using Cloudinary)
 const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
-const CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
+const _CLOUDINARY_API_KEY = process.env.CLOUDINARY_API_KEY;
+const _CLOUDINARY_API_SECRET = process.env.CLOUDINARY_API_SECRET;
 const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || 'aimoviez';
 
 // AWS S3 config (if using S3)
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const AWS_BUCKET = process.env.AWS_S3_BUCKET || 'aimoviez-videos';
+const _AWS_REGION = process.env.AWS_REGION || 'us-east-1';
+const _AWS_BUCKET = process.env.AWS_S3_BUCKET || 'aimoviez-videos';
 
 // Upload constraints
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
-const MAX_DURATION = 8.5; // 8 seconds + buffer
+const _MAX_DURATION = 8.5; // 8 seconds + buffer
 const ALLOWED_FORMATS = ['video/mp4', 'video/quicktime', 'video/webm', 'video/mov'];
 
 // ============================================================================
@@ -76,7 +76,7 @@ async function uploadToSupabase(file: File, fileId: string): Promise<{ url: stri
 
     // Upload file
     const fileName = `${fileId}.${file.name.split('.').pop()}`;
-    const { data, error } = await supabase.storage
+    const { data: _data, error } = await supabase.storage
       .from('clips')
       .upload(fileName, file, {
         cacheControl: '3600',
@@ -113,9 +113,9 @@ async function uploadToCloudinary(file: File, fileId: string): Promise<{ url: st
     const dataUri = `data:${file.type};base64,${base64}`;
 
     // Create upload signature (for signed uploads)
-    const timestamp = Math.round(Date.now() / 1000);
-    const params = {
-      timestamp,
+    const _timestamp = Math.round(Date.now() / 1000);
+    const _params = {
+      timestamp: _timestamp,
       public_id: fileId,
       upload_preset: CLOUDINARY_UPLOAD_PRESET,
     };
@@ -150,7 +150,7 @@ async function uploadToCloudinary(file: File, fileId: string): Promise<{ url: st
 }
 
 // 3. AWS S3
-async function uploadToS3(file: File, fileId: string): Promise<{ url: string; error?: string }> {
+async function uploadToS3(_file: File, _fileId: string): Promise<{ url: string; error?: string }> {
   try {
     // Note: You'll need to install @aws-sdk/client-s3
     // npm install @aws-sdk/client-s3
@@ -276,7 +276,7 @@ export async function POST(req: NextRequest) {
     const slotPosition = parseInt(slotId.replace('slot-', ''), 10);
 
     // Insert clip into tournament_clips
-    const { data: clip, error: dbError } = await supabase
+    const { data: _clip, error: dbError } = await supabase
       .from('tournament_clips')
       .insert({
         id: fileId,

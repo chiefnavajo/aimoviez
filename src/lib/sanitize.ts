@@ -14,7 +14,7 @@ export function sanitizeText(input: string | null | undefined): string {
     // Remove HTML tags
     .replace(/<[^>]*>/g, '')
     // Remove control characters (except newlines and tabs)
-    // eslint-disable-next-line no-control-regex
+     
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     // Normalize whitespace
     .replace(/\s+/g, ' ')
@@ -92,7 +92,7 @@ export function sanitizeComment(input: string | null | undefined): string {
     // Remove HTML tags
     .replace(/<[^>]*>/g, '')
     // Remove control characters (keep newlines and tabs)
-    // eslint-disable-next-line no-control-regex
+     
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     // Limit consecutive newlines
     .replace(/\n{3,}/g, '\n\n')

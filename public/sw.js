@@ -1,5 +1,5 @@
 // AiMoviez Service Worker
-const CACHE_NAME = 'aimoviez-v2';
+const _CACHE_NAME = 'aimoviez-v2';
 const STATIC_CACHE = 'aimoviez-static-v2';
 const DYNAMIC_CACHE = 'aimoviez-dynamic-v2';
 

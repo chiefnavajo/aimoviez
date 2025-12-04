@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
+import Image from 'next/image';
 import { useCountdown } from '@/hooks/useCountdown';
 import { Round } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -106,9 +107,11 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
               aria-label="User menu"
               aria-expanded={menuOpen}
             >
-              <img
+              <Image
                 src={userAvatar}
                 alt={userName}
+                width={32}
+                height={32}
                 className="w-8 h-8 rounded-full border-2 border-cyan-400/40"
               />
               <span className="hidden sm:inline text-sm font-medium text-white/90">

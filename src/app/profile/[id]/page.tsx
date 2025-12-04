@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
@@ -190,8 +191,8 @@ export default function CreatorProfilePage() {
         <div className="relative z-10 px-4 md:px-6 pb-6">
           <div className="flex flex-col items-center mb-6">
             <div className="relative mb-3">
-              <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1">
-                <img src={creator.avatar_url} alt={creator.username} className="w-full h-full rounded-full bg-black object-cover" />
+              <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1 relative">
+                <Image src={creator.avatar_url} alt={creator.username} fill sizes="112px" className="rounded-full bg-black object-cover" />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm md:text-base border-4 border-black">{creator.level}</div>
             </div>
@@ -230,7 +231,7 @@ export default function CreatorProfilePage() {
               <Link key={clip.id} href={`/clip/${clip.id}`}>
                 <motion.div whileTap={{ scale: 0.95 }} className="relative aspect-[9/16] rounded-lg overflow-hidden bg-white/10">
                   {clip.thumbnail_url ? (
-                    <img src={clip.thumbnail_url} alt="" className="w-full h-full object-cover" />
+                    <Image src={clip.thumbnail_url} alt="" fill sizes="(max-width: 768px) 33vw, 20vw" className="object-cover" />
                   ) : (
                     <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
                   )}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
@@ -242,7 +243,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
           {/* Avatar */}
           <Link href={`/profile/${clip.username}`}>
             <div className="relative">
-              <img src={clip.avatar_url} alt={clip.username} className="w-12 h-12 rounded-full border-2 border-white" />
+              <Image src={clip.avatar_url} alt={clip.username} width={48} height={48} className="w-12 h-12 rounded-full border-2 border-white" />
             </div>
           </Link>
 

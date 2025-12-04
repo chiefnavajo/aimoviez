@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import crypto from 'crypto';
+import _crypto from 'crypto';
 import { VoteRequestSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
 import {
@@ -64,7 +64,7 @@ function setCache(key: 'activeSeason' | 'activeSlot', data: any, ttl: number) {
   cache[key] = { data, expires: Date.now() + ttl };
 }
 
-function getCachedClips(slotPosition: number): any[] | null {
+function _getCachedClips(slotPosition: number): any[] | null {
   const key = `slot_${slotPosition}`;
   const entry = cache.clips.get(key);
   if (entry && Date.now() < entry.expires) {
@@ -74,7 +74,7 @@ function getCachedClips(slotPosition: number): any[] | null {
   return null;
 }
 
-function setCachedClips(slotPosition: number, data: any[]) {
+function _setCachedClips(slotPosition: number, data: any[]) {
   const key = `slot_${slotPosition}`;
   cache.clips.set(key, { data, expires: Date.now() + CACHE_TTL.clips });
 }
@@ -369,7 +369,7 @@ function calculateTimeRemaining(votingEndsAt: string | null): number | null {
   return Math.max(0, Math.floor((endTime - now) / 1000));
 }
 
-function smartSampleClips(
+function _smartSampleClips(
   allClips: TournamentClipRow[],
   votedClipIds: Set<string>,
   seenClipIds: Set<string>,
@@ -459,7 +459,7 @@ async function recordClipViews(
   }
 }
 
-async function getSeenClipIds(
+async function _getSeenClipIds(
   supabase: SupabaseClient,
   voterKey: string,
   slotPosition: number
@@ -526,7 +526,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // 1. Get user's votes today
-    const { votes: userVotesToday, count: totalVotesToday } = await getUserVotesToday(
+    const { votes: _userVotesToday, count: totalVotesToday } = await getUserVotesToday(
       supabase,
       effectiveVoterKey
     );
@@ -896,12 +896,12 @@ export async function POST(req: NextRequest) {
 
     // Get logged-in user's ID if available
     let loggedInUserId: string | null = null;
-    let userEmail: string | null = null;
+    let _userEmail: string | null = null;
     try {
       const { getServerSession } = await import('next-auth');
       const session = await getServerSession();
       if (session?.user?.email) {
-        userEmail = session.user.email;
+        _userEmail = session.user.email;
         const { data: userData } = await supabase
           .from('users')
           .select('id')

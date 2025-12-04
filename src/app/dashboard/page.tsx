@@ -1078,7 +1078,7 @@ function VotingArena() {
   };
 
   // Handle revoke vote separately (for explicit revoke action)
-  const handleRevokeVote = () => {
+  const _handleRevokeVote = () => {
     if (!currentClip || isVoting || !currentClip.has_voted) return;
     revokeMutation.mutate({ clipId: currentClip.clip_id });
   };

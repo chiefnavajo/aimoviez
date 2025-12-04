@@ -35,7 +35,7 @@ describe('BottomNavigation', () => {
 
   it('highlights the active route', () => {
     (usePathname as jest.Mock).mockReturnValue('/dashboard');
-    const { container } = render(<BottomNavigation />);
+    const { container: _container } = render(<BottomNavigation />);
 
     // The dashboard link should have the active class (text-cyan-400)
     const homeLink = screen.getByRole('link', { name: /home/i });

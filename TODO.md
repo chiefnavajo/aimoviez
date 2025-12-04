@@ -177,10 +177,11 @@ HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000
 - [ ] Test authentication flow after redeployment
 - [ ] Test database connections after redeployment
 
-### Bug Fix: Multi-Vote Mode
-- [ ] Fix multi-vote mode: fetch `multi_vote_mode` feature flag on frontend
-- [ ] Only allow vote revoke when multi-vote mode is OFF
-- [ ] When multi-vote mode is ON, tapping again should add another vote (not revoke)
+### Bug Fix: Multi-Vote Mode (ALREADY DONE)
+- [x] Fix multi-vote mode: fetch `multi_vote_mode` feature flag on frontend
+- [x] Only allow vote revoke when multi-vote mode is OFF
+- [x] When multi-vote mode is ON, tapping again should add another vote (not revoke)
+Note: This was already implemented in dashboard/page.tsx (line 661, 1473) and vote/route.ts
 
 ### CAPTCHA Setup
 - [ ] Sign up for hCaptcha at dashboard.hcaptcha.com
@@ -193,14 +194,14 @@ HCAPTCHA_SECRET_KEY=0x0000000000000000000000000000000000000000
 - [ ] Add env vars to Vercel dashboard for production
 - [ ] Enable CAPTCHA feature flag when ready
 
-### Database Migrations
-- [ ] Run all migrations in Supabase SQL Editor:
-  - `fix-vote-delete-race-condition.sql`
-  - `fix-profile-stats-n-plus-1.sql`
-  - `additional-indexes-from-audit.sql`
-  - `fix-admin-winner-transaction.sql`
-  - `migration-contact-reports-blocks.sql`
-  - `enable-rls-policies.sql`
+### Database Migrations (DONE)
+- [x] Run all migrations in Supabase SQL Editor:
+  - `fix-vote-delete-race-condition.sql` ✅
+  - `fix-profile-stats-n-plus-1.sql` ✅
+  - `additional-indexes-from-audit.sql` ✅
+  - `fix-admin-winner-transaction.sql` ✅
+  - `migration-contact-reports-blocks.sql` ✅
+  - `enable-rls-policies.sql` ✅
 
 ### Deployment & Monitoring
 - [ ] Set Sentry environment variables in Vercel

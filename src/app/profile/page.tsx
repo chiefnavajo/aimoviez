@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
 import { signOut } from 'next-auth/react';
 import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
@@ -111,7 +112,7 @@ function ProfilePageContent() {
     setAvatarUrl(finalAvatarUrl);
   }, [user, session]);
 
-  const avatarSeed = avatarUrl.includes('seed=') ? avatarUrl.split('seed=')[1] : username;
+  const _avatarSeed = avatarUrl.includes('seed=') ? avatarUrl.split('seed=')[1] : username;
 
   // Fetch real data from APIs
   useEffect(() => {
@@ -368,7 +369,7 @@ function ProfilePageContent() {
               {history.map((item, idx) => (
                 <Link key={`${item.clip_id}-${idx}`} href={`/profile/${item.creator_username}`}>
                   <motion.div whileTap={{ scale: 0.98 }} className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all">
-                    <img src={item.creator_avatar} alt={item.creator_username} className="w-12 h-12 rounded-full bg-white/10" />
+                    <Image src={item.creator_avatar} alt={item.creator_username} width={48} height={48} className="rounded-full bg-white/10" />
                     <div className="flex-1 min-w-0">
                       <div className="font-bold truncate">@{item.creator_username}</div>
                       <div className="text-sm text-white/60">Slot #{item.slot_position} • {new Date(item.voted_at).toLocaleDateString()}</div>
@@ -487,7 +488,7 @@ function ProfilePageContent() {
                   <div className="absolute -inset-2 rounded-full avatar-glow-ring opacity-60" />
                   {/* Animated gradient border */}
                   <div className="w-28 h-28 rounded-full gradient-border-animated p-[3px] relative">
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
+                    <Image src={avatarUrl} alt="Avatar" fill sizes="112px" className="rounded-full bg-black object-cover" />
                   </div>
                   {/* Level badge with gold glow */}
                   <motion.div
@@ -581,7 +582,7 @@ function ProfilePageContent() {
                 <div className="absolute -inset-1.5 rounded-full avatar-glow-ring opacity-50" />
                 {/* Animated gradient border */}
                 <div className="w-20 h-20 rounded-full gradient-border-animated p-[2px] relative">
-                  <img src={avatarUrl} alt="Avatar" className="w-full h-full rounded-full bg-black object-cover" />
+                  <Image src={avatarUrl} alt="Avatar" fill sizes="80px" className="rounded-full bg-black object-cover" />
                 </div>
                 {/* Level badge */}
                 <motion.div
@@ -692,7 +693,7 @@ function ClipCard({ clip }: { clip: UserClip }) {
     >
       <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
         {clip.thumbnail_url ? (
-          <img src={clip.thumbnail_url} alt="Clip thumbnail" className="w-full h-full object-cover" />
+          <Image src={clip.thumbnail_url} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
         ) : (
           <video src={clip.video_url} className="w-full h-full object-cover" muted preload="metadata" />
         )}

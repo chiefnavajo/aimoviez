@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -109,6 +110,7 @@ export default function AdminUsersPage() {
     if (isAdmin) {
       fetchUsers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, search, statusFilter, sortBy, page]);
 
   // Debounced search
@@ -324,9 +326,11 @@ export default function AdminUsersPage() {
                 >
                   <div className="flex items-center gap-4">
                     {/* Avatar */}
-                    <img
+                    <Image
                       src={user.avatar_url || '/default-avatar.png'}
                       alt={user.username}
+                      width={48}
+                      height={48}
                       className="w-12 h-12 rounded-full bg-white/10"
                     />
 
@@ -471,9 +475,11 @@ export default function AdminUsersPage() {
                 <>
                   <div className="flex items-start justify-between mb-6">
                     <div className="flex items-center gap-4">
-                      <img
+                      <Image
                         src={selectedUser.avatar_url || '/default-avatar.png'}
                         alt={selectedUser.username}
+                        width={64}
+                        height={64}
                         className="w-16 h-16 rounded-full"
                       />
                       <div>

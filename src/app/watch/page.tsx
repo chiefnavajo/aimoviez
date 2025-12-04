@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -44,9 +45,9 @@ function WatchMoviePageContent() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [autoplayEnabled, setAutoplayEnabled] = useState(true);
+  const [autoplayEnabled, _setAutoplayEnabled] = useState(true);
 
-  let controlsTimeout: NodeJS.Timeout;
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch locked slots
   const { data: lockedSlots, isLoading } = useQuery<LockedSlot[]>({
@@ -105,14 +106,18 @@ function WatchMoviePageContent() {
   // Auto-hide controls
   useEffect(() => {
     if (isPlaying) {
-      controlsTimeout = setTimeout(() => {
+      controlsTimeoutRef.current = setTimeout(() => {
         setShowControls(false);
       }, 3000);
     } else {
       setShowControls(true);
     }
 
-    return () => clearTimeout(controlsTimeout);
+    return () => {
+      if (controlsTimeoutRef.current) {
+        clearTimeout(controlsTimeoutRef.current);
+      }
+    };
   }, [isPlaying, showControls]);
 
   // Toggle play/pause
@@ -405,10 +410,12 @@ function WatchMoviePageContent() {
                     }`}
                   >
                     <div className="relative w-16 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-                      <img
+                      <Image
                         src={slot.clip.thumbnail_url}
                         alt={slot.clip.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="64px"
+                        className="object-cover"
                       />
                       {index === currentSlotIndex && isPlaying && (
                         <div className="absolute inset-0 bg-black/50 flex items-center justify-center">

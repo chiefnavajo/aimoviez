@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import {
@@ -144,6 +145,7 @@ export default function SearchPage() {
   // Fetch on filter changes
   useEffect(() => {
     fetchData(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedQuery, activeTab, selectedGenre, sortBy]);
 
   // Load more
@@ -590,10 +592,12 @@ function ClipCard({ clip }: { clip: DiscoverClip }) {
       >
         {/* Thumbnail/Video */}
         {clip.thumbnail_url ? (
-          <img
+          <Image
             src={clip.thumbnail_url}
             alt={`Clip by ${clip.username}`}
-            className="w-full h-full object-cover"
+            fill
+            sizes="(max-width: 768px) 50vw, 25vw"
+            className="object-cover"
           />
         ) : clip.video_url ? (
           <video
@@ -628,9 +632,11 @@ function ClipCard({ clip }: { clip: DiscoverClip }) {
         {/* Bottom Info */}
         <div className="absolute bottom-0 left-0 right-0 p-3">
           <div className="flex items-center gap-2 mb-1">
-            <img
+            <Image
               src={clip.avatar_url}
               alt={clip.username}
+              width={24}
+              height={24}
               className="w-6 h-6 rounded-full bg-white/10"
             />
             <span className="text-xs font-medium truncate">@{clip.username}</span>
@@ -658,9 +664,11 @@ function CreatorCard({ creator }: { creator: DiscoverCreator }) {
         className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all"
       >
         {/* Avatar */}
-        <img
+        <Image
           src={creator.avatar_url}
           alt={creator.username}
+          width={56}
+          height={56}
           className="w-14 h-14 rounded-full bg-white/10"
         />
 

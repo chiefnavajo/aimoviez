@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Bell, BellOff, Loader2, Check, X } from 'lucide-react';
+import { Bell, BellOff, Loader2, Check } from 'lucide-react';
 import {
   isPushSupported,
   getNotificationPermission,

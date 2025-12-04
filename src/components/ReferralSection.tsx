@@ -17,7 +17,6 @@ import {
   Trophy,
   ChevronRight,
   Sparkles,
-  ExternalLink,
 } from 'lucide-react';
 
 interface ReferralTier {

@@ -63,7 +63,7 @@ interface Season {
   thumbnail_url?: string;
 }
 
-interface StoryResponse {
+interface _StoryResponse {
   seasons: Season[];
 }
 

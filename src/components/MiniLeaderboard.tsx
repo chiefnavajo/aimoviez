@@ -13,6 +13,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { Trophy, Flame, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface LeaderClip {
@@ -40,7 +41,7 @@ export default function MiniLeaderboard({
   const [topClips, setTopClips] = useState<LeaderClip[]>([]);
   const [votesPerMinute, setVotesPerMinute] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastVoteTime, setLastVoteTime] = useState<Date | null>(null);
+  const [_lastVoteTime, _setLastVoteTime] = useState<Date | null>(null);
   const [showPulse, setShowPulse] = useState(false);
 
   // Fetch top clips
@@ -74,7 +75,7 @@ export default function MiniLeaderboard({
       const baseRate = Math.max(5, Math.floor(totalVotes / 100));
       const variance = Math.floor(Math.random() * 10) - 5;
       setVotesPerMinute(Math.max(1, baseRate + variance));
-    } catch (error) {
+    } catch {
       setVotesPerMinute(Math.floor(Math.random() * 20) + 5);
     }
   };
@@ -92,16 +93,19 @@ export default function MiniLeaderboard({
       fetchVotingActivity();
     }, 10000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Pulse effect when votes change
+  const voteCountsKey = topClips.map(c => c.vote_count).join(',');
   useEffect(() => {
     if (topClips.length > 0) {
       setShowPulse(true);
       const timer = setTimeout(() => setShowPulse(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [topClips.map(c => c.vote_count).join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voteCountsKey]);
 
   // Get rank badge styling
   const getRankStyle = (rank: number) => {
@@ -195,7 +199,7 @@ export default function MiniLeaderboard({
             <div className="flex items-center gap-2 px-3 py-2 overflow-x-auto scrollbar-hide">
               <Trophy className="w-4 h-4 text-yellow-500 flex-shrink-0" />
 
-              {topClips.map((clip, index) => (
+              {topClips.map((clip, _index) => (
                 <motion.button
                   key={clip.id}
                   whileTap={{ scale: 0.95 }}
@@ -208,10 +212,12 @@ export default function MiniLeaderboard({
                 >
                   {/* Thumbnail */}
                   <div className="relative w-10 h-10 rounded-lg overflow-hidden">
-                    <img
+                    <Image
                       src={clip.thumbnail_url}
                       alt={clip.username}
-                      className="w-full h-full object-cover"
+                      fill
+                      sizes="40px"
+                      className="object-cover"
                     />
                     {/* Rank Badge */}
                     <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${getRankStyle(clip.rank)}`}>

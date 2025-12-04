@@ -3,6 +3,7 @@
 // Leaderboard with tabs and smooth number animations
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, TrendingUp } from 'lucide-react';
 import { Leader } from '@/types';
@@ -115,9 +116,11 @@ export default function Leaderboard({ leaders }: LeaderboardProps) {
 
                   {/* Avatar & Name */}
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <img
+                    <Image
                       src={leader.user.avatar}
                       alt={leader.user.name}
+                      width={48}
+                      height={48}
                       className="w-12 h-12 rounded-full border-2 border-white/20 group-hover:border-cyan-400/40 transition-colors"
                     />
                     <div className="flex-1 min-w-0">

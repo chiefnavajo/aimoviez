@@ -134,7 +134,7 @@ export function validateCsrfRequest(request: NextRequest): { valid: boolean; err
 /**
  * Create CSRF error response
  */
-export function csrfErrorResponse(error: string): NextResponse {
+export function csrfErrorResponse(_error: string): NextResponse {
   return NextResponse.json(
     {
       success: false,

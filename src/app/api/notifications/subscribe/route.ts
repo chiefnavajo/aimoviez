@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const subscriptionId = crypto.createHash('sha256').update(endpoint).digest('hex');
 
     // Upsert the subscription
-    const { data, error } = await supabase
+    const { data: _data, error } = await supabase
       .from('push_subscriptions')
       .upsert(
         {

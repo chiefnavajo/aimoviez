@@ -63,6 +63,7 @@ export default function GlobalError({
             >
               Try Again
             </button>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- Using <a> intentionally in global error boundary where Next.js Link may not work */}
             <a
               href="/"
               className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-semibold transition-colors"

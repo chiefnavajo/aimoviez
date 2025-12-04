@@ -130,7 +130,7 @@ export function useAuth(): UseAuthReturn {
 
 // Simple wrapper component for protected pages
 export function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { isLoading, isAuthenticated, hasProfile } = useAuth();
+  const { isLoading, isAuthenticated, hasProfile: _hasProfile } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 

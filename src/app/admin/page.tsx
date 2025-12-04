@@ -6,6 +6,7 @@
 // ============================================================================
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -109,7 +110,7 @@ const GENRES = [
 // ============================================================================
 
 export default function AdminDashboard() {
-  const router = useRouter();
+  const _router = useRouter();
   const { isLoading: authLoading, isAdmin, error: authError } = useAdminAuth();
   const { getHeaders } = useCsrf();
 
@@ -212,6 +213,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchSeasons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ============================================================================
@@ -233,6 +235,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchClips();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, seasonFilter]);
 
   // ============================================================================
@@ -1626,9 +1629,11 @@ export default function AdminDashboard() {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <img
+                          <Image
                             src={clip.avatar_url}
                             alt={clip.username}
+                            width={40}
+                            height={40}
                             className="w-10 h-10 rounded-full bg-white/10"
                           />
                           <div>
@@ -2019,12 +2024,14 @@ export default function AdminDashboard() {
               <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
                 <div className="flex gap-4">
                   {/* Thumbnail */}
-                  <div className="w-24 h-32 rounded-lg overflow-hidden bg-black flex-shrink-0">
+                  <div className="relative w-24 h-32 rounded-lg overflow-hidden bg-black flex-shrink-0">
                     {winnerCandidate.thumbnail_url ? (
-                      <img
+                      <Image
                         src={winnerCandidate.thumbnail_url}
                         alt={winnerCandidate.title}
-                        className="w-full h-full object-cover"
+                        fill
+                        sizes="96px"
+                        className="object-cover"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/40">
