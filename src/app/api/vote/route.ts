@@ -22,6 +22,7 @@ import {
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
+import { verifyCaptcha, getClientIp } from '@/lib/captcha';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -839,6 +840,46 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    // Verify CAPTCHA token if provided (bot protection)
+    // CAPTCHA is required when the feature flag is enabled
+    const { data: captchaFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'require_captcha_voting')
+      .maybeSingle();
+
+    const captchaRequired = captchaFlag?.enabled ?? false;
+
+    if (captchaRequired) {
+      const captchaToken = body.captchaToken;
+      if (!captchaToken) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'CAPTCHA verification required',
+            code: 'CAPTCHA_REQUIRED',
+          },
+          { status: 400 }
+        );
+      }
+
+      const clientIp = getClientIp(req.headers);
+      const captchaResult = await verifyCaptcha(captchaToken, clientIp);
+
+      if (!captchaResult.success) {
+        console.warn('[POST /api/vote] CAPTCHA verification failed:', captchaResult.error_codes);
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'CAPTCHA verification failed',
+            code: 'CAPTCHA_FAILED',
+            details: captchaResult.error_codes,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validate request body with Zod
     const validation = parseBody(VoteRequestSchema, body);
     if (!validation.success) {
@@ -962,10 +1003,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Get clip's slot position for special vote tracking
+    // 4. Get clip's slot position and status for validation
     const { data: clipData, error: clipFetchError } = await supabase
       .from('tournament_clips')
-      .select('slot_position, vote_count, weighted_score')
+      .select('slot_position, vote_count, weighted_score, status')
       .eq('id', clipId)
       .maybeSingle();
 
@@ -974,6 +1015,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Clip not found' },
         { status: 404 }
+      );
+    }
+
+    // SECURITY: Validate clip status - only allow voting on approved/active clips
+    const invalidStatuses = ['rejected', 'archived', 'pending', 'removed'];
+    if (clipData.status && invalidStatuses.includes(clipData.status.toLowerCase())) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Cannot vote on this clip',
+          code: 'INVALID_CLIP_STATUS',
+        },
+        { status: 400 }
       );
     }
 
@@ -1165,10 +1219,108 @@ export async function DELETE(req: NextRequest) {
 
     const voterKey = getVoterKey(req);
 
-    // 1. Get existing vote details
-    const existingVote = await getVoteOnClip(supabase, voterKey, clipId);
+    // SECURITY FIX: Apply same auth logic as POST to prevent spoofing
+    let loggedInUserId: string | null = null;
+    try {
+      const { getServerSession } = await import('next-auth');
+      const session = await getServerSession();
+      if (session?.user?.email) {
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', session.user.email)
+          .single();
+        if (userData) {
+          loggedInUserId = userData.id;
+        }
+      }
+    } catch {
+      // No session - continue with voterKey only
+    }
 
-    if (!existingVote) {
+    // Use authenticated user ID when available (more secure than device fingerprint)
+    const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
+
+    // RACE CONDITION FIX: Use atomic RPC function for delete
+    // This prevents concurrent DELETE requests from causing negative vote counts
+    // The RPC function uses SELECT FOR UPDATE to lock the row during deletion
+    const { data: deleteResult, error: rpcError } = await supabase.rpc(
+      'delete_vote_atomic',
+      {
+        p_voter_key: effectiveVoterKey,
+        p_clip_id: clipId,
+      }
+    );
+
+    if (rpcError) {
+      console.error('[DELETE /api/vote] RPC error:', rpcError);
+
+      // Fallback to traditional method if RPC doesn't exist yet
+      // This allows the app to work before the migration is run
+      if (rpcError.code === '42883') {
+        // Function does not exist - use legacy method with logging
+        console.warn('[DELETE /api/vote] Using legacy delete method - please run fix-vote-delete-race-condition.sql migration');
+
+        // Legacy: Get existing vote
+        const existingVote = await getVoteOnClip(supabase, effectiveVoterKey, clipId);
+        if (!existingVote) {
+          return NextResponse.json(
+            { success: false, error: 'No vote found to revoke', code: 'NOT_VOTED', clipId },
+            { status: 404 }
+          );
+        }
+
+        // Legacy: Delete vote (trigger will update counts if it exists)
+        const { error: deleteError } = await supabase
+          .from('votes')
+          .delete()
+          .eq('id', existingVote.id);
+
+        if (deleteError) {
+          console.error('[DELETE /api/vote] deleteError:', deleteError);
+          return NextResponse.json(
+            { success: false, error: 'Failed to revoke vote' },
+            { status: 500 }
+          );
+        }
+
+        // Get updated clip stats
+        const { data: clipData } = await supabase
+          .from('tournament_clips')
+          .select('weighted_score')
+          .eq('id', clipId)
+          .maybeSingle();
+
+        const newWeightedScore = clipData?.weighted_score ?? 0;
+
+        // Calculate remaining votes
+        const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
+        const newTotalVotesToday = votesTodayResult.count;
+        const slotVotesAfterResult = await getUserVotesInSlot(supabase, effectiveVoterKey, existingVote.slot_position);
+        const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
+
+        return NextResponse.json({
+          success: true,
+          clipId,
+          revokedVoteType: existingVote.vote_type,
+          newScore: newWeightedScore,
+          totalVotesToday: newTotalVotesToday,
+          remainingVotes: {
+            standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
+            super: specialRemaining.super,
+            mega: specialRemaining.mega,
+          },
+        }, { status: 200 });
+      }
+
+      return NextResponse.json(
+        { success: false, error: 'Failed to revoke vote' },
+        { status: 500 }
+      );
+    }
+
+    // Check if vote was found and deleted
+    if (!deleteResult || deleteResult.length === 0) {
       return NextResponse.json(
         {
           success: false,
@@ -1180,72 +1332,24 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    // 2. Get clip's current stats
-    const { data: clipData, error: clipFetchError } = await supabase
-      .from('tournament_clips')
-      .select('vote_count, weighted_score')
-      .eq('id', clipId)
-      .maybeSingle();
-
-    if (clipFetchError || !clipData) {
-      console.error('[DELETE /api/vote] clipFetchError:', clipFetchError);
-      return NextResponse.json(
-        { success: false, error: 'Clip not found' },
-        { status: 404 }
-      );
-    }
-
-    // 3. Delete the vote
-    const { error: deleteError } = await supabase
-      .from('votes')
-      .delete()
-      .eq('id', existingVote.id);
-
-    if (deleteError) {
-      console.error('[DELETE /api/vote] deleteError:', deleteError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to revoke vote' },
-        { status: 500 }
-      );
-    }
-
-    // 4. Update clip stats
-    // vote_count decreases by 1 (one vote removed)
-    // weighted_score decreases by vote_weight (1, 3, or 10)
-    const newVoteCount = Math.max(0, (clipData.vote_count ?? 0) - 1);
-    const newWeightedScore = Math.max(
-      0,
-      (clipData.weighted_score ?? 0) - existingVote.vote_weight
-    );
-
-    const { error: updateClipError } = await supabase
-      .from('tournament_clips')
-      .update({
-        vote_count: newVoteCount,
-        weighted_score: newWeightedScore,
-      })
-      .eq('id', clipId);
-
-    if (updateClipError) {
-      console.error('[DELETE /api/vote] updateClipError:', updateClipError);
-      // Vote was deleted, but stats update failed - log but continue
-    }
+    const deletedVote = deleteResult[0];
+    const newWeightedScore = deletedVote.new_weighted_score;
 
     // 5. Calculate remaining votes (vote is now restored)
     // Non-critical: if these fail, we still return success with fallback values
-    const votesTodayResult = await getUserVotesToday(supabase, voterKey);
+    const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
     const newTotalVotesToday = votesTodayResult.count;
     const slotVotesAfterResult = await getUserVotesInSlot(
       supabase,
-      voterKey,
-      existingVote.slot_position
+      effectiveVoterKey,
+      deletedVote.slot_position
     );
     const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
     const response: RevokeResponseBody = {
       success: true,
       clipId,
-      revokedVoteType: existingVote.vote_type,
+      revokedVoteType: deletedVote.vote_type as VoteType,
       newScore: newWeightedScore,
       totalVotesToday: newTotalVotesToday,
       remainingVotes: {

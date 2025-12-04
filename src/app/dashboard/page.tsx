@@ -28,6 +28,8 @@ import MiniLeaderboard from '@/components/MiniLeaderboard';
 import OnboardingTour, { useOnboarding } from '@/components/OnboardingTour';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
+import { sounds } from '@/lib/sounds';
+import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 
 // ============================================================================
 // TYPES
@@ -650,6 +652,19 @@ function VotingArena() {
   // Feature flag for vote button daily progress fill
   const { enabled: showVoteProgress } = useFeature('vote_button_progress');
 
+  // CAPTCHA for bot protection
+  const { isRequired: captchaRequired } = useCaptchaRequired();
+  const captchaTokenRef = useRef<string | null>(null);
+  const { execute: executeCaptcha, reset: resetCaptcha, CaptchaWidget, isConfigured: captchaConfigured } = useInvisibleCaptcha({
+    onVerify: (token) => {
+      captchaTokenRef.current = token;
+    },
+    onError: (error) => {
+      console.error('[CAPTCHA] Error:', error);
+      toast.error('Verification failed. Please try again.');
+    },
+  });
+
   // Swipe handling
   const touchStartY = useRef<number>(0);
   const touchEndY = useRef<number>(0);
@@ -718,12 +733,12 @@ function VotingArena() {
   }, [activeIndex, votingData?.clips]);
 
   // Vote mutation - supports standard, super, mega vote types
-  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType }, MutationContext>({
-    mutationFn: async ({ clipId, voteType }) => {
+  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType; captchaToken?: string | null }, MutationContext>({
+    mutationFn: async ({ clipId, voteType, captchaToken }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clipId, voteType }),
+        body: JSON.stringify({ clipId, voteType, captchaToken }),
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -766,6 +781,7 @@ function VotingArena() {
       return { previous };
     },
     onError: (error: Error, _variables, context) => {
+      sounds.play('error');
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate([100, 50, 100]);
       }
@@ -776,15 +792,20 @@ function VotingArena() {
       setIsVoting(false);
     },
     onSuccess: (_data, { voteType }) => {
-      // Confetti for milestones and special votes
+      // Sound effects and confetti for milestones and special votes
       if (voteType === 'mega') {
+        sounds.play('megaVote');
         confetti({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
         toast.success('MEGA VOTE! 10x Power!', { icon: '💎' });
       } else if (voteType === 'super') {
+        sounds.play('superVote');
         confetti({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
         toast.success('SUPER VOTE! 3x Power!', { icon: '⚡' });
       } else if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
+        sounds.play('milestone');
         confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+      } else {
+        sounds.play('vote');
       }
       setIsVoting(false);
       // Don't invalidate/refetch - optimistic update already handled the UI
@@ -900,25 +921,6 @@ function VotingArena() {
     };
   }, [queryClient]);
 
-  // Keyboard navigation for desktop users
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrevious();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleNext();
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        handleVideoTap();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeIndex, votingData?.clips?.length]);
-
   // Touch handlers with pull-to-refresh
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
@@ -995,8 +997,37 @@ function VotingArena() {
     setActiveIndex((prev) => (prev === 0 ? votingData.clips.length - 1 : prev - 1));
   }, [votingData?.clips]);
 
+  // Keyboard navigation for desktop users
+  // Moved after handleNext/handlePrevious definitions to fix TypeScript error
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevious();
+      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      } else if (e.key === ' ') {
+        e.preventDefault();
+        // handleVideoTap is not a stable callback, so inline the play/pause logic
+        if (videoRef.current) {
+          if (videoRef.current.paused) {
+            videoRef.current.play();
+            setIsPaused(false);
+          } else {
+            videoRef.current.pause();
+            setIsPaused(true);
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNext, handlePrevious]);
+
   // Handle vote - if already voted, revoke; otherwise cast new vote
-  const handleVote = (voteType: VoteType = 'standard') => {
+  const handleVote = async (voteType: VoteType = 'standard') => {
     if (!currentClip || isVoting) return;
 
     // If already voted on this clip, revoke the vote (only on tap, not hold)
@@ -1011,7 +1042,25 @@ function VotingArena() {
       return;
     }
 
-    voteMutation.mutate({ clipId: currentClip.clip_id, voteType });
+    // Execute CAPTCHA if required
+    let captchaToken: string | null = null;
+    if (captchaRequired && captchaConfigured) {
+      try {
+        captchaToken = await executeCaptcha();
+        if (!captchaToken) {
+          toast.error('Verification required. Please try again.');
+          return;
+        }
+      } catch {
+        toast.error('Verification failed. Please try again.');
+        return;
+      }
+    }
+
+    voteMutation.mutate({ clipId: currentClip.clip_id, voteType, captchaToken });
+
+    // Reset CAPTCHA for next vote
+    resetCaptcha();
   };
 
   // Handle revoke vote separately (for explicit revoke action)
@@ -1199,6 +1248,9 @@ function VotingArena() {
     >
       <Toaster position="top-center" />
 
+      {/* Invisible CAPTCHA widget (renders nothing visible) */}
+      {captchaConfigured && <CaptchaWidget />}
+
       {/* Pull-to-refresh indicator */}
       <AnimatePresence>
         {pullDistance > 0 && (
@@ -1372,7 +1424,7 @@ function VotingArena() {
       {/* ============ RIGHT COLUMN ============ */}
       <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4">
         {/* Creator Avatar */}
-        <Link href={`/profile/${currentClip?.user_id}`}>
+        <Link href={`/profile/${currentClip?.username}`}>
           <motion.div whileTap={{ scale: 0.9 }} className="relative">
             <Image
               src={currentClip?.avatar_url || 'https://api.dicebear.com/7.x/identicon/svg?seed=default'}

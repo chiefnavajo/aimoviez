@@ -85,13 +85,14 @@ export default function MiniLeaderboard({
   }, []);
 
   // Refresh every 10 seconds
+  // FIX: Removed topClips from dependency array to prevent infinite re-render loop
   useEffect(() => {
     const interval = setInterval(() => {
       fetchTopClips();
       fetchVotingActivity();
     }, 10000);
     return () => clearInterval(interval);
-  }, [topClips]);
+  }, []);
 
   // Pulse effect when votes change
   useEffect(() => {

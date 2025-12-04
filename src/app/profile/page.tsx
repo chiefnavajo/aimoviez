@@ -94,6 +94,7 @@ export default function ProfilePage() {
   const [badges, setBadges] = useState<Badge[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [settings, setSettings] = useState({ notifications: true, autoplay: true });
   const [username, setUsername] = useState('User');
   const [avatarUrl, setAvatarUrl] = useState(`https://api.dicebear.com/7.x/avataaars/svg?seed=User`);
@@ -210,14 +211,12 @@ export default function ProfilePage() {
     };
 
     fetchData();
-  }, [username]);
+  }, [username, retryCount]);
 
   // Retry function for error state
   const handleRetry = () => {
     setError(null);
-    setLoading(true);
-    // Trigger refetch by updating a dependency
-    setUsername(prev => prev);
+    setRetryCount(prev => prev + 1);
   };
 
   const levelProgress = stats ? (stats.xp / stats.nextLevelXp) * 100 : 0;

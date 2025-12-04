@@ -122,13 +122,14 @@ function addRateLimitHeaders(response: NextResponse, request: NextRequest): Next
 
 function generateCsrfToken(): string {
   const timestamp = Date.now().toString();
+  const randomBytes = crypto.randomBytes(16).toString('hex');
   const signature = crypto
     .createHmac('sha256', CSRF_SECRET)
-    .update(timestamp)
+    .update(timestamp + randomBytes)
     .digest('hex')
     .slice(0, 32);
 
-  return `${timestamp}.${signature}`;
+  return `${timestamp}.${randomBytes}.${signature}`;
 }
 
 function addCsrfToken(response: NextResponse, request: NextRequest): NextResponse {
@@ -139,7 +140,8 @@ function addCsrfToken(response: NextResponse, request: NextRequest): NextRespons
   let needsNewToken = !existingToken;
   if (existingToken) {
     const parts = existingToken.split('.');
-    if (parts.length === 2) {
+    // Support both new format (3 parts) and legacy format (2 parts)
+    if (parts.length === 3 || parts.length === 2) {
       const timestamp = parseInt(parts[0], 10);
       if (isNaN(timestamp) || Date.now() - timestamp > TOKEN_EXPIRY * 1000) {
         needsNewToken = true;
@@ -184,11 +186,16 @@ function validateCsrfToken(request: NextRequest): { valid: boolean; error?: stri
 
   // Verify the token format and signature
   const parts = headerToken.split('.');
-  if (parts.length !== 2) {
+  // Support both new format (3 parts) and legacy format (2 parts)
+  if (parts.length !== 3 && parts.length !== 2) {
     return { valid: false, error: 'Invalid CSRF token format' };
   }
 
-  const [timestamp, signature] = parts;
+  const isNewFormat = parts.length === 3;
+  const timestamp = parts[0];
+  const randomBytes = isNewFormat ? parts[1] : '';
+  const signature = isNewFormat ? parts[2] : parts[1];
+
   const timestampNum = parseInt(timestamp, 10);
 
   if (isNaN(timestampNum)) {
@@ -200,10 +207,11 @@ function validateCsrfToken(request: NextRequest): { valid: boolean; error?: stri
     return { valid: false, error: 'CSRF token expired' };
   }
 
-  // Verify signature
+  // Verify signature (include randomBytes if new format)
+  const dataToSign = isNewFormat ? timestamp + randomBytes : timestamp;
   const expectedSignature = crypto
     .createHmac('sha256', CSRF_SECRET)
-    .update(timestamp)
+    .update(dataToSign)
     .digest('hex')
     .slice(0, 32);
 

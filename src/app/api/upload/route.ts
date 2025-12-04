@@ -125,6 +125,67 @@ async function verifyVideoSignature(file: File): Promise<{ valid: boolean; detec
   }
 }
 
+/**
+ * POLYGLOT DETECTION: Check for embedded dangerous content
+ * Polyglot files can have valid video headers but contain malicious payloads
+ */
+async function detectPolyglot(file: File): Promise<{ safe: boolean; reason?: string }> {
+  try {
+    // Check multiple sections of the file for suspicious patterns
+    const chunkSize = 4096;
+    const checkPoints = [
+      0,                                      // Start
+      Math.floor(file.size / 4),             // 25%
+      Math.floor(file.size / 2),             // 50%
+      Math.floor((file.size * 3) / 4),       // 75%
+      Math.max(0, file.size - chunkSize),    // End
+    ];
+
+    // Dangerous patterns to detect
+    const dangerousPatterns = [
+      // HTML/JavaScript injection
+      /<script[\s>]/i,
+      /<iframe[\s>]/i,
+      /javascript:/i,
+      /on\w+\s*=/i,  // onclick=, onerror=, etc.
+      // PHP tags
+      /<\?php/i,
+      /<\?=/,
+      // Server-side includes
+      /<!--\s*#\s*(include|exec|echo)/i,
+      // Shell commands
+      /\x00\/bin\/sh/,
+      /\x00\/bin\/bash/,
+      // Executable headers (shouldn't be in videos)
+      /MZ\x90\x00/,  // Windows PE
+      /\x7fELF/,     // Linux ELF
+    ];
+
+    for (const offset of checkPoints) {
+      if (offset >= file.size) continue;
+
+      const end = Math.min(offset + chunkSize, file.size);
+      const chunk = await file.slice(offset, end).arrayBuffer();
+      const text = new TextDecoder('utf-8', { fatal: false }).decode(chunk);
+
+      for (const pattern of dangerousPatterns) {
+        if (pattern.test(text)) {
+          return {
+            safe: false,
+            reason: 'File contains potentially dangerous content',
+          };
+        }
+      }
+    }
+
+    return { safe: true };
+  } catch (err) {
+    console.error('[detectPolyglot] Error:', err);
+    // On error, fail open but log for monitoring
+    return { safe: true };
+  }
+}
+
 // ============================================================================
 // POST - Upload Video
 // ============================================================================
@@ -202,6 +263,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: false,
         error: signatureCheck.error || 'Invalid video file',
+      }, { status: 400 });
+    }
+
+    // SECURITY: Check for polyglot files (valid video headers with embedded malicious content)
+    const polyglotCheck = await detectPolyglot(video);
+    if (!polyglotCheck.safe) {
+      console.warn('[UPLOAD] Polyglot detection triggered:', {
+        reportedType: video.type,
+        filename: video.name,
+        reason: polyglotCheck.reason,
+      });
+      return NextResponse.json({
+        success: false,
+        error: 'File rejected for security reasons',
       }, { status: 400 });
     }
 

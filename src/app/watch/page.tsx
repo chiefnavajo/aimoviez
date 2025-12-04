@@ -224,6 +224,7 @@ export default function WatchMoviePage() {
           ref={videoRef}
           src={currentSlot?.clip.video_url}
           className="w-full h-full object-contain"
+          muted={isMuted}
           onClick={togglePlay}
           onMouseMove={() => setShowControls(true)}
         />
@@ -284,7 +285,7 @@ export default function WatchMoviePage() {
                   {currentSlot?.clip.title}
                 </div>
                 <div className="text-sm text-white/80">
-                  Slot {currentSlot?.slot_position}/{totalSlots} â€¢ by @{currentSlot?.clip.username} â€¢ {currentSlot?.clip.genre}
+                  Slot {currentSlot?.slot_position}/{totalSlots} • by @{currentSlot?.clip.username} • {currentSlot?.clip.genre}
                 </div>
               </div>
 
@@ -421,7 +422,7 @@ export default function WatchMoviePage() {
                       </div>
                       <div className="font-bold mb-1">{slot.clip.title}</div>
                       <div className="text-xs text-white/60">
-                        @{slot.clip.username} â€¢ {slot.clip.genre}
+                        @{slot.clip.username} • {slot.clip.genre}
                       </div>
                     </div>
 

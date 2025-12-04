@@ -3,6 +3,7 @@
 // Navbar with brand, scene indicator, countdown, and user menu
 
 import { useState, useRef, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useCountdown } from '@/hooks/useCountdown';
 import { Round } from '@/types';
@@ -16,6 +17,7 @@ interface NavbarProps {
 }
 
 export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
+  const router = useRouter();
   const countdown = useCountdown(round.closesAt);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -128,7 +130,7 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
                     <button
                       onClick={() => {
                         setMenuOpen(false);
-                        // Navigate to profile (mock)
+                        router.push('/profile');
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-white/80 hover:bg-white/5 hover:text-white transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-cyan-400"
                     >

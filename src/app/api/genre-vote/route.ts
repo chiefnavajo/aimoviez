@@ -146,43 +146,29 @@ export async function POST(req: NextRequest) {
 
     const { genre } = validation.data;
 
-    // Check if user has already voted
-    const { data: existingVote } = await supabase
+    // RACE CONDITION FIX: Use upsert instead of check-then-insert pattern
+    // This is atomic and prevents duplicate votes from concurrent requests
+    const { error: upsertError } = await supabase
       .from('genre_votes')
-      .select('*')
-      .eq('voter_key', voterKey)
-      .maybeSingle();
+      .upsert(
+        {
+          voter_key: voterKey,
+          genre,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'voter_key',
+          ignoreDuplicates: false, // Update if exists
+        }
+      );
 
-    if (existingVote) {
-      // Update existing vote
-      const { error: updateError } = await supabase
-        .from('genre_votes')
-        .update({ genre, updated_at: new Date().toISOString() })
-        .eq('voter_key', voterKey);
-
-      if (updateError) {
-        console.error('[POST /api/genre-vote] updateError:', updateError);
-        return NextResponse.json(
-          { error: 'Failed to update vote' },
-          { status: 500 }
-        );
-      }
-    } else {
-      // Insert new vote
-      const { error: insertError } = await supabase.from('genre_votes').insert({
-        voter_key: voterKey,
-        genre,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      if (insertError) {
-        console.error('[POST /api/genre-vote] insertError:', insertError);
-        return NextResponse.json(
-          { error: 'Failed to cast vote' },
-          { status: 500 }
-        );
-      }
+    if (upsertError) {
+      console.error('[POST /api/genre-vote] upsertError:', upsertError);
+      return NextResponse.json(
+        { error: 'Failed to cast vote' },
+        { status: 500 }
+      );
     }
 
     // OPTIMIZED: Get updated counts using parallel COUNT queries (not loading all rows)
@@ -214,8 +200,8 @@ export async function POST(req: NextRequest) {
       genre,
       vote_count: genreCounts.get(genre) || 0,
       percentages: percentages as Record<Genre, number>,
-      user_previous_vote: existingVote?.genre,
-      message: existingVote ? 'Vote updated successfully' : 'Vote cast successfully',
+      user_previous_vote: genre, // With upsert, we don't know if it was an update or insert
+      message: 'Vote recorded successfully',
     };
 
     return NextResponse.json(response, { status: 200 });

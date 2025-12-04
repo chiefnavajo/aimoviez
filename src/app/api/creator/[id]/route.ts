@@ -25,10 +25,13 @@ export async function GET(
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Try to find user by username first
+    // Only select public fields to prevent data exposure (IDOR fix)
+    const publicFields = 'id, username, avatar_url, level, total_votes_received, clips_uploaded, clips_locked, followers_count';
+
     let user = null;
     const { data: userByUsername } = await supabase
       .from('users')
-      .select('*')
+      .select(publicFields)
       .eq('username', username)
       .single();
 
@@ -38,7 +41,7 @@ export async function GET(
       // Try to find by ID
       const { data: userById } = await supabase
         .from('users')
-        .select('*')
+        .select(publicFields)
         .eq('id', username)
         .single();
       user = userById;

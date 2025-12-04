@@ -25,8 +25,8 @@ export const authOptions: NextAuthOptions = {
   // Session security configuration
   session: {
     strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 days
-    updateAge: 24 * 60 * 60, // Refresh session every 24 hours
+    maxAge: 24 * 60 * 60, // 24 hours (reduced from 7 days for security)
+    updateAge: 60 * 60, // Refresh session every 1 hour
   },
 
   // Secure cookie configuration

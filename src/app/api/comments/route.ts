@@ -131,12 +131,14 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Build query for top-level comments (no parent)
+    // Only show approved comments (or pending if moderation is disabled)
     let query = supabase
       .from('comments')
       .select('*', { count: 'exact' })
       .eq('clip_id', clipId)
       .is('parent_comment_id', null)
-      .eq('is_deleted', false);
+      .eq('is_deleted', false)
+      .in('moderation_status', ['approved', null]);
 
     if (sort === 'newest') {
       query = query.order('created_at', { ascending: false });
@@ -166,12 +168,13 @@ export async function GET(req: NextRequest) {
     // Fetch replies for each top-level comment
     const enrichedComments = await Promise.all(
       (topLevelComments || []).map(async (comment) => {
-        // Get replies
+        // Get replies (only approved ones)
         const { data: replies } = await supabase
           .from('comments')
           .select('*')
           .eq('parent_comment_id', comment.id)
           .eq('is_deleted', false)
+          .in('moderation_status', ['approved', null])
           .order('created_at', { ascending: true })
           .limit(5); // Limit replies per comment
 

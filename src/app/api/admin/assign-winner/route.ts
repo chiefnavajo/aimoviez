@@ -136,125 +136,167 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Lock the current slot with the selected winner
-    const { error: lockSlotError } = await supabase
-      .from('story_slots')
-      .update({
-        status: 'locked',
-        winner_tournament_clip_id: clipId,
-      })
-      .eq('id', activeSlot.id);
+    // 4. Try atomic transaction first (if RPC exists), fall back to individual updates
+    const nextPosition = activeSlot.slot_position + 1;
+    const durationHours = activeSlot.voting_duration_hours || 24;
 
-    if (lockSlotError) {
-      console.error('[assign-winner] lockSlotError:', lockSlotError);
-      return NextResponse.json(
-        { ok: false, error: 'Failed to lock slot with winner' },
-        { status: 500 }
-      );
-    }
-
-    // 5. Mark the winning clip as 'locked'
-    const { error: lockClipError } = await supabase
-      .from('tournament_clips')
-      .update({ status: 'locked' })
-      .eq('id', clipId);
-
-    if (lockClipError) {
-      console.error('[assign-winner] lockClipError:', lockClipError);
-      // Non-fatal, continue
-    }
-
-    // 6. If advanceSlot is true, set up the next slot
     let nextSlotInfo = null;
     let clipsMovedCount = 0;
+    let seasonFinished = false;
 
-    if (advanceSlot) {
-      const nextPosition = activeSlot.slot_position + 1;
-      const totalSlots = season.total_slots ?? 75;
-
-      if (nextPosition > totalSlots) {
-        // Season is finished
-        const { error: finishError } = await supabase
-          .from('seasons')
-          .update({ status: 'finished' })
-          .eq('id', season.id);
-
-        if (finishError) {
-          console.error('[assign-winner] finishError:', finishError);
-        }
-
-        // Audit log the action
-        await logAdminAction(req, {
-          action: 'assign_winner',
-          resourceType: 'clip',
-          resourceId: clipId,
-          adminEmail: adminAuth.email || 'unknown',
-          adminId: adminAuth.userId || undefined,
-          details: {
-            clipTitle: clip.title,
-            clipOwner: clip.username,
-            slotPosition: activeSlot.slot_position,
-            voteCount: clip.vote_count,
-            seasonFinished: true,
-          },
-        });
-
-        return NextResponse.json({
-          ok: true,
-          message: `Winner assigned: "${clip.title}" by ${clip.username}. Season finished!`,
-          winnerClipId: clipId,
-          winnerTitle: clip.title,
-          winnerUsername: clip.username,
-          slotLocked: activeSlot.slot_position,
-          seasonFinished: true,
-        });
+    // Try atomic RPC first
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'assign_winner_atomic',
+      {
+        p_clip_id: clipId,
+        p_slot_id: activeSlot.id,
+        p_season_id: season.id,
+        p_next_slot_position: nextPosition,
+        p_voting_duration_hours: durationHours,
+        p_advance_slot: advanceSlot,
       }
+    );
 
-      // Set next slot to voting
-      const durationHours = activeSlot.voting_duration_hours || 24;
-      const now = new Date();
-      const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+    if (!rpcError && rpcResult && rpcResult.length > 0 && rpcResult[0].success) {
+      // RPC succeeded - use its results
+      const result = rpcResult[0];
+      clipsMovedCount = result.clips_moved || 0;
+      seasonFinished = result.season_finished || false;
 
-      const { data: nextSlot, error: nextSlotError } = await supabase
-        .from('story_slots')
-        .update({
-          status: 'voting',
-          voting_started_at: now.toISOString(),
-          voting_ends_at: votingEndsAt.toISOString(),
-          voting_duration_hours: durationHours,
-        })
-        .eq('season_id', season.id)
-        .eq('slot_position', nextPosition)
-        .select('id, slot_position')
-        .maybeSingle();
-
-      if (nextSlotError) {
-        console.error('[assign-winner] nextSlotError:', nextSlotError);
-      } else if (nextSlot) {
+      if (!seasonFinished && result.next_slot_position) {
+        const now = new Date();
+        const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
         nextSlotInfo = {
-          position: nextSlot.slot_position,
+          position: result.next_slot_position,
           votingEndsAt: votingEndsAt.toISOString(),
         };
       }
-
-      // Move non-winning clips to next slot with reset votes
-      const { data: movedClips, error: moveError } = await supabase
-        .from('tournament_clips')
-        .update({
-          slot_position: nextPosition,
-          vote_count: 0,
-          weighted_score: 0,
-        })
-        .eq('slot_position', activeSlot.slot_position)
-        .eq('status', 'active')
-        .neq('id', clipId)
-        .select('id');
-
-      if (moveError) {
-        console.error('[assign-winner] moveError:', moveError);
+    } else {
+      // RPC not available or failed - fall back to individual updates
+      if (rpcError && rpcError.code !== '42883') {
+        console.error('[assign-winner] RPC error:', rpcError);
       } else {
-        clipsMovedCount = movedClips?.length ?? 0;
+        console.warn('[assign-winner] Using legacy method - please run fix-admin-winner-transaction.sql migration');
       }
+
+      // Legacy: Lock the current slot with the selected winner
+      const { error: lockSlotError } = await supabase
+        .from('story_slots')
+        .update({
+          status: 'locked',
+          winner_tournament_clip_id: clipId,
+        })
+        .eq('id', activeSlot.id);
+
+      if (lockSlotError) {
+        console.error('[assign-winner] lockSlotError:', lockSlotError);
+        return NextResponse.json(
+          { ok: false, error: 'Failed to lock slot with winner' },
+          { status: 500 }
+        );
+      }
+
+      // Legacy: Mark the winning clip as 'locked'
+      const { error: lockClipError } = await supabase
+        .from('tournament_clips')
+        .update({ status: 'locked' })
+        .eq('id', clipId);
+
+      if (lockClipError) {
+        console.error('[assign-winner] lockClipError:', lockClipError);
+      }
+
+      // Legacy: If advanceSlot is true, set up the next slot
+      if (advanceSlot) {
+        const totalSlots = season.total_slots ?? 75;
+
+        if (nextPosition > totalSlots) {
+          // Season is finished
+          const { error: finishError } = await supabase
+            .from('seasons')
+            .update({ status: 'finished' })
+            .eq('id', season.id);
+
+          if (finishError) {
+            console.error('[assign-winner] finishError:', finishError);
+          }
+          seasonFinished = true;
+        } else {
+          // Set next slot to voting
+          const now = new Date();
+          const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+
+          const { data: nextSlot, error: nextSlotError } = await supabase
+            .from('story_slots')
+            .update({
+              status: 'voting',
+              voting_started_at: now.toISOString(),
+              voting_ends_at: votingEndsAt.toISOString(),
+              voting_duration_hours: durationHours,
+            })
+            .eq('season_id', season.id)
+            .eq('slot_position', nextPosition)
+            .select('id, slot_position')
+            .maybeSingle();
+
+          if (nextSlotError) {
+            console.error('[assign-winner] nextSlotError:', nextSlotError);
+          } else if (nextSlot) {
+            nextSlotInfo = {
+              position: nextSlot.slot_position,
+              votingEndsAt: votingEndsAt.toISOString(),
+            };
+          }
+
+          // Move non-winning clips to next slot with reset votes
+          const { data: movedClips, error: moveError } = await supabase
+            .from('tournament_clips')
+            .update({
+              slot_position: nextPosition,
+              vote_count: 0,
+              weighted_score: 0,
+            })
+            .eq('slot_position', activeSlot.slot_position)
+            .eq('status', 'active')
+            .neq('id', clipId)
+            .select('id');
+
+          if (moveError) {
+            console.error('[assign-winner] moveError:', moveError);
+          } else {
+            clipsMovedCount = movedClips?.length ?? 0;
+          }
+        }
+      }
+    }
+
+    // Handle season finished case
+    if (seasonFinished) {
+      // Audit log the action
+      await logAdminAction(req, {
+        action: 'assign_winner',
+        resourceType: 'clip',
+        resourceId: clipId,
+        adminEmail: adminAuth.email || 'unknown',
+        adminId: adminAuth.userId || undefined,
+        details: {
+          clipTitle: clip.title,
+          clipOwner: clip.username,
+          slotPosition: activeSlot.slot_position,
+          voteCount: clip.vote_count,
+          seasonFinished: true,
+        },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        message: `Winner assigned: "${clip.title}" by ${clip.username}. Season finished!`,
+        winnerClipId: clipId,
+        winnerTitle: clip.title,
+        winnerUsername: clip.username,
+        slotLocked: activeSlot.slot_position,
+        seasonFinished: true,
+      });
     }
 
     // Audit log the action

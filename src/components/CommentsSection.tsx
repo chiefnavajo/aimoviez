@@ -67,7 +67,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
   const [total, setTotal] = useState(0);
   const [showEmojis, setShowEmojis] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
-  
+  const [likingComments, setLikingComments] = useState<Set<string>>(new Set()); // Track comments being liked to prevent race conditions
+
   const inputRef = useRef<HTMLInputElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -233,8 +234,14 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
 
   // Like/unlike comment
   const handleLike = async (comment: Comment) => {
+    // Prevent race condition: ignore clicks while request is in flight
+    if (likingComments.has(comment.id)) return;
+
     const action = comment.is_liked ? 'unlike' : 'like';
-    
+
+    // Mark as in-flight
+    setLikingComments(prev => new Set(prev).add(comment.id));
+
     // Optimistic update
     const updateComment = (c: Comment): Comment => {
       if (c.id === comment.id) {
@@ -249,16 +256,16 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
       }
       return c;
     };
-    
+
     setComments(prev => prev.map(updateComment));
-    
+
     try {
       const res = await fetch('/api/comments', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comment_id: comment.id, action }),
       });
-      
+
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to update like');
@@ -273,6 +280,13 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername 
       }));
       const errorMessage = err instanceof Error ? err.message : 'Failed to update like. Please try again.';
       toast.error(errorMessage);
+    } finally {
+      // Clear in-flight status
+      setLikingComments(prev => {
+        const next = new Set(prev);
+        next.delete(comment.id);
+        return next;
+      });
     }
   };
 

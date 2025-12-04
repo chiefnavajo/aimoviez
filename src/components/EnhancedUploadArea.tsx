@@ -8,7 +8,7 @@
 // - Progress indication
 // - Error handling with clear feedback
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, 
@@ -81,6 +81,15 @@ export default function EnhancedUploadArea({
   const [errors, setErrors] = useState<ValidationError[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+
+  // Cleanup Object URLs on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
+    };
+  }, [videoPreview]);
 
   // ============================================================================
   // VIDEO VALIDATION
@@ -186,6 +195,10 @@ export default function EnhancedUploadArea({
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
+      // Revoke old preview URL before creating new one to prevent memory leak
+      if (videoPreview) {
+        URL.revokeObjectURL(videoPreview);
+      }
       // Still show preview but with errors
       const previewUrl = URL.createObjectURL(selectedFile);
       setVideoPreview(previewUrl);
@@ -193,6 +206,10 @@ export default function EnhancedUploadArea({
       return;
     }
 
+    // Revoke old preview URL before creating new one to prevent memory leak
+    if (videoPreview) {
+      URL.revokeObjectURL(videoPreview);
+    }
     // Success - create preview and notify parent
     const previewUrl = URL.createObjectURL(selectedFile);
     setVideoPreview(previewUrl);

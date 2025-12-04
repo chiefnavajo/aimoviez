@@ -22,21 +22,24 @@ const TOKEN_EXPIRY = 60 * 60 * 1000; // 1 hour in milliseconds
 
 /**
  * Generate a CSRF token
- * Format: timestamp.signature
+ * Format: timestamp.randomBytes.signature
+ * Includes cryptographic randomness to prevent prediction attacks
  */
 export function generateCsrfToken(): string {
   const timestamp = Date.now().toString();
+  const randomBytes = crypto.randomBytes(16).toString('hex');
   const signature = crypto
     .createHmac('sha256', CSRF_SECRET)
-    .update(timestamp)
+    .update(timestamp + randomBytes)
     .digest('hex')
     .slice(0, 32);
 
-  return `${timestamp}.${signature}`;
+  return `${timestamp}.${randomBytes}.${signature}`;
 }
 
 /**
  * Verify a CSRF token
+ * Supports new format (timestamp.randomBytes.signature) and legacy format (timestamp.signature)
  */
 export function verifyCsrfToken(token: string): { valid: boolean; error?: string } {
   if (!token) {
@@ -44,11 +47,17 @@ export function verifyCsrfToken(token: string): { valid: boolean; error?: string
   }
 
   const parts = token.split('.');
-  if (parts.length !== 2) {
+
+  // Support both new format (3 parts) and legacy format (2 parts) for backwards compatibility
+  if (parts.length !== 3 && parts.length !== 2) {
     return { valid: false, error: 'Invalid CSRF token format' };
   }
 
-  const [timestamp, signature] = parts;
+  const isNewFormat = parts.length === 3;
+  const timestamp = parts[0];
+  const randomBytes = isNewFormat ? parts[1] : '';
+  const signature = isNewFormat ? parts[2] : parts[1];
+
   const timestampNum = parseInt(timestamp, 10);
 
   // Check if timestamp is valid
@@ -61,10 +70,11 @@ export function verifyCsrfToken(token: string): { valid: boolean; error?: string
     return { valid: false, error: 'CSRF token expired' };
   }
 
-  // Verify signature
+  // Verify signature (include randomBytes if new format)
+  const dataToSign = isNewFormat ? timestamp + randomBytes : timestamp;
   const expectedSignature = crypto
     .createHmac('sha256', CSRF_SECRET)
-    .update(timestamp)
+    .update(dataToSign)
     .digest('hex')
     .slice(0, 32);
 

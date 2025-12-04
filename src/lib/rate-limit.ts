@@ -19,22 +19,25 @@ export const RATE_LIMITS = {
   vote: { requests: 30, window: '1m' as const },
 
   // Upload endpoints - very strict
-  upload: { requests: 10, window: '1m' as const },
+  upload: { requests: 5, window: '1m' as const }, // Reduced from 10
 
   // Comment endpoints
-  comment: { requests: 20, window: '1m' as const },
+  comment: { requests: 15, window: '1m' as const }, // Reduced from 20
 
   // General API endpoints
-  api: { requests: 100, window: '1m' as const },
+  api: { requests: 60, window: '1m' as const }, // Reduced from 100
 
-  // Admin endpoints - more lenient for admins
-  admin: { requests: 200, window: '1m' as const },
+  // Admin endpoints - lowered for security (was too high)
+  admin: { requests: 50, window: '1m' as const }, // Reduced from 200
 
   // Leaderboard/read-heavy endpoints - cached, more lenient
-  read: { requests: 200, window: '1m' as const },
+  read: { requests: 120, window: '1m' as const }, // Reduced from 200
 
   // Auth endpoints - strict to prevent brute force
-  auth: { requests: 10, window: '1m' as const },
+  auth: { requests: 5, window: '1m' as const }, // Reduced from 10
+
+  // Contact/report endpoints - strict to prevent spam
+  contact: { requests: 3, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;

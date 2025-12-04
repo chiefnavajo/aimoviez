@@ -277,23 +277,39 @@ export async function GET(req: NextRequest) {
     }
 
     // 5. Calculate global rank (based on total votes)
-    const { data: allUsers } = await supabase
-      .from('votes')
-      .select('voter_key');
+    // N+1 FIX: Use efficient RPC function instead of loading all votes
+    let global_rank = 0;
+    let total_users = 0;
 
-    // Count votes per user
-    const userVoteCounts = new Map<string, number>();
-    allUsers?.forEach((vote) => {
-      userVoteCounts.set(vote.voter_key, (userVoteCounts.get(vote.voter_key) || 0) + 1);
-    });
+    // Try fast method first (materialized view)
+    const { data: rankDataFast, error: rankErrorFast } = await supabase.rpc(
+      'get_user_rank_fast',
+      { p_voter_key: voterKey }
+    );
 
-    const total_users = userVoteCounts.size;
-    
-    // Sort users by vote count
-    const sortedUsers = Array.from(userVoteCounts.entries())
-      .sort((a, b) => b[1] - a[1]);
+    if (!rankErrorFast && rankDataFast && rankDataFast.length > 0) {
+      global_rank = Number(rankDataFast[0].global_rank) || 1;
+      total_users = Number(rankDataFast[0].total_users) || 1;
+    } else {
+      // Fallback to slower but reliable method
+      const { data: rankData, error: rankError } = await supabase.rpc(
+        'get_user_global_rank',
+        { p_voter_key: voterKey }
+      );
 
-    const global_rank = sortedUsers.findIndex(([key]) => key === voterKey) + 1 || total_users;
+      if (!rankError && rankData && rankData.length > 0) {
+        global_rank = rankData[0].global_rank || 1;
+        total_users = rankData[0].total_users || 1;
+      } else {
+        // Ultimate fallback: simple count-based estimate
+        console.warn('[profile/stats] RPC not available, using fallback rank calculation');
+        const { count: userCount } = await supabase
+          .from('votes')
+          .select('voter_key', { count: 'exact', head: true });
+        total_users = userCount || 1;
+        global_rank = Math.ceil(total_users / 2); // Estimate middle rank
+      }
+    }
 
     // 6. Define achievements
     const achievements = {
