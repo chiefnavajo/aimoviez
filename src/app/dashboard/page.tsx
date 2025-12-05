@@ -763,7 +763,7 @@ function VotingArena() {
 
   // Video prefetching - preload next clips for smooth playback
   // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
-  // PERF: Use 'metadata' preload for faster initial load
+  // PERF: Use 'auto' preload for fully buffered next videos
   useEffect(() => {
     if (!votingData?.clips?.length) return;
 
@@ -784,10 +784,14 @@ function VotingArena() {
         // Only create video element if not already cached
         if (!cache.has(clip.clip_id)) {
           const video = document.createElement('video');
-          video.preload = 'metadata'; // Changed from 'auto' - loads faster
+          video.preload = 'auto'; // Use 'auto' for better preloading of next videos
           video.muted = true;
           video.playsInline = true;
           video.src = clip.video_url;
+          // Listen for canplaythrough to know when video is ready
+          video.addEventListener('canplaythrough', () => {
+            // Video is preloaded and ready for smooth playback
+          }, { once: true });
           video.load();
           cache.set(clip.clip_id, video);
         }
@@ -1494,15 +1498,18 @@ function VotingArena() {
                 x5-playsinline="true"
                 disablePictureInPicture
                 controlsList="nodownload nofullscreen noremoteplayback"
+                preload="auto"
                 onError={() => setVideoError(true)}
-                onLoadedData={(e) => {
-                  // Force play on mobile
+                onCanPlay={(e) => {
+                  // onCanPlay fires earlier than onLoadedData for faster playback start
                   const video = e.currentTarget;
-                  video.play().catch(() => {
-                    // If autoplay fails, keep muted and try again
-                    video.muted = true;
-                    video.play().catch(() => {});
-                  });
+                  if (video.paused) {
+                    video.play().catch(() => {
+                      // If autoplay fails, keep muted and try again
+                      video.muted = true;
+                      video.play().catch(() => {});
+                    });
+                  }
                 }}
               />
             </>
