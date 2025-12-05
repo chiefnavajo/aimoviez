@@ -22,7 +22,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   Play,
   Heart,
@@ -526,7 +526,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       </AnimatePresence>
 
       {/* Right Column - Responsive position for mobile */}
-      <div className="absolute right-3 bottom-4 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
+      <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
         {/* Creator Avatar - Hidden on very small screens, visible on md+ */}
         {currentSegment?.winning_clip && (
           <div className="hidden sm:block relative">
@@ -707,7 +707,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
       {/* Story Progress Bar - Clean single bar with segment grid modal */}
       {completedSegments.length > 0 && (
-        <div className="absolute bottom-16 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20">
+        <div className="absolute bottom-36 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20">
           <StoryProgressBar
             segments={season.slots}
             totalSegments={season.total_slots}
@@ -737,7 +737,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
       {/* Bottom left: Creator info - Higher on mobile to avoid season list */}
       {currentSegment?.winning_clip && (
-        <div className="absolute bottom-4 md:bottom-12 left-4 md:left-60 right-16 z-20">
+        <div className="absolute bottom-28 md:bottom-12 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
             <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               @{currentSegment.winning_clip.username}
@@ -1293,7 +1293,7 @@ function StoryPage() {
   return (
     <div className="min-h-screen min-h-[100dvh] bg-black overflow-hidden">
       {/* Desktop Layout - TikTok Style */}
-      <div className="hidden md:flex h-full relative">
+      <div className="hidden md:flex h-[100dvh] relative">
         {/* Full Screen Video Background */}
         <div className="absolute inset-0 z-0">
           <VideoPlayer
@@ -1406,33 +1406,26 @@ function StoryPage() {
         </div>
       </div>
 
-      {/* Mobile Layout - Maximized Video with Swipeable Season Strip */}
-      <div className="md:hidden h-full flex flex-col">
-        {/* Video Player - Takes most of the screen */}
-        <motion.div
-          className="relative flex-1"
-          animate={{
-            height: isFullscreen ? '100vh' : 'auto',
-          }}
-          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ minHeight: isFullscreen ? '100dvh' : 'calc(100dvh - 170px)' }}
-        >
+      {/* Mobile Layout - Full screen video with overlay controls */}
+      <div className="md:hidden h-[100dvh] relative">
+        {/* Video Player - Full screen */}
+        <div className="absolute inset-0">
           <VideoPlayer
             season={selectedSeason}
             onVote={handleVoteNow}
             isFullscreen={isFullscreen}
             onToggleFullscreen={toggleFullscreen}
           />
-        </motion.div>
+        </div>
 
-        {/* Season Strip - Compact horizontal swipeable (hidden when fullscreen) */}
+        {/* Season Strip - Overlay at bottom (above nav, hidden when fullscreen) */}
         <AnimatePresence>
           {!isFullscreen && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 50 }}
-              className="flex-shrink-0 mb-16"
+              className="absolute bottom-16 left-0 right-0 z-30"
             >
               <SeasonStrip
                 seasons={seasons}
@@ -1453,24 +1446,13 @@ function StoryPage() {
 }
 
 // ============================================================================
-// PAGE WRAPPER WITH QUERY CLIENT
+// PAGE WRAPPER
 // ============================================================================
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 2,
-    },
-  },
-});
 
 export default function StoryPageWithProvider() {
   return (
     <AuthGuard>
-      <QueryClientProvider client={queryClient}>
-        <StoryPage />
-      </QueryClientProvider>
+      <StoryPage />
     </AuthGuard>
   );
 }

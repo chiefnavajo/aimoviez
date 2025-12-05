@@ -86,6 +86,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // CSRF protection for API calls
   const { getHeaders } = useCsrf();
@@ -149,20 +150,32 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
   // Fetch comments
   const fetchComments = async (pageNum: number = 1, append: boolean = false) => {
     if (loading) return;
+
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     setLoading(true);
-    
+
     try {
-      const res = await fetch(`/api/comments?clipId=${clipId}&page=${pageNum}&limit=20&sort=newest`);
-      
+      const res = await fetch(`/api/comments?clipId=${clipId}&page=${pageNum}&limit=20&sort=newest`, {
+        signal: abortController.signal,
+      });
+
       if (!res.ok) {
         const data = await res.json();
         const errorMessage = data.error || 'Failed to load comments. Please try again.';
         toast.error(errorMessage);
         return;
       }
-      
+
       const data = await res.json();
-      
+
       if (data.comments) {
         if (append) {
           setComments(prev => [...prev, ...data.comments]);
@@ -174,6 +187,10 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
         setPage(pageNum);
       }
     } catch (err) {
+      // Ignore aborted requests
+      if (err instanceof Error && err.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to fetch comments:', err);
       const errorMessage = err instanceof Error ? err.message : 'Network error. Please check your connection and try again.';
       toast.error(errorMessage);
@@ -187,6 +204,14 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
     if (isOpen && clipId) {
       fetchComments(1, false);
     }
+
+    // Cleanup: abort pending request on unmount or when modal closes
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, clipId]);
 

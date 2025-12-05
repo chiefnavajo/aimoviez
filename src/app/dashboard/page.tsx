@@ -761,16 +761,17 @@ function VotingArena() {
     setIsPaused(false);
   }, [activeIndex]);
 
-  // Video prefetching - preload next clip for smooth playback
+  // Video prefetching - preload next clips for smooth playback
   // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
-  // PERF: Reduced from 2 to 1 clip preload, use 'metadata' instead of 'auto'
+  // PERF: Use 'metadata' preload for faster initial load
   useEffect(() => {
     if (!votingData?.clips?.length) return;
 
     const cache = preloadedVideosRef.current;
-    // Only preload next 1 clip (reduced from 2 for better performance)
+    // Preload next 2 clips for smoother swiping experience
     const clipsToPreload = [
       (activeIndex + 1) % votingData.clips.length,
+      (activeIndex + 2) % votingData.clips.length,
     ];
 
     // Get clip IDs that should be preloaded

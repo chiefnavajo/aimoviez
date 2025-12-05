@@ -49,7 +49,7 @@ const cache = {
 const CACHE_TTL = {
   season: 60 * 1000,      // 1 minute for season
   slot: 30 * 1000,        // 30 seconds for active slot
-  clips: 15 * 1000,       // 15 seconds for clips
+  clips: 45 * 1000,       // 45 seconds for clips (optimized from 15s)
 };
 
 function getCached<T>(key: 'activeSeason' | 'activeSlot', fallback?: T): T | null {
@@ -132,12 +132,8 @@ interface TournamentClipRow {
   vote_count: number | null;
   weighted_score: number | null;
   hype_score?: number | null;
-  round_number?: number | null;
-  total_rounds?: number | null;
-  segment_index?: number | null;
-  badge_level?: string | null;
-  view_count?: number | null;
   created_at?: string | null;
+  view_count?: number | null;
 }
 
 interface VoteRow {
@@ -650,12 +646,13 @@ export async function GET(req: NextRequest) {
     const votedIdsSet = new Set(votedClipIds);
 
     // 5. Get total clip count for this slot (lightweight query)
+    // Status can be 'active' or 'competing' (both are valid for voting)
+    // Note: Not filtering by season_id since slot_position is unique per voting round
     const { count: totalClipCount, error: countError } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
-      .eq('season_id', seasonRow.id)
       .eq('slot_position', activeSlot.slot_position)
-      .eq('status', 'active');
+      .in('status', ['active', 'competing']);
 
     if (countError) {
       console.error('[GET /api/vote] countError:', countError);
@@ -663,16 +660,16 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. Fetch ALL active clips for this slot (both voted and unvoted)
+    // 6. Fetch ALL active/competing clips for this slot (both voted and unvoted)
     // This ensures user can always navigate between clips and revoke votes
-    // Filter by season_id to only get clips from the current active season
+    // Status can be 'active' or 'competing' (both are valid for voting)
+    // Note: Not filtering by season_id since slot_position is unique per voting round
     // PERFORMANCE: Select only needed columns instead of *
     const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
-      .select('id, thumbnail_url, video_url, username, avatar_url, badge_level, genre, segment_index, round_number, vote_count, weighted_score, hype_score')
-      .eq('season_id', seasonRow.id)
+      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
       .eq('slot_position', activeSlot.slot_position)
-      .eq('status', 'active')
+      .in('status', ['active', 'competing'])
       .order('created_at', { ascending: true })
       .limit(CLIP_POOL_SIZE);
 
@@ -744,7 +741,7 @@ export async function GET(req: NextRequest) {
       const voteCount = row.vote_count ?? 0;
       const weightedScore = row.weighted_score ?? voteCount;
       const hype = row.hype_score ?? weightedScore ?? voteCount;
-      const segmentIndex = (row.segment_index ?? activeSlot.slot_position ?? 1) - 1;
+      const segmentIndex = (row.slot_position ?? activeSlot.slot_position ?? 1) - 1;
 
       return {
         id: row.id,
@@ -758,11 +755,11 @@ export async function GET(req: NextRequest) {
         user: {
           username: row.username || 'Creator',
           avatar_url: row.avatar_url || fallbackAvatar(row.id),
-          badge_level: row.badge_level ?? 'CREATOR',
+          badge_level: 'CREATOR',
         },
         genre: normalizeGenre(row.genre ?? activeSlot.genre ?? 'COMEDY'),
-        duration: row.round_number ?? 8,
-        round_number: row.round_number ?? 1,
+        duration: 8,
+        round_number: 1,
         total_rounds: totalSlots,
         segment_index: segmentIndex,
         hype_score: hype,
@@ -1017,9 +1014,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY: Validate clip status - only allow voting on approved/active clips
-    const invalidStatuses = ['rejected', 'archived', 'pending', 'removed'];
-    if (clipData.status && invalidStatuses.includes(clipData.status.toLowerCase())) {
+    // SECURITY: Validate clip status - only allow voting on approved/active/competing clips
+    const validStatuses = ['active', 'competing', 'approved'];
+    if (clipData.status && !validStatuses.includes(clipData.status.toLowerCase())) {
       return NextResponse.json(
         {
           success: false,

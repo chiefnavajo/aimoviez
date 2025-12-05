@@ -93,6 +93,7 @@ const PlaylistItem = memo(function PlaylistItem({
 function WatchMoviePageContent() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
   const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -136,6 +137,55 @@ function WatchMoviePageContent() {
   useEffect(() => {
     autoplayEnabledRef.current = autoplayEnabled;
   }, [autoplayEnabled]);
+
+  // Video preloading - preload next 2 slots for smooth playback
+  useEffect(() => {
+    if (!lockedSlots?.length) return;
+
+    const cache = preloadedVideosRef.current;
+    const slotsToPreload = [
+      (currentSlotIndex + 1) % lockedSlots.length,
+      (currentSlotIndex + 2) % lockedSlots.length,
+    ].filter(idx => idx !== currentSlotIndex);
+
+    const preloadIds = new Set<string>();
+    slotsToPreload.forEach((index) => {
+      const slot = lockedSlots[index];
+      if (slot?.clip?.video_url) {
+        preloadIds.add(slot.id);
+        if (!cache.has(slot.id)) {
+          const video = document.createElement('video');
+          video.preload = 'metadata';
+          video.muted = true;
+          video.playsInline = true;
+          video.src = slot.clip.video_url;
+          video.load();
+          cache.set(slot.id, video);
+        }
+      }
+    });
+
+    // Cleanup old preloaded videos
+    cache.forEach((video, slotId) => {
+      if (!preloadIds.has(slotId)) {
+        video.src = '';
+        video.load();
+        cache.delete(slotId);
+      }
+    });
+  }, [currentSlotIndex, lockedSlots]);
+
+  // Cleanup preloaded videos on unmount
+  useEffect(() => {
+    const cache = preloadedVideosRef.current;
+    return () => {
+      cache.forEach((video) => {
+        video.src = '';
+        video.load();
+      });
+      cache.clear();
+    };
+  }, []);
 
   // Memoized event handlers to prevent re-creation on every render
   const handleTimeUpdate = useCallback(() => {

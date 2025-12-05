@@ -46,11 +46,22 @@ export default function MiniLeaderboard({
 
   // Use ref to store topClips for voting activity calculation without causing re-renders
   const topClipsRef = useRef<LeaderClip[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Memoized fetch functions to prevent interval memory leaks
   const fetchTopClips = useCallback(async () => {
+    // Cancel any pending request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
     try {
-      const response = await fetch('/api/leaderboard/clips?limit=5');
+      const response = await fetch('/api/leaderboard/clips?limit=5', {
+        signal: abortController.signal,
+      });
       if (response.ok) {
         const data = await response.json();
         const clips = (data.clips || data.leaderboard || []).slice(0, 5).map((clip: any, index: number) => ({
@@ -65,6 +76,10 @@ export default function MiniLeaderboard({
         topClipsRef.current = clips;
       }
     } catch (error) {
+      // Ignore aborted requests
+      if (error instanceof Error && error.name === 'AbortError') {
+        return;
+      }
       console.error('Failed to fetch leaderboard:', error);
     }
     setIsLoading(false);
@@ -95,7 +110,14 @@ export default function MiniLeaderboard({
       fetchTopClips();
       fetchVotingActivity();
     }, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      // Abort any pending request on unmount
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
   }, [fetchTopClips, fetchVotingActivity]);
 
   // Pulse effect when votes change

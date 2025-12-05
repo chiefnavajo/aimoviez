@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { ReactNode } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 
 interface PageTransitionProps {
   children: ReactNode;
@@ -32,6 +32,21 @@ const pageVariants = {
 };
 
 export default function PageTransition({ children }: PageTransitionProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Render without animation on server, animate after hydration
+  if (!mounted) {
+    return (
+      <div className="min-h-screen">
+        {children}
+      </div>
+    );
+  }
+
   return (
     <motion.div
       initial="initial"
