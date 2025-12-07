@@ -1,0 +1,9 @@
+This is the message from curses , maybe it will help p with the persisting problem:I can see the issue clearly from the screenshots. Both show black video areas - image 1B.png shows video 1/2 is black, and 2B.png shows video 2/2 is black after scrolling.
+Looking at the dashboard code, I can identify the root cause. The video player has a problematic implementation:
+Double-keying issue - Both AnimatePresence wrapper (key=activeIndex) AND the video element (key=clip_id) have keys, causing double unmount/remount
+Single videoRef - One videoRef is shared but gets invalidated during AnimatePresence transitions
+Animation timing conflict - AnimatePresence mode="wait" waits for exit animation before mounting new video, causing playback issues
+Let me check if there are any related video handling patterns elsewhere in the codebase:
+Now I have a clear understanding of the bug. Let me create a plan to fix the video playback issue:
+
+Fix the issue where videos go black when scrolling between clips on the dashboard. The problem is caused by conflicting React keys and AnimatePresence exit animation timing that prevent the new video from properly loading and playing.

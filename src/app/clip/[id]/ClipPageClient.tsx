@@ -243,7 +243,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
           {/* Avatar */}
           <Link href={`/profile/${clip.username}`}>
             <div className="relative">
-              <Image src={clip.avatar_url} alt={clip.username} width={48} height={48} className="w-12 h-12 rounded-full border-2 border-white" />
+              <Image src={clip.avatar_url} alt={clip.username} width={48} height={48} className="w-12 h-12 rounded-full border-2 border-white" unoptimized={clip.avatar_url?.includes('dicebear')} />
             </div>
           </Link>
 

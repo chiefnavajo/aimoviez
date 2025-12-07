@@ -1,10 +1,7 @@
 // lib/notifications.ts
-// Notification helper functions
+// Notification helper functions (server-side only)
 
 import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export type NotificationType =
   | 'clip_approved'
@@ -18,7 +15,8 @@ export type NotificationType =
   | 'system_announcement';
 
 /**
- * Helper function to create a notification (can be called from other APIs)
+ * Helper function to create a notification (server-side only)
+ * This function requires SUPABASE_SERVICE_ROLE_KEY and should only be called from API routes
  */
 export async function createNotification(params: {
   user_key: string;
@@ -26,8 +24,17 @@ export async function createNotification(params: {
   title: string;
   message: string;
   action_url?: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Guard against missing environment variables
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[createNotification] Missing Supabase environment variables');
+    return null;
+  }
+
   const supabase = createClient(supabaseUrl, supabaseKey);
 
   const { data, error } = await supabase

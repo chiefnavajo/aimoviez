@@ -1,0 +1,63 @@
+SECURITY CONCERNS
+
+  1. X-Forwarded-For header spoofable - Used for voter_key without validation
+  2. Empty ALLOWED_EMAILS allows all users - No enforcement if env var missing
+  3. localStorage stores auth state - Vulnerable to XSS
+  4. Error messages expose internals - details: err.message in 500 responses
+  5. No CSRF protection - Admin routes don't validate origin
+
+  ---
+  ARCHITECTURE INCONSISTENCIES
+
+  | Area            | Inconsistency
+                    |
+  |-----------------|----------------------------------------------------------
+  ------------------|
+  | Season status   | draft, active, finished, archived - 4 different states
+  used inconsistently |
+  | Slot status     | Code mentions archived but never uses it
+                    |
+  | Clip status     | voting is a slot status but appears in clip type
+  definition                |
+  | Response format | Mix of {success}, {ok}, {error} formats
+                    |
+  | React Query     | Dashboard uses it, other pages use raw fetch()
+                    |
+
+  ---
+  RECOMMENDED FIX PRIORITY
+
+  Week 1 (Critical):
+  1. Fix vote count double-increment (remove API update, keep trigger)
+  2. Fix column name winner_tournament_clip_id in 4 files
+  3. Add auth to notification POST endpoint
+  4. Remove Supabase key fallback in advance-slot
+
+  Week 2 (High):
+  5. Fix user_id vs voter_key vote storage
+  6. Fix longest_streak calculation
+  7. Add missing table DDL to migrations
+  8. Add rate limiting to profile endpoints
+
+  Week 3 (Medium):
+  9. Fix N+1 queries in admin/seasons
+  10. Add LIMIT to leaderboard queries
+  11. Fix pagination validation
+  12. Clean up upload progress interval
+
+  ---
+  POSITIVE FINDINGS
+
+  - Admin routes properly protected with requireAdmin()
+  - Optimistic updates in CommentsSection well-implemented
+  - Pusher subscriptions properly cleaned up
+  - Keyboard navigation works well
+  - Rate limiting on vote/upload/comment endpoints
+  - Good loading states throughout
+  - Framer Motion animations smooth
+
+  ---
+  This analysis covered 38 API routes, 13 pages, 16 SQL migrations, and
+  approximately 15,000+ lines of code. The most urgent issues are the vote
+  count double-increment and the column name mismatch, as these are actively
+  causing incorrect data in production.

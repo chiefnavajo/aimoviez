@@ -1,15 +1,14 @@
 'use client';
 
 // ============================================================================
-// VOTING ARENA - FINAL CLEAN VERSION (V5.4)
+// VOTING ARENA - FINAL CLEAN VERSION (V5.5)
 // ============================================================================
 // ✅ Sound enabled by default (unmuted)
 // ✅ Mute/Unmute toggle button in right column
 // ✅ No play button overlay (auto-plays smoothly)
 // ✅ Comments panel transparent with blur (video visible behind)
 // ✅ Vote button on right (visible, solid bg)
-// ✅ 3-item nav only (Story, Upload, Profile)
-// ✅ Bigger nav icons and text
+// ✅ Shared BottomNavigation (Story, Watch, Upload, Ranks, Profile)
 // ✅ Transparent nav background
 // ✅ ~95% video visibility
 // ============================================================================
@@ -21,7 +20,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Share2, BookOpen, Plus, User, Volume2, VolumeX, Trophy, HelpCircle } from 'lucide-react';
+import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle } from 'lucide-react';
+import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { sounds } from '@/lib/sounds';
@@ -638,39 +638,6 @@ const ActionButton = memo(function ActionButton({ icon, label, onClick, ariaLabe
 });
 
 // ============================================================================
-// NAV BUTTON (Bigger size)
-// ============================================================================
-
-interface NavButtonProps {
-  href: string;
-  icon: React.ReactNode;
-  label: string;
-  isActive?: boolean;
-}
-
-function NavButton({ href, icon, label, isActive = false }: NavButtonProps) {
-  const content = (
-    <motion.div
-      whileTap={{ scale: 0.9 }}
-      className="flex flex-col items-center gap-1 py-2 px-6"
-    >
-      <div className={`text-2xl ${isActive ? 'text-white' : 'text-white/70'}`}>
-        {icon}
-      </div>
-      <span className={`text-xs font-medium ${isActive ? 'text-white' : 'text-white/70'}`}>
-        {label}
-      </span>
-    </motion.div>
-  );
-
-  if (isActive) {
-    return <div role="button" aria-current="page" aria-label={label}>{content}</div>;
-  }
-
-  return <Link href={href} aria-label={`Navigate to ${label}`}>{content}</Link>;
-}
-
-// ============================================================================
 // MAIN VOTING ARENA
 // ============================================================================
 
@@ -902,6 +869,10 @@ function VotingArena() {
       setIsVoting(false);
     },
     onSuccess: async (_data, { voteType }) => {
+      // Get the UPDATED votesToday from query cache (after optimistic update)
+      const updatedData = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      const currentVotesToday = updatedData?.totalVotesToday ?? 0;
+
       // Sound effects and confetti for milestones and special votes
       if (voteType === 'mega') {
         sounds.play('megaVote');
@@ -913,7 +884,8 @@ function VotingArena() {
         const confettiLib = await loadConfetti();
         confettiLib({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
         toast.success('SUPER VOTE! 3x Power!', { icon: '⚡' });
-      } else if (votesToday === 0 || votesToday === 49 || votesToday === 99 || votesToday === 199) {
+      } else if (currentVotesToday === 1 || currentVotesToday === 50 || currentVotesToday === 100 || currentVotesToday === 200) {
+        // Milestone confetti: 1st vote, 50th, 100th, 200th
         sounds.play('milestone');
         const confettiLib = await loadConfetti();
         confettiLib({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
@@ -1738,34 +1710,8 @@ function VotingArena() {
         clipUsername={currentClip?.username}
       />
 
-      {/* ============ BOTTOM NAV (4 items, transparent, bigger) ============ */}
-      <div className="absolute bottom-0 left-0 right-0 z-40 pb-safe">
-        {/* Gradient fade for readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent pointer-events-none" />
-
-        <div className="relative flex items-center justify-around px-4 pb-4 pt-1">
-          <NavButton
-            href="/story"
-            icon={<BookOpen className="w-6 h-6" />}
-            label="Story"
-          />
-          <NavButton
-            href="/leaderboard"
-            icon={<Trophy className="w-6 h-6" />}
-            label="Rankings"
-          />
-          <NavButton
-            href="/upload"
-            icon={<Plus className="w-7 h-7" />}
-            label="Upload"
-          />
-          <NavButton
-            href="/profile"
-            icon={<User className="w-6 h-6" />}
-            label="Profile"
-          />
-        </div>
-      </div>
+      {/* ============ BOTTOM NAV ============ */}
+      <BottomNavigation />
     </div>
   );
 }

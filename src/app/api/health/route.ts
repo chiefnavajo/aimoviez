@@ -39,12 +39,13 @@ async function checkDatabase(): Promise<HealthCheck> {
 
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!url || !key) {
       return { name, status: 'fail', message: 'Missing database configuration' };
     }
 
+    // Use anon key - service role not needed for health checks
     const supabase = createClient(url, key);
 
     // Simple query to check connectivity
@@ -83,19 +84,24 @@ async function checkStorage(): Promise<HealthCheck> {
 
   try {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!url || !key) {
       return { name, status: 'fail', message: 'Missing storage configuration' };
     }
 
+    // Use anon key - service role not needed for health checks
     const supabase = createClient(url, key);
 
-    // List buckets to check storage is accessible
-    const { error } = await supabase.storage.listBuckets();
+    // Check a public bucket exists (doesn't need service role)
+    const { error } = await supabase.storage.from('clips').list('', { limit: 1 });
     const duration = performance.now() - start;
 
     if (error) {
+      // Bucket not found or permission error is still a valid response
+      if (error.message?.includes('not found')) {
+        return { name, status: 'warn', message: 'Bucket not configured', duration };
+      }
       return { name, status: 'fail', message: error.message, duration };
     }
 
@@ -218,9 +224,9 @@ export async function GET() {
 // Also support HEAD requests for simple uptime checks
 export async function HEAD() {
   try {
-    // Quick database check
+    // Quick database check using anon key
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (url && key) {
       const supabase = createClient(url, key);

@@ -2,7 +2,7 @@
 
 // UploadPanel - Upload UI with drag-drop, genre selector, and validation
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, CheckCircle, Loader } from 'lucide-react';
 import { Genre, UploadPayload } from '@/types';
@@ -22,6 +22,16 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -56,11 +66,19 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
     setIsUploading(true);
     setUploadProgress(0);
 
-    // Simulate upload progress
-    const progressInterval = setInterval(() => {
+    // Clear any existing interval before starting new one
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+    }
+
+    // Simulate upload progress using ref for proper cleanup
+    progressIntervalRef.current = setInterval(() => {
       setUploadProgress(prev => {
         if (prev >= 90) {
-          clearInterval(progressInterval);
+          if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+          }
           return 90;
         }
         return prev + 10;
@@ -69,8 +87,11 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
 
     try {
       await onSubmit({ file, title: title.trim(), genre });
-      
-      clearInterval(progressInterval);
+
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setUploadProgress(100);
       setShowSuccess(true);
 
@@ -85,7 +106,10 @@ export default function UploadPanel({ onSubmit, hasUploadedThisRound }: UploadPa
       }, 2000);
 
     } catch {
-      clearInterval(progressInterval);
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+        progressIntervalRef.current = null;
+      }
       setIsUploading(false);
       setUploadProgress(0);
     }

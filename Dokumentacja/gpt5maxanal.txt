@@ -119,3 +119,7 @@ For each issue found, show:
 - 🎯 Impact (High/Medium/Low)
 
 Sort by impact, highest first.
+
+
+
+the frist video plays first time , if i scroll to the next one the second video is black , and if i scroll again o the first it is also black, read 1b.png, 2b.png, 

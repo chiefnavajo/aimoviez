@@ -45,7 +45,6 @@ import {
 } from 'lucide-react';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
-import StoryProgressBar from '@/components/StoryProgressBar';
 import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
@@ -179,23 +178,13 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const [lastTap, setLastTap] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [clipDurations, setClipDurations] = useState<number[]>([]);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [clipDurations, setClipDurations] = useState<number[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const progressRef = useRef<HTMLDivElement>(null);
+  const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
-
-  // Calculate total duration based on known clip durations or estimate 8s per clip
-  const _totalStoryDuration = clipDurations.length === completedSegments.length && clipDurations.length > 0
-    ? clipDurations.reduce((sum, d) => sum + d, 0)
-    : completedSegments.length * 8;
-
-  // Calculate current position in the overall story timeline
-  const timeBeforeCurrentClip = clipDurations.slice(0, currentIndex).reduce((sum, d) => sum + d, 0);
-  const _overallCurrentTime = timeBeforeCurrentClip + currentTime;
 
   const isActive = season.status === 'active';
   const isCompleted = season.status === 'completed';
@@ -205,7 +194,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   useEffect(() => {
     setCurrentIndex(0);
     setIsPlaying(true); // Auto-play when season loads
-    setClipDurations([]);
     setVideoLoaded(false);
   }, [season.id]);
 
@@ -241,27 +229,46 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       setShowContributorsPopup(false);
       return;
     }
-    
+
     if (completedSegments.length === 0 || showContributors || showComments) return;
-    
+
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
-    
+
     if (now - lastTap < DOUBLE_TAP_DELAY) {
       // Double tap detected - toggle fullscreen
+      // Clear pending single-tap timer
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current);
+        tapTimerRef.current = null;
+      }
       onToggleFullscreen();
       setLastTap(0);
     } else {
       // Single tap - wait to see if it's a double tap
       setLastTap(now);
-      setTimeout(() => {
+      // Clear any existing timer before setting new one
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current);
+      }
+      tapTimerRef.current = setTimeout(() => {
         // If no second tap happened, toggle play/pause
         if (Date.now() - now >= DOUBLE_TAP_DELAY - 50) {
           setIsPlaying(prev => !prev);
         }
+        tapTimerRef.current = null;
       }, DOUBLE_TAP_DELAY);
     }
   };
+
+  // Cleanup tap timer on unmount
+  useEffect(() => {
+    return () => {
+      if (tapTimerRef.current) {
+        clearTimeout(tapTimerRef.current);
+      }
+    };
+  }, []);
 
   const handlePlayPause = () => {
     if (completedSegments.length === 0 || showContributors || showComments) return;
@@ -283,65 +290,50 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (navigator.share) {
-      try { await navigator.share({ title: `AiMoviez Season ${season.number}`, url: window.location.href }); } catch {}
+      try {
+        await navigator.share({
+          title: `AiMoviez Season ${season.number}`,
+          url: window.location.href
+        });
+      } catch (error) {
+        // User cancelled share dialog (AbortError) - ignore
+        // For other errors, try clipboard fallback
+        if (error instanceof Error && error.name !== 'AbortError') {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+          } catch {
+            // Clipboard also failed - nothing we can do
+          }
+        }
+      }
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      // No native share - try clipboard
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+      } catch {
+        // Clipboard failed - nothing we can do
+      }
     }
   };
 
   // Progress bar handlers
   const handleTimeUpdate = () => {
-    if (videoRef.current && !isDragging) {
+    if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
     }
   };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration);
+      const clipDuration = videoRef.current.duration;
+      setDuration(clipDuration);
+      // Track duration for each clip for accurate timeline seeking
+      setClipDurations(prev => {
+        const newDurations = [...prev];
+        newDurations[currentIndex] = clipDuration;
+        return newDurations;
+      });
     }
-  };
-
-  const _handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.stopPropagation();
-    if (!progressRef.current || !videoRef.current) return;
-
-    const rect = progressRef.current.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percentage = clickX / rect.width;
-    const newTime = percentage * duration;
-
-    videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const _handleProgressDrag = (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
-    if (!isDragging || !progressRef.current || !videoRef.current) return;
-
-    const rect = progressRef.current.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const percentage = clickX / rect.width;
-    const newTime = percentage * duration;
-
-    videoRef.current.currentTime = newTime;
-    setCurrentTime(newTime);
-  };
-
-  const _handleDragStart = (e: React.MouseEvent | React.TouchEvent) => {
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const _handleDragEnd = () => {
-    setIsDragging(false);
-  };
-
-  // Format time for display
-  const _formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   // Coming Soon View
@@ -403,18 +395,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 preload="auto"
                 autoPlay={isPlaying}
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={() => {
-                  handleLoadedMetadata();
-                  // Store this clip's duration
-                  if (videoRef.current) {
-                    const newDuration = videoRef.current.duration;
-                    setClipDurations(prev => {
-                      const updated = [...prev];
-                      updated[currentIndex] = newDuration;
-                      return updated;
-                    });
-                  }
-                }}
+                onLoadedMetadata={handleLoadedMetadata}
                 onCanPlay={() => {
                   // Video can start playing - mark as loaded and play if needed
                   setVideoLoaded(true);
@@ -529,7 +510,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
         {/* Creator Avatar - Hidden on very small screens, visible on md+ */}
         {currentSegment?.winning_clip && (
-          <div className="hidden sm:block relative">
+          <Link href={`/profile/${currentSegment.winning_clip.username}`} className="hidden sm:block relative">
             <Image
               src={currentSegment.winning_clip.avatar_url}
               alt=""
@@ -537,11 +518,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
               height={48}
               className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
+              unoptimized={currentSegment.winning_clip.avatar_url?.includes('dicebear')}
             />
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 md:w-5 md:h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
               <span className="text-white text-[8px] md:text-[10px] font-bold">+</span>
             </div>
-          </div>
+          </Link>
         )}
 
         {/* Trophy/Segments */}
@@ -583,7 +565,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 <div className="overflow-y-auto" style={{ maxHeight: 'calc(60vh - 44px)' }}>
                   {getTopContributors(completedSegments).map((contributor, _idx) => (
                     <div key={contributor.username} className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 border-b border-white/5 last:border-b-0">
-                      <Image src={contributor.avatar_url} alt="" width={32} height={32} className="w-8 h-8 rounded-full" />
+                      <Image src={contributor.avatar_url} alt="" width={32} height={32} className="w-8 h-8 rounded-full" unoptimized={contributor.avatar_url?.includes('dicebear')} />
                       <div className="flex-1 min-w-0">
                         <p className="text-white text-sm font-medium truncate">@{contributor.username}</p>
                         <p className="text-white/50 text-xs">
@@ -705,33 +687,129 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
-      {/* Story Progress Bar - Clean single bar with segment grid modal */}
+      {/* Left Side: Up/Down Navigation Arrows */}
+      {completedSegments.length > 1 && (
+        <div className="absolute left-3 md:left-[200px] top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+          {/* Up Arrow */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (currentIndex > 0) {
+                setCurrentIndex(prev => prev - 1);
+                setCurrentTime(0);
+                if (videoRef.current) videoRef.current.currentTime = 0;
+              }
+            }}
+            className={`w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 ${
+              currentIndex === 0 ? 'opacity-30' : 'opacity-100'
+            }`}
+            disabled={currentIndex === 0}
+          >
+            <ChevronDown className="w-5 h-5 text-white rotate-180" />
+          </motion.button>
+
+          {/* Segment Counter */}
+          <div className="px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
+            <span className="text-white text-xs font-bold">{currentIndex + 1}/{completedSegments.length}</span>
+          </div>
+
+          {/* Down Arrow */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (currentIndex < completedSegments.length - 1) {
+                setCurrentIndex(prev => prev + 1);
+                setCurrentTime(0);
+                if (videoRef.current) videoRef.current.currentTime = 0;
+              }
+            }}
+            className={`w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 ${
+              currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'
+            }`}
+            disabled={currentIndex === completedSegments.length - 1}
+          >
+            <ChevronDown className="w-5 h-5 text-white" />
+          </motion.button>
+        </div>
+      )}
+
+      {/* Top: Seekable Progress Line - Shows overall story progress with time-based seeking */}
       {completedSegments.length > 0 && (
-        <div className="absolute bottom-36 md:bottom-24 left-4 md:left-60 right-4 md:right-20 z-20">
-          <StoryProgressBar
-            segments={season.slots}
-            totalSegments={season.total_slots}
-            currentIndex={currentIndex}
-            currentTime={currentTime}
-            duration={duration}
-            isPlaying={isPlaying}
-            onPlayPause={handlePlayPause}
-            onSegmentSelect={(index) => {
-              setCurrentIndex(index);
-              setCurrentTime(0);
-              if (videoRef.current) {
-                videoRef.current.currentTime = 0;
+        <div
+          className="absolute top-0 left-0 right-0 z-30 pt-2 px-2 cursor-pointer group"
+          onClick={(e) => {
+            e.stopPropagation();
+            const rect = e.currentTarget.getBoundingClientRect();
+            const clickX = e.clientX - rect.left - 8; // Account for px-2 padding
+            const width = rect.width - 16;
+            const percentage = Math.max(0, Math.min(1, clickX / width));
+
+            // Calculate total duration using known durations or estimate (8s per clip)
+            const DEFAULT_CLIP_DURATION = 8;
+            const totalDuration = completedSegments.reduce((sum, _, idx) => {
+              return sum + (clipDurations[idx] || DEFAULT_CLIP_DURATION);
+            }, 0);
+
+            // Calculate target time in the timeline
+            const targetTime = percentage * totalDuration;
+
+            // Find which segment and time within that segment
+            let accumulatedTime = 0;
+            let targetSegment = 0;
+            let timeInSegment = 0;
+
+            for (let i = 0; i < completedSegments.length; i++) {
+              const segmentDuration = clipDurations[i] || DEFAULT_CLIP_DURATION;
+              if (accumulatedTime + segmentDuration > targetTime) {
+                targetSegment = i;
+                timeInSegment = targetTime - accumulatedTime;
+                break;
               }
-              setIsPlaying(true);
-            }}
-            onSeekWithinClip={(time) => {
-              if (videoRef.current) {
-                videoRef.current.currentTime = time;
-                setCurrentTime(time);
-              }
-            }}
-            clipDurations={clipDurations}
-          />
+              accumulatedTime += segmentDuration;
+              targetSegment = i;
+              timeInSegment = segmentDuration; // At the end of last segment
+            }
+
+            // Jump to segment and time
+            if (targetSegment !== currentIndex) {
+              setCurrentIndex(targetSegment);
+            }
+            setCurrentTime(timeInSegment);
+            if (videoRef.current) {
+              videoRef.current.currentTime = timeInSegment;
+            }
+          }}
+        >
+          {/* Invisible touch target for easier tapping */}
+          <div className="h-4 flex items-center">
+            <div className="w-full h-0.5 group-hover:h-1 rounded-full bg-white/20 overflow-hidden transition-all">
+              <motion.div
+                className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500"
+                style={{
+                  width: (() => {
+                    // Calculate progress based on actual timeline
+                    const DEFAULT_CLIP_DURATION = 8;
+                    const totalDuration = completedSegments.reduce((sum, _, idx) => {
+                      return sum + (clipDurations[idx] || DEFAULT_CLIP_DURATION);
+                    }, 0);
+
+                    // Time elapsed: sum of all previous segments + current time in this segment
+                    let elapsedTime = 0;
+                    for (let i = 0; i < currentIndex; i++) {
+                      elapsedTime += clipDurations[i] || DEFAULT_CLIP_DURATION;
+                    }
+                    elapsedTime += currentTime;
+
+                    const overallProgress = totalDuration > 0 ? (elapsedTime / totalDuration) * 100 : 0;
+                    return `${Math.min(100, overallProgress)}%`;
+                  })(),
+                }}
+                transition={{ duration: 0.1, ease: 'linear' }}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -826,6 +904,8 @@ interface SeasonStripProps {
 function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, onSwipeRight }: SeasonStripProps) {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
@@ -850,37 +930,122 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
   const onTouchStart = (e: React.TouchEvent) => {
     setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
+    setTouchStartY(e.targetTouches[0].clientY);
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
-  const onTouchEnd = () => {
+  const onTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > minSwipeDistance;
-    const isRightSwipe = distance < -minSwipeDistance;
 
-    if (isLeftSwipe) {
-      onSwipeLeft(); // Next season
-    } else if (isRightSwipe) {
-      onSwipeRight(); // Previous season
+    // Check for vertical swipe to collapse/expand
+    const touchEndY = e.changedTouches[0].clientY;
+    if (touchStartY !== null) {
+      const verticalDistance = touchStartY - touchEndY;
+      if (Math.abs(verticalDistance) > minSwipeDistance) {
+        if (verticalDistance > 0) {
+          // Swipe up - expand
+          setIsExpanded(true);
+        } else {
+          // Swipe down - collapse
+          setIsExpanded(false);
+        }
+        return;
+      }
+    }
+
+    // Horizontal swipe for season change (only when expanded)
+    if (isExpanded) {
+      const distance = touchStart - touchEnd;
+      const isLeftSwipe = distance > minSwipeDistance;
+      const isRightSwipe = distance < -minSwipeDistance;
+
+      if (isLeftSwipe) {
+        onSwipeLeft(); // Next season
+      } else if (isRightSwipe) {
+        onSwipeRight(); // Previous season
+      }
     }
   };
 
   if (!selectedSeason) return null;
 
+  // Collapsed view - minimal pill
+  if (!isExpanded) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-transparent backdrop-blur-sm border-t border-white/10"
+        onClick={() => setIsExpanded(true)}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-white/30" />
+        </div>
+
+        {/* Collapsed content */}
+        <div className="flex items-center justify-center gap-3 px-4 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="text-white font-bold text-sm">Season {selectedSeason.number}</span>
+            {isActive && (
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-red-500/30">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-red-400 text-[9px] font-medium">LIVE</span>
+              </div>
+            )}
+            {isCompleted && (
+              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-green-500/30">
+                <Check className="w-3 h-3 text-green-400" />
+              </div>
+            )}
+          </div>
+
+          {/* Mini progress */}
+          {!isComingSoon && (
+            <div className="flex items-center gap-2">
+              <div className="w-16 h-1 rounded-full bg-white/20 overflow-hidden">
+                <div
+                  className={`h-full ${isCompleted ? 'bg-green-500' : 'bg-gradient-to-r from-cyan-500 to-purple-500'}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span className="text-white/50 text-[10px]">{progressPercent}%</span>
+            </div>
+          )}
+
+          <ChevronDown className="w-4 h-4 text-white/50 rotate-180" />
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Expanded view - full season strip
   return (
-    <div
+    <motion.div
       ref={containerRef}
-      className="bg-black/80 backdrop-blur-md border-t border-white/10"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="bg-transparent backdrop-blur-sm border-t border-white/10"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
+      {/* Drag handle to collapse */}
+      <div
+        className="flex justify-center pt-2 pb-1 cursor-pointer"
+        onClick={() => setIsExpanded(false)}
+      >
+        <div className="w-10 h-1 rounded-full bg-white/30" />
+      </div>
+
       {/* Season Indicator Dots */}
-      <div className="flex justify-center gap-1.5 pt-2 pb-1">
+      <div className="flex justify-center gap-1.5 pb-1">
         {seasons.map((season, _idx) => (
           <button
             key={season.id}
@@ -1009,9 +1174,9 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
 
       {/* Swipe hint text */}
       <div className="text-center pb-1">
-        <span className="text-white/60 text-[9px]">Swipe to change season</span>
+        <span className="text-white/60 text-[9px]">Swipe to change season • Swipe down to collapse</span>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -1376,7 +1541,7 @@ function StoryPage() {
         </div>
 
         {/* Navigation Arrows - Left Side, Vertically Centered (matches dashboard) */}
-        <div className="hidden md:flex absolute left-8 top-1/2 -translate-y-1/2 flex-col gap-6 z-30">
+        <div className="hidden md:flex absolute left-[200px] top-1/2 -translate-y-1/2 flex-col gap-6 z-30">
           <motion.button
             whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
             whileTap={{ scale: 0.9 }}

@@ -8,12 +8,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // ============================================================================
-// SUPABASE CLIENT
+// SUPABASE CLIENT (using anon key for read-only public data)
 // ============================================================================
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     throw new Error('Missing Supabase environment variables');
@@ -71,6 +71,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       features,
       configs,
+    }, {
+      headers: {
+        // Cache for 5 minutes to reduce DB load
+        'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=60',
+      },
     });
 
   } catch (error) {

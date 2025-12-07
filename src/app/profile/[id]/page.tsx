@@ -192,7 +192,7 @@ export default function CreatorProfilePage() {
           <div className="flex flex-col items-center mb-6">
             <div className="relative mb-3">
               <div className="w-24 h-24 md:w-28 md:h-28 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 p-1 relative">
-                <Image src={creator.avatar_url} alt={creator.username} fill sizes="112px" className="rounded-full bg-black object-cover" />
+                <Image src={creator.avatar_url} alt={creator.username} fill sizes="112px" className="rounded-full bg-black object-cover" unoptimized={creator.avatar_url?.includes('dicebear')} />
               </div>
               <div className="absolute -bottom-2 -right-2 w-10 h-10 md:w-12 md:h-12 bg-gradient-to-r from-yellow-500 to-orange-500 rounded-full flex items-center justify-center font-black text-sm md:text-base border-4 border-black">{creator.level}</div>
             </div>

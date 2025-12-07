@@ -369,7 +369,7 @@ function ProfilePageContent() {
               {history.map((item, idx) => (
                 <Link key={`${item.clip_id}-${idx}`} href={`/profile/${item.creator_username}`}>
                   <motion.div whileTap={{ scale: 0.98 }} className="flex items-center gap-4 p-4 bg-white/5 rounded-xl hover:bg-white/10 transition-all">
-                    <Image src={item.creator_avatar} alt={item.creator_username} width={48} height={48} className="rounded-full bg-white/10" />
+                    <Image src={item.creator_avatar} alt={item.creator_username} width={48} height={48} className="rounded-full bg-white/10" unoptimized={item.creator_avatar?.includes('dicebear')} />
                     <div className="flex-1 min-w-0">
                       <div className="font-bold truncate">@{item.creator_username}</div>
                       <div className="text-sm text-white/60">Slot #{item.slot_position} • {new Date(item.voted_at).toLocaleDateString()}</div>
@@ -488,7 +488,7 @@ function ProfilePageContent() {
                   <div className="absolute -inset-2 rounded-full avatar-glow-ring opacity-60" />
                   {/* Animated gradient border */}
                   <div className="w-28 h-28 rounded-full gradient-border-animated p-[3px] relative">
-                    <Image src={avatarUrl} alt="Avatar" fill sizes="112px" className="rounded-full bg-black object-cover" />
+                    <Image src={avatarUrl} alt="Avatar" fill sizes="112px" className="rounded-full bg-black object-cover" unoptimized={avatarUrl?.includes('dicebear')} />
                   </div>
                   {/* Level badge with gold glow */}
                   <motion.div
@@ -582,7 +582,7 @@ function ProfilePageContent() {
                 <div className="absolute -inset-1.5 rounded-full avatar-glow-ring opacity-50" />
                 {/* Animated gradient border */}
                 <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full gradient-border-animated p-[2px] relative">
-                  <Image src={avatarUrl} alt="Avatar" fill sizes="(max-width: 640px) 64px, 80px" className="rounded-full bg-black object-cover" />
+                  <Image src={avatarUrl} alt="Avatar" fill sizes="(max-width: 640px) 64px, 80px" className="rounded-full bg-black object-cover" unoptimized={avatarUrl?.includes('dicebear')} />
                 </div>
                 {/* Level badge */}
                 <motion.div

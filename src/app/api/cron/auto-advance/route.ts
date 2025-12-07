@@ -23,11 +23,18 @@ function createSupabaseClient() {
 }
 
 export async function GET(req: NextRequest) {
-  // Optional: Verify cron secret for security
+  // REQUIRED: Verify cron secret for security
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+
+  // Fail if CRON_SECRET is not configured
+  if (!cronSecret) {
+    console.error('[auto-advance] CRON_SECRET not configured');
+    return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
+  }
+
+  // Validate authorization header
+  if (authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
