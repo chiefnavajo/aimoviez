@@ -100,19 +100,11 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Update clip statuses: winner gets 'locked', others get 'eliminated'
-        // First, mark winner as locked
+        // Update clip status: winner gets 'locked', others stay 'active'
         await supabase
           .from('tournament_clips')
           .update({ status: 'locked' })
           .eq('id', topClip.id);
-
-        // Then, mark all other clips in this slot as eliminated
-        await supabase
-          .from('tournament_clips')
-          .update({ status: 'eliminated' })
-          .eq('slot_position', slot.slot_position)
-          .neq('id', topClip.id);
 
         // Check if this was the last slot
         const totalSlots = slot.seasons?.total_slots || 75;
