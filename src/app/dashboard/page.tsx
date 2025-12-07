@@ -1477,64 +1477,56 @@ function VotingArena() {
       )}
 
       {/* ============ VIDEO ============ */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={activeIndex}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0"
-          onClick={handleVideoTap}
-          onKeyDown={(e) => {
-            if (e.key === ' ' || e.key === 'Enter') {
-              e.preventDefault();
-              handleVideoTap();
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          aria-label={currentClip ? `Video by ${currentClip.username}. Press space to play or pause` : 'Video player'}
-        >
-          {videoError ? (
-            <div className="w-full h-full flex items-center justify-center bg-black">
-              <div className="text-center">
-                <div className="text-5xl mb-4">🎬</div>
-                <p className="text-white/60">Video unavailable</p>
-              </div>
+      <div
+        className="absolute inset-0"
+        onClick={handleVideoTap}
+        onKeyDown={(e) => {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            handleVideoTap();
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={currentClip ? `Video by ${currentClip.username}. Press space to play or pause` : 'Video player'}
+      >
+        {videoError ? (
+          <div className="w-full h-full flex items-center justify-center bg-black">
+            <div className="text-center">
+              <div className="text-5xl mb-4">🎬</div>
+              <p className="text-white/60">Video unavailable</p>
             </div>
-          ) : currentClip ? (
-            <>
-              <video
-                ref={videoRef}
-                key={currentClip.clip_id}
-                src={currentClip.video_url ?? '/placeholder-video.mp4'}
-                poster={currentClip?.thumbnail_url}
-                className="w-full h-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
-                style={{ WebkitAppearance: 'none' } as React.CSSProperties}
-                autoPlay
-                loop
-                muted={isMuted}
-                playsInline
-                webkit-playsinline="true"
-                x5-playsinline="true"
-                disablePictureInPicture
-                controlsList="nodownload nofullscreen noremoteplayback"
-                preload="auto"
-                onError={() => setVideoError(true)}
-                onCanPlay={(e) => {
-                  const video = e.currentTarget;
-                  if (video.paused) {
-                    video.play().catch(() => {
-                      video.muted = true;
-                      video.play().catch(() => {});
-                    });
-                  }
-                }}
-              />
-            </>
-          ) : null}
-        </motion.div>
-      </AnimatePresence>
+          </div>
+        ) : currentClip ? (
+          <video
+            ref={videoRef}
+            key={currentClip.clip_id}
+            src={currentClip.video_url ?? '/placeholder-video.mp4'}
+            poster={currentClip?.thumbnail_url}
+            className="w-full h-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
+            style={{ WebkitAppearance: 'none' } as React.CSSProperties}
+            autoPlay
+            loop
+            muted={isMuted}
+            playsInline
+            webkit-playsinline="true"
+            x5-playsinline="true"
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noremoteplayback"
+            preload="auto"
+            onError={() => setVideoError(true)}
+            onCanPlay={(e) => {
+              const video = e.currentTarget;
+              if (video.paused) {
+                video.play().catch(() => {
+                  video.muted = true;
+                  video.play().catch(() => {});
+                });
+              }
+            }}
+          />
+        ) : null}
+      </div>
 
       {/* ============ TOP: Mini Leaderboard ============ */}
       <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-2">
