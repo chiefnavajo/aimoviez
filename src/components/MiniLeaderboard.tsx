@@ -64,14 +64,21 @@ export default function MiniLeaderboard({
       });
       if (response.ok) {
         const data = await response.json();
-        const clips = (data.clips || data.leaderboard || []).slice(0, 5).map((clip: any, index: number) => ({
-          id: clip.id,
-          clip_id: clip.clip_id || clip.id,
-          thumbnail_url: clip.thumbnail_url || `https://api.dicebear.com/7.x/shapes/svg?seed=${clip.id}`,
-          username: clip.username || clip.user?.username || 'Creator',
-          vote_count: clip.vote_count || clip.votes || 0,
-          rank: index + 1,
-        }));
+        const clips = (data.clips || data.leaderboard || []).slice(0, 5).map((clip: any, index: number) => {
+          // Get thumbnail URL, but fallback to placeholder if it's a video URL (.mp4)
+          let thumbnailUrl = clip.thumbnail_url;
+          if (!thumbnailUrl || thumbnailUrl.endsWith('.mp4') || thumbnailUrl.endsWith('.webm')) {
+            thumbnailUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${clip.id}`;
+          }
+          return {
+            id: clip.id,
+            clip_id: clip.clip_id || clip.id,
+            thumbnail_url: thumbnailUrl,
+            username: clip.username || clip.user?.username || 'Creator',
+            vote_count: clip.vote_count || clip.votes || 0,
+            rank: index + 1,
+          };
+        });
         setTopClips(clips);
         topClipsRef.current = clips;
       }
@@ -210,12 +217,13 @@ export default function MiniLeaderboard({
                 />
               </div>
 
-              {/* Collapse Button */}
+              {/* Collapse Button - Larger touch target for mobile */}
               <button
                 onClick={onToggleCollapse}
-                className="p-1 rounded-full hover:bg-white/10 transition"
+                className="p-2.5 -m-1 rounded-full hover:bg-white/10 active:bg-white/20 transition"
+                aria-label="Collapse leaderboard"
               >
-                <ChevronUp className="w-4 h-4 text-white/60" />
+                <ChevronUp className="w-5 h-5 text-white/60" />
               </button>
             </div>
 

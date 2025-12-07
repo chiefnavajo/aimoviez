@@ -120,10 +120,16 @@ export async function GET(req: NextRequest) {
 
     // Enrich clips with rank - status defaults to competing
     const enrichedClips: LeaderboardClip[] = (clips || []).map((clip, index) => {
+      // Sanitize thumbnail_url - if it's a video file, use placeholder
+      let thumbnailUrl = clip.thumbnail_url;
+      if (!thumbnailUrl || thumbnailUrl.endsWith('.mp4') || thumbnailUrl.endsWith('.webm') || thumbnailUrl.endsWith('.mov')) {
+        thumbnailUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${clip.id}`;
+      }
+
       return {
         rank: offset + index + 1,
         id: clip.id,
-        thumbnail_url: clip.thumbnail_url,
+        thumbnail_url: thumbnailUrl,
         video_url: clip.video_url,
         username: clip.username || 'Creator',
         avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${clip.username || 'user'}`,
