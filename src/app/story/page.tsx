@@ -508,15 +508,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
       {/* Right Column - Responsive position for mobile */}
       <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
-        {/* Creator Avatar - Hidden on very small screens, visible on md+ */}
+        {/* Creator Avatar - Visible on all screen sizes with responsive sizing */}
         {currentSegment?.winning_clip && (
-          <Link href={`/profile/${currentSegment.winning_clip.username}`} className="hidden sm:block relative">
+          <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
             <Image
               src={currentSegment.winning_clip.avatar_url}
               alt=""
               width={48}
               height={48}
-              className="w-10 h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
+              className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
               unoptimized={currentSegment.winning_clip.avatar_url?.includes('dicebear')}
             />
