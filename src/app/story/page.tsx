@@ -507,7 +507,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           className="flex flex-col items-center gap-1 relative"
         >
           {/* Glowing vote button */}
-          <div className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center">
+          <div className="relative w-16 h-16 flex items-center justify-center">
             {/* Outer glow animation */}
             <motion.div
               className="absolute inset-[-4px] rounded-full"
@@ -543,7 +543,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
             {/* Infinity symbol */}
             <motion.span
-              className="relative z-10 text-2xl md:text-3xl font-black text-white"
+              className="relative z-10 text-3xl font-black text-white"
               animate={{ scale: [1, 1.1, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
               style={{ textShadow: '0 0 20px rgba(56, 189, 248, 0.8)' }}
@@ -553,7 +553,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           </div>
 
           {/* Vote count */}
-          <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
             {formatNumber(season.total_votes)}
           </span>
         </motion.button>
@@ -565,12 +565,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
             onClick={() => {
               window.location.href = '/leaderboard';
             }}
-            className="flex flex-col items-center gap-0.5"
+            className="flex flex-col items-center gap-1"
           >
-            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-              <Trophy className="w-5 h-5 md:w-6 md:h-6 text-white drop-shadow-lg" />
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
+              <Trophy className="w-7 h-7 text-white drop-shadow-lg" />
             </div>
-            <span className="text-white text-[9px] md:text-[10px] font-bold drop-shadow">Rankings</span>
+            <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Rankings</span>
           </motion.button>
         )}
         
