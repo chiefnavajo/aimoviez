@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
-  Clock, Bell, LogOut, Heart,
+  Clock, Bell, LogOut, Heart, ArrowLeft,
   ChevronRight, BookOpen, Plus, ShieldCheck
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
@@ -86,6 +87,7 @@ function formatNumber(num: number): string {
 // ============================================================================
 
 function ProfilePageContent() {
+  const router = useRouter();
   const { user, session } = useAuth();
   const { isAdmin } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
@@ -248,7 +250,7 @@ function ProfilePageContent() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: idx * 0.05, duration: 0.3 }}
                     whileHover={{ scale: badge.unlocked ? 1.08 : 1, y: badge.unlocked ? -2 : 0 }}
-                    className={`relative flex flex-col items-center p-3 rounded-xl transition-all cursor-default group ${
+                    className={`relative flex flex-col items-center p-3 rounded-xl transition-all cursor-default group min-h-[90px] ${
                       badge.unlocked
                         ? 'glass-card glow-cyan'
                         : 'bg-white/5 grayscale opacity-40'
@@ -260,8 +262,8 @@ function ProfilePageContent() {
                         <Lock className="w-4 h-4 text-white/60" />
                       </div>
                     )}
-                    <span className={`text-2xl mb-1 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
-                    <span className="text-[10px] font-medium text-center">{badge.name}</span>
+                    <span className={`text-2xl mb-2 flex-shrink-0 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
+                    <span className="text-[9px] font-medium text-center leading-tight line-clamp-2">{badge.name}</span>
                     {!badge.unlocked && badge.progress !== undefined && badge.target && badge.target > 0 && (
                       <div className="w-full mt-2">
                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
@@ -575,6 +577,14 @@ function ProfilePageContent() {
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 via-purple-900/20 to-pink-900/20" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
+          {/* Back button */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={() => router.back()}
+            className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm border border-white/20 flex items-center justify-center"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </motion.button>
           <div className="relative z-10 px-4 pt-12 pb-6">
             <div className="flex items-start gap-5 mb-6">
               <div className="relative flex-shrink-0">

@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     // Simple query without JOIN - more reliable across database configurations
     let query = supabase
       .from('tournament_clips')
-      .select('*', { count: 'exact' })
+      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at', { count: 'exact' })
       .order('vote_count', { ascending: false })
       .order('weighted_score', { ascending: false });
 

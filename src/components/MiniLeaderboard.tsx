@@ -14,7 +14,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Trophy, Flame, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Trophy, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface LeaderClip {
   id: string;
@@ -39,13 +39,9 @@ export default function MiniLeaderboard({
   onToggleCollapse,
 }: MiniLeaderboardProps) {
   const [topClips, setTopClips] = useState<LeaderClip[]>([]);
-  const [votesPerMinute, setVotesPerMinute] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [_lastVoteTime, _setLastVoteTime] = useState<Date | null>(null);
   const [showPulse, setShowPulse] = useState(false);
 
-  // Use ref to store topClips for voting activity calculation without causing re-renders
-  const topClipsRef = useRef<LeaderClip[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // Memoized fetch functions to prevent interval memory leaks
@@ -80,7 +76,6 @@ export default function MiniLeaderboard({
           };
         });
         setTopClips(clips);
-        topClipsRef.current = clips;
       }
     } catch (error) {
       // Ignore aborted requests
@@ -92,19 +87,6 @@ export default function MiniLeaderboard({
     setIsLoading(false);
   }, []);
 
-  // Memoized voting activity fetch - uses ref to avoid dependency on topClips state
-  const fetchVotingActivity = useCallback(() => {
-    try {
-      // Calculate from leaderboard data or use estimate
-      const totalVotes = topClipsRef.current.reduce((sum, clip) => sum + clip.vote_count, 0);
-      // Simulate activity based on total votes (in real app, track actual rate)
-      const baseRate = Math.max(5, Math.floor(totalVotes / 100));
-      const variance = Math.floor(Math.random() * 10) - 5;
-      setVotesPerMinute(Math.max(1, baseRate + variance));
-    } catch {
-      setVotesPerMinute(Math.floor(Math.random() * 20) + 5);
-    }
-  }, []);
 
   // Initial fetch
   useEffect(() => {
@@ -115,7 +97,6 @@ export default function MiniLeaderboard({
   useEffect(() => {
     const interval = setInterval(() => {
       fetchTopClips();
-      fetchVotingActivity();
     }, 10000);
     return () => {
       clearInterval(interval);
@@ -125,7 +106,7 @@ export default function MiniLeaderboard({
         abortControllerRef.current = null;
       }
     };
-  }, [fetchTopClips, fetchVotingActivity]);
+  }, [fetchTopClips]);
 
   // Pulse effect when votes change
   const voteCountsKey = topClips.map(c => c.vote_count).join(',');
@@ -179,7 +160,7 @@ export default function MiniLeaderboard({
             exit={{ opacity: 0 }}
             className="flex items-center gap-2 py-1 px-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
           >
-            {/* Expand Button - Far left, same size as collapse button */}
+            {/* Expand Button */}
             <button
               onClick={onToggleCollapse}
               className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
@@ -187,9 +168,9 @@ export default function MiniLeaderboard({
             >
               <ChevronDown className="w-5 h-5 text-white" />
             </button>
-            <Flame className={`w-4 h-4 ${showPulse ? 'text-orange-400' : 'text-orange-500'}`} />
+            <Trophy className="w-4 h-4 text-yellow-500" />
             <span className="text-white/80 text-xs font-medium">
-              {votesPerMinute} votes/min
+              Top Clips
             </span>
           </motion.div>
         ) : (
@@ -202,7 +183,7 @@ export default function MiniLeaderboard({
           >
             {/* Header Row */}
             <div className="flex items-center px-3 py-2 border-b border-white/10">
-              {/* Collapse Button - Far left, same size as expand button */}
+              {/* Collapse Button */}
               <button
                 onClick={onToggleCollapse}
                 className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20 mr-3"
@@ -211,19 +192,11 @@ export default function MiniLeaderboard({
                 <ChevronUp className="w-5 h-5 text-white" />
               </button>
 
-              {/* Live Vote Pulse */}
+              {/* Title */}
               <div className="flex items-center gap-2">
-                <motion.div
-                  animate={showPulse ? {
-                    scale: [1, 1.3, 1],
-                    opacity: [1, 0.7, 1],
-                  } : {}}
-                  transition={{ duration: 0.5 }}
-                >
-                  <Flame className="w-4 h-4 text-orange-500" />
-                </motion.div>
+                <Trophy className="w-4 h-4 text-yellow-500" />
                 <span className="text-white/90 text-xs font-bold">
-                  {votesPerMinute} votes/min
+                  Top Clips
                 </span>
                 <motion.div
                   className="w-2 h-2 rounded-full bg-green-500"

@@ -60,10 +60,6 @@ const CommentsSection = dynamic(() => import('@/components/CommentsSection'), {
   ssr: false,
   loading: () => null 
 });
-const MiniLeaderboard = dynamic(() => import('@/components/MiniLeaderboard'), { 
-  ssr: false,
-  loading: () => null 
-});
 
 // ============================================================================
 // TYPES
@@ -648,7 +644,6 @@ function VotingArena() {
   const [videoError, setVideoError] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
-  const [leaderboardCollapsed, setLeaderboardCollapsed] = useState(true); // Start collapsed
 
   // Double-tap detection
   const [lastTapTime, setLastTapTime] = useState(0);
@@ -1500,22 +1495,6 @@ function VotingArena() {
         ) : null}
       </div>
 
-      {/* ============ TOP: Mini Leaderboard ============ */}
-      <div className="absolute top-0 left-0 right-0 z-30 pt-12 pb-2">
-        <MiniLeaderboard
-          currentClipId={currentClip?.clip_id}
-          onClipSelect={(clipId) => {
-            // Find clip index and jump to it
-            const index = votingData?.clips?.findIndex(c => c.clip_id === clipId);
-            if (index !== undefined && index >= 0) {
-              setActiveIndex(index);
-              setVideoError(false);
-            }
-          }}
-          isCollapsed={leaderboardCollapsed}
-          onToggleCollapse={() => setLeaderboardCollapsed(!leaderboardCollapsed)}
-        />
-      </div>
 
       {/* ============ HELP BUTTON (Top Right Corner) ============ */}
       <motion.button

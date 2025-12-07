@@ -13,6 +13,7 @@ import {
 } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeComment, sanitizeText } from '@/lib/sanitize';
+import { getAvatarUrl, generateAvatarUrl } from '@/lib/utils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -33,7 +34,7 @@ interface UserData {
 async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
   const deviceKey = getUserKey(req);
   let username = `User${deviceKey.substring(0, 6)}`;
-  let avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${deviceKey}`;
+  let avatar_url = generateAvatarUrl(deviceKey);
   let userId: string | null = null;
   let isAuthenticated = false;
 
@@ -55,7 +56,7 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
         // Use authenticated user data
         userId = userData.id;
         username = userData.username;
-        avatar_url = userData.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userData.username}`;
+        avatar_url = getAvatarUrl(userData.avatar_url, userData.username);
         isAuthenticated = true;
       }
     }
@@ -134,7 +135,7 @@ export async function GET(req: NextRequest) {
     // Only show approved comments (or pending if moderation is disabled)
     let query = supabase
       .from('comments')
-      .select('*', { count: 'exact' })
+      .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at, is_deleted, moderation_status', { count: 'exact' })
       .eq('clip_id', clipId)
       .is('parent_comment_id', null)
       .eq('is_deleted', false)
@@ -171,7 +172,7 @@ export async function GET(req: NextRequest) {
     const commentIds = (topLevelComments || []).map((c) => c.id);
     const { data: allReplies } = await supabase
       .from('comments')
-      .select('*')
+      .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at')
       .in('parent_comment_id', commentIds)
       .eq('is_deleted', false)
       .in('moderation_status', ['approved', null])

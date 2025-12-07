@@ -8,10 +8,11 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
-// In-memory cache with TTL
+// In-memory cache with TTL and size limit
 // ============================================================================
 const cache = new Map<string, { data: any; expires: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const MAX_CACHE_SIZE = 50; // Maximum number of cache entries
 
 function getCached(key: string) {
   const entry = cache.get(key);
@@ -23,7 +24,22 @@ function getCached(key: string) {
 }
 
 function setCache(key: string, data: any) {
+  // Evict oldest entries if cache is full
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
   cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+}
+
+// Periodic cleanup of expired entries (runs on each request, lightweight)
+function cleanupExpiredCache() {
+  const now = Date.now();
+  for (const [key, entry] of cache.entries()) {
+    if (now >= entry.expires) {
+      cache.delete(key);
+    }
+  }
 }
 
 function getSupabaseClient() {
@@ -42,6 +58,9 @@ export async function GET(request: NextRequest) {
   const rateLimitResponse = await rateLimit(request, 'read');
   if (rateLimitResponse) return rateLimitResponse;
 
+  // Cleanup expired cache entries periodically
+  cleanupExpiredCache();
+
   try {
     // Check cache first
     const cacheKey = 'leaderboard_main';
@@ -57,10 +76,10 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Get active season
+    // Get active season (only needed fields)
     const { data: seasons, error: seasonError } = await supabase
       .from('seasons')
-      .select('*')
+      .select('id, name, status, total_slots, start_date, end_date')
       .eq('status', 'active')
       .limit(1);
 

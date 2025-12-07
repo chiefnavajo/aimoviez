@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
     if (type === 'clips' || type === 'all') {
       let clipsQuery = supabase
         .from('tournament_clips')
-        .select('*', { count: 'exact' });
+        .select('id, thumbnail_url, video_url, username, avatar_url, genre, vote_count, slot_position, created_at', { count: 'exact' });
 
       // Apply search filter (escape SQL special characters to prevent injection)
       if (query) {

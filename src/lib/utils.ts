@@ -85,3 +85,37 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
+
+// ============================================================================
+// AVATAR UTILITIES
+// ============================================================================
+
+/**
+ * Get avatar URL for a user
+ * Returns existing avatar URL or generates a DiceBear fallback
+ * @param avatarUrl - Existing avatar URL (can be null/undefined)
+ * @param seed - Seed for generating fallback avatar (username, id, etc.)
+ * @param style - DiceBear style (default: 'avataaars')
+ */
+export function getAvatarUrl(
+  avatarUrl: string | null | undefined,
+  seed: string = 'default',
+  style: 'avataaars' | 'shapes' | 'bottts' | 'identicon' = 'avataaars'
+): string {
+  if (avatarUrl && avatarUrl.trim() !== '') {
+    return avatarUrl;
+  }
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+/**
+ * Generate a DiceBear avatar URL directly
+ * @param seed - Seed for avatar generation
+ * @param style - DiceBear style
+ */
+export function generateAvatarUrl(
+  seed: string,
+  style: 'avataaars' | 'shapes' | 'bottts' | 'identicon' = 'avataaars'
+): string {
+  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
