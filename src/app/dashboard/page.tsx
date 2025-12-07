@@ -696,7 +696,6 @@ function VotingArena() {
   const PULL_THRESHOLD = 80;
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const currentClipIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
   // Onboarding tour
@@ -777,41 +776,6 @@ function VotingArena() {
       };
     }
   }, [activeIndex, votingData?.clips]);
-
-  // Update video source without remounting the element - uses preload cache for instant playback
-  useEffect(() => {
-    if (!videoRef.current || !currentClip?.video_url || !currentClip?.clip_id) return;
-
-    // Skip if we're already playing this clip
-    if (currentClipIdRef.current === currentClip.clip_id) return;
-
-    const video = videoRef.current;
-    const newSrc = currentClip.video_url;
-
-    // Update tracking ref
-    currentClipIdRef.current = currentClip.clip_id;
-
-    // Check if we have this video preloaded
-    const cachedVideo = preloadedVideosRef.current.get(currentClip.clip_id);
-
-    if (cachedVideo && cachedVideo.readyState >= 3) {
-      // Preloaded video is ready - instant playback!
-      video.src = newSrc;
-      video.currentTime = 0;
-      video.play().catch(() => {
-        video.muted = true;
-        video.play().catch(() => {});
-      });
-    } else {
-      // No preload - load normally
-      video.src = newSrc;
-      video.load();
-      video.play().catch(() => {
-        video.muted = true;
-        video.play().catch(() => {});
-      });
-    }
-  }, [currentClip?.video_url, currentClip?.clip_id]);
 
   // Reset pause state on clip change
   useEffect(() => {
@@ -1542,6 +1506,8 @@ function VotingArena() {
             <>
               <video
                 ref={videoRef}
+                key={currentClip.clip_id}
+                src={currentClip.video_url ?? '/placeholder-video.mp4'}
                 poster={currentClip?.thumbnail_url}
                 className="w-full h-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
                 style={{ WebkitAppearance: 'none' } as React.CSSProperties}
