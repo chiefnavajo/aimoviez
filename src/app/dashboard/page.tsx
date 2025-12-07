@@ -1517,11 +1517,11 @@ function VotingArena() {
         />
       </div>
 
-      {/* ============ HELP BUTTON (Top Right) ============ */}
+      {/* ============ HELP BUTTON (Top Right Corner) ============ */}
       <motion.button
         whileTap={{ scale: 0.9 }}
         onClick={resetTour}
-        className="absolute top-14 right-4 z-30 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
+        className="absolute top-2 right-3 z-50 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
         aria-label="Show tutorial"
       >
         <HelpCircle className="w-5 h-5 text-white/70" aria-hidden="true" />
