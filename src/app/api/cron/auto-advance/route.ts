@@ -100,11 +100,24 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Update clip status: winner gets 'locked', others stay 'active'
+        // Update clip status: winner gets 'locked'
         await supabase
           .from('tournament_clips')
           .update({ status: 'locked' })
           .eq('id', topClip.id);
+
+        // Move losing clips to next slot (they continue competing)
+        const nextSlotPosition = slot.slot_position + 1;
+        await supabase
+          .from('tournament_clips')
+          .update({
+            slot_position: nextSlotPosition,
+            vote_count: 0,  // Reset votes for new round
+            weighted_score: 0,
+            hype_score: 0,
+          })
+          .eq('slot_position', slot.slot_position)
+          .eq('status', 'active');  // Only move active clips (not the locked winner)
 
         // Check if this was the last slot
         const totalSlots = slot.seasons?.total_slots || 75;
