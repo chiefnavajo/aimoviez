@@ -195,8 +195,8 @@ export default function MiniLeaderboard({
             className="rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 overflow-hidden"
           >
             {/* Header Row */}
-            <div className="flex items-center justify-between px-3 py-2 border-b border-white/10">
-              {/* Live Vote Pulse */}
+            <div className="flex items-center justify-center px-3 py-2 border-b border-white/10 relative">
+              {/* Live Vote Pulse - Left side */}
               <div className="flex items-center gap-2">
                 <motion.div
                   animate={showPulse ? {
@@ -215,16 +215,16 @@ export default function MiniLeaderboard({
                   animate={{ opacity: [1, 0.4, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 />
-              </div>
 
-              {/* Collapse Button - Larger touch target for mobile, visible background */}
-              <button
-                onClick={onToggleCollapse}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
-                aria-label="Collapse leaderboard"
-              >
-                <ChevronUp className="w-5 h-5 text-white" />
-              </button>
+                {/* Collapse Button - Centered, visible background */}
+                <button
+                  onClick={onToggleCollapse}
+                  className="ml-3 p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
+                  aria-label="Collapse leaderboard"
+                >
+                  <ChevronUp className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
 
             {/* Top Clips Row */}
