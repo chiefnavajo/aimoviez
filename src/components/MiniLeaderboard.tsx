@@ -217,13 +217,13 @@ export default function MiniLeaderboard({
                 />
               </div>
 
-              {/* Collapse Button - Larger touch target for mobile */}
+              {/* Collapse Button - Larger touch target for mobile, visible background */}
               <button
                 onClick={onToggleCollapse}
-                className="p-2.5 -m-1 rounded-full hover:bg-white/10 active:bg-white/20 transition"
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
                 aria-label="Collapse leaderboard"
               >
-                <ChevronUp className="w-5 h-5 text-white/60" />
+                <ChevronUp className="w-5 h-5 text-white" />
               </button>
             </div>
 
