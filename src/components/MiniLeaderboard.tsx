@@ -172,20 +172,26 @@ export default function MiniLeaderboard({
       {/* Collapsed View - Just the pulse and expand button */}
       <AnimatePresence mode="wait">
         {isCollapsed ? (
-          <motion.button
+          <motion.div
             key="collapsed"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onToggleCollapse}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
+            className="flex items-center gap-2 py-1 px-2 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
           >
+            {/* Expand Button - Far left, same size as collapse button */}
+            <button
+              onClick={onToggleCollapse}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
+              aria-label="Expand leaderboard"
+            >
+              <ChevronDown className="w-5 h-5 text-white" />
+            </button>
             <Flame className={`w-4 h-4 ${showPulse ? 'text-orange-400' : 'text-orange-500'}`} />
             <span className="text-white/80 text-xs font-medium">
               {votesPerMinute} votes/min
             </span>
-            <ChevronDown className="w-4 h-4 text-white/60" />
-          </motion.button>
+          </motion.div>
         ) : (
           <motion.div
             key="expanded"
@@ -195,8 +201,17 @@ export default function MiniLeaderboard({
             className="rounded-2xl bg-black/60 backdrop-blur-md border border-white/10 overflow-hidden"
           >
             {/* Header Row */}
-            <div className="flex items-center justify-center px-3 py-2 border-b border-white/10 relative">
-              {/* Live Vote Pulse - Left side */}
+            <div className="flex items-center px-3 py-2 border-b border-white/10">
+              {/* Collapse Button - Far left, same size as expand button */}
+              <button
+                onClick={onToggleCollapse}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20 mr-3"
+                aria-label="Collapse leaderboard"
+              >
+                <ChevronUp className="w-5 h-5 text-white" />
+              </button>
+
+              {/* Live Vote Pulse */}
               <div className="flex items-center gap-2">
                 <motion.div
                   animate={showPulse ? {
@@ -215,15 +230,6 @@ export default function MiniLeaderboard({
                   animate={{ opacity: [1, 0.4, 1] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
                 />
-
-                {/* Collapse Button - Centered, visible background */}
-                <button
-                  onClick={onToggleCollapse}
-                  className="ml-3 p-2 rounded-full bg-white/10 hover:bg-white/20 active:bg-white/30 transition border border-white/20"
-                  aria-label="Collapse leaderboard"
-                >
-                  <ChevronUp className="w-5 h-5 text-white" />
-                </button>
               </div>
             </div>
 
