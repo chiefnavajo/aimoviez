@@ -256,6 +256,7 @@ export default function MiniLeaderboard({
                       fill
                       sizes="40px"
                       className="object-cover"
+                      unoptimized={clip.thumbnail_url.includes('dicebear') || clip.thumbnail_url.endsWith('.svg')}
                     />
                     {/* Rank Badge */}
                     <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${getRankStyle(clip.rank)}`}>
