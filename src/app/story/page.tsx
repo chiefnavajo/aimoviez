@@ -104,26 +104,6 @@ function formatDuration(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Helper to aggregate contributors from completed segments
-function getTopContributors(segments: Slot[]): { username: string; avatar_url: string; segments: number; totalVotes: number }[] {
-  const contributorMap = new Map<string, { username: string; avatar_url: string; segments: number; totalVotes: number }>();
-  
-  segments.forEach(segment => {
-    if (segment.winning_clip) {
-      const { username, avatar_url, vote_count } = segment.winning_clip;
-      const existing = contributorMap.get(username);
-      if (existing) {
-        existing.segments += 1;
-        existing.totalVotes += vote_count;
-      } else {
-        contributorMap.set(username, { username, avatar_url, segments: 1, totalVotes: vote_count });
-      }
-    }
-  });
-  
-  return Array.from(contributorMap.values()).sort((a, b) => b.segments - a.segments || b.totalVotes - a.totalVotes);
-}
-
 // ============================================================================
 // API RESPONSE TYPE
 // ============================================================================
@@ -173,7 +153,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [showContributors, setShowContributors] = useState(false);
-  const [showContributorsPopup, setShowContributorsPopup] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [lastTap, setLastTap] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -224,12 +203,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   // Note: Auto-advance is handled by video onEnded event
 
   const handleTap = () => {
-    // Close popup if open
-    if (showContributorsPopup) {
-      setShowContributorsPopup(false);
-      return;
-    }
-
     if (completedSegments.length === 0 || showContributors || showComments) return;
 
     const now = Date.now();
@@ -508,7 +481,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
       {/* Right Column - Responsive position for mobile */}
       <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
-        {/* Creator Avatar - Visible on all screen sizes with responsive sizing */}
+        {/* Creator Avatar - Same size as dashboard */}
         {currentSegment?.winning_clip && (
           <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
             <Image
@@ -516,69 +489,16 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
               alt=""
               width={48}
               height={48}
-              className="w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full border-2 border-white/80 object-cover"
+              className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
               style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }}
               unoptimized={currentSegment.winning_clip.avatar_url?.includes('dicebear')}
             />
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-4 h-4 md:w-5 md:h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
-              <span className="text-white text-[8px] md:text-[10px] font-bold">+</span>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-5 h-5 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 flex items-center justify-center border-2 border-black">
+              <span className="text-white text-[10px] font-bold">+</span>
             </div>
           </Link>
         )}
 
-        {/* Trophy/Segments */}
-        <div className="relative">
-          <motion.button
-            whileTap={{ scale: 0.8 }}
-            onClick={(e) => { e.stopPropagation(); setShowContributorsPopup(!showContributorsPopup); }}
-            className="flex flex-col items-center gap-0.5"
-          >
-            <Trophy className="w-7 h-7 md:w-9 md:h-9 text-yellow-400 drop-shadow-[0_2px_8px_rgba(0,0,0,0.8)]" />
-            <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-              {completedSegments.length}
-            </span>
-          </motion.button>
-          
-          {/* Contributors Popup - Transparent & Scrollable */}
-          <AnimatePresence>
-            {showContributorsPopup && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9, x: 10 }}
-                animate={{ opacity: 1, scale: 1, x: 0 }}
-                exit={{ opacity: 0, scale: 0.9, x: 10 }}
-                className="absolute right-14 top-0 w-56 bg-black/50 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden"
-                style={{ maxHeight: '60vh' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Header */}
-                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/30">
-                  <div className="flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-yellow-400" />
-                    <span className="text-white font-semibold text-sm">Top contributors</span>
-                  </div>
-                  <button onClick={() => setShowContributorsPopup(false)} className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center">
-                    <X className="w-3 h-3 text-white" />
-                  </button>
-                </div>
-                
-                {/* Scrollable List */}
-                <div className="overflow-y-auto" style={{ maxHeight: 'calc(60vh - 44px)' }}>
-                  {getTopContributors(completedSegments).map((contributor, _idx) => (
-                    <div key={contributor.username} className="flex items-center gap-2 px-3 py-2 hover:bg-white/10 border-b border-white/5 last:border-b-0">
-                      <Image src={contributor.avatar_url} alt="" width={32} height={32} className="w-8 h-8 rounded-full" unoptimized={contributor.avatar_url?.includes('dicebear')} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-white text-sm font-medium truncate">@{contributor.username}</p>
-                        <p className="text-white/50 text-xs">
-                          {contributor.segments} segment{contributor.segments > 1 ? 's' : ''} · {formatNumber(contributor.totalVotes)} ♡
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
         
         {/* Vote Button - Dashboard style with infinity symbol */}
         <motion.button
@@ -660,19 +580,19 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
           className="flex flex-col items-center gap-0.5"
         >
-          <MessageCircle className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          <span className="text-white text-[10px] md:text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">24</span>
+          <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Chat</span>
         </motion.button>
-        
+
         {/* Share */}
         <motion.button
           whileTap={{ scale: 0.8 }}
           onClick={handleShare}
           className="flex flex-col items-center gap-0.5"
         >
-          <Share2 className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
         </motion.button>
-        
+
         {/* Mute */}
         <motion.button
           whileTap={{ scale: 0.8 }}
@@ -680,9 +600,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           className="flex flex-col items-center gap-0.5"
         >
           {isMuted ? (
-            <VolumeX className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
           ) : (
-            <Volume2 className="w-6 h-6 md:w-7 md:h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
           )}
         </motion.button>
       </div>
