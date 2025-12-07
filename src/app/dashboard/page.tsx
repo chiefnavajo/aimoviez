@@ -1528,19 +1528,19 @@ function VotingArena() {
       </motion.button>
 
 
-      {/* ============ ROUND INFO - Prominent display ============ */}
+      {/* ============ ROUND INFO - Top of screen, above MiniLeaderboard ============ */}
       {votingData && (
-        <div className="absolute top-28 left-4 z-20">
+        <div className="absolute top-2 left-0 right-0 z-40 flex justify-center">
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600/90 to-cyan-600/90 backdrop-blur-sm border border-white/20 shadow-lg"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 px-4 py-1.5"
           >
-            <div className="w-2.5 h-2.5 rounded-full bg-white animate-pulse" />
-            <span className="text-white text-sm font-bold tracking-wide">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-white text-sm font-bold tracking-wide drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
               Round {votingData.currentSlot}/{votingData.totalSlots}
             </span>
-            <span className="text-white/80 text-sm font-semibold uppercase">
+            <span className="text-cyan-400 text-sm font-bold uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
               {currentClip?.genre || 'Mixed'}
             </span>
           </motion.div>
