@@ -4,8 +4,9 @@
 // Returns a fresh CSRF token for client-side use
 // ============================================================================
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { generateCsrfToken } from '@/lib/csrf';
+import { rateLimit } from '@/lib/rate-limit';
 
 const CSRF_TOKEN_COOKIE = 'csrf-token';
 const TOKEN_EXPIRY = 60 * 60; // 1 hour in seconds
@@ -14,7 +15,11 @@ const TOKEN_EXPIRY = 60 * 60; // 1 hour in seconds
  * GET /api/csrf
  * Get a fresh CSRF token
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Rate limit to prevent token enumeration/abuse
+  const rateLimitResponse = await rateLimit(request, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const token = generateCsrfToken();
 
   const response = NextResponse.json({

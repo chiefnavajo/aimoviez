@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -181,8 +182,8 @@ async function detectPolyglot(file: File): Promise<{ safe: boolean; reason?: str
     return { safe: true };
   } catch (err) {
     console.error('[detectPolyglot] Error:', err);
-    // On error, fail open but log for monitoring
-    return { safe: true };
+    // SECURITY: On error, fail closed - reject the file
+    return { safe: false, reason: 'Security check failed' };
   }
 }
 
@@ -191,6 +192,10 @@ async function detectPolyglot(file: File): Promise<{ safe: boolean; reason?: str
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 5 uploads per minute per user (prevents DoS)
+  const rateLimitResponse = await rateLimit(request, 'upload');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check authentication first
     const session = await getServerSession();

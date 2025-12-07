@@ -1,10 +1,11 @@
 // app/api/account/export/route.ts
 // Export all user data (GDPR compliance)
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -17,7 +18,11 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Rate limit: prevent abuse of data export endpoint
+  const rateLimitResponse = await rateLimit(request, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -33,7 +38,7 @@ export async function GET() {
 
     // Get user profile
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('email', userEmail)
       .single();

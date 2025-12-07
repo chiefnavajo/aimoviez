@@ -5,6 +5,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
+
+// Sanitize user input to prevent XSS and injection
+function sanitizeInput(input: string): string {
+  return input
+    .replace(/[<>]/g, '') // Remove HTML brackets
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .replace(/on\w+=/gi, '') // Remove event handlers
+    .trim();
+}
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,10 +30,19 @@ function getSupabaseClient() {
 const VALID_REASONS = ['general', 'support', 'bug', 'feature', 'report', 'business'];
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 3 contact form submissions per minute (prevents spam)
+  const rateLimitResponse = await rateLimit(request, 'contact');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
     const body = await request.json();
-    const { reason, email, subject, message } = body;
+    const { reason, email: rawEmail, subject: rawSubject, message: rawMessage } = body;
+
+    // Sanitize all user inputs
+    const email = sanitizeInput(rawEmail || '');
+    const subject = sanitizeInput(rawSubject || '');
+    const message = sanitizeInput(rawMessage || '');
 
     // Validation
     if (!reason || !VALID_REASONS.includes(reason)) {

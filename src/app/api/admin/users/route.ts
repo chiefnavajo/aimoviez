@@ -42,14 +42,15 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Build query
+    // Build query - use 'users' table (not 'profiles')
     let query = supabase
-      .from('profiles')
+      .from('users')
       .select('*', { count: 'exact' });
 
-    // Search filter
+    // Search filter (escape SQL special characters to prevent injection)
     if (search) {
-      query = query.or(`username.ilike.%${search}%,email.ilike.%${search}%`);
+      const escapedSearch = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`username.ilike.%${escapedSearch}%,email.ilike.%${escapedSearch}%`);
     }
 
     // Status filter

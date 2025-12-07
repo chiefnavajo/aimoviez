@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -18,6 +19,10 @@ function getSupabaseClient() {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: prevent abuse of account deletion endpoint
+  const rateLimitResponse = await rateLimit(request, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -42,9 +47,9 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseClient();
     const userEmail = session.user.email;
 
-    // Get user profile
+    // Get user from users table (not profiles)
     const { data: profile } = await supabase
-      .from('profiles')
+      .from('users')
       .select('id')
       .eq('email', userEmail)
       .single();
@@ -127,9 +132,9 @@ export async function POST(request: NextRequest) {
       .delete()
       .or(`referrer_id.eq.${userId},referred_id.eq.${userId}`);
 
-    // 10. Finally, delete the profile
+    // 10. Finally, delete the user record
     const { error: profileError } = await supabase
-      .from('profiles')
+      .from('users')
       .delete()
       .eq('id', userId);
 

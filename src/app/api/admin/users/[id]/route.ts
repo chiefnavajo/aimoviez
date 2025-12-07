@@ -34,7 +34,7 @@ export async function GET(
 
     // Get user profile
     const { data: user, error: userError } = await supabase
-      .from('profiles')
+      .from('users')
       .select('*')
       .eq('id', id)
       .single();
@@ -130,7 +130,7 @@ export async function PUT(
 
     // Get current user info
     const { data: user, error: userError } = await supabase
-      .from('profiles')
+      .from('users')
       .select('id, username, email, is_banned, is_admin')
       .eq('id', id)
       .single();
@@ -186,7 +186,7 @@ export async function PUT(
     }
 
     const { error: updateError } = await supabase
-      .from('profiles')
+      .from('users')
       .update(updateData)
       .eq('id', id);
 

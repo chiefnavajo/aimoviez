@@ -79,9 +79,10 @@ export async function GET(req: NextRequest) {
         .from('tournament_clips')
         .select('*', { count: 'exact' });
 
-      // Apply search filter
+      // Apply search filter (escape SQL special characters to prevent injection)
       if (query) {
-        clipsQuery = clipsQuery.or(`username.ilike.%${query}%,genre.ilike.%${query}%`);
+        const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
+        clipsQuery = clipsQuery.or(`username.ilike.%${escapedQuery}%,genre.ilike.%${escapedQuery}%`);
       }
 
       // Apply genre filter
@@ -134,8 +135,10 @@ export async function GET(req: NextRequest) {
         .from('tournament_clips')
         .select('user_id, username, avatar_url, vote_count, id');
 
+      // Escape SQL special characters to prevent injection
       if (query) {
-        creatorsQuery = creatorsQuery.ilike('username', `%${query}%`);
+        const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
+        creatorsQuery = creatorsQuery.ilike('username', `%${escapedQuery}%`);
       }
 
       // PERFORMANCE FIX: Add limit to prevent loading entire table

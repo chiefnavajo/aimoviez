@@ -82,6 +82,9 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [likingComments, setLikingComments] = useState<Set<string>>(new Set()); // Track comments being liked to prevent race conditions
 
+  // Use ref for synchronous race condition prevention (state is async)
+  const likingCommentsRef = useRef<Set<string>>(new Set());
+
   const inputRef = useRef<HTMLInputElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -277,12 +280,18 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
 
   // Like/unlike comment
   const handleLike = async (comment: Comment) => {
-    // Prevent race condition: ignore clicks while request is in flight
-    if (likingComments.has(comment.id)) return;
+    // Prevent race condition: use ref for synchronous check (state is async)
+    if (likingCommentsRef.current.has(comment.id)) return;
 
-    const action = comment.is_liked ? 'unlike' : 'like';
+    // Immediately mark as in-flight using ref (synchronous)
+    likingCommentsRef.current.add(comment.id);
 
-    // Mark as in-flight
+    // Capture original state for rollback
+    const originalIsLiked = comment.is_liked;
+    const originalLikesCount = comment.likes_count;
+    const action = originalIsLiked ? 'unlike' : 'like';
+
+    // Mark as in-flight (for UI indication)
     setLikingComments(prev => new Set(prev).add(comment.id));
 
     // Optimistic update
@@ -315,17 +324,18 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
         throw new Error(data.error || 'Failed to update like');
       }
     } catch (err) {
-      // Revert on error
+      // Revert on error using captured original state
       setComments(prev => prev.map(c => {
         if (c.id === comment.id) {
-          return { ...c, is_liked: comment.is_liked, likes_count: comment.likes_count };
+          return { ...c, is_liked: originalIsLiked, likes_count: originalLikesCount };
         }
         return c;
       }));
       const errorMessage = err instanceof Error ? err.message : 'Failed to update like. Please try again.';
       toast.error(errorMessage);
     } finally {
-      // Clear in-flight status
+      // Clear in-flight status from ref and state
+      likingCommentsRef.current.delete(comment.id);
       setLikingComments(prev => {
         const next = new Set(prev);
         next.delete(comment.id);

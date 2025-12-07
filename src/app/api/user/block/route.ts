@@ -40,7 +40,7 @@ export async function GET() {
         id,
         blocked_id,
         created_at,
-        blocked:profiles!user_blocks_blocked_id_fkey(
+        blocked:users!user_blocks_blocked_id_fkey(
           id,
           username,
           avatar_url
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user exists
     const { data: targetUser } = await supabase
-      .from('profiles')
+      .from('users')
       .select('id, username')
       .eq('id', userId)
       .single();

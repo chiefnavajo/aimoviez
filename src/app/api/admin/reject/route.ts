@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
+import { rateLimit } from '@/lib/rate-limit';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,6 +22,10 @@ function getSupabaseClient() {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 50 admin actions per minute
+  const rateLimitResponse = await rateLimit(request, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;

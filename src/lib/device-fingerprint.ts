@@ -171,7 +171,11 @@ export function generateVoteIntegrityToken(
   deviceKey: string,
   clipId: string,
   timestamp: number,
-  secret: string = process.env.VOTE_INTEGRITY_SECRET || 'default-secret'
+  secret: string = process.env.VOTE_INTEGRITY_SECRET || (
+    process.env.NODE_ENV === 'production'
+      ? (() => { throw new Error('VOTE_INTEGRITY_SECRET must be set in production'); })()
+      : 'dev-only-vote-secret-not-for-production'
+  )
 ): string {
   const data = `${deviceKey}:${clipId}:${timestamp}`;
   return crypto
@@ -190,7 +194,11 @@ export function verifyVoteIntegrityToken(
   clipId: string,
   timestamp: number,
   maxAgeMs: number = 5 * 60 * 1000, // 5 minutes default
-  secret: string = process.env.VOTE_INTEGRITY_SECRET || 'default-secret'
+  secret: string = process.env.VOTE_INTEGRITY_SECRET || (
+    process.env.NODE_ENV === 'production'
+      ? (() => { throw new Error('VOTE_INTEGRITY_SECRET must be set in production'); })()
+      : 'dev-only-vote-secret-not-for-production'
+  )
 ): boolean {
   // Check if timestamp is within allowed window
   const now = Date.now();

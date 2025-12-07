@@ -17,8 +17,12 @@ export interface CaptchaVerifyResult {
  */
 export async function verifyCaptcha(token: string, remoteIp?: string): Promise<CaptchaVerifyResult> {
   if (!HCAPTCHA_SECRET) {
-    console.warn('[CAPTCHA] HCAPTCHA_SECRET_KEY not configured, skipping verification');
-    // In development or if not configured, allow requests through
+    // SECURITY: In production, require CAPTCHA to be configured
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[CAPTCHA] HCAPTCHA_SECRET_KEY not configured in production - rejecting request');
+      return { success: false, error_codes: ['not-configured'] };
+    }
+    console.warn('[CAPTCHA] HCAPTCHA_SECRET_KEY not configured, skipping verification (dev only)');
     return { success: true };
   }
 

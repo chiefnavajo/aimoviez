@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // SUPABASE CLIENT (Service Role - can create signed URLs)
@@ -28,6 +29,10 @@ function getSupabaseClient() {
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 5 signed URLs per minute per user (prevents abuse)
+  const rateLimitResponse = await rateLimit(request, 'upload');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check authentication first
     const session = await getServerSession();

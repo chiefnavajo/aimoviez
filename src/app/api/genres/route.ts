@@ -6,6 +6,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 function createSupabaseServerClient() {
   const supabaseUrl =
@@ -68,6 +69,10 @@ interface GenreSummaryResponse {
 // ====================
 
 export async function GET(req: NextRequest) {
+  // Rate limit
+  const rateLimitResponse = await rateLimit(req, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
@@ -151,6 +156,10 @@ export async function GET(req: NextRequest) {
 // ====================
 
 export async function POST(req: NextRequest) {
+  // Rate limit
+  const rateLimitResponse = await rateLimit(req, 'vote');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 

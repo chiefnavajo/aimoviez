@@ -4,18 +4,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
-import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-function getUserKey(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const ua = req.headers.get('user-agent') || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
 
 export async function GET(req: NextRequest) {
   // Rate limiting - 60 requests per minute
@@ -24,7 +16,6 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
 
     // Try to get session
     let email = null;
@@ -37,26 +28,20 @@ export async function GET(req: NextRequest) {
       // No session
     }
 
-    // Try to find user by email first, then by device key
-    let user = null;
-
-    if (email) {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .single();
-      user = data;
+    // Only find user by email - device_key fallback removed for security
+    // Device key could match wrong users and leak profile data
+    if (!email) {
+      return NextResponse.json({
+        exists: false,
+        user: null,
+      });
     }
 
-    if (!user) {
-      const { data } = await supabase
-        .from('users')
-        .select('*')
-        .eq('device_key', userKey)
-        .single();
-      user = data;
-    }
+    const { data: user } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
     if (!user) {
       return NextResponse.json({
