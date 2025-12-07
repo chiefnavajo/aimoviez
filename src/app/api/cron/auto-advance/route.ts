@@ -61,11 +61,13 @@ export async function GET(req: NextRequest) {
     // 2. Process each expired slot
     for (const slot of expiredSlots) {
       try {
-        // Get highest voted clip for this slot
+        // Get highest voted clip for this slot (filter by season_id for safety)
         const { data: topClip } = await supabase
           .from('tournament_clips')
           .select('id, weighted_score, vote_count, username')
           .eq('slot_position', slot.slot_position)
+          .eq('season_id', slot.season_id)
+          .eq('status', 'active')
           .order('weighted_score', { ascending: false, nullsFirst: false })
           .order('vote_count', { ascending: false, nullsFirst: false })
           .limit(1)
@@ -117,6 +119,7 @@ export async function GET(req: NextRequest) {
             hype_score: 0,
           })
           .eq('slot_position', slot.slot_position)
+          .eq('season_id', slot.season_id)
           .eq('status', 'active');  // Only move active clips (not the locked winner)
 
         // Check if this was the last slot

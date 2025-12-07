@@ -647,12 +647,13 @@ export async function GET(req: NextRequest) {
 
     // 5. Get total clip count for this slot (lightweight query)
     // Status can be 'active' or 'competing' (both are valid for voting)
-    // Note: Not filtering by season_id since slot_position is unique per voting round
+    // Filter by season_id to ensure correct clips for this season
     const { count: totalClipCount, error: countError } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
       .eq('slot_position', activeSlot.slot_position)
-      .in('status', ['active', 'competing']);
+      .eq('season_id', seasonRow.id)
+      .eq('status', 'active');
 
     if (countError) {
       console.error('[GET /api/vote] countError:', countError);
@@ -660,16 +661,16 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. Fetch ALL active/competing clips for this slot (both voted and unvoted)
+    // 6. Fetch ALL active clips for this slot (both voted and unvoted)
     // This ensures user can always navigate between clips and revoke votes
-    // Status can be 'active' or 'competing' (both are valid for voting)
-    // Note: Not filtering by season_id since slot_position is unique per voting round
+    // Filter by season_id to ensure correct clips for this season
     // PERFORMANCE: Select only needed columns instead of *
     const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
       .eq('slot_position', activeSlot.slot_position)
-      .in('status', ['active', 'competing'])
+      .eq('season_id', seasonRow.id)
+      .eq('status', 'active')
       .order('created_at', { ascending: true })
       .limit(CLIP_POOL_SIZE);
 
@@ -999,10 +1000,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Get clip's slot position and status for validation
+    // 4. Get clip's slot position, season, and status for validation
     const { data: clipData, error: clipFetchError } = await supabase
       .from('tournament_clips')
-      .select('slot_position, vote_count, weighted_score, status')
+      .select('slot_position, season_id, vote_count, weighted_score, status')
       .eq('id', clipId)
       .maybeSingle();
 
@@ -1014,9 +1015,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY: Validate clip status - only allow voting on approved/active/competing clips
-    const validStatuses = ['active', 'competing', 'approved'];
-    if (clipData.status && !validStatuses.includes(clipData.status.toLowerCase())) {
+    // SECURITY: Validate clip status - only allow voting on active clips
+    if (clipData.status !== 'active') {
       return NextResponse.json(
         {
           success: false,
@@ -1028,6 +1028,48 @@ export async function POST(req: NextRequest) {
     }
 
     const slotPosition = clipData.slot_position ?? 1;
+
+    // 4.5 Validate clip is in the currently active voting slot
+    // Get the active slot for the clip's season
+    const { data: activeSlot, error: slotError } = await supabase
+      .from('story_slots')
+      .select('slot_position, status')
+      .eq('season_id', clipData.season_id)
+      .eq('status', 'voting')
+      .maybeSingle();
+
+    if (slotError) {
+      console.error('[POST /api/vote] slotError:', slotError);
+      return NextResponse.json(
+        { success: false, error: 'Failed to verify voting slot' },
+        { status: 500 }
+      );
+    }
+
+    if (!activeSlot) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'No active voting slot',
+          code: 'NO_ACTIVE_SLOT',
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Verify clip is in the currently voting slot
+    if (clipData.slot_position !== activeSlot.slot_position) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Clip is not in the current voting slot',
+          code: 'WRONG_SLOT',
+          currentSlot: activeSlot.slot_position,
+          clipSlot: clipData.slot_position,
+        },
+        { status: 400 }
+      );
+    }
 
     // 5. For super/mega votes: check if already used in this slot
     if (voteType === 'super' || voteType === 'mega') {

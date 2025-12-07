@@ -881,7 +881,7 @@ function VotingArena() {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
-              ? { ...clip, vote_count: clip.vote_count + voteWeight, has_voted: true }
+              ? { ...clip, vote_count: clip.vote_count + 1, has_voted: true }
               : clip
           ),
           totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
