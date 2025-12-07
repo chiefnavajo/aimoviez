@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     // 1. Aktywny Season
     const { data: season, error: seasonError } = await supabase
       .from('seasons')
-      .select('*')
+      .select('id, status, label, total_slots')
       .eq('status', 'active')
       .order('created_at', { ascending: true })
       .limit(1)
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     // 2. Aktywny slot (status = 'voting')
     const { data: slot, error: slotError } = await supabase
       .from('story_slots')
-      .select('*')
+      .select('id, season_id, slot_position, status, genre, winner_tournament_clip_id, voting_duration_hours')
       .eq('season_id', seasonRow.id)
       .eq('status', 'voting')
       .order('slot_position', { ascending: true })
@@ -254,7 +254,7 @@ export async function POST(req: NextRequest) {
       })
       .eq('season_id', seasonRow.id)
       .eq('slot_position', nextPosition)
-      .select('*')
+      .select('id, season_id, slot_position, status')
       .maybeSingle();
 
     if (nextSlotError) {

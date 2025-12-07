@@ -35,7 +35,7 @@ export async function GET(
 
     const { data: clip, error } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, title, description, genre, status, video_url, thumbnail_url, username, avatar_url, vote_count, weighted_score, slot_position, created_at, updated_at')
       .eq('id', id)
       .single();
 

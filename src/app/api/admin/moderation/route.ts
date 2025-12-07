@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     // Build query
     let query = supabase
       .from('tournament_clips')
-      .select('*', { count: 'exact' })
+      .select('id, video_url, thumbnail_url, username, avatar_url, genre, slot_position, created_at, moderation_status', { count: 'exact' })
       .order('created_at', { ascending: true });
 
     if (status !== 'all') {

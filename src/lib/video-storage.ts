@@ -351,7 +351,7 @@ export async function GET(req: NextRequest) {
     // Get clip status
     const { data: clip, error } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, status, video_url, thumbnail_url, vote_count, slot_position')
       .eq('id', clipId)
       .single();
 

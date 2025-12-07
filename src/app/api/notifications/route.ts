@@ -71,7 +71,7 @@ export async function GET(req: NextRequest) {
     // Build query
     let query = supabase
       .from('notifications')
-      .select('*', { count: 'exact' })
+      .select('id, type, title, message, action_url, metadata, is_read, created_at, read_at', { count: 'exact' })
       .eq('user_key', userKey)
       .order('created_at', { ascending: false });
 
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     // Get unread count
     const { count: unreadCount } = await supabase
       .from('notifications')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .eq('user_key', userKey)
       .eq('is_read', false);
 

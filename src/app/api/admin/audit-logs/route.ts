@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('audit_logs')
-      .select('*', { count: 'exact' })
+      .select('id, action, resource_type, resource_id, admin_email, details, created_at', { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (action) {

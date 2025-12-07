@@ -23,7 +23,7 @@ export async function GET(_req: NextRequest) {
 
     const { data: seasons, error } = await supabase
       .from('seasons')
-      .select('*')
+      .select('id, name, description, status, total_slots, start_date, end_date, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {

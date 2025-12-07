@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
     // Full mode: fetch all slots with details
     const { data: slots, error } = await supabase
       .from('story_slots')
-      .select('*')
+      .select('id, slot_position, status, season_id, winner_tournament_clip_id, voting_started_at, voting_ends_at, voting_duration_hours, created_at')
       .eq('season_id', targetSeasonId)
       .order('slot_position', { ascending: true });
 
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
     // Get the slot
     const { data: slot } = await supabase
       .from('story_slots')
-      .select('*')
+      .select('id, slot_position, status, season_id')
       .eq('season_id', activeSeason.id)
       .eq('slot_position', slot_position)
       .single();
@@ -320,7 +320,7 @@ export async function POST(req: NextRequest) {
     // Get highest voted clip for this slot
     const { data: topClip } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, username, vote_count')
       .eq('slot_position', slot_position)
       .order('vote_count', { ascending: false })
       .limit(1)

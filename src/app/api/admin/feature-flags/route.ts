@@ -38,7 +38,7 @@ export async function GET() {
 
     const { data: flags, error } = await supabase
       .from('feature_flags')
-      .select('*')
+      .select('id, key, name, description, category, enabled, config, created_at')
       .order('category', { ascending: true })
       .order('name', { ascending: true });
 

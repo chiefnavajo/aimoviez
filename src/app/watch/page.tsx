@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  Maximize, Share2, List, X, Loader2
+  Maximize, Share2, List, X, Loader2, ArrowLeft
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import BottomNavigation from '@/components/BottomNavigation';
@@ -335,7 +335,20 @@ function WatchMoviePageContent() {
 
   if (!lockedSlots || lockedSlots.length === 0) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center pb-24">
+      <div className="relative min-h-screen bg-black text-white flex flex-col pb-24">
+        {/* Cyberpunk Back Button */}
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          whileHover={{ scale: 1.05 }}
+          onClick={() => router.back()}
+          className="absolute top-3 left-3 z-30 p-[2px] rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(59,130,246,0.5),0_0_30px_rgba(147,51,234,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.7),0_0_40px_rgba(147,51,234,0.5)] transition-all duration-300"
+        >
+          <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-cyan-400/30">
+            <ArrowLeft className="w-4 h-4 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,1)]" />
+          </div>
+        </motion.button>
+
+        <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <Play className="w-16 h-16 mx-auto mb-4 text-white/20" />
           <h2 className="text-2xl font-bold mb-2">No Movie Yet</h2>
@@ -347,6 +360,7 @@ function WatchMoviePageContent() {
             Go Vote
           </button>
         </div>
+        </div>
         <BottomNavigation />
       </div>
     );
@@ -354,8 +368,20 @@ function WatchMoviePageContent() {
 
   return (
     <div className="relative min-h-screen min-h-[100dvh] w-full bg-black overflow-hidden">
+      {/* Cyberpunk Back Button - Always Visible */}
+      <motion.button
+        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.05 }}
+        onClick={() => router.back()}
+        className="absolute top-4 left-4 z-30 p-[2px] rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 shadow-[0_0_20px_rgba(59,130,246,0.6),0_0_40px_rgba(147,51,234,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.8),0_0_60px_rgba(147,51,234,0.6)] transition-all duration-300"
+      >
+        <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-cyan-400/30">
+          <ArrowLeft className="w-5 h-5 text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,1)]" />
+        </div>
+      </motion.button>
+
       {/* Video Player */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute inset-0 z-0 flex items-center justify-center">
         <video
           ref={videoRef}
           src={currentSlot?.clip.video_url}

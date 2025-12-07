@@ -91,7 +91,7 @@ export async function GET(
     // 1. Fetch the clip
     const { data: clip, error: clipError } = await supabase
       .from('tournament_clips')
-      .select('*')
+      .select('id, video_url, thumbnail_url, username, avatar_url, title, description, vote_count, weighted_score, genre, slot_position, status, view_count, created_at')
       .eq('id', clipId)
       .maybeSingle();
 
