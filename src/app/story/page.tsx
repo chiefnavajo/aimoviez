@@ -576,34 +576,40 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         
         {/* Comments */}
         <motion.button
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.9 }}
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
-          className="flex flex-col items-center gap-0.5"
+          className="flex flex-col items-center gap-1"
         >
-          <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Chat</span>
+          <div className="w-12 h-12 rounded-full flex items-center justify-center">
+            <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          </div>
+          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Chat</span>
         </motion.button>
 
         {/* Share */}
         <motion.button
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.9 }}
           onClick={handleShare}
-          className="flex flex-col items-center gap-0.5"
+          className="flex flex-col items-center gap-1"
         >
-          <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <div className="w-12 h-12 rounded-full flex items-center justify-center">
+            <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          </div>
         </motion.button>
 
         {/* Mute */}
         <motion.button
-          whileTap={{ scale: 0.8 }}
+          whileTap={{ scale: 0.9 }}
           onClick={toggleMute}
-          className="flex flex-col items-center gap-0.5"
+          className="flex flex-col items-center gap-1"
         >
-          {isMuted ? (
-            <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          ) : (
-            <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          )}
+          <div className="w-12 h-12 rounded-full flex items-center justify-center">
+            {isMuted ? (
+              <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            ) : (
+              <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+            )}
+          </div>
         </motion.button>
       </div>
 
