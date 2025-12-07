@@ -696,6 +696,7 @@ function VotingArena() {
   const PULL_THRESHOLD = 80;
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const currentClipIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
   // Onboarding tour
@@ -779,33 +780,36 @@ function VotingArena() {
 
   // Update video source without remounting the element - uses preload cache for instant playback
   useEffect(() => {
-    if (!videoRef.current || !currentClip?.video_url) return;
+    if (!videoRef.current || !currentClip?.video_url || !currentClip?.clip_id) return;
+
+    // Skip if we're already playing this clip
+    if (currentClipIdRef.current === currentClip.clip_id) return;
 
     const video = videoRef.current;
     const newSrc = currentClip.video_url;
 
-    // Only update if src actually changed
-    if (video.src !== newSrc) {
-      // Check if we have this video preloaded
-      const cachedVideo = preloadedVideosRef.current.get(currentClip.clip_id);
+    // Update tracking ref
+    currentClipIdRef.current = currentClip.clip_id;
 
-      if (cachedVideo && cachedVideo.readyState >= 3) {
-        // Preloaded video is ready - instant playback!
-        video.src = newSrc;
-        video.currentTime = 0;
-        video.play().catch(() => {
-          video.muted = true;
-          video.play().catch(() => {});
-        });
-      } else {
-        // No preload - load normally
-        video.src = newSrc;
-        video.load();
-        video.play().catch(() => {
-          video.muted = true;
-          video.play().catch(() => {});
-        });
-      }
+    // Check if we have this video preloaded
+    const cachedVideo = preloadedVideosRef.current.get(currentClip.clip_id);
+
+    if (cachedVideo && cachedVideo.readyState >= 3) {
+      // Preloaded video is ready - instant playback!
+      video.src = newSrc;
+      video.currentTime = 0;
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
+    } else {
+      // No preload - load normally
+      video.src = newSrc;
+      video.load();
+      video.play().catch(() => {
+        video.muted = true;
+        video.play().catch(() => {});
+      });
     }
   }, [currentClip?.video_url, currentClip?.clip_id]);
 
