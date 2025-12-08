@@ -30,6 +30,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface UserData {
   id: string;
@@ -62,6 +63,7 @@ interface UserDetail extends UserData {
 
 export default function AdminUsersPage() {
   const { isLoading: authLoading, isAdmin } = useAdminAuth();
+  const { getHeaders } = useCsrf();
 
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,7 +152,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           action,
           reason: action === 'ban' ? banReason : undefined,
@@ -189,7 +191,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/admin/users/${userId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           action: makeAdmin ? 'make_admin' : 'remove_admin',
         }),
@@ -237,7 +239,7 @@ export default function AdminUsersPage() {
     try {
       const response = await fetch(`/api/admin/users/${editingUser.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
         body: JSON.stringify({
           action: 'update_username',
           username: cleanUsername,
