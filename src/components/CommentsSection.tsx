@@ -549,8 +549,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
               )}
             </AnimatePresence>
 
-            {/* Input */}
-            <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
+            {/* Input - pb-20 adds space for bottom navigation on mobile */}
+            <div className="p-4 pb-20 md:pb-4 border-t border-white/10 bg-[#1a1a1a]">
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowEmojis(!showEmojis)}
