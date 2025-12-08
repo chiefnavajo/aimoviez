@@ -23,7 +23,6 @@ import {
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
-import { broadcastVoteUpdate } from '@/lib/pusher-server';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -1293,12 +1292,8 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Broadcast real-time vote update to all connected clients
-    // This runs async and doesn't block the response
-    // Uses actualVoteCount (fetched after DB trigger) to avoid race condition
-    broadcastVoteUpdate(clipId, actualVoteCount).catch(() => {
-      // Silently ignore broadcast errors - vote was still successful
-    });
+    // Real-time updates are now handled by Supabase Realtime
+    // When the vote_count column updates, Supabase broadcasts to all subscribers
 
     return NextResponse.json(response, { status: 200 });
   } catch (error) {

@@ -46,7 +46,7 @@ import {
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
-import { useRealtimeClips } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, ClipUpdate } from '@/hooks/useRealtimeClips';
 
 // ============================================================================
 // TYPES
@@ -1294,7 +1294,7 @@ function StoryPage() {
   // Real-time updates for vote counts on clips
   useRealtimeClips({
     enabled: true,
-    onClipUpdate: useCallback((updatedClip) => {
+    onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
       // Update the clip vote count in the React Query cache
       queryClient.setQueryData<Season[]>(['story-seasons'], (oldData) => {
         if (!oldData) return oldData;

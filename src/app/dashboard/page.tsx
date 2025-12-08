@@ -28,7 +28,7 @@ import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
-import { useRealtimeClips } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, ClipUpdate } from '@/hooks/useRealtimeClips';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -37,17 +37,8 @@ const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(
 });
 
 // Dynamically import heavy libraries that are only used conditionally
-let PusherClass: typeof import('pusher-js').default | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let confettiLib: any = null;
-
-// Lazy load Pusher and confetti when needed
-const loadPusher = async () => {
-  if (!PusherClass) {
-    PusherClass = (await import('pusher-js')).default;
-  }
-  return PusherClass;
-};
 
 const loadConfetti = async () => {
   if (!confettiLib) {
@@ -696,9 +687,6 @@ function VotingArena() {
   const touchEndY = useRef<number>(0);
   const swipeThreshold = 50;
 
-  // Pusher instance ref to prevent memory leaks from multiple connections
-  const pusherRef = useRef<InstanceType<typeof import('pusher-js').default> | null>(null);
-
   // Video preload cache to prevent DOM accumulation on swipes
   const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -727,7 +715,7 @@ function VotingArena() {
   // Real-time updates for clips (votes, new clips, deletions)
   useRealtimeClips({
     enabled: true,
-    onClipUpdate: useCallback((updatedClip) => {
+    onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
       // Update the clip in the React Query cache
       queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
         if (!oldData?.clips) return oldData;
@@ -746,7 +734,7 @@ function VotingArena() {
         };
       });
     }, [queryClient]),
-    onNewClip: useCallback((newClip) => {
+    onNewClip: useCallback((newClip: ClipUpdate) => {
       // When a new clip is approved/added, refetch to get the full clip data
       // Only refetch if the clip status is 'approved' (ready for voting)
       if (newClip.status === 'approved') {
@@ -755,7 +743,7 @@ function VotingArena() {
         toast.success('New clip added!', { icon: '🎬' });
       }
     }, [refetch]),
-    onClipDelete: useCallback((clipId) => {
+    onClipDelete: useCallback((clipId: string) => {
       // Remove deleted clip from the cache
       queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
         if (!oldData?.clips) return oldData;
@@ -1022,63 +1010,6 @@ function VotingArena() {
       }
     },
   });
-
-  // Pusher real-time - single instance stored in ref to prevent memory leaks
-  // FIX: Removed queryClient from deps to prevent reconnection on every render
-  // The callback captures queryClient via closure which is stable
-  // FIX: Lazy load Pusher to reduce initial bundle size
-  useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_PUSHER_KEY || !process.env.NEXT_PUBLIC_PUSHER_CLUSTER) return;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let channel: any = null;
-
-    // Lazy load Pusher when needed
-    loadPusher().then((PusherClass) => {
-      // Only create Pusher instance if we don't have one
-      if (!pusherRef.current) {
-        pusherRef.current = new PusherClass(process.env.NEXT_PUBLIC_PUSHER_KEY!, {
-          cluster: process.env.NEXT_PUBLIC_PUSHER_CLUSTER!,
-        });
-      }
-
-      const pusher = pusherRef.current;
-      channel = pusher.subscribe('voting-track-main');
-
-      channel.bind('vote-update', (data: { clipId: string; voteCount?: number }) => {
-        queryClient.setQueryData<VotingState | undefined>(['voting', 'track-main'], (prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            clips: prev.clips.map((clip) =>
-              clip.clip_id === data.clipId
-                ? { ...clip, vote_count: data.voteCount ?? clip.vote_count }
-                : clip
-            ),
-          };
-        });
-      });
-    });
-
-    return () => {
-      if (channel) {
-        channel.unbind_all();
-        channel.unsubscribe();
-      }
-      // Don't disconnect here - will be done in separate cleanup effect
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - connect once on mount
-
-  // Separate cleanup effect for Pusher disconnect on unmount only
-  useEffect(() => {
-    return () => {
-      if (pusherRef.current) {
-        pusherRef.current.disconnect();
-        pusherRef.current = null;
-      }
-    };
-  }, []);
 
   // Touch handlers with pull-to-refresh
   const handleTouchStart = (e: React.TouchEvent) => {
