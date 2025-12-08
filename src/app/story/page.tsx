@@ -22,7 +22,7 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Play,
   Heart,
@@ -46,6 +46,7 @@ import {
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
+import { useRealtimeClips } from '@/hooks/useRealtimeClips';
 
 // ============================================================================
 // TYPES
@@ -1278,6 +1279,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
 
 function StoryPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
@@ -1287,6 +1289,32 @@ function StoryPage() {
     queryFn: fetchSeasons,
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: false,
+  });
+
+  // Real-time updates for vote counts on clips
+  useRealtimeClips({
+    enabled: true,
+    onClipUpdate: useCallback((updatedClip) => {
+      // Update the clip vote count in the React Query cache
+      queryClient.setQueryData<Season[]>(['story-seasons'], (oldData) => {
+        if (!oldData) return oldData;
+        return oldData.map((season) => ({
+          ...season,
+          slots: season.slots?.map((slot) => {
+            if (slot.winning_clip?.id === updatedClip.id) {
+              return {
+                ...slot,
+                winning_clip: {
+                  ...slot.winning_clip,
+                  vote_count: updatedClip.vote_count ?? slot.winning_clip.vote_count,
+                },
+              };
+            }
+            return slot;
+          }),
+        }));
+      });
+    }, [queryClient]),
   });
 
   // Set initial selected season when data loads

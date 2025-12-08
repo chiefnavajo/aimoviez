@@ -28,6 +28,7 @@ import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
+import { useRealtimeClips } from '@/hooks/useRealtimeClips';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -722,6 +723,30 @@ function VotingArena() {
 
   const votesToday = votingData?.totalVotesToday ?? 0;
   const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
+
+  // Real-time updates for vote counts
+  useRealtimeClips({
+    enabled: true,
+    onClipUpdate: useCallback((updatedClip) => {
+      // Update the clip in the React Query cache
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+        if (!oldData?.clips) return oldData;
+        return {
+          ...oldData,
+          clips: oldData.clips.map((clip) =>
+            clip.clip_id === updatedClip.id
+              ? {
+                  ...clip,
+                  vote_count: updatedClip.vote_count ?? clip.vote_count,
+                  weighted_score: updatedClip.weighted_score ?? clip.weighted_score,
+                  hype_score: updatedClip.hype_score ?? clip.hype_score,
+                }
+              : clip
+          ),
+        };
+      });
+    }, [queryClient]),
+  });
 
   // Browser-level prefetch for next video
   useEffect(() => {
