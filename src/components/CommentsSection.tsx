@@ -408,200 +408,203 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
     }
   };
 
-  if (!isOpen) return null;
-
   return (
     <AnimatePresence>
-      {/* Backdrop */}
-      <motion.div
-        key="backdrop"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 z-50 md:bg-transparent md:pointer-events-none"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Comments Panel */}
-      <motion.div
-        ref={modalRef}
-        key="comments-panel"
-        initial={{ y: '100%' }}
-        animate={{ y: 0 }}
-        exit={{ y: '100%' }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-        className="fixed bottom-0 left-0 right-0 md:right-auto md:left-auto md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:w-[400px] md:max-h-[600px] md:mx-auto z-50 bg-[#1a1a1a] rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="comments-modal-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5" aria-hidden="true" />
-            <span id="comments-modal-title" className="font-bold">{total} Comments</span>
-          </div>
-          <button
-            ref={closeButtonRef}
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            key="comments-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 bg-black/60 z-50 md:bg-transparent md:pointer-events-none"
             onClick={onClose}
-            className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]"
-            aria-label="Close comments"
+            aria-hidden="true"
+          />
+
+          {/* Comments Panel */}
+          <motion.div
+            ref={modalRef}
+            key="comments-panel"
+            initial={{ y: '100%' }}
+            animate={{ y: 0 }}
+            exit={{ y: '100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="fixed bottom-0 left-0 right-0 md:right-auto md:left-auto md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:w-[400px] md:max-h-[600px] md:mx-auto z-50 bg-[#1a1a1a] rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="comments-modal-title"
           >
-            <X className="w-5 h-5" aria-hidden="true" />
-          </button>
-        </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" aria-hidden="true" />
+                <span id="comments-modal-title" className="font-bold">{total} Comments</span>
+              </div>
+              <button
+                ref={closeButtonRef}
+                onClick={onClose}
+                className="w-8 h-8 rounded-full hover:bg-white/10 flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-[#1a1a1a]"
+                aria-label="Close comments"
+              >
+                <X className="w-5 h-5" aria-hidden="true" />
+              </button>
+            </div>
 
-        {/* Comments List */}
-        <div 
-          ref={commentsContainerRef}
-          className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
-        >
-          {loading && comments.length === 0 ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-white/60" />
-            </div>
-          ) : comments.length === 0 ? (
-            <div className="text-center py-12 text-white/50">
-              <MessageCircle className="w-12 h-12 mx-auto mb-3 text-white/60" />
-              <p>No comments yet</p>
-              <p className="text-sm">Be the first to comment!</p>
-            </div>
-          ) : (
-            <>
-              {comments.filter(c => c.id).map((comment) => (
-                <CommentItem
-                  key={comment.id}
-                  comment={comment}
-                  onLike={() => handleLike(comment)}
-                  onReply={() => handleReply(comment)}
-                  onDelete={() => handleDelete(comment)}
-                  isExpanded={expandedReplies.has(comment.id)}
-                  onToggleReplies={() => toggleReplies(comment.id)}
-                  onLikeReply={(reply) => handleLike(reply)}
-                  onReplyToReply={(reply) => handleReply(reply)}
-                  onDeleteReply={(reply) => handleDelete(reply)}
-                />
-              ))}
-              
-              {/* Load More */}
-              {hasMore && (
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  onClick={loadMore}
-                  disabled={loading}
-                  className="w-full py-3 mt-2 text-sm font-medium text-cyan-400 hover:text-cyan-300
-                           bg-white/5 hover:bg-white/10 rounded-xl border border-white/10
-                           disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-4 h-4" />
-                      Load more comments ({total - comments.length} remaining)
-                    </>
+            {/* Comments List */}
+            <div
+              ref={commentsContainerRef}
+              className="flex-1 overflow-y-auto px-4 py-3 space-y-4"
+            >
+              {loading && comments.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+                </div>
+              ) : comments.length === 0 ? (
+                <div className="text-center py-12 text-white/50">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-white/60" />
+                  <p>No comments yet</p>
+                  <p className="text-sm">Be the first to comment!</p>
+                </div>
+              ) : (
+                <>
+                  {comments.filter(c => c.id).map((comment) => (
+                    <CommentItem
+                      key={comment.id}
+                      comment={comment}
+                      onLike={() => handleLike(comment)}
+                      onReply={() => handleReply(comment)}
+                      onDelete={() => handleDelete(comment)}
+                      isExpanded={expandedReplies.has(comment.id)}
+                      onToggleReplies={() => toggleReplies(comment.id)}
+                      onLikeReply={(reply) => handleLike(reply)}
+                      onReplyToReply={(reply) => handleReply(reply)}
+                      onDeleteReply={(reply) => handleDelete(reply)}
+                    />
+                  ))}
+
+                  {/* Load More */}
+                  {hasMore && (
+                    <motion.button
+                      whileTap={{ scale: 0.98 }}
+                      onClick={loadMore}
+                      disabled={loading}
+                      className="w-full py-3 mt-2 text-sm font-medium text-cyan-400 hover:text-cyan-300
+                               bg-white/5 hover:bg-white/10 rounded-xl border border-white/10
+                               disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4" />
+                          Load more comments ({total - comments.length} remaining)
+                        </>
+                      )}
+                    </motion.button>
                   )}
-                </motion.button>
+                </>
               )}
-            </>
-          )}
-        </div>
-
-        {/* Reply indicator */}
-        {replyingTo && (
-          <div className="px-4 py-2 bg-white/5 border-t border-white/10 flex items-center justify-between">
-            <span className="text-sm text-white/60">
-              Replying to <span className="text-cyan-400">@{replyingTo.username}</span>
-            </span>
-            <button onClick={() => { setReplyingTo(null); setNewComment(''); }} className="text-white/60 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Emoji Picker */}
-        <AnimatePresence>
-          {showEmojis && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-4 py-2 bg-white/5 border-t border-white/10 flex gap-2 overflow-x-auto"
-            >
-              {EMOJIS.map(({ emoji, label }) => (
-                <button
-                  key={emoji}
-                  onClick={() => addEmoji(emoji)}
-                  className="text-2xl hover:scale-125 transition-transform"
-                  aria-label={`Add ${label} emoji`}
-                  title={label}
-                >
-                  {emoji}
-                </button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Input */}
-        <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowEmojis(!showEmojis)}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition ${showEmojis ? 'bg-white/20' : 'hover:bg-white/10'}`}
-            >
-              <Smile className="w-5 h-5" />
-            </button>
-            
-            <input
-              ref={inputRef}
-              type="text"
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault();
-                  handlePostComment();
-                }
-                // Prevent space from bubbling up and triggering button clicks
-                e.stopPropagation();
-              }}
-              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
-              maxLength={500}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-              className="flex-1 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm placeholder:text-white/60 focus:outline-none focus:border-cyan-500"
-            />
-            
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={handlePostComment}
-              disabled={!newComment.trim() || posting}
-              className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
-                newComment.trim() && !posting
-                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500'
-                  : 'bg-white/10 text-white/60'
-              }`}
-            >
-              {posting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            </motion.button>
-          </div>
-          
-          {/* Character count */}
-          {newComment.length > 400 && (
-            <div className="text-right text-xs text-white/60 mt-1">
-              {newComment.length}/500
             </div>
-          )}
-        </div>
-      </motion.div>
+
+            {/* Reply indicator */}
+            {replyingTo && (
+              <div className="px-4 py-2 bg-white/5 border-t border-white/10 flex items-center justify-between">
+                <span className="text-sm text-white/60">
+                  Replying to <span className="text-cyan-400">@{replyingTo.username}</span>
+                </span>
+                <button onClick={() => { setReplyingTo(null); setNewComment(''); }} className="text-white/60 hover:text-white">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Emoji Picker */}
+            <AnimatePresence>
+              {showEmojis && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="px-4 py-2 bg-white/5 border-t border-white/10 flex gap-2 overflow-x-auto"
+                >
+                  {EMOJIS.map(({ emoji, label }) => (
+                    <button
+                      key={emoji}
+                      onClick={() => addEmoji(emoji)}
+                      className="text-2xl hover:scale-125 transition-transform"
+                      aria-label={`Add ${label} emoji`}
+                      title={label}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Input */}
+            <div className="p-4 border-t border-white/10 bg-[#1a1a1a]">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowEmojis(!showEmojis)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition ${showEmojis ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                >
+                  <Smile className="w-5 h-5" />
+                </button>
+
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handlePostComment();
+                    }
+                    // Prevent space from bubbling up and triggering button clicks
+                    e.stopPropagation();
+                  }}
+                  placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
+                  maxLength={500}
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
+                  className="flex-1 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm placeholder:text-white/60 focus:outline-none focus:border-cyan-500"
+                />
+
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={handlePostComment}
+                  disabled={!newComment.trim() || posting}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition ${
+                    newComment.trim() && !posting
+                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500'
+                      : 'bg-white/10 text-white/60'
+                  }`}
+                >
+                  {posting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+                </motion.button>
+              </div>
+
+              {/* Character count */}
+              {newComment.length > 400 && (
+                <div className="text-right text-xs text-white/60 mt-1">
+                  {newComment.length}/500
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </>
+      )}
     </AnimatePresence>
   );
 }
