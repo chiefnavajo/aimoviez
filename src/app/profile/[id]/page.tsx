@@ -260,7 +260,7 @@ export default function CreatorProfilePage() {
       {/* Desktop Layout */}
       <div className="hidden md:flex h-screen">
         <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
-          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4"><span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span></Link>
+          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4"><span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span></Link>
           <Link href="/dashboard" className="mb-4"><motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"><Heart className="w-5 h-5" fill="white" /><span>Vote Now</span></motion.div></Link>
           <nav className="flex-1 space-y-1">
             <Link href="/story"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><BookOpen className="w-6 h-6" /><span>Story</span></div></Link>

@@ -471,7 +471,7 @@ function UploadPageContent() {
       <div className="hidden md:flex h-screen">
         {/* Left Sidebar */}
         <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
-          <Link href="/" className="flex items-center gap-2 px-3 py-2 mb-4">
+          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span>
           </Link>
           <Link href="/dashboard" className="mb-4">
