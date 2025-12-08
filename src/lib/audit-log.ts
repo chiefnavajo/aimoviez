@@ -23,6 +23,7 @@ export type AuditAction =
   | 'unban_user'
   | 'grant_admin'
   | 'revoke_admin'
+  | 'update_username'
   | 'delete_comment'
   | 'bulk_action';
 
