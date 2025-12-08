@@ -168,6 +168,7 @@ interface ClientClip {
   is_featured?: boolean;
   is_creator_followed?: boolean;
   has_voted?: boolean; // NEW: indicates if user already voted on this clip
+  comment_count?: number; // Number of comments on this clip
 }
 
 interface VotingStateResponse {
@@ -222,9 +223,9 @@ async function getUserVotesToday(
 ): Promise<{ votes: VoteRow[]; count: number; error?: string }> {
   const startOfToday = startOfTodayUTC().toISOString();
 
-  const { data, error, count } = await supabase
+  const { data, error } = await supabase
     .from('votes')
-    .select('clip_id, vote_weight, vote_type, created_at, slot_position', { count: 'exact' })
+    .select('clip_id, vote_weight, vote_type, created_at, slot_position')
     .eq('voter_key', voterKey)
     .gte('created_at', startOfToday);
 
@@ -234,7 +235,11 @@ async function getUserVotesToday(
     return { votes: [], count: 0, error: 'Failed to fetch vote history' };
   }
 
-  return { votes: (data as VoteRow[]) || [], count: count ?? 0 };
+  const votes = (data as VoteRow[]) || [];
+  // Sum vote_weight to get total votes consumed (mega=10, super=3, standard=1)
+  const totalWeight = votes.reduce((sum, vote) => sum + (vote.vote_weight ?? 1), 0);
+
+  return { votes, count: totalWeight };
 }
 
 async function getUserVotesInSlot(
@@ -737,6 +742,25 @@ export async function GET(req: NextRequest) {
       recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
+    // 8.5 Fetch comment counts for sampled clips (batch query)
+    const commentCountsMap = new Map<string, number>();
+    if (clipIdsToRecord.length > 0) {
+      const { data: commentCounts } = await supabase
+        .from('comments')
+        .select('clip_id')
+        .in('clip_id', clipIdsToRecord)
+        .eq('is_deleted', false)
+        .is('parent_comment_id', null); // Only count top-level comments
+
+      if (commentCounts) {
+        // Count comments per clip
+        commentCounts.forEach((c: { clip_id: string }) => {
+          const current = commentCountsMap.get(c.clip_id) || 0;
+          commentCountsMap.set(c.clip_id, current + 1);
+        });
+      }
+    }
+
     // 9. Map clips for frontend
     const clipsForClient: ClientClip[] = sampledClips.map((row, index) => {
       const voteCount = row.vote_count ?? 0;
@@ -767,6 +791,7 @@ export async function GET(req: NextRequest) {
         is_featured: false,
         is_creator_followed: false,
         has_voted: votedIdsSet.has(row.id),
+        comment_count: commentCountsMap.get(row.id) || 0,
       };
     });
 
@@ -944,8 +969,10 @@ export async function POST(req: NextRequest) {
     // Handle various truthy values (boolean true, string "true", number 1, etc.)
     const multiVoteEnabled = Boolean(multiVoteFlag?.enabled);
 
-    // 2. Check if already voted on this clip (skip if multi-vote mode is ON)
-    if (!multiVoteEnabled) {
+    // 2. Check if already voted on this clip (skip if multi-vote mode is ON or if super/mega vote)
+    // Super/mega votes are allowed to upgrade existing votes
+    const isPowerVote = voteType === 'super' || voteType === 'mega';
+    if (!multiVoteEnabled && !isPowerVote) {
       const voteCheckResult = await hasVotedOnClip(supabase, effectiveVoterKey, clipId);
       // SECURITY: If we can't verify vote status, reject the request
       if (voteCheckResult.error) {
@@ -1145,9 +1172,9 @@ export async function POST(req: NextRequest) {
 
     let insertError;
 
-    if (multiVoteEnabled) {
-      // In multi-vote mode, update existing vote to add weight, or insert new
-      // First try to update existing vote
+    if (multiVoteEnabled || isPowerVote) {
+      // In multi-vote mode OR for power votes (super/mega), update existing vote or insert new
+      // Power votes can upgrade an existing standard vote
       const { data: existingVote } = await supabase
         .from('votes')
         .select('id, vote_weight')
@@ -1156,7 +1183,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (existingVote) {
-        // Update existing vote - add to the weight
+        // Update existing vote - add to the weight (upgrade the vote)
         const { error } = await supabase
           .from('votes')
           .update({
@@ -1166,12 +1193,13 @@ export async function POST(req: NextRequest) {
           .eq('id', existingVote.id);
         insertError = error;
 
-        // Also update clip's weighted_score directly since trigger won't fire on update
+        // Also update clip's vote_count and weighted_score directly since trigger won't fire on update
+        // vote_count adds the weight (mega=10, super=3, standard=1) to show total "votes"
         if (!error) {
           await supabase
             .from('tournament_clips')
             .update({
-              vote_count: (clipData?.vote_count || 0) + 1,
+              vote_count: (clipData?.vote_count || 0) + weight,
               weighted_score: (clipData?.weighted_score || 0) + weight,
             })
             .eq('id', clipId);
@@ -1209,15 +1237,24 @@ export async function POST(req: NextRequest) {
     }
 
     // 7. Vote count update is handled by database trigger (on_vote_insert)
-    // The trigger atomically increments:
-    //   - vote_count by 1 (number of votes)
-    //   - weighted_score by vote_weight (1, 3, or 10)
+    // The trigger atomically increments both vote_count and weighted_score by vote_weight
+    // Mega = 10, Super = 3, Standard = 1
     // We calculate the expected new score for the response
-    const newVoteCount = (clipData.vote_count ?? 0) + 1;
+    const newVoteCount = (clipData.vote_count ?? 0) + weight;
     const newWeightedScore = (clipData.weighted_score ?? 0) + weight;
 
+    // Fetch actual vote count after database trigger has run
+    // This ensures Pusher broadcasts the correct count, not a stale estimate
+    const { data: updatedClip } = await supabase
+      .from('tournament_clips')
+      .select('vote_count')
+      .eq('id', clipId)
+      .single();
+    const actualVoteCount = updatedClip?.vote_count ?? newVoteCount;
+
     // 8. Calculate remaining votes
-    const newTotalVotesToday = totalVotesToday + 1;
+    // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
+    const newTotalVotesToday = totalVotesToday + weight;
     const slotVotesAfterResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
     // Non-critical: if this fails, we still return success but with estimated values
     const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
@@ -1258,7 +1295,8 @@ export async function POST(req: NextRequest) {
 
     // Broadcast real-time vote update to all connected clients
     // This runs async and doesn't block the response
-    broadcastVoteUpdate(clipId, newVoteCount).catch(() => {
+    // Uses actualVoteCount (fetched after DB trigger) to avoid race condition
+    broadcastVoteUpdate(clipId, actualVoteCount).catch(() => {
       // Silently ignore broadcast errors - vote was still successful
     });
 

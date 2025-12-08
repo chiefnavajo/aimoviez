@@ -132,14 +132,14 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Build query for top-level comments (no parent)
-    // Only show approved comments (or pending if moderation is disabled)
+    // Note: moderation_status filter removed - column may not exist in all deployments
+    // If moderation is needed, run the migration-comment-moderation.sql first
     let query = supabase
       .from('comments')
-      .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at, is_deleted, moderation_status', { count: 'exact' })
+      .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at, is_deleted', { count: 'exact' })
       .eq('clip_id', clipId)
       .is('parent_comment_id', null)
-      .eq('is_deleted', false)
-      .in('moderation_status', ['approved', null]);
+      .eq('is_deleted', false);
 
     if (sort === 'newest') {
       query = query.order('created_at', { ascending: false });
@@ -175,7 +175,6 @@ export async function GET(req: NextRequest) {
       .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at')
       .in('parent_comment_id', commentIds)
       .eq('is_deleted', false)
-      .in('moderation_status', ['approved', null])
       .order('created_at', { ascending: true });
 
     // Group replies by parent comment ID

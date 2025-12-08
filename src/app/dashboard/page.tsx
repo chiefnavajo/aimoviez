@@ -91,6 +91,7 @@ interface APIClip {
   is_featured?: boolean;
   is_creator_followed?: boolean;
   has_voted?: boolean;
+  comment_count?: number;
 }
 
 // Frontend clip structure (normalized for UI)
@@ -115,6 +116,7 @@ interface ClipForClient {
   is_featured: boolean;
   is_creator_followed: boolean;
   has_voted?: boolean;
+  comment_count?: number;
 }
 
 // API response structure
@@ -179,6 +181,7 @@ function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
     is_featured: clip.is_featured || false,
     is_creator_followed: clip.is_creator_followed || false,
     has_voted: clip.has_voted,
+    comment_count: clip.comment_count ?? 0,
   }));
 
   return {
@@ -297,9 +300,10 @@ const PowerVoteButton = memo(function PowerVoteButton({
     setHoldProgress(0);
     setCurrentVoteType('standard');
 
-    // Start progress interval for new votes, OR for multi-vote mode (allows super/mega on already-voted clips)
-    const canVoteAgain = !hasVoted || multiVoteMode;
-    if (canVoteAgain) {
+    // Start progress interval for new votes
+    // Also allow holding on already-voted clips to charge super/mega (upgrades existing vote)
+    const canChargeVote = !hasVoted || multiVoteMode || (superRemaining > 0 || megaRemaining > 0);
+    if (canChargeVote) {
       // Update progress every 50ms
       progressIntervalRef.current = setInterval(() => {
         const elapsed = Date.now() - startTimeRef.current;
@@ -340,11 +344,12 @@ const PowerVoteButton = memo(function PowerVoteButton({
 
     // Execute vote or revoke
     if (!isDisabled) {
-      if (hasVoted && !multiVoteMode) {
-        // Tap on voted clip = revoke (only in normal mode)
+      if (hasVoted && !multiVoteMode && finalVoteType === 'standard') {
+        // Tap on voted clip = revoke (only in normal mode, only for standard votes)
+        // Super/mega votes upgrade the existing vote instead of revoking
         onVote('standard'); // This will trigger revoke in handleVote
       } else {
-        // New vote, or multi-vote mode allows additional votes
+        // New vote, upgrade existing vote with super/mega, or multi-vote mode
         onVote(finalVoteType);
       }
     }
@@ -843,10 +848,11 @@ function VotingArena() {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
-              ? { ...clip, vote_count: clip.vote_count + 1, has_voted: true }
+              ? { ...clip, vote_count: clip.vote_count + voteWeight, has_voted: true }
               : clip
           ),
-          totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
+          // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
+          totalVotesToday: (previous.totalVotesToday ?? 0) + voteWeight,
         });
       }
 
@@ -1277,6 +1283,23 @@ function VotingArena() {
     }
   };
 
+  // Handler for when a comment is added - update comment count optimistically
+  const handleCommentAdded = () => {
+    if (!currentClip?.clip_id) return;
+
+    const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+    if (previous) {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+        ...previous,
+        clips: previous.clips.map((clip) =>
+          clip.clip_id === currentClip.clip_id
+            ? { ...clip, comment_count: (clip.comment_count ?? 0) + 1 }
+            : clip
+        ),
+      });
+    }
+  };
+
   // Loading state with skeleton - improved with gradient background
   if (isLoading) {
     return (
@@ -1569,7 +1592,7 @@ function VotingArena() {
         {/* Comments */}
         <ActionButton
           icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
-          label="Chat"
+          label={formatNumber(currentClip?.comment_count ?? 0)}
           onClick={() => setShowComments(true)}
           ariaLabel="Open comments"
         />
@@ -1683,6 +1706,7 @@ function VotingArena() {
         isOpen={showComments}
         onClose={() => setShowComments(false)}
         clipUsername={currentClip?.username}
+        onCommentAdded={handleCommentAdded}
       />
 
       {/* ============ BOTTOM NAV ============ */}

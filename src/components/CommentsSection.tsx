@@ -44,6 +44,7 @@ interface CommentsSectionProps {
   isOpen: boolean;
   onClose: () => void;
   clipUsername?: string;
+  onCommentAdded?: () => void; // Called when a new comment is successfully posted
 }
 
 // Emoji picker options with accessible labels for screen readers
@@ -69,7 +70,7 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(seconds / 604800)}w`;
 }
 
-export default function CommentsSection({ clipId, isOpen, onClose, clipUsername: _clipUsername }: CommentsSectionProps) {
+export default function CommentsSection({ clipId, isOpen, onClose, clipUsername: _clipUsername, onCommentAdded }: CommentsSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -105,9 +106,9 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    // Focus the close button when modal opens
+    // Focus the input field when modal opens (better UX for commenting)
     setTimeout(() => {
-      closeButtonRef.current?.focus();
+      inputRef.current?.focus();
     }, 100);
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -118,7 +119,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
         return;
       }
 
-      // Focus trap on Tab
+      // Focus trap on Tab only - don't interfere with other keys
       if (e.key === 'Tab' && modalRef.current) {
         const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
           'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -261,8 +262,10 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
           // Add new top-level comment
           setComments(prev => [data.comment, ...prev]);
           setTotal(prev => prev + 1);
+          // Notify parent that a comment was added (for comment count update)
+          onCommentAdded?.();
         }
-        
+
         setNewComment('');
         setReplyingTo(null);
         setShowEmojis(false);
@@ -560,9 +563,20 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
               type="text"
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handlePostComment()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handlePostComment();
+                }
+                // Prevent space from bubbling up and triggering button clicks
+                e.stopPropagation();
+              }}
               placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
               maxLength={500}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               className="flex-1 bg-white/10 border border-white/10 rounded-full px-4 py-2 text-sm placeholder:text-white/60 focus:outline-none focus:border-cyan-500"
             />
             
