@@ -724,7 +724,7 @@ function VotingArena() {
   const votesToday = votingData?.totalVotesToday ?? 0;
   const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
 
-  // Real-time updates for vote counts
+  // Real-time updates for clips (votes, new clips, deletions)
   useRealtimeClips({
     enabled: true,
     onClipUpdate: useCallback((updatedClip) => {
@@ -743,6 +743,26 @@ function VotingArena() {
                 }
               : clip
           ),
+        };
+      });
+    }, [queryClient]),
+    onNewClip: useCallback((newClip) => {
+      // When a new clip is approved/added, refetch to get the full clip data
+      // Only refetch if the clip status is 'approved' (ready for voting)
+      if (newClip.status === 'approved') {
+        console.log('[Realtime] New clip approved, refreshing feed...');
+        refetch();
+        toast.success('New clip added!', { icon: '🎬' });
+      }
+    }, [refetch]),
+    onClipDelete: useCallback((clipId) => {
+      // Remove deleted clip from the cache
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+        if (!oldData?.clips) return oldData;
+        const newClips = oldData.clips.filter((clip) => clip.clip_id !== clipId);
+        return {
+          ...oldData,
+          clips: newClips,
         };
       });
     }, [queryClient]),
