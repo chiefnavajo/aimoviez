@@ -98,11 +98,12 @@ export async function GET(
 
 /**
  * PUT /api/admin/users/[id]
- * Update user (ban/unban, update role)
+ * Update user (ban/unban, update role, change username)
  *
  * Body: {
- *   action: 'ban' | 'unban' | 'make_admin' | 'remove_admin',
- *   reason?: string (for ban)
+ *   action: 'ban' | 'unban' | 'make_admin' | 'remove_admin' | 'update_username',
+ *   reason?: string (for ban),
+ *   username?: string (for update_username)
  * }
  */
 export async function PUT(
@@ -117,9 +118,9 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, reason } = body;
+    const { action, reason, username } = body;
 
-    if (!action || !['ban', 'unban', 'make_admin', 'remove_admin'].includes(action)) {
+    if (!action || !['ban', 'unban', 'make_admin', 'remove_admin', 'update_username'].includes(action)) {
       return NextResponse.json(
         { error: 'Invalid action' },
         { status: 400 }
@@ -151,7 +152,7 @@ export async function PUT(
     }
 
     let updateData: Record<string, unknown> = {};
-    let auditAction: 'ban_user' | 'unban_user' | 'grant_admin' | 'revoke_admin';
+    let auditAction: 'ban_user' | 'unban_user' | 'grant_admin' | 'revoke_admin' | 'update_username';
 
     switch (action) {
       case 'ban':
@@ -177,6 +178,43 @@ export async function PUT(
       case 'remove_admin':
         updateData = { is_admin: false };
         auditAction = 'revoke_admin';
+        break;
+      case 'update_username':
+        // Validate username
+        if (!username || typeof username !== 'string') {
+          return NextResponse.json(
+            { error: 'Username is required' },
+            { status: 400 }
+          );
+        }
+        const cleanUsername = username.toLowerCase().trim();
+        if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+          return NextResponse.json(
+            { error: 'Username must be 3-20 characters' },
+            { status: 400 }
+          );
+        }
+        if (!/^[a-z0-9_]+$/.test(cleanUsername)) {
+          return NextResponse.json(
+            { error: 'Username can only contain lowercase letters, numbers, and underscores' },
+            { status: 400 }
+          );
+        }
+        // Check if username is already taken
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('username', cleanUsername)
+          .neq('id', id)
+          .single();
+        if (existingUser) {
+          return NextResponse.json(
+            { error: 'Username is already taken' },
+            { status: 400 }
+          );
+        }
+        updateData = { username: cleanUsername };
+        auditAction = 'update_username';
         break;
       default:
         return NextResponse.json(
@@ -212,11 +250,20 @@ export async function PUT(
       },
     });
 
+    const actionMessages: Record<string, string> = {
+      ban: 'banned',
+      unban: 'unbanned',
+      make_admin: 'promoted to admin',
+      remove_admin: 'removed from admin',
+      update_username: `username changed to @${updateData.username}`,
+    };
+
     return NextResponse.json({
       success: true,
       action,
       userId: id,
-      message: `User ${action === 'ban' ? 'banned' : action === 'unban' ? 'unbanned' : action === 'make_admin' ? 'promoted to admin' : 'removed from admin'}`,
+      newUsername: action === 'update_username' ? updateData.username : undefined,
+      message: `User ${actionMessages[action]}`,
     });
   } catch (error) {
     console.error('User update error:', error);

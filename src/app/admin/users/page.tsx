@@ -27,6 +27,7 @@ import {
   AlertTriangle,
   X,
   Eye,
+  Edit3,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 
@@ -79,6 +80,12 @@ export default function AdminUsersPage() {
   const [banningUser, setBanningUser] = useState<UserData | null>(null);
   const [banReason, setBanReason] = useState('');
   const [processingBan, setProcessingBan] = useState(false);
+
+  // Edit username modal
+  const [editingUser, setEditingUser] = useState<UserData | null>(null);
+  const [newUsername, setNewUsername] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [processingUsername, setProcessingUsername] = useState(false);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -206,6 +213,72 @@ export default function AdminUsersPage() {
     } catch (error) {
       console.error('Failed to toggle admin:', error);
     }
+  };
+
+  // Update username
+  const handleUsernameUpdate = async () => {
+    if (!editingUser || !newUsername.trim()) return;
+
+    const cleanUsername = newUsername.toLowerCase().trim();
+
+    // Validate
+    if (cleanUsername.length < 3 || cleanUsername.length > 20) {
+      setUsernameError('Username must be 3-20 characters');
+      return;
+    }
+    if (!/^[a-z0-9_]+$/.test(cleanUsername)) {
+      setUsernameError('Only lowercase letters, numbers, and underscores');
+      return;
+    }
+
+    setProcessingUsername(true);
+    setUsernameError('');
+
+    try {
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_username',
+          username: cleanUsername,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        setUsers(prev =>
+          prev.map(u =>
+            u.id === editingUser.id ? { ...u, username: cleanUsername } : u
+          )
+        );
+
+        // Update detail modal if open
+        if (selectedUser?.id === editingUser.id) {
+          setSelectedUser(prev =>
+            prev ? { ...prev, username: cleanUsername } : null
+          );
+        }
+
+        setEditingUser(null);
+        setNewUsername('');
+      } else {
+        setUsernameError(data.error || 'Failed to update username');
+      }
+    } catch (error) {
+      console.error('Failed to update username:', error);
+      setUsernameError('Network error. Please try again.');
+    }
+
+    setProcessingUsername(false);
+  };
+
+  // Open edit username modal
+  const openEditUsername = (user: UserData) => {
+    setEditingUser(user);
+    setNewUsername(user.username);
+    setUsernameError('');
   };
 
   if (authLoading) {
@@ -375,6 +448,15 @@ export default function AdminUsersPage() {
                         title="View Details"
                       >
                         <Eye className="w-5 h-5" />
+                      </motion.button>
+
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openEditUsername(user)}
+                        className="p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-lg transition-colors text-cyan-400"
+                        title="Edit Username"
+                      >
+                        <Edit3 className="w-5 h-5" />
                       </motion.button>
 
                       {user.is_banned ? (
@@ -620,6 +702,89 @@ export default function AdminUsersPage() {
                     <>
                       <Ban className="w-5 h-5" />
                       Ban User
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Username Modal */}
+      <AnimatePresence>
+        {editingUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setEditingUser(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1a1a2e] rounded-2xl border border-cyan-500/30 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-cyan-500/20">
+                  <Edit3 className="w-6 h-6 text-cyan-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">Edit Username</h2>
+                  <p className="text-sm text-white/60">{editingUser.email}</p>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2">
+                  New Username
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40">@</span>
+                  <input
+                    type="text"
+                    value={newUsername}
+                    onChange={(e) => {
+                      setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+                      setUsernameError('');
+                    }}
+                    placeholder="username"
+                    maxLength={20}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl pl-8 pr-4 py-3 text-white placeholder-white/40 focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
+                {usernameError && (
+                  <p className="text-red-400 text-sm mt-2">{usernameError}</p>
+                )}
+                <p className="text-white/40 text-xs mt-2">
+                  3-20 characters, lowercase letters, numbers, and underscores only
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setEditingUser(null)}
+                  disabled={processingUsername}
+                  className="flex-1 py-3 bg-white/10 rounded-xl font-medium hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleUsernameUpdate}
+                  disabled={processingUsername || !newUsername.trim() || newUsername === editingUser.username}
+                  className="flex-1 py-3 bg-cyan-500 rounded-xl font-bold hover:bg-cyan-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingUsername ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Edit3 className="w-5 h-5" />
+                      Update
                     </>
                   )}
                 </motion.button>
