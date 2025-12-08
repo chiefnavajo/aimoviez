@@ -6,10 +6,12 @@ import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import Image from 'next/image';
 import { User, Sparkles, ArrowRight, Check, AlertCircle } from 'lucide-react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { post } = useCsrf();
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -67,29 +69,12 @@ export default function OnboardingPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/user/create-profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username,
-          display_name: displayName || username,
-          bio: bio || null,
-          avatar_url: session?.user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
-        }),
+      const data = await post<{ success: boolean; user?: any; error?: string; existingUsername?: string }>('/api/user/create-profile', {
+        username,
+        display_name: displayName || username,
+        bio: bio || null,
+        avatar_url: session?.user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 409) {
-          // Profile already exists - redirect to dashboard
-          router.push('/dashboard');
-          return;
-        }
-        throw new Error(data.error || 'Failed to create profile');
-      }
 
       // Store profile in localStorage for quick access
       if (data.user) {
@@ -100,6 +85,11 @@ export default function OnboardingPage() {
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (err: any) {
+      // Check if profile already exists (409 error becomes a thrown error)
+      if (err.message?.includes('already exists')) {
+        router.push('/dashboard');
+        return;
+      }
       setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
