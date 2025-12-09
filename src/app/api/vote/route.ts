@@ -23,6 +23,8 @@ import {
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
@@ -508,8 +510,7 @@ export async function GET(req: NextRequest) {
   // Get logged-in user's ID if available for secure vote tracking
   let effectiveVoterKey = voterKey;
   try {
-    const { getServerSession } = await import('next-auth');
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (session?.user?.email) {
       const { data: userData } = await supabase
         .from('users')
@@ -913,8 +914,7 @@ export async function POST(req: NextRequest) {
     let loggedInUserId: string | null = null;
     let _userEmail: string | null = null;
     try {
-      const { getServerSession } = await import('next-auth');
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         _userEmail = session.user.email;
         const { data: userData } = await supabase

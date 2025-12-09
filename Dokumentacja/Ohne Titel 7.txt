@@ -1,9 +1,291 @@
-This is the message from curses , maybe it will help p with the persisting problem:I can see the issue clearly from the screenshots. Both show black video areas - image 1B.png shows video 1/2 is black, and 2B.png shows video 2/2 is black after scrolling.
-Looking at the dashboard code, I can identify the root cause. The video player has a problematic implementation:
-Double-keying issue - Both AnimatePresence wrapper (key=activeIndex) AND the video element (key=clip_id) have keys, causing double unmount/remount
-Single videoRef - One videoRef is shared but gets invalidated during AnimatePresence transitions
-Animation timing conflict - AnimatePresence mode="wait" waits for exit animation before mounting new video, causing playback issues
-Let me check if there are any related video handling patterns elsewhere in the codebase:
-Now I have a clear understanding of the bug. Let me create a plan to fix the video playback issue:
+SCENE OVERVIEW
 
-Fix the issue where videos go black when scrolling between clips on the dashboard. The problem is caused by conflicting React keys and AnimatePresence exit animation timing that prevent the new video from properly loading and playing.
+“Ultra-realistic first-person POV cinematic sequence through Wojtek’s eyes as he walks through a New York–style street during golden hour. The buildings are extremely tall glass skyscrapers reflecting strong orange sunlight. Shadows are long, sharp, and physically accurate. The air contains micro-particles illuminated by the setting sun. The shot is a single continuous take with no cuts.”
+
+Camera = human-eye simulation
+
+
+
+head sway amplitude: 1.5–2%
+
+micro eye saccades: 0.2°–0.5°
+
+refocus delay: 120–160 ms
+
+natural blink rate: 1 blink every 4–6 seconds (optional, subtle)
+
+Lighting:
+
+
+
+warm golden-hour direct light
+
+accurate bounce light from glass
+
+NO bloom exaggeration
+
+NO stylized flares
+
+TIME DISTORTION PHYSICS (HIGH ACCURACY MODEL)
+
+Time slows relative to distance from the girl:
+
+
+
+Radius 15–20 m: normal motion
+
+Radius 8–15 m: 50% slow-motion
+
+Radius 3–8 m: heavy slow-motion
+
+Radius 0–3 m: near freeze
+
+Radius ≤1 m: absolute freeze
+
+Important:
+
+
+
+Only the girl can partially unfreeze independently
+
+No magical particles, no glowing FX
+
+All slow/stop effects must look purely physical, like heat distortion + temporal lag
+
+THE GIRL APPEARS
+
+We see her through Wojtek’s POV:
+
+
+
+flowing red dress illuminated by sun
+
+long blonde hair catching golden highlights
+
+sharp green eyes with skyscraper reflections
+
+elegant Eastern European features
+
+confident, calm, mysterious expression
+
+As she approaches, the layers of time-slow become more visible.
+
+
+
+Crowd → slower
+
+
+
+People closest → distort
+
+
+
+Her → moves at normal speed
+
+Wojtek’s Joker-like personality is hinted through:
+
+
+
+playful head tilt
+
+calm breathing
+
+slight anticipatory tension
+
+TIMELINE + CAMERA OPTIMIZATION
+
+SECONDS 0–2 — POV street approach (approx. 35mm eye equivalent)
+
+Crowd bustling at normal speed.
+
+
+Time slow begins to appear at mid-distance.
+
+
+Eye refocus shifts between foreground and her.
+
+SECONDS 2–4 — Medium approach (50–85mm effect)
+
+People behind her blur.
+
+
+
+Her figure sharpens.
+
+Camera sway minimal as focus locks.
+
+SECONDS 4–5 — Freeze ripple event
+
+A low-frequency distortion bends the air.
+
+
+Sound collapses to deep silence.
+
+
+Time freezes in layers down to 0.
+
+FULL FREEZE MOMENT (ENGINE-PROTECTED VERSION)
+
+Frozen elements must be:
+
+
+
+pedestrians mid-step
+
+spilled coffee suspended
+
+pigeons mid-wing
+
+steam frozen in twisting shapes
+
+taxi halted inches above a puddle
+
+ZERO motion jitter
+
+ZERO afterimages
+
+ZERO stylized VFX
+
+Girl remains the only unfrozen element.
+
+💥 PARTIAL UNFREEZE — THE THREAT MOMENT
+
+Second 5–6
+
+As Wojtek stops directly in front of her:
+
+
+
+The girl suddenly snaps to life while everything else remains frozen.
+
+Her motion is sharp, fast, clean, and realistic:
+
+She reaches toward her dress as if grabbing a hidden gun.
+
+
+
+Hand velocity: 0.15 seconds (fast, decisive).
+
+
+
+Hair reacts to the sudden movement physically.
+
+Emotional calibration:
+
+
+
+eyes sharpen
+
+micro tension in eyebrows
+
+moment of danger
+
+NO actual firearm visibility unless Sora decides; the gesture alone is enough.
+
+✋ SECOND FREEZE — TRIGGERED BY WOJTEK’S HAND
+
+Second 6–7
+
+From POV, Wojtek raises his hand.
+
+
+
+The moment his hand enters mid-lift:
+
+Time freezes again instantly.
+
+
+
+Her hand stops mid-draw
+
+Hair frozen mid-movement
+
+Face stuck in a mix of threat and recognition
+
+Environment fully frozen
+
+Only her eyes regain motion independently.
+
+Her eyes shift upward to meet ours — slow, emotional, alive.
+
+💗 THE INTIMATE CHEEK-TOUCH (HIGH-EMOTION MODEL)
+
+Second 7–10
+
+From POV:
+
+Wojtek gently places the back of his fingers on her cheek.
+
+Physics and realism required:
+
+
+
+subtle indentation of skin
+
+accurate subsurface scattering in golden light
+
+micro tremble of his fingers (human realism)
+
+NO blur, NO glow, NO stylized filters
+
+Her frozen expression softens the moment he touches her.
+
+
+
+Her eyes warm, pupils adjust slightly, breathing implied visually.
+
+She looks deeply into Wojtek’s eyes with a mix of:
+
+
+
+recognition
+
+love
+
+sorrow
+
+familiarity across timelines
+
+No sound except a faint low-frequency hum.
+
+The shot ends lingering on this emotional connection.
+
+🧩 ANTI-HALLUCINATION RULES (MANDATORY FOR MAXIMUM ACCURACY)
+
+No magical particles
+
+No glowing energy
+
+No visible time waves except subtle heat distortion
+
+No changing camera height except natural body motion
+
+No random props
+
+No scene teleportation
+
+No visual artifacts when freezing/unfreezing
+
+No auto-cut transitions — one continuous shot
+
+Girl’s clothing must NOT distort unrealistically
+
+🧷 FINAL TECH REQUIREMENTS
+
+Photorealistic
+
+8–12 seconds
+
+First-person POV only
+
+No separating camera from Wojtek
+
+Smooth human motion
+
+Shallow depth of field tuned to human vision
+
+Physically accurate light behavior
+
+Hyper-detailed textures: skin, eyes, hair, fabric
+
+Slow-motion layers must be distance-dependent
