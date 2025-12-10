@@ -213,32 +213,43 @@ interface VoteResponseBody {
 // Helpers
 // =========================
 
-function startOfTodayUTC() {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+// Get today's date string in YYYY-MM-DD format
+function getTodayDateString(): string {
+  return new Date().toISOString().split('T')[0];
 }
 
 async function getUserVotesToday(
   supabase: SupabaseClient,
   voterKey: string
 ): Promise<{ votes: VoteRow[]; count: number; error?: string }> {
-  const startOfToday = startOfTodayUTC().toISOString();
+  // Use PostgreSQL-compatible date format for reliable comparison
+  // This avoids timezone/precision issues with JavaScript date calculations
+  const todayDateStr = getTodayDateString();
+  const filterDate = new Date(todayDateStr).toISOString();
+
+  console.log('[getUserVotesToday] Query filter date:', todayDateStr);
 
   const { data, error } = await supabase
     .from('votes')
     .select('clip_id, vote_weight, vote_type, created_at, slot_position')
     .eq('voter_key', voterKey)
-    .gte('created_at', startOfToday);
+    .gte('created_at', filterDate);
+
+  console.log('[getUserVotesToday] Votes found:', data?.length || 0);
+  if (data && data.length > 0) {
+    console.log('[getUserVotesToday] Sample vote timestamp:', data[0].created_at);
+  }
 
   if (error) {
     console.error('[vote] getUserVotesToday error:', error);
-    // Return error flag so caller can handle appropriately
     return { votes: [], count: 0, error: 'Failed to fetch vote history' };
   }
 
   const votes = (data as VoteRow[]) || [];
   // Sum vote_weight to get total votes consumed (mega=10, super=3, standard=1)
   const totalWeight = votes.reduce((sum, vote) => sum + (vote.vote_weight ?? 1), 0);
+
+  console.log('[getUserVotesToday] Total weight calculated:', totalWeight);
 
   return { votes, count: totalWeight };
 }
@@ -511,19 +522,23 @@ export async function GET(req: NextRequest) {
   let effectiveVoterKey = voterKey;
   try {
     const session = await getServerSession(authOptions);
+    console.log('[GET /api/vote] Session check:', session ? `email=${session.user?.email}` : 'NO SESSION');
     if (session?.user?.email) {
-      const { data: userData } = await supabase
+      const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
         .eq('email', session.user.email)
         .single();
+      console.log('[GET /api/vote] User lookup:', userData ? `id=${userData.id}` : `error=${userError?.message}`);
       if (userData) {
         effectiveVoterKey = `user_${userData.id}`;
       }
     }
-  } catch {
+  } catch (err) {
+    console.log('[GET /api/vote] Session error:', err);
     // No session - use device fingerprint
   }
+  console.log('[GET /api/vote] Final effectiveVoterKey:', effectiveVoterKey);
 
   try {
     // 1. Get user's votes today
@@ -531,6 +546,20 @@ export async function GET(req: NextRequest) {
       supabase,
       effectiveVoterKey
     );
+    console.log('[GET /api/vote] totalVotesToday:', totalVotesToday, 'for key:', effectiveVoterKey);
+
+    // DEBUG: Check what's actually in the database for this user
+    const { data: debugVotes, error: debugError } = await supabase
+      .from('votes')
+      .select('voter_key, created_at, vote_weight')
+      .eq('voter_key', effectiveVoterKey)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    console.log('[GET /api/vote] DEBUG votes in DB:', debugVotes?.length || 0, debugError?.message || 'no error');
+    if (debugVotes && debugVotes.length > 0) {
+      console.log('[GET /api/vote] DEBUG first vote:', debugVotes[0]);
+    }
+
     const dailyRemaining = Math.max(0, DAILY_VOTE_LIMIT - totalVotesToday);
 
     // 2. Get active Season (with caching)
@@ -953,6 +982,8 @@ export async function POST(req: NextRequest) {
     // Use authenticated user ID for vote tracking when available (more secure)
     // Fall back to device fingerprint only if auth not required
     const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
+    console.log('[POST /api/vote] loggedInUserId:', loggedInUserId);
+    console.log('[POST /api/vote] effectiveVoterKey:', effectiveVoterKey);
 
     // 1. Check multi-vote mode feature flag
     const { data: multiVoteFlag, error: flagError } = await supabase
@@ -967,6 +998,7 @@ export async function POST(req: NextRequest) {
 
     // Handle various truthy values (boolean true, string "true", number 1, etc.)
     const multiVoteEnabled = Boolean(multiVoteFlag?.enabled);
+    console.log('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
 
     // 2. Check if already voted on this clip (skip if multi-vote mode is ON or if super/mega vote)
     // Super/mega votes are allowed to upgrade existing votes
@@ -1159,6 +1191,9 @@ export async function POST(req: NextRequest) {
     //
     // When multi_vote_mode is enabled, we update the existing vote instead of failing
     // This allows users to "add" to their vote weight on the same clip
+    // Explicitly set created_at from JavaScript to ensure consistent timestamp comparison
+    // This avoids timezone/precision mismatches between JS Date and PostgreSQL NOW()
+    const voteCreatedAt = new Date().toISOString();
     const voteData = {
       clip_id: clipId,
       voter_key: effectiveVoterKey,
@@ -1167,7 +1202,17 @@ export async function POST(req: NextRequest) {
       vote_type: voteType,
       slot_position: slotPosition,
       flagged: voteRisk.flagged || undefined, // Only set if flagged
+      created_at: voteCreatedAt, // Explicitly set timestamp from JS
     };
+
+    const todayDateStr = getTodayDateString();
+    const filterDate = new Date(todayDateStr).toISOString();
+    console.log('[POST /api/vote] TIMESTAMP DEBUG:', {
+      voteCreatedAt,
+      todayDateStr,
+      filterDate,
+      willMatch: voteCreatedAt >= filterDate,
+    });
 
     let insertError;
 
@@ -1181,16 +1226,27 @@ export async function POST(req: NextRequest) {
         .eq('voter_key', effectiveVoterKey)
         .maybeSingle();
 
+      console.log('[POST /api/vote] multiVote/power branch - existingVote:', existingVote ? JSON.stringify(existingVote) : 'null');
       if (existingVote) {
         // Update existing vote - add to the weight (upgrade the vote)
-        const { error } = await supabase
+        // Also update created_at to NOW so it counts toward today's daily limit
+        const newWeight = (existingVote.vote_weight || 0) + weight;
+        console.log('[POST /api/vote] Updating existing vote:', {
+          oldWeight: existingVote.vote_weight,
+          addingWeight: weight,
+          newWeight: newWeight,
+        });
+        const { error, data: updateResult } = await supabase
           .from('votes')
           .update({
-            vote_weight: existingVote.vote_weight + weight,
+            vote_weight: newWeight,
             vote_type: voteType, // Update to latest vote type
+            created_at: new Date().toISOString(), // Update timestamp to now
           })
-          .eq('id', existingVote.id);
+          .eq('id', existingVote.id)
+          .select('vote_weight');
         insertError = error;
+        console.log('[POST /api/vote] Update result:', error ? `ERROR: ${error.message}` : 'SUCCESS', 'returned data:', updateResult);
 
         // Also update clip's vote_count and weighted_score directly since trigger won't fire on update
         // vote_count adds the weight (mega=10, super=3, standard=1) to show total "votes"
@@ -1205,13 +1261,17 @@ export async function POST(req: NextRequest) {
         }
       } else {
         // No existing vote, insert new
+        console.log('[POST /api/vote] multiVote branch - Inserting NEW vote:', JSON.stringify(voteData));
         const { error } = await supabase.from('votes').insert(voteData);
         insertError = error;
+        console.log('[POST /api/vote] Insert result:', error ? `ERROR: ${error.message}` : 'SUCCESS');
       }
     } else {
       // Normal mode - just insert (unique constraint will reject duplicates)
+      console.log('[POST /api/vote] Inserting vote:', JSON.stringify(voteData));
       const { error } = await supabase.from('votes').insert(voteData);
       insertError = error;
+      console.log('[POST /api/vote] Insert result:', error ? `ERROR: ${error.message}` : 'SUCCESS');
     }
 
     if (insertError) {
@@ -1346,8 +1406,7 @@ export async function DELETE(req: NextRequest) {
     // SECURITY FIX: Apply same auth logic as POST to prevent spoofing
     let loggedInUserId: string | null = null;
     try {
-      const { getServerSession } = await import('next-auth');
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         const { data: userData } = await supabase
           .from('users')
