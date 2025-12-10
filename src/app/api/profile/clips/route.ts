@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -42,7 +43,7 @@ export async function GET(_req: NextRequest) {
     // Get user from session
     let userId: string | null = null;
     try {
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         // Find user by email
         const { data: userData } = await supabase

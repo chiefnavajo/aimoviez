@@ -11,7 +11,7 @@
 // - Current clip rank highlight
 // ============================================================================
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Trophy, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
@@ -108,16 +108,20 @@ export default function MiniLeaderboard({
     };
   }, [fetchTopClips]);
 
-  // Pulse effect when votes change
-  const voteCountsKey = topClips.map(c => c.vote_count).join(',');
+  // Pulse effect when votes change - use ref to track previous value to avoid infinite loop
+  const voteCountsKey = useMemo(() => topClips.map(c => c.vote_count).join(','), [topClips]);
+  const prevVoteCountsRef = useRef<string>('');
+
   useEffect(() => {
-    if (topClips.length > 0) {
+    // Only trigger pulse if vote counts actually changed (not on initial render)
+    if (topClips.length > 0 && prevVoteCountsRef.current && prevVoteCountsRef.current !== voteCountsKey) {
       setShowPulse(true);
       const timer = setTimeout(() => setShowPulse(false), 1000);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voteCountsKey]);
+    // Update ref after comparison
+    prevVoteCountsRef.current = voteCountsKey;
+  }, [voteCountsKey, topClips.length]);
 
   // Get rank badge styling
   const getRankStyle = (rank: number) => {

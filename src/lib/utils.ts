@@ -91,8 +91,40 @@ export function sleep(ms: number): Promise<void> {
 // ============================================================================
 
 /**
+ * Allowed domains for avatar URLs to prevent XSS
+ * Only allow trusted image hosting services
+ */
+const ALLOWED_AVATAR_DOMAINS = [
+  'api.dicebear.com',
+  'lh3.googleusercontent.com', // Google profile pics
+  'dxixqdmqomqzhilmdfzg.supabase.co', // Supabase storage
+];
+
+/**
+ * Validates that an avatar URL is safe
+ * Prevents XSS by only allowing HTTPS URLs from trusted domains
+ */
+export function isValidAvatarUrl(url: string | null | undefined): boolean {
+  if (!url || url.trim() === '') return false;
+
+  try {
+    const parsed = new URL(url);
+    // Must be HTTPS
+    if (parsed.protocol !== 'https:') return false;
+    // Must be from an allowed domain
+    const isAllowedDomain = ALLOWED_AVATAR_DOMAINS.some(
+      domain => parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+    return isAllowedDomain;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Get avatar URL for a user
- * Returns existing avatar URL or generates a DiceBear fallback
+ * Returns existing avatar URL (if valid) or generates a DiceBear fallback
+ * SECURITY: Only allows URLs from trusted domains to prevent XSS
  * @param avatarUrl - Existing avatar URL (can be null/undefined)
  * @param seed - Seed for generating fallback avatar (username, id, etc.)
  * @param style - DiceBear style (default: 'avataaars')
@@ -102,9 +134,11 @@ export function getAvatarUrl(
   seed: string = 'default',
   style: 'avataaars' | 'shapes' | 'bottts' | 'identicon' = 'avataaars'
 ): string {
-  if (avatarUrl && avatarUrl.trim() !== '') {
-    return avatarUrl;
+  // Only use the provided URL if it's from a trusted domain
+  if (isValidAvatarUrl(avatarUrl)) {
+    return avatarUrl!;
   }
+  // Fallback to generated DiceBear avatar
   return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
 }
 
@@ -118,4 +152,35 @@ export function generateAvatarUrl(
   style: 'avataaars' | 'shapes' | 'bottts' | 'identicon' = 'avataaars'
 ): string {
   return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+}
+
+// ============================================================================
+// VIDEO URL VALIDATION
+// ============================================================================
+
+/**
+ * Validates that a video URL is safe to use
+ * Only allows HTTPS URLs from trusted Supabase storage
+ */
+export function isValidVideoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    // Must be HTTPS
+    if (parsed.protocol !== 'https:') return false;
+    // Must be from Supabase storage
+    if (!parsed.hostname.includes('supabase.co') &&
+        !parsed.hostname.includes('supabase.in')) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Returns a safe video URL or fallback placeholder
+ */
+export function getSafeVideoUrl(url: string | null | undefined, fallback = '/placeholder-video.mp4'): string {
+  return isValidVideoUrl(url) ? url! : fallback;
 }

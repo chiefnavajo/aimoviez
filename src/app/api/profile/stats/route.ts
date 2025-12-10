@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // SECURITY FIX: Require authentication for stats access
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Authentication required to view profile stats' },
@@ -114,42 +115,51 @@ export async function GET(req: NextRequest) {
     const userProfile: UserProfile = userData;
     const userId = userData.id;
 
-    // SECURITY FIX: Query votes by authenticated user_id only
-    // No longer using spoofable voter_key for identity
-    const { data: allVotes, error: votesError } = await supabase
-      .from('votes')
-      .select('created_at, vote_weight')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: true });
+    // PERFORMANCE FIX: Batch queries to avoid N+1 problem
+    // Run independent queries in parallel using Promise.all
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const todayStr = today.toISOString();
 
-    if (votesError) {
-      console.error('[GET /api/profile/stats] votesError:', votesError);
+    // Parallel query batch 1: votes, today's votes, and user clips
+    const [votesResult, todayVotesResult, userClipsResult] = await Promise.all([
+      // All votes for streak/XP calculation
+      supabase
+        .from('votes')
+        .select('created_at, vote_weight')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true }),
+      // Today's votes count
+      supabase
+        .from('votes')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gte('created_at', todayStr),
+      // User's uploaded clips
+      supabase
+        .from('tournament_clips')
+        .select('id, slot_position')
+        .eq('user_id', userId),
+    ]);
+
+    if (votesResult.error) {
+      console.error('[GET /api/profile/stats] votesError:', votesResult.error);
       return NextResponse.json(
         { error: 'Failed to fetch votes' },
         { status: 500 }
       );
     }
 
-    const total_votes = allVotes?.length || 0;
+    const allVotes = votesResult.data || [];
+    const total_votes = allVotes.length;
+    const votes_today = todayVotesResult.count || 0;
+    const userClips = userClipsResult.data || [];
 
     // Calculate XP (1 XP per standard vote)
-    const total_xp = allVotes?.reduce((sum, v) => sum + (v.vote_weight || 1), 0) || 0;
+    const total_xp = allVotes.reduce((sum, v) => sum + (v.vote_weight || 1), 0);
     const level = calculateLevel(total_xp);
     const xp_needed = xpForNextLevel(level);
     const xp_progress = ((total_xp % xp_needed) / xp_needed) * 100;
-
-    // 2. Get votes today - always use authenticated user_id
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
-
-    const { data: todayVotes } = await supabase
-      .from('votes')
-      .select('id')
-      .eq('user_id', userId)
-      .gte('created_at', todayStr);
-
-    const votes_today = todayVotes?.length || 0;
 
     // 3. Calculate streak (simplified - days with at least 1 vote)
     const voteDates = new Set<string>();
@@ -201,17 +211,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Get user's uploaded clips (use userId if logged in, otherwise voterKey)
-    let userClips: { id: string; slot_position: number }[] = [];
-
-    if (userId) {
-      const { data } = await supabase
-        .from('tournament_clips')
-        .select('id, slot_position')
-        .eq('user_id', userId);
-      userClips = data || [];
-    }
-
+    // Use clips from parallel query batch
     const clips_uploaded = userClips.length;
 
     // Count locked clips (check if any of user's clips won their slot)

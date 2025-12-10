@@ -64,13 +64,22 @@ export async function POST(request: NextRequest) {
     const userId = profile.id;
     const deletionResults: Record<string, number | string> = {};
 
-    // 1. Delete user's comments
+    // 1. Delete user's comments (comments table uses user_key = 'user_${userId}' format)
+    const userKey = `user_${userId}`;
     const { data: deletedComments } = await supabase
       .from('comments')
       .delete()
-      .eq('user_id', userId)
+      .eq('user_key', userKey)
       .select('id');
     deletionResults.comments = deletedComments?.length || 0;
+
+    // 1b. Delete user's comment likes
+    const { data: deletedCommentLikes } = await supabase
+      .from('comment_likes')
+      .delete()
+      .eq('user_key', userKey)
+      .select('id');
+    deletionResults.comment_likes = deletedCommentLikes?.length || 0;
 
     // 2. Delete user's votes
     const { data: deletedVotes } = await supabase

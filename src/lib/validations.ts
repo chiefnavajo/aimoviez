@@ -31,6 +31,9 @@ const ALLOWED_GENRES = [
   'drama',
 ] as const;
 
+// Maximum video duration in seconds (8 seconds + small buffer for encoding variance)
+const MAX_VIDEO_DURATION = 8.5;
+
 export const RegisterClipSchema = z.object({
   videoUrl: z
     .string()
@@ -57,6 +60,11 @@ export const RegisterClipSchema = z.object({
     .max(500, 'Description must be 500 characters or less')
     .optional()
     .transform((d) => d?.trim() || ''),
+  duration: z
+    .number()
+    .min(0.1, 'Video duration is required')
+    .max(MAX_VIDEO_DURATION, `Video must be ${MAX_VIDEO_DURATION} seconds or less`)
+    .optional(),
 });
 
 export type RegisterClipRequest = z.infer<typeof RegisterClipSchema>;

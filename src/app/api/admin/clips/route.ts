@@ -7,6 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/admin-auth';
+import { rateLimit } from '@/lib/rate-limit';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,6 +21,10 @@ function getSupabaseClient() {
 }
 
 export async function GET(request: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(request, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;

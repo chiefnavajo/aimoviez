@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 // Use anon key for RLS-protected reads (defense in depth)
@@ -47,7 +48,7 @@ interface ProfileHistoryResponse {
 export async function GET(req: NextRequest) {
   try {
     // SECURITY FIX: Require authentication for vote history access
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Authentication required to view vote history' },

@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
     let email = null;
     let googleId = null;
     try {
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         email = session.user.email;
         googleId = session.user.email; // Use email as google_id for simplicity

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -27,7 +28,11 @@ function getSupabaseClient() {
 // GET - List all feature flags
 // ============================================================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(request, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -73,6 +78,10 @@ export async function GET() {
 // ============================================================================
 
 export async function PUT(request: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(request, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -142,12 +151,15 @@ export async function PUT(request: NextRequest) {
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(request, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
 
   try {
-
     const body = await request.json();
     const { key, name, description, category, enabled, config } = body;
 

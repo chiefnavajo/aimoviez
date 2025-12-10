@@ -26,6 +26,10 @@ import { verifyCaptcha, getClientIp } from '@/lib/captcha';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
+// Only log in development (never log sensitive data in production)
+const isDev = process.env.NODE_ENV === 'development';
+const debugLog = isDev ? console.log.bind(console) : () => {};
+
 const CLIP_POOL_SIZE = 30;
 const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
 const DAILY_VOTE_LIMIT = 200;
@@ -227,7 +231,7 @@ async function getUserVotesToday(
   const todayDateStr = getTodayDateString();
   const filterDate = new Date(todayDateStr).toISOString();
 
-  console.log('[getUserVotesToday] Query filter date:', todayDateStr);
+  debugLog('[getUserVotesToday] Query filter date:', todayDateStr);
 
   const { data, error } = await supabase
     .from('votes')
@@ -235,9 +239,9 @@ async function getUserVotesToday(
     .eq('voter_key', voterKey)
     .gte('created_at', filterDate);
 
-  console.log('[getUserVotesToday] Votes found:', data?.length || 0);
+  debugLog('[getUserVotesToday] Votes found:', data?.length || 0);
   if (data && data.length > 0) {
-    console.log('[getUserVotesToday] Sample vote timestamp:', data[0].created_at);
+    debugLog('[getUserVotesToday] Sample vote timestamp:', data[0].created_at);
   }
 
   if (error) {
@@ -249,7 +253,7 @@ async function getUserVotesToday(
   // Sum vote_weight to get total votes consumed (mega=10, super=3, standard=1)
   const totalWeight = votes.reduce((sum, vote) => sum + (vote.vote_weight ?? 1), 0);
 
-  console.log('[getUserVotesToday] Total weight calculated:', totalWeight);
+  debugLog('[getUserVotesToday] Total weight calculated:', totalWeight);
 
   return { votes, count: totalWeight };
 }
@@ -522,23 +526,23 @@ export async function GET(req: NextRequest) {
   let effectiveVoterKey = voterKey;
   try {
     const session = await getServerSession(authOptions);
-    console.log('[GET /api/vote] Session check:', session ? `email=${session.user?.email}` : 'NO SESSION');
+    debugLog('[GET /api/vote] Session check:', session ? 'HAS SESSION' : 'NO SESSION');
     if (session?.user?.email) {
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('id')
         .eq('email', session.user.email)
         .single();
-      console.log('[GET /api/vote] User lookup:', userData ? `id=${userData.id}` : `error=${userError?.message}`);
+      debugLog('[GET /api/vote] User lookup:', userData ? 'found' : `error=${userError?.message}`);
       if (userData) {
         effectiveVoterKey = `user_${userData.id}`;
       }
     }
   } catch (err) {
-    console.log('[GET /api/vote] Session error:', err);
+    debugLog('[GET /api/vote] Session error:', err);
     // No session - use device fingerprint
   }
-  console.log('[GET /api/vote] Final effectiveVoterKey:', effectiveVoterKey);
+  debugLog('[GET /api/vote] Using voter key type:', effectiveVoterKey.startsWith('user_') ? 'authenticated' : 'device');
 
   try {
     // 1. Get user's votes today
@@ -546,18 +550,17 @@ export async function GET(req: NextRequest) {
       supabase,
       effectiveVoterKey
     );
-    console.log('[GET /api/vote] totalVotesToday:', totalVotesToday, 'for key:', effectiveVoterKey);
+    debugLog('[GET /api/vote] totalVotesToday:', totalVotesToday);
 
-    // DEBUG: Check what's actually in the database for this user
-    const { data: debugVotes, error: debugError } = await supabase
-      .from('votes')
-      .select('voter_key, created_at, vote_weight')
-      .eq('voter_key', effectiveVoterKey)
-      .order('created_at', { ascending: false })
-      .limit(5);
-    console.log('[GET /api/vote] DEBUG votes in DB:', debugVotes?.length || 0, debugError?.message || 'no error');
-    if (debugVotes && debugVotes.length > 0) {
-      console.log('[GET /api/vote] DEBUG first vote:', debugVotes[0]);
+    // DEBUG: Check vote count in development only
+    if (isDev) {
+      const { data: debugVotes } = await supabase
+        .from('votes')
+        .select('created_at, vote_weight')
+        .eq('voter_key', effectiveVoterKey)
+        .order('created_at', { ascending: false })
+        .limit(5);
+      debugLog('[GET /api/vote] DEBUG votes in DB:', debugVotes?.length || 0);
     }
 
     const dailyRemaining = Math.max(0, DAILY_VOTE_LIMIT - totalVotesToday);
@@ -771,22 +774,31 @@ export async function GET(req: NextRequest) {
       recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
-    // 8.5 Fetch comment counts for sampled clips (batch query)
+    // 8.5 Fetch comment counts for sampled clips (optimized with RPC or aggregation)
     const commentCountsMap = new Map<string, number>();
     if (clipIdsToRecord.length > 0) {
+      // Use a single query that returns counts grouped by clip_id
+      // This is more efficient than fetching all rows and counting in JS
       const { data: commentCounts } = await supabase
-        .from('comments')
-        .select('clip_id')
-        .in('clip_id', clipIdsToRecord)
-        .eq('is_deleted', false)
-        .is('parent_comment_id', null); // Only count top-level comments
+        .rpc('get_comment_counts', { clip_ids: clipIdsToRecord })
+        .select('clip_id, count');
 
-      if (commentCounts) {
-        // Count comments per clip
-        commentCounts.forEach((c: { clip_id: string }) => {
-          const current = commentCountsMap.get(c.clip_id) || 0;
-          commentCountsMap.set(c.clip_id, current + 1);
+      if (commentCounts && Array.isArray(commentCounts)) {
+        commentCounts.forEach((c: { clip_id: string; count: number }) => {
+          commentCountsMap.set(c.clip_id, c.count);
         });
+      } else {
+        // Fallback: Use individual count queries (still better than loading all rows)
+        // This only runs if the RPC doesn't exist
+        for (const clipId of clipIdsToRecord) {
+          const { count } = await supabase
+            .from('comments')
+            .select('*', { count: 'exact', head: true })
+            .eq('clip_id', clipId)
+            .eq('is_deleted', false)
+            .is('parent_comment_id', null);
+          commentCountsMap.set(clipId, count || 0);
+        }
       }
     }
 
@@ -982,8 +994,7 @@ export async function POST(req: NextRequest) {
     // Use authenticated user ID for vote tracking when available (more secure)
     // Fall back to device fingerprint only if auth not required
     const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
-    console.log('[POST /api/vote] loggedInUserId:', loggedInUserId);
-    console.log('[POST /api/vote] effectiveVoterKey:', effectiveVoterKey);
+    debugLog('[POST /api/vote] Auth type:', loggedInUserId ? 'authenticated' : 'device');
 
     // 1. Check multi-vote mode feature flag
     const { data: multiVoteFlag, error: flagError } = await supabase
@@ -997,38 +1008,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Handle various truthy values (boolean true, string "true", number 1, etc.)
-    const multiVoteEnabled = Boolean(multiVoteFlag?.enabled);
-    console.log('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
+    // The enabled column can be: boolean true, string "true", number 1, or similar
+    const rawEnabled = multiVoteFlag?.enabled;
+    const multiVoteEnabled = rawEnabled === true || rawEnabled === 'true' || rawEnabled === 1 || rawEnabled === '1';
+    debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'rawEnabled:', rawEnabled, 'typeof:', typeof rawEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
 
-    // 2. Check if already voted on this clip (skip if multi-vote mode is ON or if super/mega vote)
-    // Super/mega votes are allowed to upgrade existing votes
+    // 2. Determine if this is a power vote (super/mega)
+    // Power votes can upgrade existing votes, so we handle them differently
     const isPowerVote = voteType === 'super' || voteType === 'mega';
-    if (!multiVoteEnabled && !isPowerVote) {
-      const voteCheckResult = await hasVotedOnClip(supabase, effectiveVoterKey, clipId);
-      // SECURITY: If we can't verify vote status, reject the request
-      if (voteCheckResult.error) {
-        console.error('[POST /api/vote] Failed to check vote status:', voteCheckResult.error);
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Unable to process vote. Please try again.',
-            code: 'DB_ERROR',
-          },
-          { status: 503 }
-        );
-      }
-      if (voteCheckResult.hasVoted) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Already voted on this clip',
-            code: 'ALREADY_VOTED',
-            clipId,
-          },
-          { status: 409 } // Conflict
-        );
-      }
-    }
+
+    // NOTE: We removed the check-then-insert pattern here because it has a race condition.
+    // Instead, we rely on the database unique constraint and atomic RPC function.
+    // If the RPC function is not available, we fall back to direct insert which will
+    // fail with a unique constraint violation (handled below) if already voted.
 
     // 3. Check daily vote limit
     const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
@@ -1207,78 +1199,119 @@ export async function POST(req: NextRequest) {
 
     const todayDateStr = getTodayDateString();
     const filterDate = new Date(todayDateStr).toISOString();
-    console.log('[POST /api/vote] TIMESTAMP DEBUG:', {
+    debugLog('[POST /api/vote] TIMESTAMP DEBUG:', {
       voteCreatedAt,
-      todayDateStr,
-      filterDate,
       willMatch: voteCreatedAt >= filterDate,
     });
 
-    let insertError;
+    // RACE CONDITION FIX: Use atomic RPC function for insert
+    // This prevents concurrent POST requests from causing duplicate votes
+    // The RPC function uses INSERT ... ON CONFLICT and SELECT FOR UPDATE for thread safety
+    const { data: insertResult, error: rpcError } = await supabase.rpc(
+      'insert_vote_atomic',
+      {
+        p_clip_id: clipId,
+        p_voter_key: effectiveVoterKey,
+        p_user_id: loggedInUserId,
+        p_vote_weight: weight,
+        p_vote_type: voteType,
+        p_slot_position: slotPosition,
+        p_flagged: voteRisk.flagged || false,
+        p_multi_vote_mode: multiVoteEnabled,
+        p_is_power_vote: isPowerVote,
+      }
+    );
 
-    if (multiVoteEnabled || isPowerVote) {
-      // In multi-vote mode OR for power votes (super/mega), update existing vote or insert new
-      // Power votes can upgrade an existing standard vote
-      const { data: existingVote } = await supabase
-        .from('votes')
-        .select('id, vote_weight')
-        .eq('clip_id', clipId)
-        .eq('voter_key', effectiveVoterKey)
-        .maybeSingle();
+    debugLog('[POST /api/vote] RPC insert_vote_atomic result:', insertResult);
 
-      console.log('[POST /api/vote] multiVote/power branch - existingVote:', existingVote ? JSON.stringify(existingVote) : 'null');
-      if (existingVote) {
-        // Update existing vote - add to the weight (upgrade the vote)
-        // Also update created_at to NOW so it counts toward today's daily limit
-        const newWeight = (existingVote.vote_weight || 0) + weight;
-        console.log('[POST /api/vote] Updating existing vote:', {
-          oldWeight: existingVote.vote_weight,
-          addingWeight: weight,
-          newWeight: newWeight,
-        });
-        const { error, data: updateResult } = await supabase
-          .from('votes')
-          .update({
-            vote_weight: newWeight,
-            vote_type: voteType, // Update to latest vote type
-            created_at: new Date().toISOString(), // Update timestamp to now
-          })
-          .eq('id', existingVote.id)
-          .select('vote_weight');
-        insertError = error;
-        console.log('[POST /api/vote] Update result:', error ? `ERROR: ${error.message}` : 'SUCCESS', 'returned data:', updateResult);
+    if (rpcError) {
+      console.error('[POST /api/vote] RPC error:', rpcError, 'code:', rpcError.code, 'message:', rpcError.message);
+      console.error('[POST /api/vote] RPC params:', {
+        p_clip_id: clipId,
+        p_voter_key: effectiveVoterKey.slice(0, 20) + '...',
+        p_multi_vote_mode: multiVoteEnabled,
+        p_is_power_vote: isPowerVote,
+      });
 
-        // Also update clip's vote_count and weighted_score directly since trigger won't fire on update
-        // vote_count adds the weight (mega=10, super=3, standard=1) to show total "votes"
-        if (!error) {
-          await supabase
-            .from('tournament_clips')
-            .update({
-              vote_count: (clipData?.vote_count || 0) + weight,
-              weighted_score: (clipData?.weighted_score || 0) + weight,
-            })
-            .eq('id', clipId);
+      // Fallback to traditional method if RPC doesn't exist yet
+      // This allows the app to work before the migration is run
+      // 42883 = PostgreSQL "function does not exist"
+      // PGRST202 = PostgREST "function not found in schema cache"
+      if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
+        // Function does not exist - use legacy method with logging
+        console.warn('[POST /api/vote] Using legacy insert method - please run fix-vote-insert-race-condition.sql migration');
+
+        let insertError;
+
+        if (multiVoteEnabled || isPowerVote) {
+          // Legacy: In multi-vote mode OR for power votes, update existing vote or insert new
+          const { data: existingVote } = await supabase
+            .from('votes')
+            .select('id, vote_weight')
+            .eq('clip_id', clipId)
+            .eq('voter_key', effectiveVoterKey)
+            .maybeSingle();
+
+          debugLog('[POST /api/vote] Legacy multiVote/power branch - existingVote:', existingVote ? 'found' : 'null');
+          if (existingVote) {
+            const newWeight = (existingVote.vote_weight || 0) + weight;
+            debugLog('[POST /api/vote] Legacy updating existing vote, newWeight:', newWeight);
+            const { error } = await supabase
+              .from('votes')
+              .update({
+                vote_weight: newWeight,
+                vote_type: voteType,
+                created_at: new Date().toISOString(),
+              })
+              .eq('id', existingVote.id)
+              .select('vote_weight');
+            insertError = error;
+
+            if (!error) {
+              await supabase
+                .from('tournament_clips')
+                .update({
+                  vote_count: (clipData?.vote_count || 0) + weight,
+                  weighted_score: (clipData?.weighted_score || 0) + weight,
+                })
+                .eq('id', clipId);
+            }
+          } else {
+            debugLog('[POST /api/vote] Legacy multiVote branch - Inserting NEW vote');
+            const { error } = await supabase.from('votes').insert(voteData);
+            insertError = error;
+          }
+        } else {
+          // Legacy: Normal mode - just insert
+          debugLog('[POST /api/vote] Legacy inserting vote');
+          const { error } = await supabase.from('votes').insert(voteData);
+          insertError = error;
+        }
+
+        if (insertError) {
+          console.error('[POST /api/vote] Legacy insertError:', insertError);
+          if (insertError.code === '23505') {
+            return NextResponse.json(
+              { success: false, error: 'Already voted on this clip', code: 'ALREADY_VOTED' },
+              { status: 409 }
+            );
+          }
+          return NextResponse.json(
+            { success: false, error: 'Failed to insert vote' },
+            { status: 500 }
+          );
         }
       } else {
-        // No existing vote, insert new
-        console.log('[POST /api/vote] multiVote branch - Inserting NEW vote:', JSON.stringify(voteData));
-        const { error } = await supabase.from('votes').insert(voteData);
-        insertError = error;
-        console.log('[POST /api/vote] Insert result:', error ? `ERROR: ${error.message}` : 'SUCCESS');
+        return NextResponse.json(
+          { success: false, error: 'Failed to insert vote' },
+          { status: 500 }
+        );
       }
     } else {
-      // Normal mode - just insert (unique constraint will reject duplicates)
-      console.log('[POST /api/vote] Inserting vote:', JSON.stringify(voteData));
-      const { error } = await supabase.from('votes').insert(voteData);
-      insertError = error;
-      console.log('[POST /api/vote] Insert result:', error ? `ERROR: ${error.message}` : 'SUCCESS');
-    }
+      // RPC succeeded - check the result
+      const result = insertResult?.[0];
 
-    if (insertError) {
-      console.error('[POST /api/vote] insertError:', insertError);
-
-      // Check for unique constraint violation
-      if (insertError.code === '23505') {
+      if (result?.error_code === 'ALREADY_VOTED') {
         return NextResponse.json(
           {
             success: false,
@@ -1289,10 +1322,11 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      return NextResponse.json(
-        { success: false, error: 'Failed to insert vote' },
-        { status: 500 }
-      );
+      debugLog('[POST /api/vote] Vote recorded:', {
+        voteId: result?.vote_id,
+        wasNewVote: result?.was_new_vote,
+        finalWeight: result?.final_vote_weight,
+      });
     }
 
     // 7. Vote count update is handled by database trigger (on_vote_insert)
@@ -1440,7 +1474,9 @@ export async function DELETE(req: NextRequest) {
 
       // Fallback to traditional method if RPC doesn't exist yet
       // This allows the app to work before the migration is run
-      if (rpcError.code === '42883') {
+      // 42883 = PostgreSQL "function does not exist"
+      // PGRST202 = PostgREST "function not found in schema cache"
+      if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
         // Function does not exist - use legacy method with logging
         console.warn('[DELETE /api/vote] Using legacy delete method - please run fix-vote-delete-race-condition.sql migration');
 

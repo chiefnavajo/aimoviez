@@ -144,6 +144,8 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
                     <button
                       onClick={() => {
                         setMenuOpen(false);
+                        // Clear cached profile before signing out
+                        localStorage.removeItem('user_profile');
                         signOut({ callbackUrl: '/' });
                       }}
                       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-red-400"

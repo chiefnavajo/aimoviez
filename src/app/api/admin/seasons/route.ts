@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireAdmin } from '@/lib/admin-auth';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -13,7 +14,11 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
  * GET /api/admin/seasons
  * List all seasons with stats
  */
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(req, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -90,6 +95,10 @@ export async function GET(_req: NextRequest) {
  * }
  */
 export async function POST(req: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(req, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;
@@ -198,6 +207,10 @@ export async function POST(req: NextRequest) {
  * }
  */
 export async function PATCH(req: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(req, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
   // Check admin authentication
   const adminError = await requireAdmin();
   if (adminError) return adminError;

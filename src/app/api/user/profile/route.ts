@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     // Try to get session
     let email = null;
     try {
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         email = session.user.email;
       }

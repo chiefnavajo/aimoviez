@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -75,7 +76,7 @@ export async function GET(
     // Get authenticated user ID if logged in (for vote status)
     let userId: string | null = null;
     try {
-      const session = await getServerSession();
+      const session = await getServerSession(authOptions);
       if (session?.user?.email) {
         const { data: userData } = await supabaseAdmin
           .from('users')

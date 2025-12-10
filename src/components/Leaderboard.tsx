@@ -2,11 +2,86 @@
 
 // Leaderboard with tabs and smooth number animations
 
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Trophy, TrendingUp } from 'lucide-react';
 import { Leader } from '@/types';
+
+// Memoized leaderboard item to prevent unnecessary re-renders
+const LeaderboardItem = memo(function LeaderboardItem({
+  leader,
+  index,
+  getRankColor,
+  getRankEmoji
+}: {
+  leader: Leader;
+  index: number;
+  getRankColor: (rank: number) => string;
+  getRankEmoji: (rank: number) => string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: index * 0.05 }}
+      className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 group"
+    >
+      {/* Rank */}
+      <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg bg-gradient-to-br from-white/10 to-white/5 border border-white/20 group-hover:scale-110 transition-transform">
+        {leader.rank <= 3 ? (
+          <span className="text-2xl">{getRankEmoji(leader.rank)}</span>
+        ) : (
+          <span className="text-white/80">{leader.rank}</span>
+        )}
+      </div>
+
+      {/* Avatar & Name */}
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+        <Image
+          src={leader.user.avatar}
+          alt={leader.user.name}
+          width={48}
+          height={48}
+          className="w-12 h-12 rounded-full border-2 border-white/20 group-hover:border-cyan-400/40 transition-colors"
+        />
+        <div className="flex-1 min-w-0">
+          <h4 className="text-white font-semibold truncate">
+            {leader.user.name}
+          </h4>
+          <div className="flex items-center gap-2 mt-0.5">
+            {leader.badges.map((badge, i) => (
+              <span
+                key={i}
+                className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/80"
+              >
+                {badge}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="text-right">
+        <motion.div
+          initial={{ scale: 1 }}
+          animate={{ scale: [1, 1.1, 1] }}
+          transition={{ duration: 0.5 }}
+          className={`text-2xl font-bold bg-gradient-to-r ${getRankColor(leader.rank)} bg-clip-text text-transparent`}
+        >
+          {leader.votesTotal.toLocaleString()}
+        </motion.div>
+        <div className="text-xs text-white/60 uppercase tracking-wider">
+          Votes
+        </div>
+        <div className="text-xs text-cyan-400 mt-1">
+          {leader.xp.toLocaleString()} XP
+        </div>
+      </div>
+    </motion.div>
+  );
+});
 
 interface LeaderboardProps {
   leaders: Leader[];
@@ -97,67 +172,13 @@ export default function Leaderboard({ leaders }: LeaderboardProps) {
               </div>
             ) : (
               leaders.map((leader, index) => (
-                <motion.div
+                <LeaderboardItem
                   key={leader.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all duration-300 group"
-                >
-                  
-                  {/* Rank */}
-                  <div className="flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg bg-gradient-to-br from-white/10 to-white/5 border border-white/20 group-hover:scale-110 transition-transform">
-                    {leader.rank <= 3 ? (
-                      <span className="text-2xl">{getRankEmoji(leader.rank)}</span>
-                    ) : (
-                      <span className="text-white/80">{leader.rank}</span>
-                    )}
-                  </div>
-
-                  {/* Avatar & Name */}
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <Image
-                      src={leader.user.avatar}
-                      alt={leader.user.name}
-                      width={48}
-                      height={48}
-                      className="w-12 h-12 rounded-full border-2 border-white/20 group-hover:border-cyan-400/40 transition-colors"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-white font-semibold truncate">
-                        {leader.user.name}
-                      </h4>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {leader.badges.map((badge, i) => (
-                          <span
-                            key={i}
-                            className="text-xs px-2 py-0.5 rounded-full bg-white/10 text-white/80"
-                          >
-                            {badge}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="text-right">
-                    <motion.div
-                      initial={{ scale: 1 }}
-                      animate={{ scale: [1, 1.1, 1] }}
-                      transition={{ duration: 0.5 }}
-                      className={`text-2xl font-bold bg-gradient-to-r ${getRankColor(leader.rank)} bg-clip-text text-transparent`}
-                    >
-                      {leader.votesTotal.toLocaleString()}
-                    </motion.div>
-                    <div className="text-xs text-white/60 uppercase tracking-wider">
-                      Votes
-                    </div>
-                    <div className="text-xs text-cyan-400 mt-1">
-                      {leader.xp.toLocaleString()} XP
-                    </div>
-                  </div>
-                </motion.div>
+                  leader={leader}
+                  index={index}
+                  getRankColor={getRankColor}
+                  getRankEmoji={getRankEmoji}
+                />
               ))
             )}
           </motion.div>

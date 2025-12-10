@@ -36,6 +36,8 @@ export function useAuth(): UseAuthReturn {
   const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     const checkProfile = async () => {
       // If not logged in, no need to check profile
       if (status === 'unauthenticated') {
@@ -76,11 +78,17 @@ export function useAuth(): UseAuthReturn {
         }
       }
 
-      // Fetch profile from API
+      // Fetch profile from API with abort signal
       try {
-        const res = await fetch('/api/user/profile');
+        const res = await fetch('/api/user/profile', {
+          signal: abortController.signal,
+        });
+
+        // Don't update state if request was aborted
+        if (abortController.signal.aborted) return;
+
         const data = await res.json();
-        
+
         if (data.exists && data.user) {
           setHasProfile(true);
           setUserProfile(data.user);
@@ -89,14 +97,21 @@ export function useAuth(): UseAuthReturn {
           setHasProfile(false);
         }
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('Failed to check profile:', err);
         setHasProfile(false);
       }
-      
+
       setIsChecking(false);
     };
 
     checkProfile();
+
+    // Cleanup: abort fetch on unmount or dependency change
+    return () => {
+      abortController.abort();
+    };
   }, [session, status]);
 
   // Handle redirects

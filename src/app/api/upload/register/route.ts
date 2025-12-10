@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import { RegisterClipSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
@@ -53,7 +54,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Check authentication first
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
       console.error('[REGISTER] Unauthorized: No session or email');
       return NextResponse.json({
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: validation.error }, { status: 400 });
     }
 
-    const { videoUrl, genre, title, description } = validation.data;
+    const { videoUrl, genre, title, description, duration } = validation.data;
 
     // Look up user profile to get their username
     let uploaderUsername = `creator_${voterKey.slice(-8)}`;
@@ -154,6 +155,7 @@ export async function POST(request: NextRequest) {
         status: 'pending',
         uploader_key: voterKey,
         created_at: new Date().toISOString(),
+        duration_seconds: duration || null, // Store video duration for admin review
       })
       .select()
       .single();

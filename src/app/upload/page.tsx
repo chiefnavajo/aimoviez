@@ -230,6 +230,7 @@ function UploadPageContent() {
         genre,
         title: `Clip ${Date.now()}`,
         description: '',
+        duration: videoDuration, // Send duration for server-side validation
       });
 
       if (!registerResult.success) {
@@ -391,10 +392,18 @@ function UploadPageContent() {
               <p className="text-white/60">What category best fits your clip?</p>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3" role="radiogroup" aria-label="Select genre for your clip">
               {GENRES.map((g) => (
-                <motion.button key={g.id} whileTap={{ scale: 0.95 }} onClick={() => setGenre(g.id)} className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${genre === g.id ? 'border-cyan-500 bg-cyan-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}>
-                  <span className="text-xl sm:text-2xl mb-1 sm:mb-2 block">{g.emoji}</span>
+                <motion.button
+                  key={g.id}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setGenre(g.id)}
+                  role="radio"
+                  aria-checked={genre === g.id}
+                  aria-label={`${g.name} genre`}
+                  className={`p-3 sm:p-4 rounded-xl border-2 transition-all ${genre === g.id ? 'border-cyan-500 bg-cyan-500/20' : 'border-white/10 bg-white/5 hover:bg-white/10'}`}
+                >
+                  <span className="text-xl sm:text-2xl mb-1 sm:mb-2 block" aria-hidden="true">{g.emoji}</span>
                   <span className="font-bold text-sm sm:text-base">{g.name}</span>
                 </motion.button>
               ))}

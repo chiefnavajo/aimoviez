@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import {
   CreateCommentSchema,
@@ -39,7 +40,7 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
   let isAuthenticated = false;
 
   try {
-    const session = await getServerSession();
+    const session = await getServerSession(authOptions);
     if (session?.user?.email) {
       const { data: userData, error: userError } = await supabase
         .from('users')
