@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
@@ -422,7 +423,13 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
     }
   };
 
-  return (
+  // Use portal to render outside of any z-index stacking context
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const content = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -433,7 +440,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/60 z-50 md:bg-transparent md:pointer-events-none"
+            className="fixed inset-0 bg-black/60 z-[100] md:bg-transparent md:pointer-events-none"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -446,7 +453,7 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="fixed bottom-0 left-0 right-0 md:right-auto md:left-auto md:bottom-auto md:top-1/2 md:-translate-y-1/2 md:w-[400px] md:max-h-[600px] md:mx-auto z-50 bg-[#1a1a1a] rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
+            className="fixed bottom-0 left-0 right-0 md:left-auto md:bottom-auto md:top-1/2 md:right-24 md:-translate-y-1/2 md:w-[400px] md:max-h-[600px] z-[100] bg-[#1a1a1a] rounded-t-3xl md:rounded-2xl overflow-hidden flex flex-col max-h-[80vh]"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -621,6 +628,10 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
       )}
     </AnimatePresence>
   );
+
+  // Render via portal to escape any z-index stacking context
+  if (!mounted) return null;
+  return createPortal(content, document.body);
 }
 
 // ============================================================================
