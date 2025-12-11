@@ -74,7 +74,8 @@ export type RegisterClipRequest = z.infer<typeof RegisterClipSchema>;
 // =============================================================================
 
 export const CreateCommentSchema = z.object({
-  clipId: z.string().uuid('Invalid clip ID format'),
+  // clipId can be a clip UUID or season UUID (for story page comments)
+  clipId: z.string().min(1, 'Content ID is required'),
   comment_text: z
     .string()
     .min(1, 'Comment text is required')
