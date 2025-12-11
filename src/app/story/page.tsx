@@ -423,20 +423,13 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
     const isSwipeDown = distance < -minSwipeDistance;
 
     if (isSwipeUp) {
-      // Swipe up - go to next segment
-      if (currentIndex < completedSegments.length - 1) {
-        safeSetIndex(currentIndex + 1, 'swipeUp');
-        setCurrentTime(0);
-        if (videoRef.current) videoRef.current.currentTime = 0;
-      }
-    } else if (isSwipeDown) {
-      // Swipe down - go to previous segment
-      if (currentIndex > 0) {
-        safeSetIndex(currentIndex - 1, 'swipeDown');
-        setCurrentTime(0);
-        if (videoRef.current) videoRef.current.currentTime = 0;
-      }
+      // Swipe up - go to next segment (loop to first at end)
+      const nextIndex = (currentIndex + 1) % completedSegments.length;
+      safeSetIndex(nextIndex, 'swipeUp');
+      setCurrentTime(0);
+      if (videoRef.current) videoRef.current.currentTime = 0;
     }
+    // Swipe down does nothing - only swipe up to navigate
 
     // Reset touch state
     setTouchStartY(null);
