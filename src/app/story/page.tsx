@@ -809,11 +809,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       </AnimatePresence>
 
       {/* Comments Panel - Using shared CommentsSection component */}
+      {/* Use season.id for comments so they're for the whole movie, not individual segments */}
       <CommentsSection
-        clipId={currentSegment?.winning_clip?.id || ''}
+        clipId={season.id}
         isOpen={showComments}
         onClose={handleCloseComments}
-        clipUsername={currentSegment?.winning_clip?.username}
       />
     </div>
   );
