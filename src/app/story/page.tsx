@@ -443,14 +443,14 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       {/* Top Left: Compact progress info (mobile-friendly) */}
       <div className="absolute top-0 left-0 pt-12 px-3 z-10">
         <div className="flex flex-col gap-1.5">
-          {/* Progress pill - compact */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
-            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
-            <span className="text-white/90 text-[10px] font-medium">
+          {/* Progress pill - larger for better visibility */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
+            <div className="w-2 h-2 rounded-full bg-cyan-400" />
+            <span className="text-white text-sm font-bold">
               {completedSegments.length}/{season.total_slots}
             </span>
-            <span className="text-white/50 text-[10px]">·</span>
-            <span className="text-white/70 text-[10px]">
+            <span className="text-white/60 text-sm">·</span>
+            <span className="text-white/80 text-sm font-medium">
               {formatDuration(completedSegments.length * 8)}
             </span>
           </div>
