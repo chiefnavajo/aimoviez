@@ -142,24 +142,31 @@ function _ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?
 // VIDEO PLAYER SECTION (Top)
 // ============================================================================
 
+// Ref handle for external navigation control
+export interface VideoPlayerHandle {
+  goToIndex: (index: number) => void;
+  goNext: () => void;
+  goPrev: () => void;
+  getCurrentIndex: () => number;
+  getTotalSegments: () => number;
+}
+
 interface VideoPlayerProps {
   season: Season;
   onVote: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
-  // Desktop navigation control - when provided, hides internal nav buttons
-  externalNavigation?: {
-    currentIndex: number;
-    totalSegments: number;
-    onPrev: () => void;
-    onNext: () => void;
-  };
+  // If true, hides internal nav buttons (for desktop where external buttons exist)
+  hideInternalNav?: boolean;
+  // Callback when segment changes (for syncing external UI like counter)
   onSegmentChange?: (index: number, total: number) => void;
+  // Ref for imperative control
+  playerRef?: React.RefObject<VideoPlayerHandle | null>;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externalNavigation, onSegmentChange }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
-  const [currentIndex, setCurrentIndex] = useState(externalNavigation?.currentIndex ?? 0);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
   const [showContributors, setShowContributors] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -171,6 +178,54 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
   const [commentCount, setCommentCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Track expected index to prevent stale onEnded events from causing oscillation
+  const expectedIndexRef = useRef(0);
+  // Swipe tracking for segment navigation
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [touchEndY, setTouchEndY] = useState<number | null>(null);
+
+  const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
+
+  // Helper to safely change index - updates both state and ref
+  const safeSetIndex = useCallback((newIndex: number, source: string) => {
+    console.log(`[safeSetIndex] source=${source}, newIndex=${newIndex}, expectedRef=${expectedIndexRef.current}, currentIndex state will update`);
+    expectedIndexRef.current = newIndex;
+    setCurrentIndex(newIndex);
+  }, []);
+
+  // Expose imperative methods via ref
+  useEffect(() => {
+    if (playerRef) {
+      (playerRef as React.MutableRefObject<VideoPlayerHandle | null>).current = {
+        goToIndex: (index: number) => {
+          const maxIndex = completedSegments.length - 1;
+          const newIndex = Math.max(0, Math.min(index, maxIndex));
+          safeSetIndex(newIndex, 'goToIndex');
+        },
+        goNext: () => {
+          const maxIndex = completedSegments.length - 1;
+          const newIndex = Math.min(expectedIndexRef.current + 1, maxIndex);
+          console.log(`[goNext] called, expectedRef=${expectedIndexRef.current}, maxIndex=${maxIndex}, newIndex=${newIndex}`);
+          safeSetIndex(newIndex, 'goNext');
+        },
+        goPrev: () => {
+          const newIndex = Math.max(expectedIndexRef.current - 1, 0);
+          console.log(`[goPrev] called, expectedRef=${expectedIndexRef.current}, newIndex=${newIndex}`);
+          safeSetIndex(newIndex, 'goPrev');
+        },
+        getCurrentIndex: () => expectedIndexRef.current,
+        getTotalSegments: () => completedSegments.length,
+      };
+    }
+  }, [playerRef, completedSegments.length, safeSetIndex]);
+
+  // Notify parent of segment changes - runs on mount and whenever index/total changes
+  useEffect(() => {
+    // Always notify parent, even on initial mount
+    if (completedSegments.length > 0) {
+      onSegmentChange?.(currentIndex, completedSegments.length);
+    }
+  }, [currentIndex, completedSegments.length, onSegmentChange]);
 
   // Memoize callback to prevent CommentsSection re-renders
   const handleCloseComments = useCallback(() => setShowComments(false), []);
@@ -191,7 +246,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
     fetchCommentCount();
   }, [season.id]);
 
-  const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
 
   const isActive = season.status === 'active';
@@ -200,22 +254,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
 
   // Reset when season changes
   useEffect(() => {
+    expectedIndexRef.current = 0;
     setCurrentIndex(0);
     setIsPlaying(true); // Auto-play when season loads
     setVideoLoaded(false);
   }, [season.id]);
 
-  // Sync with external navigation control
-  useEffect(() => {
-    if (externalNavigation !== undefined && externalNavigation.currentIndex !== currentIndex) {
-      setCurrentIndex(externalNavigation.currentIndex);
-    }
-  }, [externalNavigation?.currentIndex]);
-
-  // Notify parent of segment changes
-  useEffect(() => {
-    onSegmentChange?.(currentIndex, completedSegments.length);
-  }, [currentIndex, completedSegments.length, onSegmentChange]);
 
   // Reset video state when clip changes
   useEffect(() => {
@@ -291,12 +335,16 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (videoRef.current) videoRef.current.muted = !isMuted;
-    setIsMuted(!isMuted);
+    const newMutedState = !isMuted;
+    setIsMuted(newMutedState);
+    // Also update the video element directly in case ref is stale
+    if (videoRef.current) {
+      videoRef.current.muted = newMutedState;
+    }
   };
 
   const jumpToSegment = (index: number) => {
-    setCurrentIndex(index);
+    safeSetIndex(index, 'jumpToSegment');
     setShowContributors(false);
     setIsPlaying(true);
   };
@@ -350,6 +398,51 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
     }
   };
 
+  // Swipe handlers for segment navigation (vertical swipe like TikTok)
+  const minSwipeDistance = 50;
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    // Don't track swipe if comments or contributors panel is open
+    if (showComments || showContributors) return;
+    setTouchEndY(null);
+    setTouchStartY(e.targetTouches[0].clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (showComments || showContributors) return;
+    setTouchEndY(e.targetTouches[0].clientY);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStartY || !touchEndY) return;
+    if (showComments || showContributors) return;
+    if (completedSegments.length <= 1) return;
+
+    const distance = touchStartY - touchEndY;
+    const isSwipeUp = distance > minSwipeDistance;
+    const isSwipeDown = distance < -minSwipeDistance;
+
+    if (isSwipeUp) {
+      // Swipe up - go to next segment
+      if (currentIndex < completedSegments.length - 1) {
+        safeSetIndex(currentIndex + 1, 'swipeUp');
+        setCurrentTime(0);
+        if (videoRef.current) videoRef.current.currentTime = 0;
+      }
+    } else if (isSwipeDown) {
+      // Swipe down - go to previous segment
+      if (currentIndex > 0) {
+        safeSetIndex(currentIndex - 1, 'swipeDown');
+        setCurrentTime(0);
+        if (videoRef.current) videoRef.current.currentTime = 0;
+      }
+    }
+
+    // Reset touch state
+    setTouchStartY(null);
+    setTouchEndY(null);
+  };
+
   // Coming Soon View
   if (isComingSoon) {
     return (
@@ -392,14 +485,22 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
   }
 
   return (
-    <div className="relative h-full bg-black overflow-hidden" onClick={handleTap}>
+    <div
+      className="relative h-full bg-black overflow-hidden"
+      onClick={handleTap}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {/* Video/Image */}
       <AnimatePresence mode="wait">
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
           {currentSegment?.winning_clip?.video_url ? (
             <>
               {/* Show video with first frame visible (paused until play) */}
+              {/* Key forces remount on index change, preventing stale onEnded events */}
               <video
+                key={`video-${currentIndex}-${currentSegment.winning_clip.id}`}
                 ref={videoRef}
                 src={currentSegment.winning_clip.video_url}
                 poster={currentSegment.winning_clip.thumbnail_url || undefined}
@@ -422,13 +523,19 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
                   setVideoLoaded(true);
                 }}
                 onEnded={() => {
-                  // Auto-advance to next segment, keep playing
+                  console.log(`[onEnded] fired, currentIndex=${currentIndex}, expectedRef=${expectedIndexRef.current}`);
+                  // Guard: Only auto-advance if this video's index matches expected
+                  // This prevents stale onEnded events from unmounting videos
+                  if (currentIndex !== expectedIndexRef.current) {
+                    console.log(`[onEnded] BLOCKED - stale event from old video`);
+                    return;
+                  }
+                  // Auto-advance to next segment
                   if (currentIndex < completedSegments.length - 1) {
-                    setCurrentIndex(prev => prev + 1);
+                    safeSetIndex(currentIndex + 1, 'onEnded-advance');
                   } else {
-                    // End of season - loop back to start and continue playing
-                    setCurrentIndex(0);
-                    // Keep playing for continuous loop
+                    // End of season - loop back to start
+                    safeSetIndex(0, 'onEnded-loop');
                   }
                 }}
                 onPlay={() => setIsPlaying(true)}
@@ -521,7 +628,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
       </AnimatePresence>
 
       {/* Right Column - Responsive position for mobile */}
-      <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28">
+      <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28" onClick={(e) => e.stopPropagation()}>
         {/* Creator Avatar - Same size as dashboard */}
         {currentSegment?.winning_clip && (
           <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
@@ -639,7 +746,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
         {/* Mute */}
         <motion.button
           whileTap={{ scale: 0.9 }}
-          onClick={toggleMute}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const newMutedState = !isMuted;
+            setIsMuted(newMutedState);
+            if (videoRef.current) {
+              videoRef.current.muted = newMutedState;
+            }
+          }}
           className="flex flex-col items-center gap-1"
         >
           <div className="w-12 h-12 rounded-full flex items-center justify-center">
@@ -654,7 +769,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
 
       {/* Left Side: Up/Down Navigation Arrows - Segment navigation within a season */}
       {/* On mobile: show internal nav. On desktop: hide if external navigation provided */}
-      {completedSegments.length > 1 && !externalNavigation && (
+      {completedSegments.length > 1 && !hideInternalNav && (
         <div className="absolute left-2 top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-2">
           {/* Up Arrow */}
           <motion.button
@@ -662,7 +777,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
             onClick={(e) => {
               e.stopPropagation();
               if (currentIndex > 0) {
-                setCurrentIndex(prev => prev - 1);
+                safeSetIndex(currentIndex - 1, 'internalPrev');
                 setCurrentTime(0);
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
@@ -686,7 +801,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
             onClick={(e) => {
               e.stopPropagation();
               if (currentIndex < completedSegments.length - 1) {
-                setCurrentIndex(prev => prev + 1);
+                safeSetIndex(currentIndex + 1, 'internalNext');
                 setCurrentTime(0);
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
@@ -740,7 +855,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externa
 
             // Jump to segment and time
             if (targetSegment !== currentIndex) {
-              setCurrentIndex(targetSegment);
+              safeSetIndex(targetSegment, 'progressBar');
             }
             setCurrentTime(timeInSegment);
             if (videoRef.current) {
@@ -1321,9 +1436,11 @@ function StoryPage() {
   const queryClient = useQueryClient();
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  // Desktop navigation state - managed at page level for proper z-index
+  // Desktop navigation - track current segment for the counter display
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [totalSegments, setTotalSegments] = useState(0);
+  // Ref for imperative control of VideoPlayer
+  const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
   // Fetch seasons from API
   const { data: seasons = [], isLoading, error, refetch } = useQuery<Season[]>({
@@ -1366,12 +1483,25 @@ function StoryPage() {
     }
   }, [seasons, selectedSeasonId]);
 
-  // Reset segment index when season changes
+  const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
+
+  // Reset segment index when season changes, and pre-compute total segments
   useEffect(() => {
     setCurrentSegmentIndex(0);
-  }, [selectedSeasonId]);
+    // Pre-compute total segments from the selected season data
+    if (selectedSeason) {
+      const completedSegs = selectedSeason.slots.filter(s => s.status === 'locked' && s.winning_clip);
+      setTotalSegments(completedSegs.length);
+    } else {
+      setTotalSegments(0);
+    }
+  }, [selectedSeasonId, selectedSeason]);
 
-  const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
+  // Callback to sync segment state from VideoPlayer
+  const handleSegmentChange = useCallback((index: number, total: number) => {
+    setCurrentSegmentIndex(index);
+    setTotalSegments(total);
+  }, []);
 
   const handleVoteNow = () => {
     localStorage.setItem('aimoviez_has_voted', 'true');
@@ -1467,16 +1597,9 @@ function StoryPage() {
             onVote={handleVoteNow}
             isFullscreen={false}
             onToggleFullscreen={toggleFullscreen}
-            externalNavigation={{
-              currentIndex: currentSegmentIndex,
-              totalSegments: totalSegments,
-              onPrev: () => setCurrentSegmentIndex(prev => Math.max(0, prev - 1)),
-              onNext: () => setCurrentSegmentIndex(prev => Math.min(totalSegments - 1, prev + 1)),
-            }}
-            onSegmentChange={(index, total) => {
-              setCurrentSegmentIndex(index);
-              setTotalSegments(total);
-            }}
+            hideInternalNav={true}
+            onSegmentChange={handleSegmentChange}
+            playerRef={videoPlayerRef}
           />
         </div>
 
@@ -1487,7 +1610,7 @@ function StoryPage() {
             <motion.button
               whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setCurrentSegmentIndex(prev => Math.max(0, prev - 1))}
+              onClick={() => videoPlayerRef.current?.goPrev()}
               className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
                 currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
               }`}
@@ -1507,7 +1630,7 @@ function StoryPage() {
             <motion.button
               whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
               whileTap={{ scale: 0.9 }}
-              onClick={() => setCurrentSegmentIndex(prev => Math.min(totalSegments - 1, prev + 1))}
+              onClick={() => videoPlayerRef.current?.goNext()}
               className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
                 currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
               }`}
