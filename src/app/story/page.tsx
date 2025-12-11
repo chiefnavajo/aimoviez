@@ -579,7 +579,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
-          className="flex flex-col items-center gap-1"
+          className="flex flex-col items-center gap-1 focus:outline-none"
         >
           <div className="w-12 h-12 rounded-full flex items-center justify-center">
             <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />

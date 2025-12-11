@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -71,7 +71,7 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(seconds / 604800)}w`;
 }
 
-export default function CommentsSection({ clipId, isOpen, onClose, clipUsername: _clipUsername, onCommentAdded }: CommentsSectionProps) {
+function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clipUsername, onCommentAdded }: CommentsSectionProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
@@ -92,6 +92,8 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const loadedClipIdRef = useRef<string | null>(null); // Track which clipId we loaded comments for
+  const wasOpenRef = useRef(false); // Track previous isOpen state
 
   // CSRF protection for API calls
   const { getHeaders } = useCsrf();
@@ -218,10 +220,20 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
     }
   };
 
-  // Load comments when opened
+  // Load comments when opened - only fetch on open transition, not on clipId change while open
   useEffect(() => {
-    if (isOpen && clipId) {
+    const justOpened = isOpen && !wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+
+    // Only fetch if we just opened AND (clipId is new OR we haven't loaded anything yet)
+    if (justOpened && clipId && loadedClipIdRef.current !== clipId) {
+      loadedClipIdRef.current = clipId;
       fetchComments(1, false);
+    }
+
+    // Reset loaded clipId when closing so next open will reload
+    if (!isOpen) {
+      loadedClipIdRef.current = null;
     }
 
     // Cleanup: abort pending request on unmount or when modal closes
@@ -633,6 +645,10 @@ export default function CommentsSection({ clipId, isOpen, onClose, clipUsername:
   if (!mounted) return null;
   return createPortal(content, document.body);
 }
+
+// Memoize to prevent re-renders from parent component's currentTime updates
+const CommentsSection = memo(CommentsSectionComponent);
+export default CommentsSection;
 
 // ============================================================================
 // COMMENT ITEM COMPONENT
