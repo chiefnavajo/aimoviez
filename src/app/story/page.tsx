@@ -160,11 +160,28 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const [duration, setDuration] = useState(0);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [clipDurations, setClipDurations] = useState<number[]>([]);
+  const [commentCount, setCommentCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Memoize callback to prevent CommentsSection re-renders
   const handleCloseComments = useCallback(() => setShowComments(false), []);
+
+  // Fetch comment count for the season
+  useEffect(() => {
+    async function fetchCommentCount() {
+      try {
+        const response = await fetch(`/api/comments?clipId=${season.id}&countOnly=true`);
+        if (response.ok) {
+          const data = await response.json();
+          setCommentCount(data.count || 0);
+        }
+      } catch {
+        // Ignore errors - just show 0
+      }
+    }
+    fetchCommentCount();
+  }, [season.id]);
 
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
@@ -583,7 +600,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
           <div className="w-12 h-12 rounded-full flex items-center justify-center">
             <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
           </div>
-          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Chat</span>
+          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            {formatNumber(commentCount)}
+          </span>
         </motion.button>
 
         {/* Share */}

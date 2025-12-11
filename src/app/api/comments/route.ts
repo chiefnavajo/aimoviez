@@ -105,9 +105,10 @@ interface CommentsResponse {
 /**
  * GET /api/comments
  * Fetch comments for a clip
- * 
+ *
  * Query params:
  * - clipId: string (required)
+ * - countOnly?: boolean (if true, returns only { count: number })
  * - page?: number (default: 1)
  * - limit?: number (default: 20, max: 100)
  * - sort?: 'newest' | 'top' (default: 'newest')
@@ -119,14 +120,31 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userInfo = await getUserInfo(req, supabase);
     const { searchParams } = new URL(req.url);
     const clipId = searchParams.get('clipId');
-    
+    const countOnly = searchParams.get('countOnly') === 'true';
+
     if (!clipId) {
       return NextResponse.json({ error: 'clipId is required' }, { status: 400 });
     }
-    
+
+    // Fast path: return only the count
+    if (countOnly) {
+      const { count, error } = await supabase
+        .from('comments')
+        .select('id', { count: 'exact', head: true })
+        .eq('clip_id', clipId)
+        .eq('is_deleted', false);
+
+      if (error) {
+        console.error('[GET /api/comments] count error:', error);
+        return NextResponse.json({ count: 0 }, { status: 200 });
+      }
+
+      return NextResponse.json({ count: count || 0 }, { status: 200 });
+    }
+
+    const userInfo = await getUserInfo(req, supabase);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const sort = (searchParams.get('sort') || 'newest') as 'newest' | 'top';
