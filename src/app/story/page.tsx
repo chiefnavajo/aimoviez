@@ -455,15 +455,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
             </span>
           </div>
 
-          {/* Voting Segment Indicator - compact */}
+          {/* Voting Segment Indicator - larger for better visibility */}
           {season.current_voting_slot && (
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              className="px-2 py-1 rounded-full bg-orange-500/90 backdrop-blur-sm flex items-center gap-1.5 w-fit"
+              className="px-3 py-1.5 rounded-full bg-orange-500/90 backdrop-blur-sm flex items-center gap-2 w-fit"
             >
-              <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              <span className="text-white text-[10px] font-bold">
+              <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-white text-sm font-bold">
                 Voting #{season.current_voting_slot}
               </span>
             </motion.div>
@@ -1429,7 +1429,7 @@ function StoryPage() {
         {/* Left Sidebar - Navigation (Fully Transparent) */}
         <div className="w-56 h-full flex flex-col py-4 px-3 relative z-30" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
           {/* Navigation Items */}
-          <nav className="flex-1 space-y-1 mt-28">
+          <nav className="flex-1 space-y-1 mt-40">
             <Link href="/dashboard">
               <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-white border border-cyan-500/30 hover:border-cyan-400/50 transition">
                 <Play className="w-6 h-6 text-cyan-400" />
