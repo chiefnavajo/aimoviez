@@ -616,7 +616,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
 
       {/* Left Side: Up/Down Navigation Arrows - Segment navigation within a season */}
       {completedSegments.length > 1 && (
-        <div className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+        <div className="absolute left-2 md:left-4 top-[60%] -translate-y-1/2 z-20 flex flex-col items-center gap-2">
           {/* Up Arrow */}
           <motion.button
             whileTap={{ scale: 0.9 }}
