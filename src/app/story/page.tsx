@@ -556,10 +556,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
             </motion.span>
           </div>
 
-          {/* Vote count */}
-          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-            {formatNumber(season.total_votes)}
-          </span>
         </motion.button>
         
         {/* Rankings Button (Completed) */}
