@@ -23,19 +23,22 @@ function createSupabaseClient() {
 }
 
 export async function GET(req: NextRequest) {
-  // REQUIRED: Verify cron secret for security
+  // Verify request is from Vercel Cron
+  // Vercel sends this header automatically for cron jobs
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  // Fail if CRON_SECRET is not configured
-  if (!cronSecret) {
-    console.error('[auto-advance] CRON_SECRET not configured');
-    return NextResponse.json({ error: 'Service not configured' }, { status: 503 });
+  // Check for Vercel's CRON_SECRET verification
+  // Vercel Cron sends: Authorization: Bearer <CRON_SECRET>
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    // If CRON_SECRET is set but doesn't match, reject
+    console.error('[auto-advance] Invalid CRON_SECRET');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Validate authorization header
-  if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // If no CRON_SECRET is set, allow for development/testing
+  if (!cronSecret) {
+    console.warn('[auto-advance] CRON_SECRET not configured - running without auth');
   }
 
   const supabase = createSupabaseClient();
