@@ -97,25 +97,24 @@ export default function Home() {
       </AnimatePresence>
 
       {/* ============ MAIN CONTENT ============ */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: showIntro && !introSkipped ? 0 : 1 }}
-        transition={{ duration: 0.5 }}
-        className="min-h-screen relative flex items-center justify-center p-4 md:p-8"
+      <div
+        className={`min-h-screen relative flex items-center justify-center p-4 md:p-8 transition-opacity duration-500 ${
+          showIntro && !introSkipped ? 'opacity-0' : 'opacity-100'
+        }`}
       >
-        {/* Background Grid */}
-        <div 
-          className="absolute inset-0 pointer-events-none"
+        {/* Background Grid - hidden on mobile for performance */}
+        <div
+          className="absolute inset-0 pointer-events-none hidden md:block"
           style={{
             backgroundImage: 'linear-gradient(rgba(60, 242, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(60, 242, 255, 0.05) 1px, transparent 1px)',
             backgroundSize: '60px 60px'
           }}
         />
 
-        {/* Glow Orbs */}
-        <div className="absolute top-[10%] left-[10%] w-[300px] h-[300px] md:w-[400px] md:h-[400px] rounded-full bg-[#3CF2FF] opacity-20 blur-[80px] animate-pulse" />
-        <div className="absolute bottom-[20%] right-[15%] w-[250px] h-[250px] md:w-[300px] md:h-[300px] rounded-full bg-[#A020F0] opacity-20 blur-[80px] animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-[50%] right-[30%] w-[200px] h-[200px] md:w-[250px] md:h-[250px] rounded-full bg-[#FF00C7] opacity-15 blur-[80px] animate-pulse" style={{ animationDelay: '2s' }} />
+        {/* Glow Orbs - smaller on mobile for performance */}
+        <div className="absolute top-[10%] left-[10%] w-[150px] h-[150px] md:w-[400px] md:h-[400px] rounded-full bg-[#3CF2FF] opacity-20 blur-[40px] md:blur-[80px]" />
+        <div className="absolute bottom-[20%] right-[15%] w-[120px] h-[120px] md:w-[300px] md:h-[300px] rounded-full bg-[#A020F0] opacity-20 blur-[40px] md:blur-[80px]" />
+        <div className="absolute top-[50%] right-[30%] w-[100px] h-[100px] md:w-[250px] md:h-[250px] rounded-full bg-[#FF00C7] opacity-15 blur-[40px] md:blur-[80px]" />
 
         {/* Content Container */}
         <div className="relative z-10 w-full max-w-md">
@@ -195,7 +194,7 @@ export default function Home() {
             By joining, you agree to collaborate on the world&apos;s first AI-generated movie
           </p>
         </div>
-      </motion.div>
+      </div>
     </main>
   );
 }
