@@ -2,10 +2,8 @@
 // Supabase Realtime subscription for live clip updates
 
 import { useEffect, useRef, useCallback } from 'react';
-import { createClient, RealtimeChannel } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { RealtimeChannel } from '@supabase/supabase-js';
+import { getRealtimeClient } from '@/lib/supabase-client';
 
 export interface ClipUpdate {
   id: string;
@@ -30,7 +28,6 @@ export function useRealtimeClips({
   enabled = true,
 }: UseRealtimeClipsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const clientRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -40,22 +37,12 @@ export function useRealtimeClips({
   }, []);
 
   useEffect(() => {
-    if (!enabled || !supabaseUrl || !supabaseAnonKey) {
+    if (!enabled) {
       return;
     }
 
-    // Create a dedicated client for realtime
-    if (!clientRef.current) {
-      clientRef.current = createClient(supabaseUrl, supabaseAnonKey, {
-        realtime: {
-          params: {
-            eventsPerSecond: 10,
-          },
-        },
-      });
-    }
-
-    const client = clientRef.current;
+    // Use the shared singleton realtime client
+    const client = getRealtimeClient();
 
     // Subscribe to tournament_clips table changes
     const channel = client
@@ -128,25 +115,14 @@ export function useRealtimeVotes({
   enabled = true,
 }: UseRealtimeVotesOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const clientRef = useRef<ReturnType<typeof createClient> | null>(null);
 
   useEffect(() => {
-    if (!enabled || !supabaseUrl || !supabaseAnonKey || !onVoteUpdate) {
+    if (!enabled || !onVoteUpdate) {
       return;
     }
 
-    // Create a dedicated client for realtime
-    if (!clientRef.current) {
-      clientRef.current = createClient(supabaseUrl, supabaseAnonKey, {
-        realtime: {
-          params: {
-            eventsPerSecond: 10,
-          },
-        },
-      });
-    }
-
-    const client = clientRef.current;
+    // Use the shared singleton realtime client
+    const client = getRealtimeClient();
 
     // Build filter if clipIds provided
     const filter = clipIds?.length

@@ -614,9 +614,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
         </motion.button>
       </div>
 
-      {/* Left Side: Up/Down Navigation Arrows */}
+      {/* Left Side: Up/Down Navigation Arrows - Segment navigation within a season */}
       {completedSegments.length > 1 && (
-        <div className="absolute left-3 md:left-[200px] top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
+        <div className="absolute left-2 md:left-4 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center gap-2">
           {/* Up Arrow */}
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -628,12 +628,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 ${
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 ${
               currentIndex === 0 ? 'opacity-30' : 'opacity-100'
             }`}
             disabled={currentIndex === 0}
           >
-            <ChevronDown className="w-5 h-5 text-white rotate-180" />
+            <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-white rotate-180" />
           </motion.button>
 
           {/* Segment Counter */}
@@ -652,12 +652,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center border border-white/20 ${
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 ${
               currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'
             }`}
             disabled={currentIndex === completedSegments.length - 1}
           >
-            <ChevronDown className="w-5 h-5 text-white" />
+            <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-white" />
           </motion.button>
         </div>
       )}
@@ -1494,35 +1494,7 @@ function StoryPage() {
           </div>
         </div>
 
-        {/* Navigation Arrows - Left Side, Vertically Centered (matches dashboard) */}
-        <div className="hidden md:flex absolute left-[200px] top-1/2 -translate-y-1/2 flex-col gap-6 z-30">
-          <motion.button
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-            whileTap={{ scale: 0.9 }}
-            onClick={goToPrevSeason}
-            disabled={seasons.findIndex(s => s.id === selectedSeasonId) === 0}
-            className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
-                     border border-white/20 flex items-center justify-center
-                     transition-all shadow-lg disabled:opacity-30"
-          >
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-            </svg>
-          </motion.button>
-          <motion.button
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-            whileTap={{ scale: 0.9 }}
-            onClick={goToNextSeason}
-            disabled={seasons.findIndex(s => s.id === selectedSeasonId) === seasons.length - 1}
-            className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md
-                     border border-white/20 flex items-center justify-center
-                     transition-all shadow-lg disabled:opacity-30"
-          >
-            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-            </svg>
-          </motion.button>
-        </div>
+        {/* Season Navigation Arrows - REMOVED: overlapped with segment navigation, use sidebar season selector instead */}
       </div>
 
       {/* Mobile Layout - Full screen video with overlay controls */}

@@ -28,6 +28,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Singleton clients
 let anonClient: SupabaseClient | null = null;
 let serviceClient: SupabaseClient | null = null;
+let realtimeClient: SupabaseClient | null = null;
 
 /**
  * Get the anonymous Supabase client
@@ -115,6 +116,35 @@ export function createAnonClient(): SupabaseClient {
       autoRefreshToken: false,
     },
   });
+}
+
+/**
+ * Get the singleton realtime Supabase client
+ * Use this for realtime subscriptions to avoid multiple GoTrueClient instances
+ */
+export function getRealtimeClient(): SupabaseClient {
+  if (!supabaseUrl) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+  }
+  if (!supabaseAnonKey) {
+    throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+  }
+
+  if (!realtimeClient) {
+    realtimeClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
+        },
+      },
+    });
+  }
+
+  return realtimeClient;
 }
 
 // Type exports for convenience
