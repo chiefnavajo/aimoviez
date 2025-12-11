@@ -94,6 +94,8 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   const abortControllerRef = useRef<AbortController | null>(null);
   const loadedClipIdRef = useRef<string | null>(null); // Track which clipId we loaded comments for
   const wasOpenRef = useRef(false); // Track previous isOpen state
+  const onCloseRef = useRef(onClose); // Stable ref for onClose to avoid effect re-runs
+  onCloseRef.current = onClose;
 
   // CSRF protection for API calls
   const { getHeaders } = useCsrf();
@@ -128,7 +130,7 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
       // Close on Escape
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
 
@@ -166,7 +168,7 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
       // Restore focus when modal closes
       previouslyFocusedElement?.focus?.();
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]); // Removed onClose from deps - using ref instead
 
   // Fetch comments
   const fetchComments = async (pageNum: number = 1, append: boolean = false) => {

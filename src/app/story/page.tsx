@@ -163,6 +163,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
   const videoRef = useRef<HTMLVideoElement>(null);
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Memoize callback to prevent CommentsSection re-renders
+  const handleCloseComments = useCallback(() => setShowComments(false), []);
+
   const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
   const currentSegment = completedSegments[currentIndex];
 
@@ -809,7 +812,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       <CommentsSection
         clipId={currentSegment?.winning_clip?.id || ''}
         isOpen={showComments}
-        onClose={() => setShowComments(false)}
+        onClose={handleCloseComments}
         clipUsername={currentSegment?.winning_clip?.username}
       />
     </div>
