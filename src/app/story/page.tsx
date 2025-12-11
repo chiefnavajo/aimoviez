@@ -147,11 +147,19 @@ interface VideoPlayerProps {
   onVote: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
+  // Desktop navigation control - when provided, hides internal nav buttons
+  externalNavigation?: {
+    currentIndex: number;
+    totalSegments: number;
+    onPrev: () => void;
+    onNext: () => void;
+  };
+  onSegmentChange?: (index: number, total: number) => void;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, externalNavigation, onSegmentChange }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(externalNavigation?.currentIndex ?? 0);
   const [isMuted, setIsMuted] = useState(true);
   const [showContributors, setShowContributors] = useState(false);
   const [showComments, setShowComments] = useState(false);
@@ -196,6 +204,18 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
     setIsPlaying(true); // Auto-play when season loads
     setVideoLoaded(false);
   }, [season.id]);
+
+  // Sync with external navigation control
+  useEffect(() => {
+    if (externalNavigation !== undefined && externalNavigation.currentIndex !== currentIndex) {
+      setCurrentIndex(externalNavigation.currentIndex);
+    }
+  }, [externalNavigation?.currentIndex]);
+
+  // Notify parent of segment changes
+  useEffect(() => {
+    onSegmentChange?.(currentIndex, completedSegments.length);
+  }, [currentIndex, completedSegments.length, onSegmentChange]);
 
   // Reset video state when clip changes
   useEffect(() => {
@@ -633,9 +653,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen }: Video
       </div>
 
       {/* Left Side: Up/Down Navigation Arrows - Segment navigation within a season */}
-      {/* z-40 ensures buttons appear above the sidebar (z-30) on desktop */}
-      {completedSegments.length > 1 && (
-        <div className="absolute left-2 md:left-4 top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-2">
+      {/* On mobile: show internal nav. On desktop: hide if external navigation provided */}
+      {completedSegments.length > 1 && !externalNavigation && (
+        <div className="absolute left-2 top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-2">
           {/* Up Arrow */}
           <motion.button
             whileTap={{ scale: 0.9 }}
@@ -1301,6 +1321,9 @@ function StoryPage() {
   const queryClient = useQueryClient();
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Desktop navigation state - managed at page level for proper z-index
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+  const [totalSegments, setTotalSegments] = useState(0);
 
   // Fetch seasons from API
   const { data: seasons = [], isLoading, error, refetch } = useQuery<Season[]>({
@@ -1342,6 +1365,11 @@ function StoryPage() {
       setSelectedSeasonId(seasons[0].id);
     }
   }, [seasons, selectedSeasonId]);
+
+  // Reset segment index when season changes
+  useEffect(() => {
+    setCurrentSegmentIndex(0);
+  }, [selectedSeasonId]);
 
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
 
@@ -1439,8 +1467,56 @@ function StoryPage() {
             onVote={handleVoteNow}
             isFullscreen={false}
             onToggleFullscreen={toggleFullscreen}
+            externalNavigation={{
+              currentIndex: currentSegmentIndex,
+              totalSegments: totalSegments,
+              onPrev: () => setCurrentSegmentIndex(prev => Math.max(0, prev - 1)),
+              onNext: () => setCurrentSegmentIndex(prev => Math.min(totalSegments - 1, prev + 1)),
+            }}
+            onSegmentChange={(index, total) => {
+              setCurrentSegmentIndex(index);
+              setTotalSegments(total);
+            }}
           />
         </div>
+
+        {/* Desktop Navigation Arrows - Outside VideoPlayer for proper z-index */}
+        {totalSegments > 1 && (
+          <div className="absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-4">
+            {/* Previous Segment */}
+            <motion.button
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setCurrentSegmentIndex(prev => Math.max(0, prev - 1))}
+              className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
+                currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
+              }`}
+              disabled={currentSegmentIndex === 0}
+            >
+              <ChevronDown className="w-7 h-7 text-white rotate-180" />
+            </motion.button>
+
+            {/* Counter */}
+            <div className="text-center">
+              <span className="text-white/80 text-sm font-medium drop-shadow-lg">
+                {currentSegmentIndex + 1}/{totalSegments}
+              </span>
+            </div>
+
+            {/* Next Segment */}
+            <motion.button
+              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setCurrentSegmentIndex(prev => Math.min(totalSegments - 1, prev + 1))}
+              className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
+                currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
+              }`}
+              disabled={currentSegmentIndex >= totalSegments - 1}
+            >
+              <ChevronDown className="w-7 h-7 text-white" />
+            </motion.button>
+          </div>
+        )}
 
         {/* Left Sidebar - Navigation (Fully Transparent) */}
         <div className="w-56 h-full flex flex-col py-4 px-3 relative z-30" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
