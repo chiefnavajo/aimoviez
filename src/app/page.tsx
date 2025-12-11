@@ -5,10 +5,13 @@ import { signIn } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
   const [showIntro, setShowIntro] = useState(true);
   const [introSkipped, setIntroSkipped] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     // Check if intro was already skipped this session
     if (sessionStorage.getItem('introSkipped') === 'true') {
       setShowIntro(false);
@@ -35,7 +38,7 @@ export default function Home() {
     <main className="min-h-screen bg-black text-white overflow-hidden">
       {/* ============ INTRO OVERLAY ============ */}
       <AnimatePresence>
-        {showIntro && !introSkipped && (
+        {mounted && showIntro && !introSkipped && (
           <motion.div
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -98,9 +101,8 @@ export default function Home() {
 
       {/* ============ MAIN CONTENT ============ */}
       <div
-        className={`min-h-screen relative flex items-center justify-center p-4 md:p-8 transition-opacity duration-500 ${
-          showIntro && !introSkipped ? 'opacity-0' : 'opacity-100'
-        }`}
+        className="min-h-screen relative flex items-center justify-center p-4 md:p-8 transition-opacity duration-500"
+        style={{ opacity: !mounted || (showIntro && !introSkipped) ? 0 : 1 }}
       >
         {/* Background Grid - hidden on mobile for performance */}
         <div
