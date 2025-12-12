@@ -20,16 +20,19 @@ export default function Home() {
     }
 
     // Skip intro for returning users (after logout or direct navigation)
-    // Check URL params for callbackUrl (redirected from protected page)
-    // or if user has localStorage data indicating they've used the app before
+    // Check URL params for logout redirect or persistent flag
     const urlParams = new URLSearchParams(window.location.search);
-    const hasCallbackUrl = urlParams.has('callbackUrl');
-    const hasUsedAppBefore = localStorage.getItem('username') || localStorage.getItem('user_profile');
+    const fromLogout = urlParams.get('from') === 'logout';
+    const hasUsedAppBefore = localStorage.getItem('hasUsedAppBefore') === 'true';
 
-    if (hasCallbackUrl || hasUsedAppBefore) {
+    if (fromLogout || hasUsedAppBefore) {
       setShowIntro(false);
       setIntroSkipped(true);
       sessionStorage.setItem('introSkipped', 'true');
+      // Clean up URL param if present
+      if (fromLogout) {
+        window.history.replaceState({}, '', '/');
+      }
       return;
     }
 

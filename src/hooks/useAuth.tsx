@@ -60,6 +60,8 @@ export function useAuth(): UseAuthReturn {
           avatar_url: session.user.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${session.user.username}`,
           level: 1,
         });
+        // Mark that user has used the app (persists through logout for intro skip)
+        localStorage.setItem('hasUsedAppBefore', 'true');
         setIsChecking(false);
         return;
       }
@@ -71,6 +73,8 @@ export function useAuth(): UseAuthReturn {
           const profile = JSON.parse(cachedProfile);
           setHasProfile(true);
           setUserProfile(profile);
+          // Mark that user has used the app (persists through logout for intro skip)
+          localStorage.setItem('hasUsedAppBefore', 'true');
           setIsChecking(false);
           return;
         } catch {
@@ -93,6 +97,8 @@ export function useAuth(): UseAuthReturn {
           setHasProfile(true);
           setUserProfile(data.user);
           localStorage.setItem('user_profile', JSON.stringify(data.user));
+          // Mark that user has used the app (persists through logout for intro skip)
+          localStorage.setItem('hasUsedAppBefore', 'true');
         } else {
           setHasProfile(false);
         }

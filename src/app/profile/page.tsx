@@ -423,7 +423,9 @@ function ProfilePageContent() {
               onClick={() => {
                 // Clear cached user profile on sign out
                 localStorage.removeItem('user_profile');
-                signOut({ callbackUrl: '/' });
+                // Set flag to skip intro on return (persists through logout)
+                localStorage.setItem('hasUsedAppBefore', 'true');
+                signOut({ callbackUrl: '/?from=logout' });
               }}
               className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
             >
@@ -528,7 +530,10 @@ function ProfilePageContent() {
                     </div>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => signOut({ callbackUrl: '/' })}
+                      onClick={() => {
+                        localStorage.setItem('hasUsedAppBefore', 'true');
+                        signOut({ callbackUrl: '/?from=logout' });
+                      }}
                       className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg font-medium flex items-center gap-2 transition-colors text-red-400"
                     >
                       <LogOut className="w-4 h-4" />
@@ -610,7 +615,10 @@ function ProfilePageContent() {
                   <h1 className="text-xl font-black truncate">@{username}</h1>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => signOut({ callbackUrl: '/' })}
+                    onClick={() => {
+                      localStorage.setItem('hasUsedAppBefore', 'true');
+                      signOut({ callbackUrl: '/?from=logout' });
+                    }}
                     className="p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg transition-colors"
                   >
                     <LogOut className="w-4 h-4 text-red-400" />
