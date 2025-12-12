@@ -748,6 +748,19 @@ function VotingArena() {
   useRealtimeClips({
     enabled: true,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
+      // If clip status changed to non-active, remove it from the feed
+      if (updatedClip.status && updatedClip.status !== 'active' && updatedClip.status !== 'approved') {
+        console.log('[Realtime] Clip status changed to', updatedClip.status, '- removing from feed');
+        queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+          if (!oldData?.clips) return oldData;
+          return {
+            ...oldData,
+            clips: oldData.clips.filter((clip) => clip.clip_id !== updatedClip.id),
+          };
+        });
+        return;
+      }
+
       // Update the clip in the React Query cache
       queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
         if (!oldData?.clips) return oldData;
@@ -768,9 +781,9 @@ function VotingArena() {
     }, [queryClient]),
     onNewClip: useCallback((newClip: ClipUpdate) => {
       // When a new clip is approved/added, refetch to get the full clip data
-      // Only refetch if the clip status is 'approved' (ready for voting)
-      if (newClip.status === 'approved') {
-        console.log('[Realtime] New clip approved, refreshing feed...');
+      // Only refetch if the clip status is 'active' or 'approved' (ready for voting)
+      if (newClip.status === 'active' || newClip.status === 'approved') {
+        console.log('[Realtime] New clip added to voting, refreshing feed...');
         refetch();
         toast.success('New clip added!', { icon: '🎬' });
       }
