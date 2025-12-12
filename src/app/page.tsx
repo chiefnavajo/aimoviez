@@ -19,6 +19,20 @@ export default function Home() {
       return;
     }
 
+    // Skip intro for returning users (after logout or direct navigation)
+    // Check URL params for callbackUrl (redirected from protected page)
+    // or if user has localStorage data indicating they've used the app before
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasCallbackUrl = urlParams.has('callbackUrl');
+    const hasUsedAppBefore = localStorage.getItem('username') || localStorage.getItem('user_profile');
+
+    if (hasCallbackUrl || hasUsedAppBefore) {
+      setShowIntro(false);
+      setIntroSkipped(true);
+      sessionStorage.setItem('introSkipped', 'true');
+      return;
+    }
+
     // Auto-hide intro after 3.5 seconds
     const timer = setTimeout(() => {
       setShowIntro(false);

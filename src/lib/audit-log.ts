@@ -25,7 +25,8 @@ export type AuditAction =
   | 'revoke_admin'
   | 'update_username'
   | 'delete_comment'
-  | 'bulk_action';
+  | 'bulk_action'
+  | 'reset_user_votes';
 
 export type ResourceType =
   | 'clip'

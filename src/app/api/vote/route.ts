@@ -1122,6 +1122,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. For super/mega votes: check if already used in this slot
+    // This check applies regardless of multi-vote mode - special votes are always limited
     if (voteType === 'super' || voteType === 'mega') {
       const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
       // SECURITY: If we can't verify slot votes, reject special votes
@@ -1136,28 +1137,64 @@ export async function POST(req: NextRequest) {
           { status: 503 }
         );
       }
+
+      // Check if user is trying to use super/mega on a clip they already voted with that type
+      const existingVoteOnClip = slotVotesResult.votes.find(v => v.clip_id === clipId);
+      const alreadyUsedThisTypeOnClip = existingVoteOnClip?.vote_type === voteType;
+
+      // Count special votes across ALL clips in slot (not just unique vote_type values)
+      // In multi-vote mode, users might upgrade standard→super on same clip, which is ok
+      // But they can't use super on multiple clips, or super twice on same clip
       const specialRemaining = calculateRemainingSpecialVotes(slotVotesResult.votes);
 
-      if (voteType === 'super' && specialRemaining.super <= 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Super vote already used this round',
-            code: 'SUPER_LIMIT',
-          },
-          { status: 429 }
-        );
+      if (voteType === 'super') {
+        // If already used super on this clip, block (no stacking super votes)
+        if (alreadyUsedThisTypeOnClip) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Already used super vote on this clip',
+              code: 'SUPER_ALREADY_ON_CLIP',
+            },
+            { status: 429 }
+          );
+        }
+        // If super used on another clip, block
+        if (specialRemaining.super <= 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Super vote already used this round',
+              code: 'SUPER_LIMIT',
+            },
+            { status: 429 }
+          );
+        }
       }
 
-      if (voteType === 'mega' && specialRemaining.mega <= 0) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Mega vote already used this round',
-            code: 'MEGA_LIMIT',
-          },
-          { status: 429 }
-        );
+      if (voteType === 'mega') {
+        // If already used mega on this clip, block (no stacking mega votes)
+        if (alreadyUsedThisTypeOnClip) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Already used mega vote on this clip',
+              code: 'MEGA_ALREADY_ON_CLIP',
+            },
+            { status: 429 }
+          );
+        }
+        // If mega used on another clip, block
+        if (specialRemaining.mega <= 0) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Mega vote already used this round',
+              code: 'MEGA_LIMIT',
+            },
+            { status: 429 }
+          );
+        }
       }
     }
 

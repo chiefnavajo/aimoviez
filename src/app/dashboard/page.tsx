@@ -709,6 +709,38 @@ function VotingArena() {
     placeholderData: (previousData) => previousData, // Show cached data immediately
   });
 
+  // Auto-refresh at midnight UTC when daily votes reset
+  // This ensures users don't need to manually refresh to see their reset vote count
+  useEffect(() => {
+    const scheduleNextMidnightRefresh = () => {
+      const now = new Date();
+      // Calculate next midnight UTC
+      const nextMidnight = new Date(Date.UTC(
+        now.getUTCFullYear(),
+        now.getUTCMonth(),
+        now.getUTCDate() + 1, // Tomorrow
+        0, 0, 0, 0 // 00:00:00.000 UTC
+      ));
+      const msUntilMidnight = nextMidnight.getTime() - now.getTime();
+
+      // Set timeout to refetch at midnight UTC
+      const timeoutId = setTimeout(() => {
+        console.log('[Dashboard] Midnight UTC - refreshing vote data');
+        refetch();
+        // Schedule the next midnight refresh
+        scheduleNextMidnightRefresh();
+      }, msUntilMidnight);
+
+      return timeoutId;
+    };
+
+    const timeoutId = scheduleNextMidnightRefresh();
+
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [refetch]);
+
   const votesToday = votingData?.totalVotesToday ?? 0;
   const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
 

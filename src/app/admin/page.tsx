@@ -179,6 +179,23 @@ export default function AdminDashboard() {
   const [multiVoteEnabled, setMultiVoteEnabled] = useState(false);
   const [loadingMultiVote, setLoadingMultiVote] = useState(true);
 
+  // Reset user votes state
+  const [resetVotesUsername, setResetVotesUsername] = useState('');
+  const [resettingUserVotes, setResettingUserVotes] = useState(false);
+  const [resetVotesResult, setResetVotesResult] = useState<{
+    success: boolean;
+    message: string;
+    votesDeleted?: number;
+  } | null>(null);
+
+  // Reset active clips to pending state
+  const [resettingActiveClips, setResettingActiveClips] = useState(false);
+  const [resetActiveClipsResult, setResetActiveClipsResult] = useState<{
+    success: boolean;
+    message: string;
+    updated?: number;
+  } | null>(null);
+
   // Bulk selection state
   const [selectedClips, setSelectedClips] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
@@ -368,6 +385,129 @@ export default function AdminDashboard() {
       console.error('Failed to toggle multi-vote mode:', error);
     }
     setLoadingMultiVote(false);
+  };
+
+  // ============================================================================
+  // RESET USER VOTES
+  // ============================================================================
+
+  const handleResetUserVotes = async () => {
+    if (!resetVotesUsername.trim()) {
+      setResetVotesResult({
+        success: false,
+        message: 'Please enter a username',
+      });
+      return;
+    }
+
+    const confirmReset = confirm(
+      `Are you sure you want to reset ALL votes for user "${resetVotesUsername}"?\n\nThis will delete all their voting history and cannot be undone.`
+    );
+
+    if (!confirmReset) return;
+
+    setResettingUserVotes(true);
+    setResetVotesResult(null);
+
+    try {
+      const response = await fetch('/api/admin/reset-user-votes', {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({ username: resetVotesUsername.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        setResetVotesResult({
+          success: true,
+          message: data.message,
+          votesDeleted: data.votes_deleted,
+        });
+        setResetVotesUsername(''); // Clear input on success
+      } else {
+        setResetVotesResult({
+          success: false,
+          message: data.error || 'Failed to reset user votes',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to reset user votes:', error);
+      setResetVotesResult({
+        success: false,
+        message: 'Network error - failed to reset user votes',
+      });
+    }
+
+    setResettingUserVotes(false);
+  };
+
+  // ============================================================================
+  // RESET ACTIVE CLIPS TO PENDING
+  // ============================================================================
+
+  const handleResetActiveClipsToPending = async () => {
+    // Get all active clip IDs from current clips list
+    const activeClipIds = clips.filter((c) => c.status === 'active').map((c) => c.id);
+
+    if (activeClipIds.length === 0) {
+      setResetActiveClipsResult({
+        success: false,
+        message: 'No active clips found to reset',
+      });
+      return;
+    }
+
+    const confirmReset = confirm(
+      `Are you sure you want to reset ${activeClipIds.length} active clip(s) to PENDING status?\n\nThis will remove them from the voting arena until re-approved.`
+    );
+
+    if (!confirmReset) return;
+
+    setResettingActiveClips(true);
+    setResetActiveClipsResult(null);
+
+    try {
+      const response = await fetch('/api/admin/bulk', {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          action: 'reset_to_pending',
+          clipIds: activeClipIds,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setResetActiveClipsResult({
+          success: true,
+          message: `Successfully reset ${data.updated} clip(s) to pending`,
+          updated: data.updated,
+        });
+        // Update local state to reflect the change
+        setClips((prev) =>
+          prev.map((c) =>
+            activeClipIds.includes(c.id) ? { ...c, status: 'pending' as const } : c
+          )
+        );
+      } else {
+        setResetActiveClipsResult({
+          success: false,
+          message: data.error || 'Failed to reset clips',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to reset active clips:', error);
+      setResetActiveClipsResult({
+        success: false,
+        message: 'Network error - failed to reset clips',
+      });
+    }
+
+    setResettingActiveClips(false);
   };
 
   // ============================================================================
@@ -1270,6 +1410,147 @@ export default function AdminDashboard() {
                 )}
               </motion.button>
             </div>
+          </div>
+
+          {/* Reset User Votes */}
+          <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-red-500/10 to-orange-500/10 border border-red-500/20">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center gap-3 flex-shrink-0">
+                <div className="p-2 rounded-lg bg-red-500/20">
+                  <Trash2 className="w-5 h-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold">Reset User Votes</h3>
+                  <p className="text-sm text-white/60">Delete all votes for a specific user</p>
+                </div>
+              </div>
+
+              <div className="flex flex-1 gap-3 items-center">
+                <input
+                  type="text"
+                  value={resetVotesUsername}
+                  onChange={(e) => setResetVotesUsername(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleResetUserVotes()}
+                  placeholder="Enter username..."
+                  className="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white
+                           placeholder-white/40 focus:border-red-400 focus:outline-none transition-colors"
+                />
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleResetUserVotes}
+                  disabled={resettingUserVotes || !resetVotesUsername.trim()}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 font-bold
+                           hover:shadow-lg hover:shadow-red-500/20 transition-all disabled:opacity-50
+                           flex items-center gap-2 whitespace-nowrap"
+                  type="button"
+                >
+                  {resettingUserVotes ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="w-4 h-4" />
+                      Reset
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </div>
+
+            {/* Reset User Votes Result Message */}
+            <AnimatePresence>
+              {resetVotesResult && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`mt-4 p-3 rounded-lg ${
+                    resetVotesResult.success
+                      ? 'bg-green-500/20 border border-green-500/40'
+                      : 'bg-red-500/20 border border-red-500/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {resetVotesResult.success ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                    )}
+                    <p className={resetVotesResult.success ? 'text-green-300' : 'text-red-300'}>
+                      {resetVotesResult.message}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Reset Active Clips to Pending */}
+          <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/10 to-orange-500/10 border border-amber-500/30">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <Layers className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold">Reset Active Clips to Pending</h3>
+                  <p className="text-sm text-white/60">
+                    Move all active clips back to pending status ({clips.filter(c => c.status === 'active').length} active)
+                  </p>
+                </div>
+              </div>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleResetActiveClipsToPending}
+                disabled={resettingActiveClips || clips.filter(c => c.status === 'active').length === 0}
+                className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 font-bold
+                         hover:shadow-lg hover:shadow-amber-500/20 transition-all disabled:opacity-50
+                         flex items-center gap-2 whitespace-nowrap"
+                type="button"
+              >
+                {resettingActiveClips ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <Layers className="w-4 h-4" />
+                    Reset to Pending
+                  </>
+                )}
+              </motion.button>
+            </div>
+
+            {/* Reset Active Clips Result Message */}
+            <AnimatePresence>
+              {resetActiveClipsResult && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className={`mt-4 p-3 rounded-lg ${
+                    resetActiveClipsResult.success
+                      ? 'bg-green-500/20 border border-green-500/40'
+                      : 'bg-red-500/20 border border-red-500/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    {resetActiveClipsResult.success ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-400" />
+                    )}
+                    <p className={resetActiveClipsResult.success ? 'text-green-300' : 'text-red-300'}>
+                      {resetActiveClipsResult.message}
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Reset Result Message */}

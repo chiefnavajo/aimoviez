@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, clipIds } = body;
 
-    if (!action || !['approve', 'reject', 'delete'].includes(action)) {
+    if (!action || !['approve', 'reject', 'delete', 'reset_to_pending'].includes(action)) {
       return NextResponse.json(
-        { error: 'Invalid action. Must be: approve, reject, or delete' },
+        { error: 'Invalid action. Must be: approve, reject, delete, or reset_to_pending' },
         { status: 400 }
       );
     }
@@ -90,6 +90,21 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error('[BULK] Reject error:', error);
+        hasErrors = true;
+      } else {
+        updatedCount = data?.length || 0;
+      }
+    } else if (action === 'reset_to_pending') {
+      // Reset active clips to pending status
+      const { data, error } = await supabase
+        .from('tournament_clips')
+        .update({ status: 'pending' })
+        .in('id', clipIds)
+        .eq('status', 'active')
+        .select('id');
+
+      if (error) {
+        console.error('[BULK] Reset to pending error:', error);
         hasErrors = true;
       } else {
         updatedCount = data?.length || 0;
