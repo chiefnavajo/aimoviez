@@ -62,12 +62,12 @@ const TOUR_STEPS: TourStep[] = [
     emoji: '❤️',
   },
   {
-    id: 'power-votes',
-    title: 'Power Votes',
-    description: 'Hold the vote button longer for Super (3x) or Mega (10x) votes! Use them wisely - you only get one of each per round.',
+    id: 'double-tap',
+    title: 'Double-Tap to Vote',
+    description: 'You can also double-tap anywhere on the video to quickly cast your vote!',
     icon: <Zap className="w-8 h-8" />,
     position: 'center',
-    emoji: '⚡',
+    emoji: '👆',
   },
   {
     id: 'daily-limit',

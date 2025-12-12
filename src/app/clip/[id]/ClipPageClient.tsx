@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Zap, Sparkles, Flag } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Flag } from 'lucide-react';
 import ReportModal from '@/components/ReportModal';
 import BottomNavigation from '@/components/BottomNavigation';
 import CommentsSection from '@/components/CommentsSection';
@@ -256,7 +256,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
           >
             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
               hasVoted
-                ? voteType === 'mega' ? 'bg-purple-500' : voteType === 'super' ? 'bg-orange-500' : 'bg-pink-500'
+                ? 'bg-pink-500'
                 : canVote ? 'bg-white/20 hover:bg-pink-500/50' : 'bg-white/10'
             }`}>
               {isVoting ? (
@@ -267,36 +267,6 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
             </div>
             <span className="text-xs font-bold">{formatNumber(voteCount)}</span>
           </motion.button>
-
-          {/* Super Vote - only show if voting is open */}
-          {canVote && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => handleVote('super')}
-              disabled={isVoting}
-              className="flex flex-col items-center gap-1"
-            >
-              <div className="w-10 h-10 rounded-full bg-orange-500/30 flex items-center justify-center hover:bg-orange-500/50 transition-colors">
-                <Zap className="w-5 h-5 text-orange-400" />
-              </div>
-              <span className="text-[10px] text-orange-400">3x</span>
-            </motion.button>
-          )}
-
-          {/* Mega Vote - only show if voting is open */}
-          {canVote && (
-            <motion.button
-              whileTap={{ scale: 0.9 }}
-              onClick={() => handleVote('mega')}
-              disabled={isVoting}
-              className="flex flex-col items-center gap-1"
-            >
-              <div className="w-10 h-10 rounded-full bg-purple-500/30 flex items-center justify-center hover:bg-purple-500/50 transition-colors">
-                <Sparkles className="w-5 h-5 text-purple-400" />
-              </div>
-              <span className="text-[10px] text-purple-400">10x</span>
-            </motion.button>
-          )}
 
           {/* Comment */}
           <button onClick={() => setShowComments(true)} className="flex flex-col items-center gap-1">

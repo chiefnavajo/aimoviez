@@ -230,11 +230,7 @@ const GENRE_LABELS: Record<string, string> = {
 };
 
 // ============================================================================
-// POWER VOTE BUTTON - Long-press for Super/Mega votes
-// ============================================================================
-// TAP = Standard (1x)
-// HOLD 1s = Super (3x)
-// HOLD 2s = Mega (10x)
+// SIMPLE VOTE BUTTON - Tap to vote/unvote (super/mega votes disabled)
 // ============================================================================
 
 interface PowerVoteButtonProps {
@@ -255,142 +251,19 @@ const PowerVoteButton = memo(function PowerVoteButton({
   isVoting,
   isDisabled,
   hasVoted,
-  superRemaining,
-  megaRemaining,
   votesToday = 0,
   dailyGoal = 200,
   showDailyProgress = false,
-  multiVoteMode = false,
 }: PowerVoteButtonProps) {
-  const [holdProgress, setHoldProgress] = useState(0);
-  const [currentVoteType, setCurrentVoteType] = useState<VoteType>('standard');
-  const [isHolding, setIsHolding] = useState(false);
-  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number>(0);
-
-  const SUPER_THRESHOLD = 1000; // 1 second for Super
-  const MEGA_THRESHOLD = 2000;  // 2 seconds for Mega
-
-  const clearTimers = () => {
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    if (progressIntervalRef.current) {
-      clearInterval(progressIntervalRef.current);
-      progressIntervalRef.current = null;
-    }
+  const colors = {
+    glow: 'rgba(56, 189, 248, 0.5)',
+    ring: '#3CF2FF',
+    bg: 'rgba(0,0,0,0.3)',
+    icon: '∞',
+    label: ''
   };
 
-  const handlePressStart = () => {
-    if (isVoting || isDisabled) return;
-
-    // For voted clips, we still need to track the press for revoke
-    setIsHolding(true);
-    startTimeRef.current = Date.now();
-    setHoldProgress(0);
-    setCurrentVoteType('standard');
-
-    // Start progress interval for new votes
-    // Also allow holding on already-voted clips to charge super/mega (upgrades existing vote)
-    const canChargeVote = !hasVoted || multiVoteMode || (superRemaining > 0 || megaRemaining > 0);
-    if (canChargeVote) {
-      // Update progress every 50ms
-      progressIntervalRef.current = setInterval(() => {
-        const elapsed = Date.now() - startTimeRef.current;
-        const progress = Math.min(elapsed / MEGA_THRESHOLD, 1);
-        setHoldProgress(progress);
-
-        // Determine vote type based on elapsed time
-        if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
-          setCurrentVoteType('mega');
-          // Vibrate if available
-          if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
-        } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
-          setCurrentVoteType('super');
-          // Vibrate if available
-          if (navigator.vibrate) navigator.vibrate(30);
-        } else {
-          setCurrentVoteType('standard');
-        }
-      }, 50);
-    }
-  };
-
-  const handlePressEnd = () => {
-    if (!isHolding) return;
-
-    clearTimers();
-    setIsHolding(false);
-
-    const elapsed = Date.now() - startTimeRef.current;
-
-    // Determine final vote type
-    let finalVoteType: VoteType = 'standard';
-    if (elapsed >= MEGA_THRESHOLD && megaRemaining > 0) {
-      finalVoteType = 'mega';
-    } else if (elapsed >= SUPER_THRESHOLD && superRemaining > 0) {
-      finalVoteType = 'super';
-    }
-
-    // Execute vote or revoke
-    if (!isDisabled) {
-      if (hasVoted && !multiVoteMode && finalVoteType === 'standard') {
-        // Tap on voted clip = revoke (only in normal mode, only for standard votes)
-        // Super/mega votes upgrade the existing vote instead of revoking
-        onVote('standard'); // This will trigger revoke in handleVote
-      } else {
-        // New vote, upgrade existing vote with super/mega, or multi-vote mode
-        onVote(finalVoteType);
-      }
-    }
-
-    // Reset progress after animation
-    setTimeout(() => {
-      setHoldProgress(0);
-      setCurrentVoteType('standard');
-    }, 300);
-  };
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => clearTimers();
-  }, []);
-
-  // Get colors based on current vote type
-  const getVoteColors = () => {
-    switch (currentVoteType) {
-      case 'mega':
-        return {
-          glow: 'rgba(168, 85, 247, 0.8)',
-          ring: '#A855F7',
-          bg: 'rgba(168, 85, 247, 0.3)',
-          icon: '💎',
-          label: 'MEGA 10x'
-        };
-      case 'super':
-        return {
-          glow: 'rgba(250, 204, 21, 0.8)',
-          ring: '#FACC15',
-          bg: 'rgba(250, 204, 21, 0.3)',
-          icon: '⚡',
-          label: 'SUPER 3x'
-        };
-      default:
-        return {
-          glow: 'rgba(56, 189, 248, 0.5)',
-          ring: '#3CF2FF',
-          bg: 'rgba(0,0,0,0.3)',
-          icon: '∞',
-          label: ''
-        };
-    }
-  };
-
-  const colors = getVoteColors();
   const circumference = 2 * Math.PI * 29;
-  const strokeDashoffset = circumference * (1 - holdProgress);
 
   // Daily progress calculation (0 to 1)
   const dailyProgress = Math.min(votesToday / dailyGoal, 1);
@@ -407,64 +280,34 @@ const PowerVoteButton = memo(function PowerVoteButton({
 
   const dailyProgressColor = getDailyProgressColor();
 
+  const handleClick = () => {
+    if (isVoting || isDisabled) return;
+    onVote('standard');
+  };
+
   return (
     <div className="relative flex flex-col items-center">
-      {/* Vote type label */}
-      <AnimatePresence>
-        {isHolding && currentVoteType !== 'standard' && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className={`absolute -top-8 px-3 py-1 rounded-full text-xs font-bold ${
-              currentVoteType === 'mega'
-                ? 'bg-purple-500 text-white'
-                : 'bg-yellow-500 text-black'
-            }`}
-          >
-            {colors.label}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       <motion.button
-        onMouseDown={handlePressStart}
-        onMouseUp={handlePressEnd}
-        onMouseLeave={handlePressEnd}
-        onTouchStart={handlePressStart}
-        onTouchEnd={handlePressEnd}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handlePressStart();
-          }
-        }}
-        onKeyUp={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handlePressEnd();
-          }
-        }}
+        onClick={handleClick}
+        whileTap={{ scale: 0.95 }}
         disabled={isVoting || isDisabled}
-        aria-label={hasVoted ? 'Remove vote from this clip' : 'Vote for this clip. Hold for super or mega vote'}
+        aria-label={hasVoted ? 'Remove vote from this clip' : 'Vote for this clip'}
         aria-pressed={hasVoted}
         className="relative w-16 h-16 flex items-center justify-center touch-none select-none"
       >
-        {/* Outer glow - intensifies with hold, green when voted */}
+        {/* Outer glow - green when voted */}
         <motion.div
           className="absolute inset-[-6px] rounded-full"
           animate={{
-            boxShadow: isHolding
-              ? `0 0 ${20 + holdProgress * 30}px ${colors.glow}`
-              : hasVoted
-                ? '0 0 15px rgba(74, 222, 128, 0.5)'
-                : [
-                    '0 0 15px rgba(56, 189, 248, 0.5)',
-                    '0 0 25px rgba(168, 85, 247, 0.6)',
-                    '0 0 15px rgba(56, 189, 248, 0.5)',
-                  ],
+            boxShadow: hasVoted
+              ? '0 0 15px rgba(74, 222, 128, 0.5)'
+              : [
+                  '0 0 15px rgba(56, 189, 248, 0.5)',
+                  '0 0 25px rgba(168, 85, 247, 0.6)',
+                  '0 0 15px rgba(56, 189, 248, 0.5)',
+                ],
           }}
-          transition={isHolding ? { duration: 0.1 } : { duration: 2.5, repeat: Infinity }}
+          transition={{ duration: 2.5, repeat: Infinity }}
         />
 
         {/* Progress ring */}
@@ -474,14 +317,6 @@ const PowerVoteButton = memo(function PowerVoteButton({
               <stop offset="0%" stopColor="#3CF2FF" />
               <stop offset="50%" stopColor="#A855F7" />
               <stop offset="100%" stopColor="#EC4899" />
-            </linearGradient>
-            <linearGradient id="superGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#FACC15" />
-              <stop offset="100%" stopColor="#F59E0B" />
-            </linearGradient>
-            <linearGradient id="megaGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#A855F7" />
-              <stop offset="100%" stopColor="#7C3AED" />
             </linearGradient>
             <linearGradient id="votedGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#4ADE80" />
@@ -499,8 +334,8 @@ const PowerVoteButton = memo(function PowerVoteButton({
             strokeWidth="3"
           />
 
-          {/* Daily progress ring (outer) - only when feature enabled and not holding */}
-          {showDailyProgress && !isHolding && !hasVoted && (
+          {/* Daily progress ring (outer) - only when feature enabled */}
+          {showDailyProgress && !hasVoted && (
             <circle
               cx="32"
               cy="32"
@@ -515,28 +350,6 @@ const PowerVoteButton = memo(function PowerVoteButton({
                 transition: 'stroke-dashoffset 0.5s ease-out, stroke 0.3s ease',
                 filter: dailyProgress >= 1 ? 'drop-shadow(0 0 6px #FFD700)' : 'none'
               }}
-            />
-          )}
-
-          {/* Progress circle (hold for power votes) */}
-          {isHolding && (
-            <circle
-              cx="32"
-              cy="32"
-              r="29"
-              fill="none"
-              stroke={
-                currentVoteType === 'mega'
-                  ? 'url(#megaGradient)'
-                  : currentVoteType === 'super'
-                    ? 'url(#superGradient)'
-                    : 'url(#voteGradientPower)'
-              }
-              strokeWidth="4"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              style={{ transition: 'stroke-dashoffset 0.05s linear' }}
             />
           )}
         </svg>
@@ -564,8 +377,8 @@ const PowerVoteButton = memo(function PowerVoteButton({
         ) : (
           <motion.span
             className="relative z-10 text-3xl font-black text-white"
-            animate={isHolding ? { scale: 1 + holdProgress * 0.3 } : { scale: [1, 1.1, 1] }}
-            transition={isHolding ? { duration: 0.1 } : { duration: 2, repeat: Infinity }}
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
             style={{
               textShadow: `0 0 10px ${colors.glow}, 0 2px 4px rgba(0,0,0,0.8)`,
             }}
@@ -576,24 +389,11 @@ const PowerVoteButton = memo(function PowerVoteButton({
       </motion.button>
 
       {/* Status indicator */}
-      {hasVoted ? (
+      {hasVoted && (
         <span className="text-[10px] text-green-400/70 font-medium mt-1">
           tap to undo
         </span>
-      ) : (superRemaining > 0 || megaRemaining > 0) ? (
-        <div className="flex gap-2 mt-1">
-          {superRemaining > 0 && (
-            <span className="text-[10px] text-yellow-400 font-medium">
-              ⚡{superRemaining}
-            </span>
-          )}
-          {megaRemaining > 0 && (
-            <span className="text-[10px] text-purple-400 font-medium">
-              💎{megaRemaining}
-            </span>
-          )}
-        </div>
-      ) : null}
+      )}
     </div>
   );
 });
