@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
 
@@ -131,8 +132,19 @@ export default function CreatorProfilePage() {
   };
 
   const handleShare = async () => {
-    try { await navigator.share({ title: `@${creator?.username} on AiMoviez`, url: window.location.href }); }
-    catch { navigator.clipboard.writeText(window.location.href); }
+    try {
+      await navigator.share({ title: `@${creator?.username} on AiMoviez`, url: window.location.href });
+      toast.success('Shared!');
+    } catch (error) {
+      if (error instanceof Error && error.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          toast.success('Link copied!');
+        } catch {
+          toast.error('Failed to share');
+        }
+      }
+    }
   };
 
   const handleBlock = async () => {

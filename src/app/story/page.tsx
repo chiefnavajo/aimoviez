@@ -43,6 +43,7 @@ import {
   Minimize2,
   X,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
@@ -357,14 +358,16 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
           title: `AiMoviez Season ${season.number}`,
           url: window.location.href
         });
+        toast.success('Shared!');
       } catch (error) {
         // User cancelled share dialog (AbortError) - ignore
         // For other errors, try clipboard fallback
         if (error instanceof Error && error.name !== 'AbortError') {
           try {
             await navigator.clipboard.writeText(window.location.href);
+            toast.success('Link copied!');
           } catch {
-            // Clipboard also failed - nothing we can do
+            toast.error('Failed to share');
           }
         }
       }
@@ -372,8 +375,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       // No native share - try clipboard
       try {
         await navigator.clipboard.writeText(window.location.href);
+        toast.success('Link copied!');
       } catch {
-        // Clipboard failed - nothing we can do
+        toast.error('Failed to copy link');
       }
     }
   };

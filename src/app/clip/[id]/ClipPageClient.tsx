@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowLeft, Heart, Share2, Volume2, VolumeX, Play, BookOpen, Plus, Trophy, User, MessageCircle, Loader2, Flag } from 'lucide-react';
+import toast from 'react-hot-toast';
 import ReportModal from '@/components/ReportModal';
 import BottomNavigation from '@/components/BottomNavigation';
 import CommentsSection from '@/components/CommentsSection';
@@ -170,8 +171,25 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
     if (!clip) return;
     try {
       await navigator.share({ title: `Check out this clip by @${clip.username}`, url: window.location.href });
-    } catch {
-      navigator.clipboard.writeText(window.location.href);
+      toast.success('Shared!');
+    } catch (error) {
+      // User cancelled or native share not available
+      if (error instanceof Error && error.name !== 'AbortError') {
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          toast.success('Link copied!');
+        } catch {
+          toast.error('Failed to share');
+        }
+      } else {
+        // Try clipboard as fallback
+        try {
+          await navigator.clipboard.writeText(window.location.href);
+          toast.success('Link copied!');
+        } catch {
+          toast.error('Failed to copy link');
+        }
+      }
     }
   };
 

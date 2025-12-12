@@ -9,6 +9,7 @@ import {
   Maximize, Share2, List, X, Loader2, ArrowLeft
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import toast from 'react-hot-toast';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
 
@@ -312,8 +313,23 @@ function WatchMoviePageContent() {
           text: `Check out "${currentSlot.clip.title}" by @${currentSlot.clip.username}`,
           url: window.location.href,
         });
+        toast.success('Shared!');
+      } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            toast.success('Link copied!');
+          } catch {
+            toast.error('Failed to share');
+          }
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        toast.success('Link copied!');
       } catch {
-        // Share cancelled or failed - no action needed
+        toast.error('Failed to copy link');
       }
     }
   };
