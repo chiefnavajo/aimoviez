@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  Maximize, Share2, List, X, Loader2, ArrowLeft
+  Maximize, Share2, List, X, ArrowLeft
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -341,10 +341,50 @@ function WatchMoviePageContent() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // Skeleton loader for Watch page
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <Loader2 className="w-12 h-12 text-cyan-500 animate-spin" />
+      <div className="relative min-h-screen min-h-[100dvh] w-full bg-black overflow-hidden">
+        {/* Skeleton video area */}
+        <div className="absolute inset-0 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+          {/* Centered play button skeleton */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="w-20 h-20 rounded-full bg-white/10 animate-pulse" />
+          </div>
+        </div>
+
+        {/* Top bar skeleton */}
+        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between">
+          <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+          </div>
+        </div>
+
+        {/* Bottom controls skeleton */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black via-black/80 to-transparent">
+          {/* Title skeleton */}
+          <div className="mb-4">
+            <div className="h-7 w-48 bg-white/10 rounded-lg animate-pulse mb-2" />
+            <div className="h-4 w-64 bg-white/10 rounded animate-pulse" />
+          </div>
+
+          {/* Progress bar skeleton */}
+          <div className="w-full h-1.5 bg-white/10 rounded-full mb-4 animate-pulse" />
+
+          {/* Controls skeleton */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-white/10 animate-pulse" />
+              <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+              <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+              <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+              <div className="w-16 h-4 bg-white/10 rounded animate-pulse" />
+            </div>
+            <div className="w-10 h-10 rounded-full bg-white/10 animate-pulse" />
+          </div>
+        </div>
       </div>
     );
   }
