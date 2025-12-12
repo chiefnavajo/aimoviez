@@ -242,41 +242,49 @@ function ProfilePageContent() {
                 <p className="text-white/60">Start voting to unlock badges!</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-3">
                 {displayBadges.map((badge, idx) => (
                   <motion.div
                     key={badge.id}
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: idx * 0.05, duration: 0.3 }}
-                    whileHover={{ scale: badge.unlocked ? 1.08 : 1, y: badge.unlocked ? -2 : 0 }}
-                    className={`relative flex flex-col items-center p-3 rounded-xl transition-all cursor-default group min-h-[90px] ${
+                    whileHover={{ scale: badge.unlocked ? 1.05 : 1, y: badge.unlocked ? -2 : 0 }}
+                    className={`relative flex flex-col items-center p-4 rounded-xl transition-all cursor-default group min-h-[120px] ${
                       badge.unlocked
                         ? 'glass-card glow-cyan'
-                        : 'bg-white/5 grayscale opacity-40'
+                        : 'bg-white/5 border border-white/10'
                     }`}
                   >
-                    {/* Lock overlay for locked badges */}
+                    {/* Badge icon - larger and always visible */}
+                    <span className={`text-3xl mb-3 flex-shrink-0 ${badge.unlocked ? 'drop-shadow-lg' : 'grayscale opacity-50'}`}>{badge.icon}</span>
+
+                    {/* Badge name - larger text */}
+                    <span className={`text-xs font-semibold text-center leading-tight mb-1 ${!badge.unlocked ? 'text-white/50' : ''}`}>{badge.name}</span>
+
+                    {/* Lock indicator for locked badges - small icon below name */}
                     {!badge.unlocked && (
-                      <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/30">
-                        <Lock className="w-4 h-4 text-white/60" />
+                      <div className="flex items-center gap-1 mt-1">
+                        <Lock className="w-3 h-3 text-white/40" />
+                        <span className="text-[10px] text-white/40">Locked</span>
                       </div>
                     )}
-                    <span className={`text-2xl mb-2 flex-shrink-0 ${badge.unlocked ? 'drop-shadow-lg' : ''}`}>{badge.icon}</span>
-                    <span className="text-[9px] font-medium text-center leading-tight line-clamp-2">{badge.name}</span>
+
+                    {/* Progress bar for locked badges with progress */}
                     {!badge.unlocked && badge.progress !== undefined && badge.target && badge.target > 0 && (
-                      <div className="w-full mt-2">
-                        <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div className="w-full mt-auto pt-2">
+                        <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
                           <div
                             className="h-full bg-gradient-to-r from-cyan-500 to-purple-500"
                             style={{ width: `${Math.min((badge.progress / badge.target) * 100, 100)}%` }}
                           />
                         </div>
-                        <span className="text-[8px] text-white/60 mt-0.5 block text-center">{badge.progress}/{badge.target}</span>
+                        <span className="text-[10px] text-white/50 mt-1 block text-center">{badge.progress}/{badge.target}</span>
                       </div>
                     )}
+
                     {/* Tooltip on hover */}
-                    <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-black/90 rounded-lg text-[10px] text-white/80 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-white/10">
+                    <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 px-3 py-2 bg-black/95 rounded-lg text-xs text-white/90 whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-white/20 shadow-lg">
                       {badge.description}
                     </div>
                   </motion.div>
