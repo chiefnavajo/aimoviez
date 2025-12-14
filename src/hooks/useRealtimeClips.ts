@@ -31,6 +31,18 @@ export function useRealtimeClips({
 }: UseRealtimeClipsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
 
+  // Store callbacks in refs to avoid re-subscribing when they change
+  const onClipUpdateRef = useRef(onClipUpdate);
+  const onNewClipRef = useRef(onNewClip);
+  const onClipDeleteRef = useRef(onClipDelete);
+
+  // Update refs when callbacks change
+  useEffect(() => {
+    onClipUpdateRef.current = onClipUpdate;
+    onNewClipRef.current = onNewClip;
+    onClipDeleteRef.current = onClipDelete;
+  }, [onClipUpdate, onNewClip, onClipDelete]);
+
   const cleanup = useCallback(() => {
     if (channelRef.current) {
       channelRef.current.unsubscribe();
@@ -58,8 +70,8 @@ export function useRealtimeClips({
         },
         (payload) => {
           console.log('[Realtime] Clip UPDATE received:', payload.new);
-          if (onClipUpdate && payload.new) {
-            onClipUpdate(payload.new as ClipUpdate);
+          if (onClipUpdateRef.current && payload.new) {
+            onClipUpdateRef.current(payload.new as ClipUpdate);
           }
         }
       )
@@ -71,8 +83,8 @@ export function useRealtimeClips({
           table: 'tournament_clips',
         },
         (payload) => {
-          if (onNewClip && payload.new) {
-            onNewClip(payload.new as ClipUpdate);
+          if (onNewClipRef.current && payload.new) {
+            onNewClipRef.current(payload.new as ClipUpdate);
           }
         }
       )
@@ -84,13 +96,12 @@ export function useRealtimeClips({
           table: 'tournament_clips',
         },
         (payload) => {
-          if (onClipDelete && payload.old) {
-            onClipDelete((payload.old as { id: string }).id);
+          if (onClipDeleteRef.current && payload.old) {
+            onClipDeleteRef.current((payload.old as { id: string }).id);
           }
         }
       )
       .subscribe((status, err) => {
-        console.log('[Realtime] Clips channel status:', status, err);
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to clips channel');
         } else if (status === 'CHANNEL_ERROR') {
@@ -98,14 +109,14 @@ export function useRealtimeClips({
         } else if (status === 'TIMED_OUT') {
           console.error('[Realtime] Clips channel timed out');
         } else if (status === 'CLOSED') {
-          console.error('[Realtime] Clips channel closed');
+          console.log('[Realtime] Clips channel closed');
         }
       });
 
     channelRef.current = channel;
 
     return cleanup;
-  }, [enabled, onClipUpdate, onNewClip, onClipDelete, cleanup]);
+  }, [enabled, cleanup]);
 
   return { cleanup };
 }
@@ -121,9 +132,14 @@ export function useRealtimeSlots({
   enabled = true,
 }: UseRealtimeSlotsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const onSlotUpdateRef = useRef(onSlotUpdate);
 
   useEffect(() => {
-    if (!enabled || !onSlotUpdate) {
+    onSlotUpdateRef.current = onSlotUpdate;
+  }, [onSlotUpdate]);
+
+  useEffect(() => {
+    if (!enabled || !onSlotUpdateRef.current) {
       return;
     }
 
@@ -140,17 +156,18 @@ export function useRealtimeSlots({
         },
         (payload) => {
           console.log('[Realtime] Slot UPDATE received:', payload.new);
-          if (payload.new) {
-            onSlotUpdate(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
+          if (payload.new && onSlotUpdateRef.current) {
+            onSlotUpdateRef.current(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
           }
         }
       )
       .subscribe((status, err) => {
-        console.log('[Realtime] Slots channel status:', status, err);
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to slots channel');
         } else if (status === 'CHANNEL_ERROR') {
           console.error('[Realtime] Error connecting to slots channel:', err);
+        } else if (status === 'CLOSED') {
+          console.log('[Realtime] Slots channel closed');
         }
       });
 
@@ -162,7 +179,7 @@ export function useRealtimeSlots({
         channelRef.current = null;
       }
     };
-  }, [enabled, onSlotUpdate]);
+  }, [enabled]);
 }
 
 // Hook for subscribing to vote updates specifically
@@ -178,9 +195,16 @@ export function useRealtimeVotes({
   enabled = true,
 }: UseRealtimeVotesOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const onVoteUpdateRef = useRef(onVoteUpdate);
+  const clipIdsRef = useRef(clipIds);
 
   useEffect(() => {
-    if (!enabled || !onVoteUpdate) {
+    onVoteUpdateRef.current = onVoteUpdate;
+    clipIdsRef.current = clipIds;
+  }, [onVoteUpdate, clipIds]);
+
+  useEffect(() => {
+    if (!enabled || !onVoteUpdateRef.current) {
       return;
     }
 
@@ -188,8 +212,8 @@ export function useRealtimeVotes({
     const client = getRealtimeClient();
 
     // Build filter if clipIds provided
-    const filter = clipIds?.length
-      ? `id=in.(${clipIds.join(',')})`
+    const filter = clipIdsRef.current?.length
+      ? `id=in.(${clipIdsRef.current.join(',')})`
       : undefined;
 
     // Subscribe to vote count updates on tournament_clips
@@ -209,14 +233,16 @@ export function useRealtimeVotes({
             vote_count: number;
             weighted_score: number;
           };
-          if (newData?.id) {
-            onVoteUpdate(newData.id, newData.vote_count || 0, newData.weighted_score || 0);
+          if (newData?.id && onVoteUpdateRef.current) {
+            onVoteUpdateRef.current(newData.id, newData.vote_count || 0, newData.weighted_score || 0);
           }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to votes channel');
+        } else if (status === 'CLOSED') {
+          console.log('[Realtime] Votes channel closed');
         }
       });
 
@@ -228,5 +254,5 @@ export function useRealtimeVotes({
         channelRef.current = null;
       }
     };
-  }, [enabled, clipIds, onVoteUpdate]);
+  }, [enabled]);
 }

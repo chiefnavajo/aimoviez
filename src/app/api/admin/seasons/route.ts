@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     const { data: seasons, error } = await supabase
       .from('seasons')
-      .select('id, name, description, status, total_slots, start_date, end_date, created_at')
+      .select('id, label, status, total_slots, created_at')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -92,8 +92,7 @@ export async function GET(req: NextRequest) {
  * Create a new season with slots
  *
  * Body: {
- *   name: string,
- *   description?: string,
+ *   label: string,
  *   total_slots?: number (default: 75),
  *   auto_activate?: boolean (default: false)
  * }
@@ -112,15 +111,14 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      name,
-      description,
+      label,
       total_slots = 75,
       auto_activate = false,
     } = body;
 
-    if (!name) {
+    if (!label) {
       return NextResponse.json(
-        { error: 'Season name is required' },
+        { error: 'Season label is required' },
         { status: 400 }
       );
     }
@@ -137,8 +135,7 @@ export async function POST(req: NextRequest) {
     const { data: season, error: seasonError } = await supabase
       .from('seasons')
       .insert({
-        name,
-        description,
+        label,
         total_slots,
         status: auto_activate ? 'active' : 'draft',
         created_at: new Date().toISOString(),
@@ -188,7 +185,7 @@ export async function POST(req: NextRequest) {
           completion_percent: 0,
         },
       },
-      message: `Season "${name}" created with ${total_slots} slots`,
+      message: `Season "${label}" created with ${total_slots} slots`,
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/admin/seasons] Unexpected error:', err);
@@ -206,8 +203,7 @@ export async function POST(req: NextRequest) {
  * Body: {
  *   season_id: string,
  *   status?: 'draft' | 'active' | 'archived',
- *   name?: string,
- *   description?: string
+ *   label?: string
  * }
  */
 export async function PATCH(req: NextRequest) {
@@ -223,7 +219,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
 
-    const { season_id, status, name, description } = body;
+    const { season_id, status, label } = body;
 
     if (!season_id) {
       return NextResponse.json(
@@ -233,7 +229,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Build update object
-    const updates: any = {};
+    const updates: Record<string, string> = {};
     if (status) {
       // If activating, deactivate all other seasons
       if (status === 'active') {
@@ -245,8 +241,7 @@ export async function PATCH(req: NextRequest) {
       }
       updates.status = status;
     }
-    if (name) updates.name = name;
-    if (description !== undefined) updates.description = description;
+    if (label) updates.label = label;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
