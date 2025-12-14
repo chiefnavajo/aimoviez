@@ -682,13 +682,12 @@ export async function GET(req: NextRequest) {
     const specialVotesRemaining = calculateRemainingSpecialVotes(slotVotes);
     const votedIdsSet = new Set(votedClipIds);
 
-    // 5. Get total clip count for this slot (lightweight query)
-    // Status can be 'active' or 'competing' (both are valid for voting)
-    // Filter by season_id to ensure correct clips for this season
+    // 5. Get total clip count for voting (lightweight query)
+    // ALL clips with status='active' in this season are shown for voting
+    // This ensures newly approved clips appear immediately in the voting feed
     const { count: totalClipCount, error: countError } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
-      .eq('slot_position', activeSlot.slot_position)
       .eq('season_id', seasonRow.id)
       .eq('status', 'active');
 
@@ -698,14 +697,13 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. Fetch ALL active clips for this slot (both voted and unvoted)
-    // This ensures user can always navigate between clips and revoke votes
-    // Filter by season_id to ensure correct clips for this season
+    // 6. Fetch ALL active clips in this season for voting
+    // All clips with status='active' are eligible for voting, regardless of slot_position
+    // This ensures clips are immediately visible when approved
     // PERFORMANCE: Select only needed columns instead of *
     const { data: allClips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-      .eq('slot_position', activeSlot.slot_position)
       .eq('season_id', seasonRow.id)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
