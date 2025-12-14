@@ -11,6 +11,8 @@ export interface ClipUpdate {
   weighted_score?: number;
   hype_score?: number;
   status?: string;
+  slot_position?: number;
+  is_winner?: boolean;
   [key: string]: unknown;
 }
 

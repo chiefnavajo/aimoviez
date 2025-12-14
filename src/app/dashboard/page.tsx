@@ -548,8 +548,20 @@ function VotingArena() {
   useRealtimeClips({
     enabled: true,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
-      // If clip status changed to non-active, remove it from the feed
-      if (updatedClip.status && updatedClip.status !== 'active' && updatedClip.status !== 'approved') {
+      // If clip status changed to 'locked' (winner selected), show notification and remove
+      if (updatedClip.status === 'locked') {
+        console.log('[Realtime] Clip won the slot - removing from feed');
+        toast.success('A winner has been selected for this slot!', {
+          icon: '🏆',
+          duration: 4000,
+        });
+        // Refetch to get the new slot's clips
+        setTimeout(() => refetch(), 1000);
+        return;
+      }
+
+      // If clip status changed to non-active (rejected, pending, etc.), remove it
+      if (updatedClip.status && updatedClip.status !== 'active' && updatedClip.status !== 'approved' && updatedClip.status !== 'voting') {
         console.log('[Realtime] Clip status changed to', updatedClip.status, '- removing from feed');
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
           if (!oldData?.clips) return oldData;
@@ -558,6 +570,13 @@ function VotingArena() {
             clips: oldData.clips.filter((clip) => clip.clip_id !== updatedClip.id),
           };
         });
+        return;
+      }
+
+      // If clip's slot_position changed (moved to different slot), refetch
+      if (updatedClip.slot_position !== undefined) {
+        console.log('[Realtime] Clip moved to different slot - refreshing feed');
+        refetch();
         return;
       }
 
@@ -578,7 +597,7 @@ function VotingArena() {
           ),
         };
       });
-    }, [queryClient]),
+    }, [queryClient, refetch]),
     onNewClip: useCallback((newClip: ClipUpdate) => {
       // When a new clip is approved/added, refetch to get the full clip data
       // Only refetch if the clip status is 'active' or 'approved' (ready for voting)
