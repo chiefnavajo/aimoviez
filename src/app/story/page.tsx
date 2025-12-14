@@ -1505,42 +1505,6 @@ function StoryPage() {
     }, [fetchFreshAndUpdate]),
   });
 
-  // Track the last known number of locked slots to detect new winners
-  const lastLockedCountRef = useRef<number>(0);
-
-  // Polling fallback: check for new winners every 5 seconds
-  // This is a backup in case Supabase Realtime doesn't have story_slots enabled
-  useEffect(() => {
-    const checkForNewWinners = async () => {
-      try {
-        const freshData = await fetchSeasons(true);
-        const currentSeason = freshData.find(s => s.status === 'active');
-        if (currentSeason) {
-          const lockedCount = currentSeason.slots.filter(s => s.status === 'locked' && s.winning_clip).length;
-          if (lockedCount > lastLockedCountRef.current) {
-            console.log('[Story Polling] New winner detected, updating cache');
-            queryClient.setQueryData<Season[]>(['story-seasons'], freshData);
-            lastLockedCountRef.current = lockedCount;
-          }
-        }
-      } catch (error) {
-        console.error('[Story Polling] Failed to check for new winners:', error);
-      }
-    };
-
-    // Update ref with current locked count
-    if (seasons.length > 0) {
-      const currentSeason = seasons.find(s => s.status === 'active');
-      if (currentSeason) {
-        lastLockedCountRef.current = currentSeason.slots.filter(s => s.status === 'locked' && s.winning_clip).length;
-      }
-    }
-
-    // Poll every 5 seconds
-    const interval = setInterval(checkForNewWinners, 5000);
-    return () => clearInterval(interval);
-  }, [seasons, queryClient]);
-
   // Set initial selected season when data loads
   useEffect(() => {
     if (seasons.length > 0 && !selectedSeasonId) {
