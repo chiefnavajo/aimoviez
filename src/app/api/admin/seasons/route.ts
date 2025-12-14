@@ -41,10 +41,14 @@ export async function GET(req: NextRequest) {
 
     // Fetch all slots for all seasons in ONE query (avoid N+1)
     const seasonIds = (seasons || []).map((s) => s.id);
-    const { data: allSlots } = await supabase
-      .from('story_slots')
-      .select('season_id, status')
-      .in('season_id', seasonIds);
+
+    // Skip the slots query if there are no seasons (empty .in() can fail)
+    const allSlots = seasonIds.length > 0
+      ? (await supabase
+          .from('story_slots')
+          .select('season_id, status')
+          .in('season_id', seasonIds)).data
+      : [];
 
     // Group slots by season_id
     const slotsBySeasonId = new Map<string, { locked: number; voting: number; upcoming: number }>();

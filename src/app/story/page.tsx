@@ -1447,10 +1447,17 @@ function StoryPage() {
     refetchOnWindowFocus: false,
   });
 
-  // Real-time updates for vote counts on clips
+  // Real-time updates for vote counts and new winners
   useRealtimeClips({
     enabled: true,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
+      // If a clip's status changed to 'locked', a new winner was selected - refetch
+      if (updatedClip.status === 'locked') {
+        console.log('[Story Realtime] New winner detected - refetching seasons');
+        refetch();
+        return;
+      }
+
       // Update the clip vote count in the React Query cache
       queryClient.setQueryData<Season[]>(['story-seasons'], (oldData) => {
         if (!oldData) return oldData;
@@ -1470,7 +1477,7 @@ function StoryPage() {
           }),
         }));
       });
-    }, [queryClient]),
+    }, [queryClient, refetch]),
   });
 
   // Set initial selected season when data loads
