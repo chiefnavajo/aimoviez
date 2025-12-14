@@ -115,8 +115,9 @@ interface StoryAPIResponse {
 }
 
 // Fetch seasons from API
-async function fetchSeasons(): Promise<Season[]> {
-  const response = await fetch('/api/story');
+async function fetchSeasons(fresh = false): Promise<Season[]> {
+  const url = fresh ? '/api/story?fresh=true' : '/api/story';
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error('Failed to fetch story data');
   }
@@ -1440,21 +1441,33 @@ function StoryPage() {
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
   // Fetch seasons from API
-  const { data: seasons = [], isLoading, error, refetch } = useQuery<Season[]>({
+  const { data: seasons = [], isLoading, error } = useQuery<Season[]>({
     queryKey: ['story-seasons'],
-    queryFn: fetchSeasons,
+    queryFn: () => fetchSeasons(false),
     staleTime: 30000, // 30 seconds
     refetchOnWindowFocus: false,
   });
+
+  // Helper to fetch fresh data and update cache (bypasses server cache)
+  const fetchFreshAndUpdate = useCallback(async () => {
+    try {
+      console.log('[Story Realtime] Fetching fresh data (bypassing cache)...');
+      const freshData = await fetchSeasons(true);
+      queryClient.setQueryData<Season[]>(['story-seasons'], freshData);
+      console.log('[Story Realtime] Cache updated with fresh data');
+    } catch (error) {
+      console.error('[Story Realtime] Failed to fetch fresh data:', error);
+    }
+  }, [queryClient]);
 
   // Real-time updates for vote counts and new winners
   useRealtimeClips({
     enabled: true,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
-      // If a clip's status changed to 'locked', a new winner was selected - refetch
+      // If a clip's status changed to 'locked', a new winner was selected - refetch fresh
       if (updatedClip.status === 'locked') {
-        console.log('[Story Realtime] New winner detected - refetching seasons');
-        refetch();
+        console.log('[Story Realtime] New winner detected (clip locked)');
+        fetchFreshAndUpdate();
         return;
       }
 
@@ -1477,19 +1490,19 @@ function StoryPage() {
           }),
         }));
       });
-    }, [queryClient, refetch]),
+    }, [queryClient, fetchFreshAndUpdate]),
   });
 
   // Real-time updates for slot changes (when winner is assigned to a slot)
   useRealtimeSlots({
     enabled: true,
     onSlotUpdate: useCallback((updatedSlot: { id: string; status?: string; winner_tournament_clip_id?: string | null }) => {
-      // If a slot now has a winner assigned, refetch to show the new winner
+      // If a slot now has a winner assigned, refetch fresh to show the new winner
       if (updatedSlot.winner_tournament_clip_id || updatedSlot.status === 'locked') {
-        console.log('[Story Realtime] Slot winner assigned - refetching seasons');
-        refetch();
+        console.log('[Story Realtime] Slot winner assigned');
+        fetchFreshAndUpdate();
       }
-    }, [refetch]),
+    }, [fetchFreshAndUpdate]),
   });
 
   // Set initial selected season when data loads
@@ -1567,7 +1580,7 @@ function StoryPage() {
           <h2 className="text-white text-xl font-bold mb-2">Connection Error</h2>
           <p className="text-white/60 mb-6">Failed to load story data</p>
           <button
-            onClick={() => refetch()}
+            onClick={() => fetchFreshAndUpdate()}
             className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white"
           >
             Retry

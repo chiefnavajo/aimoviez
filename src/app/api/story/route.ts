@@ -77,16 +77,22 @@ export async function GET(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    // Check cache first
+    // Check for fresh parameter to bypass cache (used by realtime updates)
+    const url = new URL(req.url);
+    const skipCache = url.searchParams.get('fresh') === 'true';
+
+    // Check cache first (unless bypassed)
     const cacheKey = 'story_seasons';
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
-          'X-Cache': 'HIT',
-        },
-      });
+    if (!skipCache) {
+      const cached = getCached(cacheKey);
+      if (cached) {
+        return NextResponse.json(cached, {
+          headers: {
+            'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
+            'X-Cache': 'HIT',
+          },
+        });
+      }
     }
 
     // Check environment variables
