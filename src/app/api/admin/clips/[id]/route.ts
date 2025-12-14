@@ -151,7 +151,8 @@ export async function PUT(
         .limit(1)
         .maybeSingle();
 
-      if (activeSlot?.slot_position) {
+      // Note: Use != null to handle slot_position=0 correctly (0 is falsy but valid)
+      if (activeSlot?.slot_position != null) {
         updateData.slot_position = activeSlot.slot_position;
       }
     }

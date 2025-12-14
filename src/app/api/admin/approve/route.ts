@@ -77,7 +77,8 @@ export async function POST(request: NextRequest) {
     };
 
     // If there's an active voting slot, assign the clip to it
-    if (activeSlot?.slot_position) {
+    // Note: Use != null to handle slot_position=0 correctly (0 is falsy but valid)
+    if (activeSlot?.slot_position != null) {
       updateData.slot_position = activeSlot.slot_position;
     }
 
