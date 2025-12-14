@@ -47,7 +47,7 @@ import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
-import { useRealtimeClips, ClipUpdate } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, useRealtimeSlots, ClipUpdate } from '@/hooks/useRealtimeClips';
 
 // ============================================================================
 // TYPES
@@ -1478,6 +1478,18 @@ function StoryPage() {
         }));
       });
     }, [queryClient, refetch]),
+  });
+
+  // Real-time updates for slot changes (when winner is assigned to a slot)
+  useRealtimeSlots({
+    enabled: true,
+    onSlotUpdate: useCallback((updatedSlot: { id: string; status?: string; winner_tournament_clip_id?: string | null }) => {
+      // If a slot now has a winner assigned, refetch to show the new winner
+      if (updatedSlot.winner_tournament_clip_id || updatedSlot.status === 'locked') {
+        console.log('[Story Realtime] Slot winner assigned - refetching seasons');
+        refetch();
+      }
+    }, [refetch]),
   });
 
   // Set initial selected season when data loads

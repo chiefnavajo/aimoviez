@@ -104,6 +104,57 @@ export function useRealtimeClips({
   return { cleanup };
 }
 
+// Hook for subscribing to story slot changes (for story page)
+interface UseRealtimeSlotsOptions {
+  onSlotUpdate?: (slot: { id: string; status?: string; winner_tournament_clip_id?: string | null }) => void;
+  enabled?: boolean;
+}
+
+export function useRealtimeSlots({
+  onSlotUpdate,
+  enabled = true,
+}: UseRealtimeSlotsOptions = {}) {
+  const channelRef = useRef<RealtimeChannel | null>(null);
+
+  useEffect(() => {
+    if (!enabled || !onSlotUpdate) {
+      return;
+    }
+
+    const client = getRealtimeClient();
+
+    const channel = client
+      .channel('slots-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'story_slots',
+        },
+        (payload) => {
+          if (payload.new) {
+            onSlotUpdate(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Realtime] Connected to slots channel');
+        }
+      });
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+    };
+  }, [enabled, onSlotUpdate]);
+}
+
 // Hook for subscribing to vote updates specifically
 interface UseRealtimeVotesOptions {
   clipIds?: string[];
