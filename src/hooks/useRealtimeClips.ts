@@ -57,6 +57,7 @@ export function useRealtimeClips({
           table: 'tournament_clips',
         },
         (payload) => {
+          console.log('[Realtime] Clip UPDATE received:', payload.new);
           if (onClipUpdate && payload.new) {
             onClipUpdate(payload.new as ClipUpdate);
           }
@@ -88,11 +89,16 @@ export function useRealtimeClips({
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        console.log('[Realtime] Clips channel status:', status, err);
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to clips channel');
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Realtime] Error connecting to clips channel');
+          console.error('[Realtime] Error connecting to clips channel:', err);
+        } else if (status === 'TIMED_OUT') {
+          console.error('[Realtime] Clips channel timed out');
+        } else if (status === 'CLOSED') {
+          console.error('[Realtime] Clips channel closed');
         }
       });
 
@@ -133,14 +139,18 @@ export function useRealtimeSlots({
           table: 'story_slots',
         },
         (payload) => {
+          console.log('[Realtime] Slot UPDATE received:', payload.new);
           if (payload.new) {
             onSlotUpdate(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
           }
         }
       )
-      .subscribe((status) => {
+      .subscribe((status, err) => {
+        console.log('[Realtime] Slots channel status:', status, err);
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to slots channel');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime] Error connecting to slots channel:', err);
         }
       });
 
