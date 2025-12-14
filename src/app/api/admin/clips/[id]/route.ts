@@ -120,20 +120,46 @@ export async function PUT(
     // Get current clip for audit log
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('title, genre, status, username')
+      .select('title, genre, status, username, season_id')
       .eq('id', id)
       .single();
+
+    // Build update object
+    const updateData: {
+      title: string;
+      description: string;
+      genre: string;
+      status: string;
+      updated_at: string;
+      slot_position?: number;
+    } = {
+      title: title.trim(),
+      description: description?.trim() || '',
+      genre: genre.toLowerCase().trim(),
+      status,
+      updated_at: new Date().toISOString(),
+    };
+
+    // If changing status to 'active', also set slot_position to the current voting slot
+    if (status === 'active' && currentClip?.status !== 'active' && currentClip?.season_id) {
+      const { data: activeSlot } = await supabase
+        .from('story_slots')
+        .select('slot_position')
+        .eq('season_id', currentClip.season_id)
+        .eq('status', 'voting')
+        .order('slot_position', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSlot?.slot_position) {
+        updateData.slot_position = activeSlot.slot_position;
+      }
+    }
 
     // Update clip
     const { data, error } = await supabase
       .from('tournament_clips')
-      .update({
-        title: title.trim(),
-        description: description?.trim() || '',
-        genre: genre.toLowerCase().trim(),
-        status,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', id)
       .select()
       .single();

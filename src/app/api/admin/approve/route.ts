@@ -49,17 +49,41 @@ export async function POST(request: NextRequest) {
     // Get current clip status for audit log
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('status, username')
+      .select('status, username, season_id')
       .eq('id', clipId)
       .single();
 
-    // Update clip status to 'active'
+    if (!currentClip) {
+      return NextResponse.json(
+        { error: 'Clip not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get the current active voting slot for this season
+    const { data: activeSlot } = await supabase
+      .from('story_slots')
+      .select('slot_position')
+      .eq('season_id', currentClip.season_id)
+      .eq('status', 'voting')
+      .order('slot_position', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Update clip status to 'active' and set slot_position to current voting slot
+    const updateData: { status: string; updated_at: string; slot_position?: number } = {
+      status: 'active',
+      updated_at: new Date().toISOString()
+    };
+
+    // If there's an active voting slot, assign the clip to it
+    if (activeSlot?.slot_position) {
+      updateData.slot_position = activeSlot.slot_position;
+    }
+
     const { data, error } = await supabase
       .from('tournament_clips')
-      .update({
-        status: 'active',
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', clipId)
       .select()
       .single();
@@ -83,6 +107,7 @@ export async function POST(request: NextRequest) {
         previousStatus: currentClip?.status,
         newStatus: 'active',
         clipOwner: currentClip?.username,
+        assignedToSlot: activeSlot?.slot_position || null,
       },
     });
 
