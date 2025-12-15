@@ -407,6 +407,7 @@ export default function AdminUsersPage() {
                       width={48}
                       height={48}
                       className="w-12 h-12 rounded-full bg-white/10"
+                      unoptimized={user.avatar_url?.includes('dicebear') || user.avatar_url?.endsWith('.svg')}
                     />
 
                     {/* Info */}
@@ -565,6 +566,7 @@ export default function AdminUsersPage() {
                         width={64}
                         height={64}
                         className="w-16 h-16 rounded-full"
+                        unoptimized={selectedUser.avatar_url?.includes('dicebear') || selectedUser.avatar_url?.endsWith('.svg')}
                       />
                       <div>
                         <h2 className="text-xl font-bold">@{selectedUser.username}</h2>

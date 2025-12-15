@@ -1916,6 +1916,7 @@ export default function AdminDashboard() {
                             width={40}
                             height={40}
                             className="w-10 h-10 rounded-full bg-white/10"
+                            unoptimized={clip.avatar_url?.includes('dicebear') || clip.avatar_url?.endsWith('.svg')}
                           />
                           <div>
                             <p className="font-medium">{clip.username}</p>

@@ -638,6 +638,7 @@ function ClipCard({ clip }: { clip: DiscoverClip }) {
               width={24}
               height={24}
               className="w-6 h-6 rounded-full bg-white/10"
+              unoptimized={clip.avatar_url?.includes('dicebear') || clip.avatar_url?.endsWith('.svg')}
             />
             <span className="text-xs font-medium truncate">@{clip.username}</span>
           </div>
@@ -670,6 +671,7 @@ function CreatorCard({ creator }: { creator: DiscoverCreator }) {
           width={56}
           height={56}
           className="w-14 h-14 rounded-full bg-white/10"
+          unoptimized={creator.avatar_url?.includes('dicebear') || creator.avatar_url?.endsWith('.svg')}
         />
 
         {/* Info */}
