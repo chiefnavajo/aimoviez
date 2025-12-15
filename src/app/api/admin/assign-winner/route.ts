@@ -332,8 +332,8 @@ export async function POST(req: NextRequest) {
         console.warn('[assign-winner] Broadcast send returned:', sendResult);
       }
 
-      // Small delay to ensure message is delivered before unsubscribing
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Delay to ensure message is delivered to all subscribers before unsubscribing
+      await new Promise(resolve => setTimeout(resolve, 250));
 
       // Unsubscribe after sending
       await channel.unsubscribe();

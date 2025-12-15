@@ -140,6 +140,12 @@ export function getRealtimeClient(): SupabaseClient {
         params: {
           eventsPerSecond: 10,
         },
+        // Heartbeat configuration for better connection reliability
+        heartbeatIntervalMs: 15000, // Send heartbeat every 15 seconds
+        reconnectAfterMs: (tries: number) => {
+          // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
+          return Math.min(1000 * Math.pow(2, tries), 30000);
+        },
       },
     });
   }

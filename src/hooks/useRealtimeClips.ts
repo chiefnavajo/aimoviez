@@ -320,27 +320,36 @@ export function useStoryBroadcast({
 }: UseStoryBroadcastOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectAttemptsRef = useRef(0);
+  const mountedRef = useRef(true);
   const onWinnerSelectedRef = useRef(onWinnerSelected);
   const onSeasonResetRef = useRef(onSeasonReset);
+
+  // Max reconnect attempts before giving up (will rely on polling fallback)
+  const MAX_RECONNECT_ATTEMPTS = 5;
+  const BASE_RECONNECT_DELAY = 1000; // 1 second
 
   useEffect(() => {
     onWinnerSelectedRef.current = onWinnerSelected;
     onSeasonResetRef.current = onSeasonReset;
   }, [onWinnerSelected, onSeasonReset]);
 
-  useEffect(() => {
-    if (!enabled) {
+  // Subscribe function that can be called for initial connection and reconnection
+  const subscribe = useCallback(() => {
+    if (!mountedRef.current || !enabled) {
       return;
     }
 
-    // Prevent duplicate subscriptions from StrictMode double-mount
+    // Prevent duplicate subscriptions
     if (channelRef.current || isSubscribingRef.current) {
       return;
     }
 
     isSubscribingRef.current = true;
-
     const client = getRealtimeClient();
+
+    console.log('[Broadcast] Attempting to connect to story-updates channel...');
 
     // Subscribe to the broadcast channel
     const channel = client
@@ -361,23 +370,96 @@ export function useStoryBroadcast({
         if (status === 'SUBSCRIBED') {
           console.log('[Broadcast] Connected to story-updates channel');
           channelRef.current = channel;
+          isSubscribingRef.current = false;
+          reconnectAttemptsRef.current = 0; // Reset on successful connection
         } else if (status === 'CHANNEL_ERROR') {
-          if (err) {
-            console.error('[Broadcast] Error connecting to story-updates channel:', err);
-          }
+          console.error('[Broadcast] Channel error:', err?.message || 'unknown');
           isSubscribingRef.current = false;
+          channelRef.current = null;
+          scheduleReconnect();
         } else if (status === 'CLOSED') {
-          console.log('[Broadcast] story-updates channel closed');
+          console.log('[Broadcast] Channel closed');
           isSubscribingRef.current = false;
+          channelRef.current = null;
+          scheduleReconnect();
+        } else if (status === 'TIMED_OUT') {
+          console.warn('[Broadcast] Connection timed out');
+          isSubscribingRef.current = false;
+          channelRef.current = null;
+          scheduleReconnect();
         }
       });
+  }, [enabled]);
+
+  // Schedule a reconnection attempt with exponential backoff
+  const scheduleReconnect = useCallback(() => {
+    if (!mountedRef.current || !enabled) {
+      return;
+    }
+
+    if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn('[Broadcast] Max reconnection attempts reached, relying on polling fallback');
+      return;
+    }
+
+    // Clear any existing reconnect timeout
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+    }
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
+    const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current);
+    reconnectAttemptsRef.current += 1;
+
+    console.log(`[Broadcast] Scheduling reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+
+    reconnectTimeoutRef.current = setTimeout(() => {
+      if (mountedRef.current && enabled) {
+        subscribe();
+      }
+    }, delay);
+  }, [enabled, subscribe]);
+
+  // Initial subscription
+  useEffect(() => {
+    mountedRef.current = true;
+
+    if (enabled) {
+      subscribe();
+    }
 
     return () => {
+      mountedRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
       if (channelRef.current) {
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
       isSubscribingRef.current = false;
     };
-  }, [enabled]);
+  }, [enabled, subscribe]);
+
+  // Handle visibility change - reconnect when tab becomes visible
+  useEffect(() => {
+    if (!enabled) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Broadcast] Tab became visible, checking connection...');
+        // If not connected, try to reconnect
+        if (!channelRef.current && !isSubscribingRef.current) {
+          reconnectAttemptsRef.current = 0; // Reset attempts on visibility change
+          subscribe();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [enabled, subscribe]);
 }

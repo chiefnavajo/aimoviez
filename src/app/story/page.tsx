@@ -1440,9 +1440,9 @@ function StoryPage() {
   const { data: seasons = [], isLoading, error } = useQuery<Season[]>({
     queryKey: ['story-seasons'],
     queryFn: () => fetchSeasons(true), // Always fetch fresh to catch any missed realtime events
-    staleTime: 60000, // 1 minute
+    staleTime: 30000, // 30 seconds - shorter to catch missed broadcasts faster
     refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchInterval: 60000, // Poll every 60s as fallback for missed realtime events
+    refetchInterval: 30000, // Poll every 30s as fallback for missed realtime events
     refetchIntervalInBackground: false, // Don't poll when tab is hidden (saves API calls)
   });
 
@@ -1518,6 +1518,19 @@ function StoryPage() {
       fetchFreshAndUpdate();
     }, [fetchFreshAndUpdate]),
   });
+
+  // Fetch fresh data when tab becomes visible (catch missed broadcasts while away)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[Story] Tab became visible, fetching fresh data...');
+        fetchFreshAndUpdate();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [fetchFreshAndUpdate]);
 
   // Set initial selected season when data loads
   useEffect(() => {

@@ -11,7 +11,7 @@ import { rateLimit } from '@/lib/rate-limit';
 // In-memory cache with TTL (shorter for story due to active voting)
 // ============================================================================
 const cache = new Map<string, { data: any; expires: number }>();
-const CACHE_TTL = 30 * 1000; // 30 seconds (shorter due to active voting)
+const CACHE_TTL = 15 * 1000; // 15 seconds - short to minimize stale data on missed broadcasts
 
 function getCached(key: string) {
   const entry = cache.get(key);
