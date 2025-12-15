@@ -188,10 +188,12 @@ export async function GET(req: NextRequest) {
 
         for (const clip of sortedClips) {
           // Only set if we don't already have a preview for this season
+          // Only use actual image thumbnails, not video URLs
           if (clip.season_id && !seasonPreviewMap.has(clip.season_id)) {
-            const previewUrl = clip.thumbnail_url || clip.video_url;
-            if (previewUrl && previewUrl.length > 0) {
-              seasonPreviewMap.set(clip.season_id, previewUrl);
+            const isActualImage = clip.thumbnail_url &&
+              !clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i);
+            if (isActualImage) {
+              seasonPreviewMap.set(clip.season_id, clip.thumbnail_url);
             }
           }
         }
@@ -239,11 +241,11 @@ export async function GET(req: NextRequest) {
       let thumbnail_url: string | undefined;
       const firstLocked = mappedSlots.find(s => s.status === 'locked' && s.winning_clip);
 
-      // Check locked clip thumbnail (must be non-empty string)
-      if (firstLocked?.winning_clip?.thumbnail_url && firstLocked.winning_clip.thumbnail_url.length > 0) {
+      // Check locked clip thumbnail (must be actual image, not video URL)
+      if (firstLocked?.winning_clip?.thumbnail_url &&
+          firstLocked.winning_clip.thumbnail_url.length > 0 &&
+          !firstLocked.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i)) {
         thumbnail_url = firstLocked.winning_clip.thumbnail_url;
-      } else if (firstLocked?.winning_clip?.video_url && firstLocked.winning_clip.video_url.length > 0) {
-        thumbnail_url = firstLocked.winning_clip.video_url;
       }
 
       // If still no thumbnail, try preview from voting clips

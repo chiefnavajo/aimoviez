@@ -60,13 +60,27 @@ const PlaylistItem = memo(function PlaylistItem({
       }`}
     >
       <div className="relative w-16 h-24 rounded-lg overflow-hidden bg-white/10 flex-shrink-0">
-        <Image
-          src={slot.clip.thumbnail_url}
-          alt={slot.clip.title}
-          fill
-          sizes="64px"
-          className="object-cover"
-        />
+        {slot.clip.thumbnail_url && !slot.clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
+          <Image
+            src={slot.clip.thumbnail_url}
+            alt={slot.clip.title}
+            fill
+            sizes="64px"
+            className="object-cover"
+          />
+        ) : slot.clip.video_url ? (
+          <video
+            src={slot.clip.video_url}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-white/40">
+            <Play className="w-4 h-4" />
+          </div>
+        )}
         {isActive && isPlaying && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
             <Play className="w-6 h-6 text-cyan-500" />

@@ -462,7 +462,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   if (completedSegments.length === 0) {
     return (
       <div className="relative h-full bg-black" onClick={handlePlayPause}>
-        {season.thumbnail_url && <Image src={season.thumbnail_url} alt="" fill sizes="100vw" className="object-cover opacity-50" />}
+        {season.thumbnail_url && !season.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) && <Image src={season.thumbnail_url} alt="" fill sizes="100vw" className="object-cover opacity-50" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <motion.span
@@ -931,10 +931,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                 {completedSegments.map((segment, index) => (
                   <motion.button key={segment.id} whileTap={{ scale: 0.98 }} onClick={() => jumpToSegment(index)} className="w-full flex items-center gap-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 mb-2 border border-white/10">
                     <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20">
-                      {segment.winning_clip?.thumbnail_url ? (
+                      {segment.winning_clip?.thumbnail_url && !segment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                         <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
                       ) : (
-                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline />
+                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
                       )}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="w-4 h-4 text-white" />
@@ -1304,25 +1304,20 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
           </div>
         ) : (
           <>
-            {/* Thumbnail - use video preview if no thumbnail */}
-            {(completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url) ? (
-              <Image
-                src={(completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url) as string}
-                alt=""
-                fill
-                sizes="64px"
-                className="object-cover"
-              />
-            ) : completedSegments[completedSegments.length - 1]?.winning_clip?.video_url ? (
-              <video
-                src={completedSegments[completedSegments.length - 1]?.winning_clip?.video_url}
-                className="w-full h-full object-cover"
-                muted
-                playsInline
-              />
-            ) : (
-              <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />
-            )}
+            {/* Thumbnail - use video preview if no actual image thumbnail */}
+            {(() => {
+              const thumbUrl = completedSegments[completedSegments.length - 1]?.winning_clip?.thumbnail_url || season.thumbnail_url;
+              const isActualImage = thumbUrl && !thumbUrl.match(/\.(mp4|webm|mov|quicktime)$/i);
+              const videoUrl = completedSegments[completedSegments.length - 1]?.winning_clip?.video_url;
+
+              if (isActualImage) {
+                return <Image src={thumbUrl} alt="" fill sizes="64px" className="object-cover" />;
+              } else if (videoUrl) {
+                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
+              } else {
+                return <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />;
+              }
+            })()}
             <div className="absolute inset-0 flex items-center justify-center bg-black/30">
               <Play className="w-6 h-6 text-white" />
             </div>

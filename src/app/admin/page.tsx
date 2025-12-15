@@ -2304,15 +2304,23 @@ export default function AdminDashboard() {
               {/* Clip Preview */}
               <div className="bg-white/5 rounded-xl p-4 mb-6 border border-white/10">
                 <div className="flex gap-4">
-                  {/* Thumbnail */}
+                  {/* Thumbnail - only use Image for actual images, not video URLs */}
                   <div className="relative w-24 h-32 rounded-lg overflow-hidden bg-black flex-shrink-0">
-                    {winnerCandidate.thumbnail_url ? (
+                    {winnerCandidate.thumbnail_url && !winnerCandidate.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                       <Image
                         src={winnerCandidate.thumbnail_url}
                         alt={winnerCandidate.title || 'Clip thumbnail'}
                         fill
                         sizes="96px"
                         className="object-cover"
+                      />
+                    ) : winnerCandidate.video_url ? (
+                      <video
+                        src={winnerCandidate.video_url}
+                        className="w-full h-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-white/40">

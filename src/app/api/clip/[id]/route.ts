@@ -182,7 +182,7 @@ export async function GET(
       clip: {
         id: clip.id,
         video_url: clip.video_url || '',
-        thumbnail_url: clip.thumbnail_url || clip.video_url || '',
+        thumbnail_url: clip.thumbnail_url || '',
         username: clip.username || 'Creator',
         avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${clip.username || 'default'}`,
         title: clip.title || '',

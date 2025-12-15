@@ -226,15 +226,21 @@ export default function MiniLeaderboard({
                   }`}
                 >
                   {/* Thumbnail */}
-                  <div className="relative w-10 h-10 rounded-lg overflow-hidden">
-                    <Image
-                      src={clip.thumbnail_url}
-                      alt={clip.username}
-                      fill
-                      sizes="40px"
-                      className="object-cover"
-                      unoptimized={clip.thumbnail_url.includes('dicebear') || clip.thumbnail_url.endsWith('.svg')}
-                    />
+                  <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-white/10">
+                    {clip.thumbnail_url && !clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
+                      <Image
+                        src={clip.thumbnail_url}
+                        alt={clip.username}
+                        fill
+                        sizes="40px"
+                        className="object-cover"
+                        unoptimized={clip.thumbnail_url.includes('dicebear') || clip.thumbnail_url.endsWith('.svg')}
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-white/50 text-xs">
+                        #{clip.rank}
+                      </div>
+                    )}
                     {/* Rank Badge */}
                     <div className={`absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black ${getRankStyle(clip.rank)}`}>
                       {clip.rank}

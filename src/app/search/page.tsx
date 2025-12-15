@@ -590,8 +590,8 @@ function ClipCard({ clip }: { clip: DiscoverClip }) {
         whileTap={{ scale: 0.98 }}
         className="relative aspect-[9/16] rounded-xl overflow-hidden bg-white/5 group"
       >
-        {/* Thumbnail/Video */}
-        {clip.thumbnail_url ? (
+        {/* Thumbnail/Video - only use Image for actual images, not video URLs */}
+        {clip.thumbnail_url && !clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
           <Image
             src={clip.thumbnail_url}
             alt={`Clip by ${clip.username}`}
