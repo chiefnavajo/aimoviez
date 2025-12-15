@@ -176,6 +176,70 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Broadcast to notify clients of season reset (so story board updates)
+    try {
+      console.log('[reset-season] Starting broadcast...');
+      const broadcastPayload = {
+        seasonId: season.id,
+        startSlot: start_slot,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Create channel with broadcast config for server-side sending
+      const channel = supabase.channel('story-updates', {
+        config: {
+          broadcast: {
+            ack: true, // Wait for server acknowledgment
+          },
+        },
+      });
+
+      // Subscribe to channel first (required before sending)
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Channel subscription timeout after 5s'));
+        }, 5000);
+
+        channel.subscribe((status, err) => {
+          console.log('[reset-season] Channel subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            clearTimeout(timeout);
+            reject(new Error(`Channel subscription failed: ${status} - ${err?.message || 'unknown'}`));
+          }
+        });
+      });
+
+      console.log('[reset-season] Channel subscribed, sending broadcast...');
+
+      // Send the broadcast and wait for acknowledgment
+      const sendResult = await channel.send({
+        type: 'broadcast',
+        event: 'season-reset',
+        payload: broadcastPayload,
+      });
+
+      console.log('[reset-season] Broadcast send result:', sendResult);
+
+      if (sendResult === 'ok') {
+        console.log('[reset-season] Broadcast sent successfully:', broadcastPayload);
+      } else {
+        console.warn('[reset-season] Broadcast send returned:', sendResult);
+      }
+
+      // Small delay to ensure message is delivered before unsubscribing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Unsubscribe after sending
+      await channel.unsubscribe();
+      console.log('[reset-season] Channel unsubscribed');
+    } catch (broadcastError) {
+      // Don't fail the request if broadcast fails
+      console.error('[reset-season] Broadcast error (non-fatal):', broadcastError);
+    }
+
     return NextResponse.json({
       ok: true,
       message: `Season "${season.label || 'Season'}" reset successfully`,

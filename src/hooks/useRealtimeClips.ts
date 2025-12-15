@@ -292,7 +292,7 @@ export function useRealtimeVotes({
 }
 
 // Hook for subscribing to story broadcasts (more reliable than postgres_changes)
-// The admin API broadcasts when a winner is selected
+// The admin API broadcasts when a winner is selected or season is reset
 export interface WinnerSelectedPayload {
   slotId: string;
   slotPosition: number;
@@ -301,22 +301,32 @@ export interface WinnerSelectedPayload {
   timestamp: string;
 }
 
+export interface SeasonResetPayload {
+  seasonId: string;
+  startSlot: number;
+  timestamp: string;
+}
+
 interface UseStoryBroadcastOptions {
   onWinnerSelected?: (payload: WinnerSelectedPayload) => void;
+  onSeasonReset?: (payload: SeasonResetPayload) => void;
   enabled?: boolean;
 }
 
 export function useStoryBroadcast({
   onWinnerSelected,
+  onSeasonReset,
   enabled = true,
 }: UseStoryBroadcastOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
   const onWinnerSelectedRef = useRef(onWinnerSelected);
+  const onSeasonResetRef = useRef(onSeasonReset);
 
   useEffect(() => {
     onWinnerSelectedRef.current = onWinnerSelected;
-  }, [onWinnerSelected]);
+    onSeasonResetRef.current = onSeasonReset;
+  }, [onWinnerSelected, onSeasonReset]);
 
   useEffect(() => {
     if (!enabled) {
@@ -339,6 +349,12 @@ export function useStoryBroadcast({
         console.log('[Broadcast] Winner selected event received:', payload);
         if (onWinnerSelectedRef.current && payload.payload) {
           onWinnerSelectedRef.current(payload.payload as WinnerSelectedPayload);
+        }
+      })
+      .on('broadcast', { event: 'season-reset' }, (payload) => {
+        console.log('[Broadcast] Season reset event received:', payload);
+        if (onSeasonResetRef.current && payload.payload) {
+          onSeasonResetRef.current(payload.payload as SeasonResetPayload);
         }
       })
       .subscribe((status, err) => {

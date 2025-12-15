@@ -47,7 +47,7 @@ import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
-import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload, SeasonResetPayload } from '@/hooks/useRealtimeClips';
 
 // ============================================================================
 // TYPES
@@ -1510,12 +1510,16 @@ function StoryPage() {
     }, [fetchFreshAndUpdate]),
   });
 
-  // Real-time broadcast listener for winner selection (most reliable instant updates)
-  // The admin API broadcasts when a winner is selected, this is more reliable than postgres_changes
+  // Real-time broadcast listener for winner selection and season reset (most reliable instant updates)
+  // The admin API broadcasts when a winner is selected or season is reset, this is more reliable than postgres_changes
   useStoryBroadcast({
     enabled: true,
     onWinnerSelected: useCallback((payload: WinnerSelectedPayload) => {
       console.log('[Story Broadcast] Winner selected event received:', payload);
+      fetchFreshAndUpdate();
+    }, [fetchFreshAndUpdate]),
+    onSeasonReset: useCallback((payload: SeasonResetPayload) => {
+      console.log('[Story Broadcast] Season reset event received:', payload);
       fetchFreshAndUpdate();
     }, [fetchFreshAndUpdate]),
   });
