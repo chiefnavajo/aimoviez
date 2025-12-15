@@ -284,15 +284,19 @@ export async function GET(req: NextRequest) {
 
     const responseData = { seasons: result };
 
-    // Cache the response
-    setCache(cacheKey, responseData);
+    // Cache the response (only if not a fresh request)
+    if (!skipCache) {
+      setCache(cacheKey, responseData);
+    }
+
+    // Use no-cache headers for fresh requests to ensure realtime updates work
+    const cacheHeaders = skipCache
+      ? { 'Cache-Control': 'no-store, no-cache, must-revalidate', 'X-Cache': 'BYPASS' }
+      : { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60', 'X-Cache': 'MISS' };
 
     return NextResponse.json(responseData, {
       status: 200,
-      headers: {
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60',
-        'X-Cache': 'MISS',
-      },
+      headers: cacheHeaders,
     });
 
   } catch (error) {
