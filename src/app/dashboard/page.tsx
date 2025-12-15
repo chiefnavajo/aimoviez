@@ -28,7 +28,7 @@ import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
-import { useRealtimeClips, ClipUpdate } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -502,11 +502,11 @@ function VotingArena() {
       const apiResponse: APIVotingResponse = await response.json();
       return transformAPIResponse(apiResponse);
     },
-    staleTime: Infinity, // Never consider data stale - user controls navigation
+    staleTime: 0, // Always consider data stale on mount to ensure fresh fetch
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
     retry: 3,
-    refetchOnMount: false, // Don't refetch if data exists
-    placeholderData: (previousData) => previousData, // Show cached data immediately
+    refetchOnMount: 'always', // Always refetch fresh data on page load
+    placeholderData: (previousData) => previousData, // Show cached data immediately while fetching
   });
 
   // Auto-refresh at midnight UTC when daily votes reset
@@ -545,8 +545,9 @@ function VotingArena() {
   const currentClip = useMemo(() => votingData?.clips?.[activeIndex], [votingData?.clips, activeIndex]);
 
   // Real-time updates for clips (votes, new clips, deletions)
+  // NOTE: Disabled due to Supabase Realtime postgres_changes binding issue
   useRealtimeClips({
-    enabled: true,
+    enabled: false,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
       // If clip status changed to 'locked' (winner selected), show notification and remove
       if (updatedClip.status === 'locked') {
@@ -618,6 +619,21 @@ function VotingArena() {
         };
       });
     }, [queryClient]),
+  });
+
+  // Real-time broadcast listener for winner selection
+  // When admin selects a winner, refetch clips to get the new slot's content
+  useStoryBroadcast({
+    enabled: true,
+    onWinnerSelected: useCallback((payload: WinnerSelectedPayload) => {
+      console.log('[Dashboard Broadcast] Winner selected event received:', payload);
+      toast.success('A winner has been selected for this slot!', {
+        icon: '🏆',
+        duration: 4000,
+      });
+      // Refetch to get the new slot's clips (winner is removed, remaining clips move to next slot)
+      setTimeout(() => refetch(), 500);
+    }, [refetch]),
   });
 
   // Browser-level prefetch for next video

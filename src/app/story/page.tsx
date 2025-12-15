@@ -47,7 +47,7 @@ import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
-import { useRealtimeClips, useRealtimeSlots, ClipUpdate } from '@/hooks/useRealtimeClips';
+import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
 
 // ============================================================================
 // TYPES
@@ -1441,11 +1441,14 @@ function StoryPage() {
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
   // Fetch seasons from API
+  // Realtime updates are primary, polling is a safety net for missed websocket events
   const { data: seasons = [], isLoading, error } = useQuery<Season[]>({
     queryKey: ['story-seasons'],
-    queryFn: () => fetchSeasons(false),
-    staleTime: 30000, // 30 seconds
-    refetchOnWindowFocus: false,
+    queryFn: () => fetchSeasons(true), // Always fetch fresh to catch any missed realtime events
+    staleTime: 60000, // 1 minute
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: 60000, // Poll every 60s as fallback for missed realtime events
+    refetchIntervalInBackground: false, // Don't poll when tab is hidden (saves API calls)
   });
 
   // Helper to fetch fresh data and update cache (bypasses server cache)
@@ -1461,8 +1464,10 @@ function StoryPage() {
   }, [queryClient]);
 
   // Real-time updates for vote counts and new winners
+  // NOTE: Disabled due to Supabase Realtime postgres_changes binding issue
+  // Using useStoryBroadcast instead which works reliably
   useRealtimeClips({
-    enabled: true,
+    enabled: false,
     onClipUpdate: useCallback((updatedClip: ClipUpdate) => {
       // If a clip's status changed to 'locked', a new winner was selected - refetch fresh
       if (updatedClip.status === 'locked') {
@@ -1494,14 +1499,24 @@ function StoryPage() {
   });
 
   // Real-time updates for slot changes (when winner is assigned to a slot)
+  // NOTE: Disabled due to Supabase Realtime postgres_changes binding issue
+  // Using useStoryBroadcast instead which works reliably
   useRealtimeSlots({
-    enabled: true,
+    enabled: false,
     onSlotUpdate: useCallback((updatedSlot: { id: string; status?: string; winner_tournament_clip_id?: string | null }) => {
-      // If a slot now has a winner assigned, refetch fresh to show the new winner
-      if (updatedSlot.winner_tournament_clip_id || updatedSlot.status === 'locked') {
-        console.log('[Story Realtime] Slot winner assigned');
-        fetchFreshAndUpdate();
-      }
+      // Refetch on ANY slot update - winner assigned, status change, etc.
+      console.log('[Story Realtime] Slot update received:', updatedSlot);
+      fetchFreshAndUpdate();
+    }, [fetchFreshAndUpdate]),
+  });
+
+  // Real-time broadcast listener for winner selection (most reliable instant updates)
+  // The admin API broadcasts when a winner is selected, this is more reliable than postgres_changes
+  useStoryBroadcast({
+    enabled: true,
+    onWinnerSelected: useCallback((payload: WinnerSelectedPayload) => {
+      console.log('[Story Broadcast] Winner selected event received:', payload);
+      fetchFreshAndUpdate();
     }, [fetchFreshAndUpdate]),
   });
 

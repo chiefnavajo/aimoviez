@@ -275,6 +275,74 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Broadcast the winner update to all connected clients
+    // This is more reliable than postgres_changes for instant updates
+    try {
+      console.log('[assign-winner] Starting broadcast...');
+      const broadcastPayload = {
+        slotId: activeSlot.id,
+        slotPosition: activeSlot.slot_position,
+        clipId: clipId,
+        seasonId: season.id,
+        timestamp: new Date().toISOString(),
+      };
+
+      // Create channel with broadcast config for server-side sending
+      const channel = supabase.channel('story-updates', {
+        config: {
+          broadcast: {
+            // ack: true means we wait for server acknowledgment
+            ack: true,
+          },
+        },
+      });
+
+      // Subscribe to channel first (required before sending)
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('Channel subscription timeout after 5s'));
+        }, 5000);
+
+        channel.subscribe((status, err) => {
+          console.log('[assign-winner] Channel subscription status:', status);
+          if (status === 'SUBSCRIBED') {
+            clearTimeout(timeout);
+            resolve();
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            clearTimeout(timeout);
+            reject(new Error(`Channel subscription failed: ${status} - ${err?.message || 'unknown'}`));
+          }
+        });
+      });
+
+      console.log('[assign-winner] Channel subscribed, sending broadcast...');
+
+      // Send the broadcast and wait for acknowledgment
+      const sendResult = await channel.send({
+        type: 'broadcast',
+        event: 'winner-selected',
+        payload: broadcastPayload,
+      });
+
+      console.log('[assign-winner] Broadcast send result:', sendResult);
+
+      if (sendResult === 'ok') {
+        console.log('[assign-winner] Broadcast sent successfully for winner selection:', broadcastPayload);
+      } else {
+        console.warn('[assign-winner] Broadcast send returned:', sendResult);
+      }
+
+      // Small delay to ensure message is delivered before unsubscribing
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Unsubscribe after sending
+      await channel.unsubscribe();
+      console.log('[assign-winner] Channel unsubscribed');
+    } catch (broadcastError) {
+      // Don't fail the request if broadcast fails
+      console.error('[assign-winner] Broadcast error (non-fatal):', broadcastError);
+    }
+
     // Handle season finished case
     if (seasonFinished) {
       // Audit log the action

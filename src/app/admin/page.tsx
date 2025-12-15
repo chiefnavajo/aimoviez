@@ -2309,7 +2309,7 @@ export default function AdminDashboard() {
                     {winnerCandidate.thumbnail_url ? (
                       <Image
                         src={winnerCandidate.thumbnail_url}
-                        alt={winnerCandidate.title}
+                        alt={winnerCandidate.title || 'Clip thumbnail'}
                         fill
                         sizes="96px"
                         className="object-cover"

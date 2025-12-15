@@ -30,6 +30,7 @@ export function useRealtimeClips({
   enabled = true,
 }: UseRealtimeClipsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const isSubscribingRef = useRef(false);
 
   // Store callbacks in refs to avoid re-subscribing when they change
   const onClipUpdateRef = useRef(onClipUpdate);
@@ -48,12 +49,20 @@ export function useRealtimeClips({
       channelRef.current.unsubscribe();
       channelRef.current = null;
     }
+    isSubscribingRef.current = false;
   }, []);
 
   useEffect(() => {
     if (!enabled) {
       return;
     }
+
+    // Prevent duplicate subscriptions from StrictMode double-mount
+    if (channelRef.current || isSubscribingRef.current) {
+      return;
+    }
+
+    isSubscribingRef.current = true;
 
     // Use the shared singleton realtime client
     const client = getRealtimeClient();
@@ -104,16 +113,20 @@ export function useRealtimeClips({
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to clips channel');
+          channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Realtime] Error connecting to clips channel:', err);
+          if (err) {
+            console.error('[Realtime] Error connecting to clips channel:', err);
+          }
+          isSubscribingRef.current = false;
         } else if (status === 'TIMED_OUT') {
           console.error('[Realtime] Clips channel timed out');
+          isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
           console.log('[Realtime] Clips channel closed');
+          isSubscribingRef.current = false;
         }
       });
-
-    channelRef.current = channel;
 
     return cleanup;
   }, [enabled, cleanup]);
@@ -132,6 +145,7 @@ export function useRealtimeSlots({
   enabled = true,
 }: UseRealtimeSlotsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const isSubscribingRef = useRef(false);
   const onSlotUpdateRef = useRef(onSlotUpdate);
 
   useEffect(() => {
@@ -142,6 +156,13 @@ export function useRealtimeSlots({
     if (!enabled || !onSlotUpdateRef.current) {
       return;
     }
+
+    // Prevent duplicate subscriptions from StrictMode double-mount
+    if (channelRef.current || isSubscribingRef.current) {
+      return;
+    }
+
+    isSubscribingRef.current = true;
 
     const client = getRealtimeClient();
 
@@ -164,20 +185,24 @@ export function useRealtimeSlots({
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to slots channel');
+          channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Realtime] Error connecting to slots channel:', err);
+          if (err) {
+            console.error('[Realtime] Error connecting to slots channel:', err);
+          }
+          isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
           console.log('[Realtime] Slots channel closed');
+          isSubscribingRef.current = false;
         }
       });
-
-    channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
+      isSubscribingRef.current = false;
     };
   }, [enabled]);
 }
@@ -195,6 +220,7 @@ export function useRealtimeVotes({
   enabled = true,
 }: UseRealtimeVotesOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
+  const isSubscribingRef = useRef(false);
   const onVoteUpdateRef = useRef(onVoteUpdate);
   const clipIdsRef = useRef(clipIds);
 
@@ -207,6 +233,13 @@ export function useRealtimeVotes({
     if (!enabled || !onVoteUpdateRef.current) {
       return;
     }
+
+    // Prevent duplicate subscriptions from StrictMode double-mount
+    if (channelRef.current || isSubscribingRef.current) {
+      return;
+    }
+
+    isSubscribingRef.current = true;
 
     // Use the shared singleton realtime client
     const client = getRealtimeClient();
@@ -241,18 +274,94 @@ export function useRealtimeVotes({
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('[Realtime] Connected to votes channel');
+          channelRef.current = channel;
         } else if (status === 'CLOSED') {
           console.log('[Realtime] Votes channel closed');
+          isSubscribingRef.current = false;
         }
       });
-
-    channelRef.current = channel;
 
     return () => {
       if (channelRef.current) {
         channelRef.current.unsubscribe();
         channelRef.current = null;
       }
+      isSubscribingRef.current = false;
+    };
+  }, [enabled]);
+}
+
+// Hook for subscribing to story broadcasts (more reliable than postgres_changes)
+// The admin API broadcasts when a winner is selected
+export interface WinnerSelectedPayload {
+  slotId: string;
+  slotPosition: number;
+  clipId: string;
+  seasonId: string;
+  timestamp: string;
+}
+
+interface UseStoryBroadcastOptions {
+  onWinnerSelected?: (payload: WinnerSelectedPayload) => void;
+  enabled?: boolean;
+}
+
+export function useStoryBroadcast({
+  onWinnerSelected,
+  enabled = true,
+}: UseStoryBroadcastOptions = {}) {
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const isSubscribingRef = useRef(false);
+  const onWinnerSelectedRef = useRef(onWinnerSelected);
+
+  useEffect(() => {
+    onWinnerSelectedRef.current = onWinnerSelected;
+  }, [onWinnerSelected]);
+
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    // Prevent duplicate subscriptions from StrictMode double-mount
+    if (channelRef.current || isSubscribingRef.current) {
+      return;
+    }
+
+    isSubscribingRef.current = true;
+
+    const client = getRealtimeClient();
+
+    // Subscribe to the broadcast channel
+    const channel = client
+      .channel('story-updates')
+      .on('broadcast', { event: 'winner-selected' }, (payload) => {
+        console.log('[Broadcast] Winner selected event received:', payload);
+        if (onWinnerSelectedRef.current && payload.payload) {
+          onWinnerSelectedRef.current(payload.payload as WinnerSelectedPayload);
+        }
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Broadcast] Connected to story-updates channel');
+          channelRef.current = channel;
+        } else if (status === 'CHANNEL_ERROR') {
+          if (err) {
+            console.error('[Broadcast] Error connecting to story-updates channel:', err);
+          }
+          isSubscribingRef.current = false;
+        } else if (status === 'CLOSED') {
+          console.log('[Broadcast] story-updates channel closed');
+          isSubscribingRef.current = false;
+        }
+      });
+
+    return () => {
+      if (channelRef.current) {
+        channelRef.current.unsubscribe();
+        channelRef.current = null;
+      }
+      isSubscribingRef.current = false;
     };
   }, [enabled]);
 }
