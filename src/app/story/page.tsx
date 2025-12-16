@@ -1661,7 +1661,7 @@ function StoryPage() {
 
         {/* Desktop Navigation Arrows - Outside VideoPlayer for proper z-index */}
         {totalSegments > 1 && (
-          <div className="absolute left-3 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-4">
+          <div className="absolute left-3 top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-4">
             {/* Previous Segment */}
             <motion.button
               whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
