@@ -239,7 +239,69 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. Ustaw następny slot na 'voting' with timer
+    // 7. FIRST: Move non-winning active clips to next slot (to know how many will be there)
+    // This keeps the competition going with same clips
+    const { data: movedClips, error: moveClipsError } = await supabase
+      .from('tournament_clips')
+      .update({
+        slot_position: nextPosition,
+        vote_count: 0,        // Reset votes for fair competition
+        weighted_score: 0,    // Reset weighted score
+      })
+      .eq('slot_position', storySlot.slot_position)
+      .eq('status', 'active')
+      .neq('id', winner.id)   // Don't move the winner
+      .select('id');
+
+    if (moveClipsError) {
+      console.error('[advance-slot] moveClipsError:', moveClipsError);
+      // Non-fatal - log but continue
+    }
+
+    const clipsMovedCount = movedClips?.length ?? 0;
+    console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
+
+    // 7b. If no clips moved, finish the season instead of creating empty voting slot
+    if (clipsMovedCount === 0) {
+      console.log('[advance-slot] No more clips to vote on - finishing season');
+
+      const { error: finishSeasonError } = await supabase
+        .from('seasons')
+        .update({ status: 'finished' })
+        .eq('id', seasonRow.id);
+
+      if (finishSeasonError) {
+        console.error('[advance-slot] finishSeasonError:', finishSeasonError);
+      }
+
+      // Audit log season finish
+      await logAdminAction(req, {
+        action: 'advance_slot',
+        resourceType: 'season',
+        resourceId: seasonRow.id,
+        adminEmail: adminAuth.email || 'unknown',
+        adminId: adminAuth.userId || undefined,
+        details: {
+          slotLocked: storySlot.slot_position,
+          winnerClipId: winner.id,
+          seasonFinished: true,
+          reason: 'No more clips to vote on',
+        },
+      });
+
+      return NextResponse.json(
+        {
+          ok: true,
+          finished: true,
+          message: 'Last clip assigned - no more clips to vote on, season finished',
+          winnerClipId: winner.id,
+          clipsMovedCount: 0,
+        },
+        { status: 200 }
+      );
+    }
+
+    // 8. Activate next slot with timer (only if there are clips to vote on)
     const durationHours = storySlot.voting_duration_hours || 24;
     const now = new Date();
     const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
@@ -275,28 +337,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    // 8. CARRY OVER: Move non-winning active clips to next slot
-    // This keeps the competition going with same clips
-    const { data: movedClips, error: moveClipsError } = await supabase
-      .from('tournament_clips')
-      .update({
-        slot_position: nextPosition,
-        vote_count: 0,        // Reset votes for fair competition
-        weighted_score: 0,    // Reset weighted score
-      })
-      .eq('slot_position', storySlot.slot_position)
-      .eq('status', 'active')
-      .neq('id', winner.id)   // Don't move the winner
-      .select('id');
-
-    if (moveClipsError) {
-      console.error('[advance-slot] moveClipsError:', moveClipsError);
-      // Non-fatal - log but continue
-    }
-
-    const clipsMovedCount = movedClips?.length ?? 0;
-    console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
 
     // Audit log the slot advance
     await logAdminAction(req, {

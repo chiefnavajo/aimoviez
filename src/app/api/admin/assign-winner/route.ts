@@ -215,7 +215,27 @@ export async function POST(req: NextRequest) {
       if (advanceSlot) {
         const totalSlots = season.total_slots ?? 75;
 
-        if (nextPosition > totalSlots) {
+        // First, move non-winning clips to next slot (to know how many will be there)
+        const { data: movedClips, error: moveError } = await supabase
+          .from('tournament_clips')
+          .update({
+            slot_position: nextPosition,
+            vote_count: 0,
+            weighted_score: 0,
+          })
+          .eq('slot_position', activeSlot.slot_position)
+          .eq('status', 'active')
+          .neq('id', clipId)
+          .select('id');
+
+        if (moveError) {
+          console.error('[assign-winner] moveError:', moveError);
+        } else {
+          clipsMovedCount = movedClips?.length ?? 0;
+        }
+
+        // Check if season should finish: reached max slots OR no more clips to vote on
+        if (nextPosition > totalSlots || clipsMovedCount === 0) {
           // Season is finished
           const { error: finishError } = await supabase
             .from('seasons')
@@ -226,8 +246,9 @@ export async function POST(req: NextRequest) {
             console.error('[assign-winner] finishError:', finishError);
           }
           seasonFinished = true;
+          console.log(`[assign-winner] Season finished: ${nextPosition > totalSlots ? 'reached max slots' : 'no more clips to vote on'}`);
         } else {
-          // Set next slot to voting
+          // Set next slot to voting (only if there are clips to vote on)
           const now = new Date();
           const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
 
@@ -251,25 +272,6 @@ export async function POST(req: NextRequest) {
               position: nextSlot.slot_position,
               votingEndsAt: votingEndsAt.toISOString(),
             };
-          }
-
-          // Move non-winning clips to next slot with reset votes
-          const { data: movedClips, error: moveError } = await supabase
-            .from('tournament_clips')
-            .update({
-              slot_position: nextPosition,
-              vote_count: 0,
-              weighted_score: 0,
-            })
-            .eq('slot_position', activeSlot.slot_position)
-            .eq('status', 'active')
-            .neq('id', clipId)
-            .select('id');
-
-          if (moveError) {
-            console.error('[assign-winner] moveError:', moveError);
-          } else {
-            clipsMovedCount = movedClips?.length ?? 0;
           }
         }
       }

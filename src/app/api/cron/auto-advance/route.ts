@@ -84,11 +84,25 @@ export async function GET(req: NextRequest) {
           .maybeSingle();
 
         if (!topClip) {
-          // No clips in slot - skip but log
+          // No clips in slot - mark as locked (empty) and finish season
+          // This prevents zombie voting slots with no clips
+          console.log(`[auto-advance] Slot ${slot.slot_position} has no clips - marking as locked and finishing season`);
+
+          await supabase
+            .from('story_slots')
+            .update({ status: 'locked' })
+            .eq('id', slot.id);
+
+          // Finish the season since there are no more clips to vote on
+          await supabase
+            .from('seasons')
+            .update({ status: 'finished' })
+            .eq('id', slot.season_id);
+
           results.push({
             slot_position: slot.slot_position,
-            status: 'skipped',
-            reason: 'No clips in slot'
+            status: 'finished_empty',
+            reason: 'No clips in slot - season finished'
           });
           continue;
         }
@@ -120,7 +134,7 @@ export async function GET(req: NextRequest) {
 
         // Move losing clips to next slot (they continue competing)
         const nextSlotPosition = slot.slot_position + 1;
-        await supabase
+        const { data: movedClips } = await supabase
           .from('tournament_clips')
           .update({
             slot_position: nextSlotPosition,
@@ -130,30 +144,39 @@ export async function GET(req: NextRequest) {
           })
           .eq('slot_position', slot.slot_position)
           .eq('season_id', slot.season_id)
-          .eq('status', 'active');  // Only move active clips (not the locked winner)
+          .eq('status', 'active')  // Only move active clips (not the locked winner)
+          .select('id');
 
-        // Check if this was the last slot
+        const clipsMovedCount = movedClips?.length ?? 0;
+
+        // Check if this was the last slot OR if no clips remain
         const totalSlots = slot.seasons?.total_slots || 75;
         const nextPosition = slot.slot_position + 1;
 
-        if (nextPosition > totalSlots) {
+        // Finish season if: reached max slots OR no more clips to vote on
+        if (nextPosition > totalSlots || clipsMovedCount === 0) {
           // Finish the season
           await supabase
             .from('seasons')
             .update({ status: 'finished' })
             .eq('id', slot.season_id);
 
+          const reason = nextPosition > totalSlots
+            ? 'Season completed!'
+            : 'No more clips to vote on - season finished';
+
           results.push({
             slot_position: slot.slot_position,
             status: 'finished',
             winner_clip_id: topClip.id,
             winner_username: topClip.username,
-            message: 'Season completed!'
+            message: reason,
+            clips_remaining: clipsMovedCount
           });
           continue;
         }
 
-        // Activate next slot with new timer
+        // Activate next slot with new timer (only if there are clips to vote on)
         const durationHours = slot.voting_duration_hours || 24;
         const now = new Date();
         const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
@@ -187,7 +210,8 @@ export async function GET(req: NextRequest) {
           winner_username: topClip.username,
           winner_score: topClip.weighted_score,
           next_slot: nextPosition,
-          next_ends_at: votingEndsAt.toISOString()
+          next_ends_at: votingEndsAt.toISOString(),
+          clips_in_next_slot: clipsMovedCount
         });
 
       } catch (slotError) {
