@@ -14,12 +14,83 @@ import { createClient } from '@supabase/supabase-js';
 function createSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  
+
   if (!url || !key) {
     throw new Error('Missing Supabase environment variables');
   }
-  
+
   return createClient(url, key);
+}
+
+// Helper to auto-create the next season when one finishes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function createNextSeason(
+  supabase: any,
+  finishedSeasonId: string
+): Promise<{ success: boolean; newSeasonId?: string; newSeasonLabel?: string; error?: string }> {
+  try {
+    // Get the finished season's details
+    const { data: finishedSeason } = await supabase
+      .from('seasons')
+      .select('label, total_slots')
+      .eq('id', finishedSeasonId)
+      .single();
+
+    if (!finishedSeason) {
+      return { success: false, error: 'Could not find finished season' };
+    }
+
+    // Parse season number from label (e.g., "Season 1 – Genesis" -> 1)
+    const labelMatch = finishedSeason.label?.match(/Season\s*(\d+)/i);
+    const seasonNumber = labelMatch ? parseInt(labelMatch[1], 10) + 1 : 2;
+    const newLabel = `Season ${seasonNumber}`;
+    const totalSlots = finishedSeason.total_slots || 75;
+
+    // Create new season with 'active' status
+    const { data: newSeason, error: seasonError } = await supabase
+      .from('seasons')
+      .insert({
+        label: newLabel,
+        total_slots: totalSlots,
+        status: 'active',
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (seasonError || !newSeason) {
+      console.error('[auto-advance] Failed to create new season:', seasonError);
+      return { success: false, error: 'Failed to create new season' };
+    }
+
+    // Create slots for the new season
+    const slots = Array.from({ length: totalSlots }, (_, i) => ({
+      season_id: newSeason.id,
+      slot_position: i + 1,
+      status: i === 0 ? 'voting' : 'upcoming', // First slot starts voting
+      voting_started_at: i === 0 ? new Date().toISOString() : null,
+      voting_ends_at: i === 0 ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+      voting_duration_hours: 24,
+      created_at: new Date().toISOString(),
+    }));
+
+    const { error: slotsError } = await supabase
+      .from('story_slots')
+      .insert(slots);
+
+    if (slotsError) {
+      console.error('[auto-advance] Failed to create slots for new season:', slotsError);
+      // Clean up the season if slots failed
+      await supabase.from('seasons').delete().eq('id', newSeason.id);
+      return { success: false, error: 'Failed to create slots for new season' };
+    }
+
+    console.log(`[auto-advance] Auto-created ${newLabel} with ${totalSlots} slots`);
+    return { success: true, newSeasonId: newSeason.id, newSeasonLabel: newLabel };
+  } catch (err) {
+    console.error('[auto-advance] Error creating next season:', err);
+    return { success: false, error: 'Unexpected error creating next season' };
+  }
 }
 
 export async function GET(req: NextRequest) {
@@ -99,10 +170,15 @@ export async function GET(req: NextRequest) {
             .update({ status: 'finished' })
             .eq('id', slot.season_id);
 
+          // Auto-create next season
+          const nextSeasonResult = await createNextSeason(supabase, slot.season_id);
+
           results.push({
             slot_position: slot.slot_position,
             status: 'finished_empty',
-            reason: 'No clips in slot - season finished'
+            reason: 'No clips in slot - season finished',
+            next_season_created: nextSeasonResult.success,
+            next_season_label: nextSeasonResult.newSeasonLabel,
           });
           continue;
         }
@@ -165,13 +241,18 @@ export async function GET(req: NextRequest) {
             ? 'Season completed!'
             : 'No more clips to vote on - season finished';
 
+          // Auto-create next season
+          const nextSeasonResult = await createNextSeason(supabase, slot.season_id);
+
           results.push({
             slot_position: slot.slot_position,
             status: 'finished',
             winner_clip_id: topClip.id,
             winner_username: topClip.username,
             message: reason,
-            clips_remaining: clipsMovedCount
+            clips_remaining: clipsMovedCount,
+            next_season_created: nextSeasonResult.success,
+            next_season_label: nextSeasonResult.newSeasonLabel,
           });
           continue;
         }

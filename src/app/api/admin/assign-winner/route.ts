@@ -21,6 +21,78 @@ function createSupabaseServerClient() {
   return createClient(supabaseUrl, supabaseKey);
 }
 
+// Helper to auto-create the next season when one finishes
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function createNextSeason(
+  supabase: any,
+  finishedSeasonId: string
+): Promise<{ success: boolean; newSeasonId?: string; newSeasonLabel?: string }> {
+  try {
+    // Get the finished season's details
+    const { data: finishedSeason } = await supabase
+      .from('seasons')
+      .select('label, total_slots')
+      .eq('id', finishedSeasonId)
+      .single() as { data: { label?: string; total_slots?: number } | null };
+
+    if (!finishedSeason) {
+      return { success: false };
+    }
+
+    // Parse season number from label (e.g., "Season 1 – Genesis" -> 1)
+    const labelMatch = finishedSeason.label?.match(/Season\s*(\d+)/i);
+    const seasonNumber = labelMatch ? parseInt(labelMatch[1], 10) + 1 : 2;
+    const newLabel = `Season ${seasonNumber}`;
+    const totalSlots = finishedSeason.total_slots || 75;
+
+    // Create new season with 'active' status
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: newSeason, error: seasonError } = await (supabase as any)
+      .from('seasons')
+      .insert({
+        label: newLabel,
+        total_slots: totalSlots,
+        status: 'active',
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (seasonError || !newSeason) {
+      console.error('[assign-winner] Failed to create new season:', seasonError);
+      return { success: false };
+    }
+
+    // Create slots for the new season
+    const slots = Array.from({ length: totalSlots }, (_, i) => ({
+      season_id: newSeason.id,
+      slot_position: i + 1,
+      status: i === 0 ? 'voting' : 'upcoming',
+      voting_started_at: i === 0 ? new Date().toISOString() : null,
+      voting_ends_at: i === 0 ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
+      voting_duration_hours: 24,
+      created_at: new Date().toISOString(),
+    }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: slotsError } = await (supabase as any)
+      .from('story_slots')
+      .insert(slots);
+
+    if (slotsError) {
+      console.error('[assign-winner] Failed to create slots:', slotsError);
+      await supabase.from('seasons').delete().eq('id', newSeason.id);
+      return { success: false };
+    }
+
+    console.log(`[assign-winner] Auto-created ${newLabel} with ${totalSlots} slots`);
+    return { success: true, newSeasonId: newSeason.id, newSeasonLabel: newLabel };
+  } catch (err) {
+    console.error('[assign-winner] Error creating next season:', err);
+    return { success: false };
+  }
+}
+
 /**
  * POST /api/admin/assign-winner
  * Manually assign a winner for the current voting slot
@@ -247,6 +319,12 @@ export async function POST(req: NextRequest) {
           }
           seasonFinished = true;
           console.log(`[assign-winner] Season finished: ${nextPosition > totalSlots ? 'reached max slots' : 'no more clips to vote on'}`);
+
+          // Auto-create next season
+          const nextSeasonResult = await createNextSeason(supabase, season.id);
+          if (nextSeasonResult.success) {
+            console.log(`[assign-winner] Auto-created next season: ${nextSeasonResult.newSeasonLabel}`);
+          }
         } else {
           // Set next slot to voting (only if there are clips to vote on)
           const now = new Date();

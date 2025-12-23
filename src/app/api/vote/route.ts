@@ -197,6 +197,9 @@ interface VotingStateResponse {
   totalClipsInSlot: number;
   clipsShown: number;
   hasMoreClips: boolean;
+  // Season status info
+  seasonStatus?: 'active' | 'finished' | 'none';
+  finishedSeasonName?: string;
 }
 
 interface VoteResponseBody {
@@ -591,6 +594,15 @@ export async function GET(req: NextRequest) {
     }
 
     if (!season) {
+      // Check if there's a recently finished season
+      const { data: finishedSeason } = await supabase
+        .from('seasons')
+        .select('id, label, status')
+        .eq('status', 'finished')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       const empty: VotingStateResponse = {
         clips: [],
         totalVotesToday,
@@ -610,6 +622,8 @@ export async function GET(req: NextRequest) {
         totalClipsInSlot: 0,
         clipsShown: 0,
         hasMoreClips: false,
+        seasonStatus: finishedSeason ? 'finished' : 'none',
+        finishedSeasonName: finishedSeason?.label || undefined,
       };
       return NextResponse.json(empty, { status: 200 });
     }

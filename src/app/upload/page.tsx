@@ -71,6 +71,33 @@ function UploadPageContent() {
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Season status check
+  const [seasonStatus, setSeasonStatus] = useState<'loading' | 'active' | 'ended' | 'none'>('loading');
+  const [finishedSeasonName, setFinishedSeasonName] = useState<string | null>(null);
+
+  // Check season status on mount
+  useEffect(() => {
+    async function checkSeasonStatus() {
+      try {
+        const res = await fetch('/api/vote');
+        const data = await res.json();
+
+        if (data.seasonStatus === 'finished') {
+          setSeasonStatus('ended');
+          setFinishedSeasonName(data.finishedSeasonName || null);
+        } else if (data.currentSlot > 0) {
+          setSeasonStatus('active');
+        } else {
+          setSeasonStatus('none');
+        }
+      } catch {
+        // If check fails, allow upload attempt (backend will validate)
+        setSeasonStatus('active');
+      }
+    }
+    checkSeasonStatus();
+  }, []);
+
   // Cleanup interval on unmount
   useEffect(() => {
     return () => {
@@ -270,13 +297,59 @@ function UploadPageContent() {
   // ============================================================================
 
   // Loading state
-  if (authLoading) {
+  if (authLoading || seasonStatus === 'loading') {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-white/60">Loading...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Season ended or no active season - uploads closed
+  if (seasonStatus === 'ended' || seasonStatus === 'none') {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+        <div className="text-center max-w-md">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <div className="text-6xl mb-4">
+              {seasonStatus === 'ended' ? '🏆' : '⏳'}
+            </div>
+            <div>
+              <h1 className="text-2xl font-black mb-2">
+                {seasonStatus === 'ended'
+                  ? `${finishedSeasonName || 'Season'} Complete!`
+                  : 'Uploads Coming Soon'}
+              </h1>
+              <p className="text-white/60">
+                {seasonStatus === 'ended'
+                  ? 'This season has ended. Check out the winning clips and stay tuned for the next season!'
+                  : 'No active season right now. Check back soon for the next season!'}
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Link
+                href="/story"
+                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl font-bold text-lg text-center"
+              >
+                Watch the Story
+              </Link>
+              <Link
+                href="/leaderboard"
+                className="w-full py-4 bg-white/10 border border-white/20 rounded-xl font-bold text-center"
+              >
+                View Leaderboard
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+        <BottomNavigation />
       </div>
     );
   }
