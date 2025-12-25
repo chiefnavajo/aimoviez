@@ -1,4 +1,49 @@
-# Recent Changes - December 18, 2025
+# Recent Changes
+
+---
+
+## December 25, 2025 - Season Management Overhaul
+
+### 6. Admin-Controlled Season Creation (commit c468368)
+**Problem:** Auto-create next season caused infinite empty season loop when no clips uploaded.
+
+**Solution:** Hybrid approach - admin manually creates new seasons
+
+**Changes:**
+- **Removed auto-create** from 3 routes:
+  - `src/app/api/admin/advance-slot/route.ts`
+  - `src/app/api/admin/assign-winner/route.ts`
+  - `src/app/api/cron/auto-advance/route.ts`
+
+- **Added "New Season" UI** to admin panel:
+  - `src/app/admin/page.tsx` - Button + Modal for creating seasons
+  - `src/app/api/admin/seasons/route.ts` - Updated to set first slot to 'voting' with null timer
+
+- **Timer starts on first upload**:
+  - `src/app/api/upload/register/route.ts` - Detects first clip and starts timer
+
+- **User-facing messages**:
+  - `src/app/dashboard/page.tsx` - Shows "New Season Coming Soon" or "Waiting for Uploads"
+  - Upload page already blocks when no active season
+
+**Key Pattern - Timer Start on First Upload:**
+```typescript
+const isFirstClipInSlot = !votingSlot.voting_started_at;
+
+if (isFirstClipInSlot) {
+  const votingEndsAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await supabase.from('story_slots').update({
+    voting_started_at: new Date().toISOString(),
+    voting_ends_at: votingEndsAt.toISOString(),
+  }).eq('id', votingSlot.id);
+}
+```
+
+**Recovery Doc:** `docs/SEASON_MANAGEMENT_RECOVERY.md`
+
+---
+
+## December 18, 2025
 
 ## Session Summary
 
