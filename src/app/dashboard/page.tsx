@@ -150,6 +150,7 @@ interface VotingState {
   currentSlot: number;
   totalSlots: number;
   votingEndsAt: string | null;
+  votingStartedAt: string | null;
   hasMoreClips: boolean;
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
@@ -191,6 +192,7 @@ function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
     currentSlot: apiResponse.currentSlot,
     totalSlots: apiResponse.totalSlots,
     votingEndsAt: apiResponse.votingEndsAt,
+    votingStartedAt: apiResponse.votingStartedAt,
     hasMoreClips: apiResponse.hasMoreClips,
     seasonStatus: apiResponse.seasonStatus,
     finishedSeasonName: apiResponse.finishedSeasonName,
@@ -1229,10 +1231,13 @@ function VotingArena() {
     );
   }
 
-  // Empty state - check if season ended or just no clips
+  // Empty state - check if season ended, no season, waiting for uploads, or just no clips
   if (!votingData?.clips?.length) {
     const seasonEnded = votingData?.seasonStatus === 'finished';
+    const noSeason = votingData?.seasonStatus === 'none';
     const seasonName = votingData?.finishedSeasonName;
+    // Timer hasn't started = waiting for first clip upload
+    const waitingForUploads = (votingData?.currentSlot ?? 0) > 0 && !votingData?.votingStartedAt;
 
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
@@ -1245,6 +1250,8 @@ function VotingArena() {
               </h2>
               <p className="text-white/60 mb-6">
                 Thanks for voting! Check out the winning clips on the Story page.
+                <br />
+                <span className="text-cyan-400">New season coming soon!</span>
               </p>
               <div className="flex flex-col gap-3">
                 <Link
@@ -1258,6 +1265,58 @@ function VotingArena() {
                   className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block"
                 >
                   View Leaderboard
+                </Link>
+              </div>
+            </>
+          ) : noSeason ? (
+            <>
+              <div className="text-5xl mb-4">🎬</div>
+              <h2 className="text-white text-xl font-bold mb-2">
+                New Season Coming Soon
+              </h2>
+              <p className="text-white/60 mb-6">
+                We&apos;re preparing the next season.
+                <br />
+                Check back soon for new voting!
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  href="/story"
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] text-white font-semibold inline-block"
+                >
+                  Watch Previous Stories
+                </Link>
+                <Link
+                  href="/leaderboard"
+                  className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block"
+                >
+                  View Leaderboard
+                </Link>
+              </div>
+            </>
+          ) : waitingForUploads ? (
+            <>
+              <div className="text-5xl mb-4">⏳</div>
+              <h2 className="text-white text-xl font-bold mb-2">
+                Waiting for Uploads
+              </h2>
+              <p className="text-white/60 mb-6">
+                Voting starts when the first clip is uploaded.
+                <br />
+                Be the first to upload!
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  href="/upload"
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] text-white font-semibold inline-block"
+                >
+                  Upload a Clip
+                </Link>
+                <Link
+                  href="/story"
+                  className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block"
+                >
+                  Watch the Story
                 </Link>
               </div>
             </>

@@ -110,10 +110,10 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get current voting slot
+    // Get current voting slot (including timer info)
     const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
-      .select('id, slot_position')
+      .select('id, slot_position, voting_started_at, voting_duration_hours')
       .eq('season_id', season.id)
       .eq('status', 'voting')
       .order('slot_position', { ascending: true })
@@ -123,13 +123,14 @@ export async function POST(request: NextRequest) {
     // Fail if no active voting slot
     if (slotError || !votingSlot) {
       console.error('[REGISTER] No active voting slot:', slotError);
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'No active voting slot. Voting is currently closed for this round.' 
+        error: 'No active voting slot. Voting is currently closed for this round.'
       }, { status: 400 });
     }
 
     const slotPosition = votingSlot.slot_position;
+    const isFirstClipInSlot = !votingSlot.voting_started_at;
 
     // Sanitize user-provided text to prevent XSS
     const sanitizedTitle = sanitizeText(title) || `Clip ${Date.now()}`;
@@ -162,10 +163,34 @@ export async function POST(request: NextRequest) {
 
     if (clipError) {
       console.error('[REGISTER] Database insert error:', clipError);
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: `Failed to save clip: ${clipError.message || 'Database error'}` 
+        error: `Failed to save clip: ${clipError.message || 'Database error'}`
       }, { status: 500 });
+    }
+
+    // If this is the first clip in the slot, start the voting timer
+    let timerStarted = false;
+    if (isFirstClipInSlot) {
+      const durationHours = votingSlot.voting_duration_hours || 24;
+      const now = new Date();
+      const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+
+      const { error: timerError } = await supabase
+        .from('story_slots')
+        .update({
+          voting_started_at: now.toISOString(),
+          voting_ends_at: votingEndsAt.toISOString(),
+        })
+        .eq('id', votingSlot.id);
+
+      if (timerError) {
+        console.error('[REGISTER] Failed to start voting timer:', timerError);
+        // Non-fatal - clip is still registered
+      } else {
+        timerStarted = true;
+        console.log(`[REGISTER] First clip uploaded - voting timer started (ends: ${votingEndsAt.toISOString()})`);
+      }
     }
 
     // Success response
@@ -180,6 +205,7 @@ export async function POST(request: NextRequest) {
         title: title,
       },
       message: 'Clip registered successfully! Pending admin approval.',
+      timerStarted,
     });
 
   } catch (error) {

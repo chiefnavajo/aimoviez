@@ -123,11 +123,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If auto_activate, deactivate all other seasons
+    // If auto_activate, finish all other active seasons
     if (auto_activate) {
       await supabase
         .from('seasons')
-        .update({ status: 'archived' })
+        .update({ status: 'finished' })
         .eq('status', 'active');
     }
 
@@ -152,10 +152,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Create slots for this season
+    // If auto_activate, set first slot to 'voting' (timer starts when first clip is uploaded)
     const slots = Array.from({ length: total_slots }, (_, i) => ({
       season_id: season.id,
       slot_position: i + 1,
-      status: 'upcoming' as const,
+      status: (auto_activate && i === 0) ? 'voting' : 'upcoming',
+      voting_started_at: null, // Timer starts when first clip is uploaded
+      voting_ends_at: null,
+      voting_duration_hours: 24,
       created_at: new Date().toISOString(),
     }));
 

@@ -205,6 +205,12 @@ export default function AdminDashboard() {
     updated?: number;
   } | null>(null);
 
+  // Create new season state
+  const [showCreateSeason, setShowCreateSeason] = useState(false);
+  const [creatingSeason, setCreatingSeason] = useState(false);
+  const [newSeasonLabel, setNewSeasonLabel] = useState('');
+  const [newSeasonSlots, setNewSeasonSlots] = useState(75);
+
   // ============================================================================
   // FETCH SEASONS
   // ============================================================================
@@ -232,6 +238,58 @@ export default function AdminDashboard() {
     fetchSeasons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ============================================================================
+  // CREATE NEW SEASON
+  // ============================================================================
+
+  const handleCreateSeason = async () => {
+    if (!newSeasonLabel.trim()) {
+      alert('Please enter a season label');
+      return;
+    }
+
+    const confirmCreate = window.confirm(
+      `Create and activate "${newSeasonLabel}" with ${newSeasonSlots} slots?\n\n` +
+      'This will:\n' +
+      '• Finish any currently active season\n' +
+      '• Create a new active season\n' +
+      '• Set slot 1 to voting (timer starts when first clip is uploaded)'
+    );
+
+    if (!confirmCreate) return;
+
+    setCreatingSeason(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          label: newSeasonLabel.trim(),
+          total_slots: newSeasonSlots,
+          auto_activate: true,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`${data.message}`);
+        setShowCreateSeason(false);
+        setNewSeasonLabel('');
+        setNewSeasonSlots(75);
+        fetchSeasons();
+        fetchSlotInfo();
+      } else {
+        alert(`Error: ${data.error || 'Failed to create season'}`);
+      }
+    } catch (error) {
+      console.error('Failed to create season:', error);
+      alert('Network error - failed to create season');
+    } finally {
+      setCreatingSeason(false);
+    }
+  };
 
   // ============================================================================
   // FETCH CLIPS
@@ -1647,6 +1705,15 @@ export default function AdminDashboard() {
                 </option>
               ))}
             </select>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowCreateSeason(true)}
+              className="px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 transition-all font-medium text-sm flex items-center gap-1"
+              type="button"
+            >
+              <Layers className="w-4 h-4" />
+              New Season
+            </motion.button>
           </div>
 
           {/* Slot Filter */}
@@ -2418,6 +2485,119 @@ export default function AdminDashboard() {
                     <>
                       <Crown className="w-5 h-5" />
                       Confirm Winner
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Create Season Modal */}
+      <AnimatePresence>
+        {showCreateSeason && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setShowCreateSeason(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl border border-white/20 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Layers className="w-6 h-6 text-cyan-400" />
+                  Create New Season
+                </h2>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowCreateSeason(false)}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  type="button"
+                >
+                  <X className="w-5 h-5" />
+                </motion.button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Season Label */}
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Season Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={newSeasonLabel}
+                    onChange={(e) => setNewSeasonLabel(e.target.value)}
+                    maxLength={50}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white
+                             placeholder-white/40 focus:border-cyan-400 focus:outline-none transition-colors"
+                    placeholder="e.g., Season 2, Summer Edition"
+                  />
+                </div>
+
+                {/* Total Slots */}
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Total Slots
+                  </label>
+                  <input
+                    type="number"
+                    value={newSeasonSlots}
+                    onChange={(e) => setNewSeasonSlots(Math.max(1, Math.min(200, Number(e.target.value))))}
+                    min={1}
+                    max={200}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white
+                             focus:border-cyan-400 focus:outline-none transition-colors"
+                  />
+                  <p className="text-xs text-white/40 mt-1">Number of story slots (1-200)</p>
+                </div>
+
+                {/* Info */}
+                <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                  <p className="text-sm text-cyan-300">
+                    This will finish the current active season (if any) and create a new one.
+                    Voting timer starts when the first clip is uploaded.
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 mt-6">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowCreateSeason(false)}
+                  disabled={creatingSeason}
+                  className="flex-1 py-3 rounded-xl bg-white/10 font-medium hover:bg-white/20 transition-colors disabled:opacity-50"
+                  type="button"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleCreateSeason}
+                  disabled={creatingSeason || !newSeasonLabel.trim()}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-500 font-bold
+                           hover:shadow-lg hover:shadow-cyan-500/20 transition-all disabled:opacity-50
+                           flex items-center justify-center gap-2"
+                  type="button"
+                >
+                  {creatingSeason ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Layers className="w-5 h-5" />
+                      Create & Activate
                     </>
                   )}
                 </motion.button>
