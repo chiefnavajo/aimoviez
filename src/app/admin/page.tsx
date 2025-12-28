@@ -490,7 +490,7 @@ export default function AdminDashboard() {
         console.log('[BulkCleanup] Finishing active season:', activeSeason.label);
         const finishResponse = await fetch('/api/admin/seasons', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
           body: JSON.stringify({
             season_id: activeSeason.id,
             status: 'finished',
@@ -513,7 +513,7 @@ export default function AdminDashboard() {
         console.log('[BulkCleanup] Deleting season:', season.label);
         const deleteResponse = await fetch('/api/admin/seasons', {
           method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getHeaders(),
           body: JSON.stringify({
             season_id: season.id,
             confirm: true,
