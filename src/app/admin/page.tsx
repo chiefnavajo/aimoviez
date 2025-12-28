@@ -218,6 +218,11 @@ export default function AdminDashboard() {
   // Archive season state
   const [archivingSeason, setArchivingSeason] = useState(false);
 
+  // Bulk cleanup state
+  const [showBulkCleanup, setShowBulkCleanup] = useState(false);
+  const [bulkCleanupProcessing, setBulkCleanupProcessing] = useState(false);
+  const [newSeason1Label, setNewSeason1Label] = useState('Season 1');
+
   // ============================================================================
   // FETCH SEASONS
   // ============================================================================
@@ -463,6 +468,97 @@ export default function AdminDashboard() {
       alert('Network error - failed to finish season');
     } finally {
       setFinishingSeason(false);
+    }
+  };
+
+  // ============================================================================
+  // BULK CLEANUP - Delete all seasons and start fresh
+  // ============================================================================
+
+  const handleBulkCleanup = async () => {
+    if (!newSeason1Label.trim()) {
+      alert('Please enter a name for the new Season 1');
+      return;
+    }
+
+    setBulkCleanupProcessing(true);
+
+    try {
+      // Step 1: Finish the active season (if any)
+      const activeSeason = seasons.find(s => s.status === 'active');
+      if (activeSeason) {
+        console.log('[BulkCleanup] Finishing active season:', activeSeason.label);
+        const finishResponse = await fetch('/api/admin/seasons', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: activeSeason.id,
+            status: 'finished',
+          }),
+        });
+        const finishData = await finishResponse.json();
+        if (!finishData.success) {
+          throw new Error(`Failed to finish active season: ${finishData.error}`);
+        }
+      }
+
+      // Step 2: Delete ALL seasons (now that none are active)
+      // Re-fetch seasons to get updated statuses
+      const seasonsResponse = await fetch('/api/admin/seasons');
+      const seasonsData = await seasonsResponse.json();
+      const allSeasons = seasonsData.seasons || [];
+
+      let deletedCount = 0;
+      for (const season of allSeasons) {
+        console.log('[BulkCleanup] Deleting season:', season.label);
+        const deleteResponse = await fetch('/api/admin/seasons', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            season_id: season.id,
+            confirm: true,
+          }),
+        });
+        const deleteData = await deleteResponse.json();
+        if (deleteData.success) {
+          deletedCount++;
+        } else {
+          console.warn(`[BulkCleanup] Failed to delete ${season.label}:`, deleteData.error);
+        }
+      }
+
+      // Step 3: Create fresh Season 1
+      console.log('[BulkCleanup] Creating fresh Season 1:', newSeason1Label);
+      const createResponse = await fetch('/api/admin/seasons', {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          label: newSeason1Label.trim(),
+          total_slots: 75,
+          auto_activate: true,
+        }),
+      });
+      const createData = await createResponse.json();
+
+      if (!createData.success) {
+        throw new Error(`Failed to create new season: ${createData.error}`);
+      }
+
+      // Success!
+      setShowBulkCleanup(false);
+      setNewSeason1Label('Season 1');
+      fetchSeasons();
+      fetchSlotInfo();
+      setBulkResult({
+        success: true,
+        message: `Cleanup complete! Deleted ${deletedCount} season(s). Created "${newSeason1Label.trim()}" with 75 slots.`,
+      });
+
+    } catch (error) {
+      console.error('[BulkCleanup] Error:', error);
+      alert(`Cleanup failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setBulkCleanupProcessing(false);
     }
   };
 
@@ -1985,6 +2081,16 @@ export default function AdminDashboard() {
             )}
             <motion.button
               whileTap={{ scale: 0.95 }}
+              onClick={() => setShowBulkCleanup(true)}
+              className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300"
+              type="button"
+              title="Delete all seasons and start fresh with Season 1"
+            >
+              <Trash2 className="w-4 h-4" />
+              Fresh Start
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowCreateSeason(true)}
               className="px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 transition-all font-medium text-sm flex items-center gap-1"
               type="button"
@@ -2876,6 +2982,116 @@ export default function AdminDashboard() {
                     <>
                       <Layers className="w-5 h-5" />
                       Create & Activate
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk Cleanup Modal */}
+      <AnimatePresence>
+        {showBulkCleanup && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => !bulkCleanupProcessing && setShowBulkCleanup(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl border border-red-500/30 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold flex items-center gap-2 text-red-400">
+                  <Trash2 className="w-6 h-6" />
+                  Fresh Start
+                </h2>
+                <motion.button
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowBulkCleanup(false)}
+                  disabled={bulkCleanupProcessing}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors disabled:opacity-50"
+                  type="button"
+                >
+                  <X className="w-5 h-5" />
+                </motion.button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Warning */}
+                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30">
+                  <p className="text-sm text-red-300 font-medium mb-2">
+                    This will permanently delete:
+                  </p>
+                  <ul className="text-sm text-red-200/80 space-y-1 ml-4 list-disc">
+                    <li>All existing seasons ({seasons.length} total)</li>
+                    <li>All clips and votes</li>
+                    <li>All slot data</li>
+                  </ul>
+                </div>
+
+                {/* New Season Name */}
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    New Season Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newSeason1Label}
+                    onChange={(e) => setNewSeason1Label(e.target.value)}
+                    maxLength={50}
+                    disabled={bulkCleanupProcessing}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white
+                             placeholder-white/40 focus:border-cyan-400 focus:outline-none transition-colors
+                             disabled:opacity-50"
+                    placeholder="Season 1"
+                  />
+                </div>
+
+                {/* What will happen */}
+                <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
+                  <p className="text-sm text-cyan-300">
+                    A fresh &ldquo;{newSeason1Label || 'Season 1'}&rdquo; will be created with 75 slots and activated immediately.
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 mt-6">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowBulkCleanup(false)}
+                  disabled={bulkCleanupProcessing}
+                  className="flex-1 py-3 rounded-xl bg-white/10 font-medium hover:bg-white/20 transition-colors disabled:opacity-50"
+                  type="button"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleBulkCleanup}
+                  disabled={bulkCleanupProcessing || !newSeason1Label.trim()}
+                  className="flex-1 py-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 font-bold
+                           hover:shadow-lg hover:shadow-red-500/20 transition-all disabled:opacity-50
+                           flex items-center justify-center gap-2"
+                  type="button"
+                >
+                  {bulkCleanupProcessing ? (
+                    <>
+                      <RefreshCw className="w-5 h-5 animate-spin" />
+                      Cleaning...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-5 h-5" />
+                      Delete All & Create New
                     </>
                   )}
                 </motion.button>
