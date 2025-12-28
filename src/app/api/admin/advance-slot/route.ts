@@ -33,7 +33,7 @@ interface StorySlotRow {
   id: string;
   season_id: string;
   slot_position: number;
-  status: 'upcoming' | 'voting' | 'locked';
+  status: 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips';
   genre: string | null;
   winner_tournament_clip_id?: string | null;
   voting_duration_hours?: number | null;
@@ -262,41 +262,50 @@ export async function POST(req: NextRequest) {
     const clipsMovedCount = movedClips?.length ?? 0;
     console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
 
-    // 7b. If no clips moved, finish the season instead of creating empty voting slot
+    // 7b. If no clips moved, set next slot to 'waiting_for_clips' status
     if (clipsMovedCount === 0) {
-      console.log('[advance-slot] No more clips to vote on - finishing season');
+      console.log('[advance-slot] No active clips moved to next slot - setting waiting_for_clips');
 
-      const { error: finishSeasonError } = await supabase
-        .from('seasons')
-        .update({ status: 'finished' })
-        .eq('id', seasonRow.id);
+      // Set the next slot to waiting_for_clips status
+      const { data: waitingSlot, error: waitingSlotError } = await supabase
+        .from('story_slots')
+        .update({
+          status: 'waiting_for_clips',
+        })
+        .eq('season_id', seasonRow.id)
+        .eq('slot_position', nextPosition)
+        .select('id')
+        .maybeSingle();
 
-      if (finishSeasonError) {
-        console.error('[advance-slot] finishSeasonError:', finishSeasonError);
+      if (waitingSlotError) {
+        console.error('[advance-slot] waitingSlotError:', waitingSlotError);
       }
 
-      // Audit log season finish
+      // Audit log the waiting status
       await logAdminAction(req, {
         action: 'advance_slot',
-        resourceType: 'season',
-        resourceId: seasonRow.id,
+        resourceType: 'slot',
+        resourceId: storySlot.id,
         adminEmail: adminAuth.email || 'unknown',
         adminId: adminAuth.userId || undefined,
         details: {
           slotLocked: storySlot.slot_position,
           winnerClipId: winner.id,
-          seasonFinished: true,
-          reason: 'No more clips to vote on',
+          seasonFinished: false,
+          nextSlotStatus: 'waiting_for_clips',
+          nextSlotId: waitingSlot?.id,
         },
       });
 
       return NextResponse.json(
         {
           ok: true,
-          finished: true,
-          message: 'No more clips to vote on, season finished. Create a new season from the admin panel.',
+          finished: false,
+          waitingForClips: true,
+          currentSlotLocked: storySlot.slot_position,
           winnerClipId: winner.id,
-          clipsMovedCount: 0,
+          message: `Slot ${storySlot.slot_position} locked. Slot ${nextPosition} is now waiting for clips. Voting will resume when clips are uploaded or approved.`,
+          nextSlotPosition: nextPosition,
         },
         { status: 200 }
       );

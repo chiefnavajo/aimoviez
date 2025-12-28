@@ -55,13 +55,35 @@ export async function GET(req: NextRequest) {
     const targetSeasonId = season_id || activeSeason.id;
     const totalSlots = activeSeason.total_slots || 75;
 
-    // Get current voting slot
-    const { data: votingSlot } = await supabase
+    // Get current voting or waiting_for_clips slot
+    let slotStatus: 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips' = 'upcoming';
+    let votingSlot = null;
+
+    // First check for voting slot
+    const { data: activeVotingSlot } = await supabase
       .from('story_slots')
-      .select('slot_position, voting_started_at, voting_ends_at, voting_duration_hours')
+      .select('slot_position, status, voting_started_at, voting_ends_at, voting_duration_hours')
       .eq('season_id', targetSeasonId)
       .eq('status', 'voting')
       .maybeSingle();
+
+    if (activeVotingSlot) {
+      votingSlot = activeVotingSlot;
+      slotStatus = 'voting';
+    } else {
+      // Check for waiting_for_clips slot
+      const { data: waitingSlot } = await supabase
+        .from('story_slots')
+        .select('slot_position, status, voting_started_at, voting_ends_at, voting_duration_hours')
+        .eq('season_id', targetSeasonId)
+        .eq('status', 'waiting_for_clips')
+        .maybeSingle();
+
+      if (waitingSlot) {
+        votingSlot = waitingSlot;
+        slotStatus = 'waiting_for_clips';
+      }
+    }
 
     const currentSlot = votingSlot?.slot_position || 0;
     const votingEndsAt = votingSlot?.voting_ends_at || null;
@@ -89,6 +111,7 @@ export async function GET(req: NextRequest) {
         currentSlot,
         totalSlots,
         seasonStatus: activeSeason.status,
+        slotStatus,
         clipsInSlot: clipsInSlot || 0,
         season_id: targetSeasonId,
         // Timer info
@@ -158,6 +181,7 @@ export async function GET(req: NextRequest) {
       currentSlot,
       totalSlots,
       seasonStatus: activeSeason.status,
+      slotStatus,
       clipsInSlot: clipsInSlot || 0,
     }, { status: 200 });
   } catch (err) {
@@ -175,7 +199,7 @@ export async function GET(req: NextRequest) {
  *
  * Body: {
  *   slot_id: string,
- *   status?: 'upcoming' | 'voting' | 'locked' | 'archived',
+ *   status?: 'upcoming' | 'voting' | 'locked' | 'archived' | 'waiting_for_clips',
  *   winning_clip_id?: string (for locking a slot)
  * }
  */
@@ -202,25 +226,73 @@ export async function PATCH(req: NextRequest) {
     }
 
     // Build update object
-    const updates: any = {};
-    
-    if (status) {
-      // If setting to 'voting', ensure only one slot is voting
-      if (status === 'voting') {
-        const { data: slot } = await supabase
-          .from('story_slots')
-          .select('season_id')
-          .eq('id', slot_id)
-          .single();
+    const updates: Record<string, unknown> = {};
+    let previousVotingSlot: { id: string; slot_position: number } | null = null;
 
-        if (slot) {
-          // Set all other slots in this season to non-voting
-          await supabase
+    if (status) {
+      // Get the slot we're trying to update
+      const { data: targetSlot } = await supabase
+        .from('story_slots')
+        .select('season_id, slot_position, status')
+        .eq('id', slot_id)
+        .single();
+
+      if (!targetSlot) {
+        return NextResponse.json(
+          { error: 'Slot not found' },
+          { status: 404 }
+        );
+      }
+
+      // Validate status transitions
+      if (status === 'voting' && targetSlot.status === 'locked') {
+        return NextResponse.json(
+          { error: 'Cannot change locked slot back to voting. Use reset-season instead.' },
+          { status: 400 }
+        );
+      }
+
+      // If setting to 'voting', check for existing voting slot
+      if (status === 'voting') {
+        const { data: existingVotingSlot } = await supabase
+          .from('story_slots')
+          .select('id, slot_position')
+          .eq('season_id', targetSlot.season_id)
+          .eq('status', 'voting')
+          .neq('id', slot_id)
+          .maybeSingle();
+
+        if (existingVotingSlot) {
+          // Check if force flag is provided
+          const force = body.force === true;
+
+          if (!force) {
+            return NextResponse.json(
+              {
+                error: `Slot ${existingVotingSlot.slot_position} is already in voting status. Only one slot can be voting at a time.`,
+                existingVotingSlot: existingVotingSlot.slot_position,
+                hint: 'Set force: true to override and set the existing voting slot to upcoming.'
+              },
+              { status: 409 } // Conflict
+            );
+          }
+
+          // Force mode: Set existing voting slot to upcoming
+          const { error: resetError } = await supabase
             .from('story_slots')
             .update({ status: 'upcoming' })
-            .eq('season_id', slot.season_id)
-            .eq('status', 'voting')
-            .neq('id', slot_id);
+            .eq('id', existingVotingSlot.id);
+
+          if (resetError) {
+            console.error('[PATCH /api/admin/slots] Failed to reset existing voting slot:', resetError);
+            return NextResponse.json(
+              { error: 'Failed to reset existing voting slot' },
+              { status: 500 }
+            );
+          }
+
+          previousVotingSlot = existingVotingSlot;
+          console.log(`[PATCH /api/admin/slots] Force mode: Reset slot ${existingVotingSlot.slot_position} to upcoming`);
         }
       }
 
@@ -261,6 +333,10 @@ export async function PATCH(req: NextRequest) {
       success: true,
       slot,
       message: 'Slot updated successfully',
+      ...(previousVotingSlot && {
+        warning: `Slot ${previousVotingSlot.slot_position} was reset to upcoming`,
+        previousVotingSlot: previousVotingSlot.slot_position,
+      }),
     }, { status: 200 });
   } catch (err) {
     console.error('[PATCH /api/admin/slots] Unexpected error:', err);

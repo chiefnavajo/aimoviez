@@ -15,10 +15,12 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 /**
  * POST /api/admin/reset-season
- * Reset active season for clean testing
+ * Reset a season for clean testing
  *
  * Body: {
- *   clear_votes?: boolean (default: false) - Clear all votes
+ *   season_id?: string - Specific season to reset (optional, defaults to active season)
+ *   reactivate?: boolean (default: false) - Set season back to 'active' status (useful for finished seasons)
+ *   clear_votes?: boolean (default: false) - Clear all votes for this season
  *   reset_clip_counts?: boolean (default: false) - Reset vote counts on clips
  *   start_slot?: number (default: 1) - Which slot to start voting on
  * }
@@ -40,6 +42,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
 
     const {
+      season_id,
+      reactivate = false,
       clear_votes = false,
       reset_clip_counts = false,
       start_slot: rawStartSlot = 1,
@@ -50,26 +54,71 @@ export async function POST(req: NextRequest) {
       ? Math.floor(rawStartSlot)
       : 1;
 
-    // 1. Get active season
-    const { data: season, error: seasonError } = await supabase
+    // 1. Get season - either by ID or the active one
+    let seasonQuery = supabase
       .from('seasons')
-      .select('id, label, total_slots, status')
-      .eq('status', 'active')
-      .maybeSingle();
+      .select('id, label, total_slots, status');
+
+    if (season_id) {
+      // Reset specific season by ID (any status)
+      seasonQuery = seasonQuery.eq('id', season_id);
+    } else {
+      // Backwards compatible: reset active season
+      seasonQuery = seasonQuery.eq('status', 'active');
+    }
+
+    const { data: season, error: seasonError } = await seasonQuery.maybeSingle();
 
     if (seasonError) {
       console.error('[reset-season] seasonError:', seasonError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to fetch active season', details: seasonError.message },
+        { ok: false, error: 'Failed to fetch season', details: seasonError.message },
         { status: 500 }
       );
     }
 
     if (!season) {
       return NextResponse.json(
-        { ok: false, error: 'No active season found' },
+        { ok: false, error: season_id ? `Season not found: ${season_id}` : 'No active season found' },
         { status: 404 }
       );
+    }
+
+    // Track state changes for response
+    let wasReactivated = false;
+    let clipsResetCount = 0;
+
+    // 1b. If reactivate is true and season is not active, set it to active
+    if (reactivate && season.status !== 'active') {
+      // First, set any other active seasons to 'finished'
+      const { error: deactivateError } = await supabase
+        .from('seasons')
+        .update({ status: 'finished' })
+        .eq('status', 'active')
+        .neq('id', season.id);
+
+      if (deactivateError) {
+        console.error('[reset-season] deactivateError:', deactivateError);
+        // Non-fatal, continue
+      }
+
+      // Set this season to active
+      const { error: reactivateError } = await supabase
+        .from('seasons')
+        .update({ status: 'active' })
+        .eq('id', season.id);
+
+      if (reactivateError) {
+        console.error('[reset-season] reactivateError:', reactivateError);
+        return NextResponse.json(
+          { ok: false, error: 'Failed to reactivate season', details: reactivateError.message },
+          { status: 500 }
+        );
+      }
+
+      wasReactivated = true;
+      season.status = 'active';
+      console.log(`[reset-season] Reactivated season "${season.label}" (was: ${season.status})`);
     }
 
     // 2. Reset all story_slots for this season to 'upcoming'
@@ -117,38 +166,55 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Optionally reset vote counts on clips AND reset clip statuses
+    // IMPORTANT: Only reset clips that belong to THIS season (prevents cross-season contamination)
     if (reset_clip_counts) {
-      // Reset all clips: vote counts to 0, status to 'active', move to slot 1
-      // Also set season_id to current active season to ensure clips are found by vote API
-      const { error: resetClipsError } = await supabase
+      const { data: resetClips, error: resetClipsError } = await supabase
         .from('tournament_clips')
         .update({
           vote_count: 0,
           weighted_score: 0,
           status: 'active',
           slot_position: start_slot,
-          season_id: season.id, // Link clips to current active season
         })
-        .neq('status', 'rejected'); // Don't touch rejected clips
+        .eq('season_id', season.id)   // Only reset THIS season's clips
+        .neq('status', 'rejected')    // Don't touch rejected clips
+        .select('id');
 
       if (resetClipsError) {
         console.error('[reset-season] resetClipsError:', resetClipsError);
         // Non-fatal, continue
       } else {
-        console.log('[reset-season] Reset all clip counts, statuses, positions, and season_id');
+        clipsResetCount = resetClips?.length ?? 0;
+        console.log(`[reset-season] Reset ${clipsResetCount} clips for season "${season.label}"`);
       }
     }
 
-    // 5. Optionally clear votes
+    // 5. Optionally clear votes for this season's clips only
     if (clear_votes) {
-      const { error: clearVotesError } = await supabase
-        .from('votes')
-        .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+      // First, get all clip IDs for this season
+      const { data: seasonClips, error: clipsError } = await supabase
+        .from('tournament_clips')
+        .select('id')
+        .eq('season_id', season.id);
 
-      if (clearVotesError) {
-        console.error('[reset-season] clearVotesError:', clearVotesError);
-        // Non-fatal, continue
+      if (clipsError) {
+        console.error('[reset-season] Failed to get clips for vote clearing:', clipsError);
+      } else if (seasonClips && seasonClips.length > 0) {
+        const clipIds = seasonClips.map(c => c.id);
+
+        const { error: clearVotesError } = await supabase
+          .from('votes')
+          .delete()
+          .in('tournament_clip_id', clipIds);
+
+        if (clearVotesError) {
+          console.error('[reset-season] clearVotesError:', clearVotesError);
+          // Non-fatal, continue
+        } else {
+          console.log(`[reset-season] Cleared votes for ${clipIds.length} clips in season "${season.label}"`);
+        }
+      } else {
+        console.log('[reset-season] No clips found for this season, no votes to clear');
       }
     }
 
@@ -169,6 +235,8 @@ export async function POST(req: NextRequest) {
       adminId: adminAuth.userId || undefined,
       details: {
         seasonLabel: season.label,
+        seasonStatus: season.status,
+        wasReactivated,
         startSlot: start_slot,
         votesCleared: clear_votes,
         clipCountsReset: reset_clip_counts,
@@ -242,16 +310,20 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      message: `Season "${season.label || 'Season'}" reset successfully`,
+      message: `Season "${season.label || 'Season'}" reset successfully${wasReactivated ? ' and reactivated' : ''}`,
       season_id: season.id,
+      season_label: season.label,
+      season_status: season.status,
       voting_slot: start_slot,
       voting_ends_at: votingEndsAt.toISOString(),
       clips_in_slot: clipCount || 0,
       top_clips: clipsInSlot || [],
       actions: {
         slots_reset: true,
+        reactivated: wasReactivated,
         votes_cleared: clear_votes,
         clip_counts_reset: reset_clip_counts,
+        clips_reset_count: clipsResetCount,
       },
     }, { status: 200 });
 

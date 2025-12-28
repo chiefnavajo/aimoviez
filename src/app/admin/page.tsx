@@ -40,6 +40,9 @@ import {
   ToggleRight,
   RotateCcw,
   Crown,
+  Archive,
+  ArchiveRestore,
+  Flag,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -68,7 +71,7 @@ interface Clip {
 interface Season {
   id: string;
   label: string;
-  status: 'draft' | 'active' | 'finished';
+  status: 'draft' | 'active' | 'finished' | 'archived';
   total_slots: number;
   created_at: string;
 }
@@ -140,6 +143,7 @@ export default function AdminDashboard() {
     currentSlot: number;
     totalSlots: number;
     seasonStatus: string;
+    slotStatus: 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips';
     clipsInSlot: number;
     votingEndsAt: string | null;
     timeRemainingSeconds: number | null;
@@ -210,6 +214,9 @@ export default function AdminDashboard() {
   const [creatingSeason, setCreatingSeason] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState('');
   const [newSeasonSlots, setNewSeasonSlots] = useState(75);
+
+  // Archive season state
+  const [archivingSeason, setArchivingSeason] = useState(false);
 
   // ============================================================================
   // FETCH SEASONS
@@ -292,6 +299,174 @@ export default function AdminDashboard() {
   };
 
   // ============================================================================
+  // ARCHIVE/UNARCHIVE SEASON
+  // ============================================================================
+
+  const handleArchiveSeason = async (seasonId: string, archive: boolean) => {
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+
+    const action = archive ? 'archive' : 'unarchive';
+    const confirmed = window.confirm(
+      archive
+        ? `Archive "${season.label}"?\n\nThis will hide the season from users. You can unarchive it later.`
+        : `Unarchive "${season.label}"?\n\nThis will make the season visible to users again.`
+    );
+
+    if (!confirmed) return;
+
+    setArchivingSeason(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          season_id: seasonId,
+          status: archive ? 'archived' : 'finished',
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        fetchSeasons();
+        setBulkResult({
+          success: true,
+          message: `Season "${season.label}" ${action}d successfully`,
+        });
+      } else {
+        alert(`Error: ${data.error || `Failed to ${action} season`}`);
+      }
+    } catch (error) {
+      console.error(`Failed to ${action} season:`, error);
+      alert(`Network error - failed to ${action} season`);
+    } finally {
+      setArchivingSeason(false);
+    }
+  };
+
+  // ============================================================================
+  // DELETE SEASON
+  // ============================================================================
+
+  const [deletingSeason, setDeletingSeason] = useState(false);
+
+  const handleDeleteSeason = async (seasonId: string) => {
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+
+    // Prevent deleting active season
+    if (season.status === 'active') {
+      alert('Cannot delete an active season. Archive or finish it first.');
+      return;
+    }
+
+    // Require typing confirmation
+    const typedConfirm = window.prompt(
+      `⚠️ PERMANENT DELETE ⚠️\n\n` +
+      `This will permanently delete "${season.label}" and ALL its data:\n` +
+      `• All slots\n` +
+      `• All clips\n` +
+      `• All votes\n\n` +
+      `This action CANNOT be undone.\n\n` +
+      `Type "DELETE" to confirm:`
+    );
+
+    if (typedConfirm !== 'DELETE') {
+      if (typedConfirm !== null) {
+        alert('Deletion cancelled. You must type "DELETE" exactly to confirm.');
+      }
+      return;
+    }
+
+    setDeletingSeason(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          season_id: seasonId,
+          confirm: true,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Reset filter if we deleted the selected season
+        if (seasonFilter === seasonId) {
+          setSeasonFilter('all');
+        }
+        fetchSeasons();
+        setBulkResult({
+          success: true,
+          message: `Season "${season.label}" permanently deleted (${data.deleted?.clips_deleted || 0} clips, ${data.deleted?.slots_deleted || 0} slots)`,
+        });
+      } else {
+        alert(`Error: ${data.error || 'Failed to delete season'}`);
+      }
+    } catch (error) {
+      console.error('Failed to delete season:', error);
+      alert('Network error - failed to delete season');
+    } finally {
+      setDeletingSeason(false);
+    }
+  };
+
+  // ============================================================================
+  // FINISH SEASON EARLY
+  // ============================================================================
+
+  const [finishingSeason, setFinishingSeason] = useState(false);
+
+  const handleFinishSeason = async () => {
+    // Find the active season
+    const activeSeason = seasons.find(s => s.status === 'active');
+    if (!activeSeason) {
+      alert('No active season to finish');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Finish "${activeSeason.label}" early?\n\n` +
+      `This will:\n` +
+      `• Set the season status to "finished"\n` +
+      `• Stop voting on the current slot\n` +
+      `• Keep all existing data (clips, votes, winners)\n\n` +
+      `Users will still be able to view the season but not vote.`
+    );
+
+    if (!confirmed) return;
+
+    setFinishingSeason(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          season_id: activeSeason.id,
+          status: 'finished',
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        fetchSeasons();
+        fetchSlotInfo();
+        setBulkResult({
+          success: true,
+          message: `Season "${activeSeason.label}" finished successfully`,
+        });
+      } else {
+        alert(`Error: ${data.error || 'Failed to finish season'}`);
+      }
+    } catch (error) {
+      console.error('Failed to finish season:', error);
+      alert('Network error - failed to finish season');
+    } finally {
+      setFinishingSeason(false);
+    }
+  };
+
+  // ============================================================================
   // FETCH CLIPS
   // ============================================================================
 
@@ -326,6 +501,7 @@ export default function AdminDashboard() {
           currentSlot: data.currentSlot || 0,
           totalSlots: data.totalSlots || 75,
           seasonStatus: data.seasonStatus || 'none',
+          slotStatus: data.slotStatus || 'upcoming',
           clipsInSlot: data.clipsInSlot || 0,
           votingEndsAt: data.votingEndsAt || null,
           timeRemainingSeconds: data.timeRemainingSeconds || null,
@@ -1322,8 +1498,13 @@ export default function AdminDashboard() {
                     <p>
                       Slot <span className="text-cyan-400 font-bold">{slotInfo.currentSlot}</span> of{' '}
                       <span className="text-white/80">{slotInfo.totalSlots}</span>
-                      {' · '}{slotInfo.clipsInSlot} clips competing
+                      {' · '}<span className={slotInfo.clipsInSlot === 0 ? 'text-red-400 font-bold' : ''}>{slotInfo.clipsInSlot} clips competing</span>
                       {' · '}Season: <span className={slotInfo.seasonStatus === 'active' ? 'text-green-400' : 'text-yellow-400'}>{slotInfo.seasonStatus}</span>
+                      {' · '}Slot: <span className={
+                        slotInfo.slotStatus === 'voting' ? 'text-green-400' :
+                        slotInfo.slotStatus === 'waiting_for_clips' ? 'text-orange-400 font-bold' :
+                        slotInfo.slotStatus === 'locked' ? 'text-purple-400' : 'text-white/60'
+                      }>{slotInfo.slotStatus === 'waiting_for_clips' ? '⏳ Waiting for Clips' : slotInfo.slotStatus}</span>
                     </p>
                     {countdown && slotInfo.votingEndsAt && (
                       <p className="mt-1">
@@ -1333,6 +1514,32 @@ export default function AdminDashboard() {
                   </div>
                 ) : (
                   <p className="text-sm text-white/60">Loading slot info...</p>
+                )}
+                {/* Warning: Slot waiting for clips */}
+                {slotInfo && slotInfo.slotStatus === 'waiting_for_clips' && slotInfo.seasonStatus === 'active' && (
+                  <div className="mt-3 p-3 rounded-lg bg-orange-500/20 border border-orange-500/40 flex items-start gap-2">
+                    <Clock className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-orange-300 font-medium">Slot {slotInfo.currentSlot} is waiting for clips!</p>
+                      <p className="text-orange-300/70 text-xs mt-1">
+                        Voting is paused. Approve pending clips or wait for new uploads.
+                        <br />Voting will automatically resume when a clip is approved.
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {/* Warning: No clips in current slot (voting status) */}
+                {slotInfo && slotInfo.clipsInSlot === 0 && slotInfo.slotStatus === 'voting' && slotInfo.seasonStatus === 'active' && (
+                  <div className="mt-3 p-3 rounded-lg bg-red-500/20 border border-red-500/40 flex items-start gap-2">
+                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-red-300 font-medium">No clips in current voting slot!</p>
+                      <p className="text-red-300/70 text-xs mt-1">
+                        Users need to upload clips for slot {slotInfo.currentSlot} before voting can continue.
+                        Approve pending clips or wait for new uploads.
+                      </p>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -1701,10 +1908,81 @@ export default function AdminDashboard() {
               {seasons.map((season) => (
                 <option key={season.id} value={season.id} className="bg-gray-900">
                   {season.label || `Season ${season.id.slice(0, 8)}`}
-                  {season.status === 'active' ? ' (Active)' : season.status === 'finished' ? ' (Finished)' : ' (Draft)'}
+                  {season.status === 'active' ? ' (Active)' :
+                   season.status === 'finished' ? ' (Finished)' :
+                   season.status === 'archived' ? ' (Archived)' : ' (Draft)'}
                 </option>
               ))}
             </select>
+            {/* Archive/Unarchive Button - only show when a specific season is selected */}
+            {seasonFilter !== 'all' && (() => {
+              const selectedSeason = seasons.find(s => s.id === seasonFilter);
+              if (!selectedSeason || selectedSeason.status === 'active') return null;
+              const isArchived = selectedSeason.status === 'archived';
+              return (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleArchiveSeason(seasonFilter, !isArchived)}
+                  disabled={archivingSeason || deletingSeason}
+                  className={`px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 ${
+                    isArchived
+                      ? 'bg-green-500/20 border border-green-500/40 hover:bg-green-500/30 text-green-300'
+                      : 'bg-orange-500/20 border border-orange-500/40 hover:bg-orange-500/30 text-orange-300'
+                  } disabled:opacity-50`}
+                  type="button"
+                  title={isArchived ? 'Unarchive season (make visible to users)' : 'Archive season (hide from users)'}
+                >
+                  {archivingSeason ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : isArchived ? (
+                    <ArchiveRestore className="w-4 h-4" />
+                  ) : (
+                    <Archive className="w-4 h-4" />
+                  )}
+                  {isArchived ? 'Unarchive' : 'Archive'}
+                </motion.button>
+              );
+            })()}
+            {/* Delete Season Button - only show when a non-active season is selected */}
+            {seasonFilter !== 'all' && (() => {
+              const selectedSeason = seasons.find(s => s.id === seasonFilter);
+              if (!selectedSeason || selectedSeason.status === 'active') return null;
+              return (
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleDeleteSeason(seasonFilter)}
+                  disabled={deletingSeason || archivingSeason}
+                  className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300 disabled:opacity-50"
+                  type="button"
+                  title="Permanently delete season and all its data"
+                >
+                  {deletingSeason ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                  Delete
+                </motion.button>
+              );
+            })()}
+            {/* Finish Season Early Button - only show when there's an active season */}
+            {seasons.some(s => s.status === 'active') && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={handleFinishSeason}
+                disabled={finishingSeason || deletingSeason || archivingSeason}
+                className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/40 hover:bg-yellow-500/30 text-yellow-300 disabled:opacity-50"
+                type="button"
+                title="Finish the active season early (keeps all data)"
+              >
+                {finishingSeason ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Flag className="w-4 h-4" />
+                )}
+                Finish Season
+              </motion.button>
+            )}
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowCreateSeason(true)}

@@ -110,19 +110,19 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get current voting slot (including timer info)
+    // Get current voting or waiting_for_clips slot (including timer info)
     const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
-      .select('id, slot_position, voting_started_at, voting_duration_hours')
+      .select('id, slot_position, status, voting_started_at, voting_duration_hours')
       .eq('season_id', season.id)
-      .eq('status', 'voting')
+      .in('status', ['voting', 'waiting_for_clips'])
       .order('slot_position', { ascending: true })
       .limit(1)
       .single();
 
-    // Fail if no active voting slot
+    // Fail if no active voting or waiting slot
     if (slotError || !votingSlot) {
-      console.error('[REGISTER] No active voting slot:', slotError);
+      console.error('[REGISTER] No active voting/waiting slot:', slotError);
       return NextResponse.json({
         success: false,
         error: 'No active voting slot. Voting is currently closed for this round.'
@@ -130,7 +130,8 @@ export async function POST(request: NextRequest) {
     }
 
     const slotPosition = votingSlot.slot_position;
-    const isFirstClipInSlot = !votingSlot.voting_started_at;
+    const isWaitingForClips = votingSlot.status === 'waiting_for_clips';
+    const isFirstClipInSlot = !votingSlot.voting_started_at || isWaitingForClips;
 
     // Sanitize user-provided text to prevent XSS
     const sanitizedTitle = sanitizeText(title) || `Clip ${Date.now()}`;
@@ -194,6 +195,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Success response
+    let message = 'Clip registered successfully! Pending admin approval.';
+    if (isWaitingForClips) {
+      message = 'Clip registered! This slot is waiting for clips - voting will resume once your clip is approved.';
+    }
+
     return NextResponse.json({
       success: true,
       clip: {
@@ -204,8 +210,9 @@ export async function POST(request: NextRequest) {
         genre: genre,
         title: title,
       },
-      message: 'Clip registered successfully! Pending admin approval.',
+      message,
       timerStarted,
+      isWaitingForClips,
     });
 
   } catch (error) {

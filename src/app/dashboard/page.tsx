@@ -134,6 +134,8 @@ interface APIVotingResponse {
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
+  // Waiting for clips status
+  waitingForClips?: boolean;
 }
 
 // Frontend state structure
@@ -155,6 +157,8 @@ interface VotingState {
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
+  // Waiting for clips status
+  waitingForClips?: boolean;
 }
 
 // Transform API response to frontend state
@@ -196,6 +200,7 @@ function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
     hasMoreClips: apiResponse.hasMoreClips,
     seasonStatus: apiResponse.seasonStatus,
     finishedSeasonName: apiResponse.finishedSeasonName,
+    waitingForClips: apiResponse.waitingForClips,
   };
 }
 
@@ -1236,8 +1241,10 @@ function VotingArena() {
     const seasonEnded = votingData?.seasonStatus === 'finished';
     const noSeason = votingData?.seasonStatus === 'none';
     const seasonName = votingData?.finishedSeasonName;
+    // Check if slot is explicitly waiting for clips (new status)
+    const isWaitingForClips = votingData?.waitingForClips === true;
     // Timer hasn't started = waiting for first clip upload
-    const waitingForUploads = (votingData?.currentSlot ?? 0) > 0 && !votingData?.votingStartedAt;
+    const waitingForUploads = isWaitingForClips || ((votingData?.currentSlot ?? 0) > 0 && !votingData?.votingStartedAt);
 
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6">
@@ -1322,12 +1329,29 @@ function VotingArena() {
             </>
           ) : (
             <>
-              <div className="text-5xl mb-4">🎬</div>
-              <h2 className="text-white text-xl font-bold mb-2">No clips yet</h2>
-              <p className="text-white/60 mb-6">Check back soon!</p>
-              <Link href="/story" className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block">
-                Back to Story
-              </Link>
+              <div className="text-5xl mb-4">📢</div>
+              <h2 className="text-white text-xl font-bold mb-2">
+                Need More Clips!
+              </h2>
+              <p className="text-white/60 mb-6">
+                Slot {votingData?.currentSlot || 1} is waiting for clips.
+                <br />
+                <span className="text-cyan-400">Upload yours and start the competition!</span>
+              </p>
+              <div className="flex flex-col gap-3">
+                <Link
+                  href="/upload"
+                  className="px-6 py-3 rounded-full bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7] text-white font-semibold inline-block"
+                >
+                  Upload a Clip
+                </Link>
+                <Link
+                  href="/story"
+                  className="px-6 py-3 rounded-full bg-white/10 border border-white/20 text-white inline-block"
+                >
+                  Watch the Story
+                </Link>
+              </div>
             </>
           )}
         </div>

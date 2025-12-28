@@ -118,7 +118,7 @@ interface StorySlotRow {
   id: string;
   season_id: string;
   slot_position: number;
-  status: 'upcoming' | 'voting' | 'locked';
+  status: 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips';
   genre: string | null;
   winner_tournament_clip_id?: string | null;
   voting_started_at?: string | null;
@@ -200,6 +200,8 @@ interface VotingStateResponse {
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
+  // Waiting for clips status
+  waitingForClips?: boolean;
 }
 
 interface VoteResponseBody {
@@ -641,6 +643,7 @@ export async function GET(req: NextRequest) {
     }
 
     if (!storySlot) {
+      // First try to find a voting slot
       const result = await supabase
         .from('story_slots')
         .select('id, season_id, slot_position, status, genre, voting_ends_at, voting_started_at')
@@ -652,6 +655,21 @@ export async function GET(req: NextRequest) {
 
       storySlot = result.data;
       slotError = result.error;
+
+      // If no voting slot, check for waiting_for_clips slot
+      if (!storySlot && !slotError) {
+        const waitingResult = await supabase
+          .from('story_slots')
+          .select('id, season_id, slot_position, status, genre, voting_ends_at, voting_started_at')
+          .eq('season_id', seasonRow.id)
+          .eq('status', 'waiting_for_clips')
+          .order('slot_position', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        storySlot = waitingResult.data;
+        slotError = waitingResult.error;
+      }
 
       if (storySlot) {
         setCache('activeSlot', storySlot, CACHE_TTL.slot);
@@ -753,7 +771,8 @@ export async function GET(req: NextRequest) {
     const clipPool = (allClips as TournamentClipRow[]) || [];
 
     if (clipPool.length === 0) {
-      // No clips at all in this slot
+      // No clips at all in this slot - check if waiting for clips
+      const isWaitingForClips = activeSlot.status === 'waiting_for_clips';
       const empty: VotingStateResponse = {
         clips: [],
         totalVotesToday,
@@ -773,6 +792,7 @@ export async function GET(req: NextRequest) {
         totalClipsInSlot: 0,
         clipsShown: 0,
         hasMoreClips: false,
+        waitingForClips: isWaitingForClips,
       };
       return NextResponse.json(empty, { status: 200 });
     }
@@ -1094,12 +1114,14 @@ export async function POST(req: NextRequest) {
     const slotPosition = clipData.slot_position ?? 1;
 
     // 4.5 Validate clip is in the currently active voting slot
-    // Get the active slot for the clip's season
+    // Get the active slot for the clip's season (voting or waiting_for_clips)
     const { data: activeSlot, error: slotError } = await supabase
       .from('story_slots')
       .select('slot_position, status')
       .eq('season_id', clipData.season_id)
-      .eq('status', 'voting')
+      .in('status', ['voting', 'waiting_for_clips'])
+      .order('slot_position', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (slotError) {
@@ -1116,6 +1138,18 @@ export async function POST(req: NextRequest) {
           success: false,
           error: 'No active voting slot',
           code: 'NO_ACTIVE_SLOT',
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Reject votes when slot is waiting for clips
+    if (activeSlot.status === 'waiting_for_clips') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Voting is paused - waiting for clips to be uploaded',
+          code: 'WAITING_FOR_CLIPS',
         },
         { status: 400 }
       );

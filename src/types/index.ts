@@ -158,7 +158,7 @@ export interface DbSlot {
   season_id: string;
   slot_position: number;
   genre: string;
-  status: 'upcoming' | 'voting' | 'completed';
+  status: 'upcoming' | 'voting' | 'locked' | 'archived' | 'waiting_for_clips';
   voting_starts_at: string | null;
   voting_ends_at: string | null;
   winner_clip_id: string | null;

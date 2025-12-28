@@ -17,6 +17,7 @@ export type AuditAction =
   | 'edit_clip'
   | 'toggle_feature'
   | 'reset_season'
+  | 'delete_season'
   | 'advance_slot'
   | 'assign_winner'
   | 'ban_user'

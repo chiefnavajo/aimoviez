@@ -1,7 +1,7 @@
 # AiMoviez - Complete Technical Documentation
 
-> **Version:** 2.0.0
-> **Last Updated:** December 2025
+> **Version:** 2.2.0
+> **Last Updated:** December 27, 2025
 > **Platform:** Next.js 15 Full-Stack Application
 > **Live URL:** https://aimoviez.vercel.app
 
@@ -29,6 +29,7 @@
 18. [Testing](#18-testing)
 19. [Performance](#19-performance)
 20. [Troubleshooting](#20-troubleshooting)
+21. [Changelog](#21-changelog)
 
 ---
 
@@ -182,8 +183,36 @@ Admin Creates Season ──► Season Status: 'active'
          ▼
    Timer Expires ──► Auto-advance to next slot OR Admin assigns winner
          │
+         ├── Clips available ──► Next slot: 'voting'
+         │
+         └── No clips available ──► Next slot: 'waiting_for_clips'
+                    │
+                    ▼
+            User uploads clip ──► Admin approves ──► Slot: 'voting' (auto-resumed)
+         │
          ▼
    Slot 75 Complete ──► Season ends ──► Admin creates new season
+```
+
+### Slot Status State Machine
+
+```
+              ┌─────────────────┐
+              │    upcoming     │
+              └────────┬────────┘
+                       │ (clips available + start)
+                       ▼
+              ┌─────────────────┐         ┌─────────────────────┐
+              │     voting      │◄────────│  waiting_for_clips  │
+              └────────┬────────┘         └──────────┬──────────┘
+                       │                             │
+                       │ (timer expires              │ (set when advance-slot
+                       │  or winner selected)        │  finds no clips)
+                       │                             │
+                       ▼                             │ (clip approved)
+              ┌─────────────────┐                    │
+              │     locked      │────────────────────┘
+              └─────────────────┘
 ```
 
 ---
@@ -479,7 +508,7 @@ CREATE TABLE story_slots (
   season_id UUID REFERENCES seasons(id),
   slot_position INTEGER NOT NULL,
   genre TEXT,  -- 'COMEDY' | 'THRILLER' | 'ACTION' | 'ANIMATION'
-  status TEXT DEFAULT 'upcoming',  -- 'upcoming' | 'voting' | 'locked'
+  status TEXT DEFAULT 'upcoming',  -- 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips'
   winner_tournament_clip_id UUID REFERENCES tournament_clips(id),
   voting_started_at TIMESTAMPTZ,
   voting_ends_at TIMESTAMPTZ,
@@ -786,18 +815,18 @@ FOR EACH ROW EXECUTE FUNCTION update_follower_counts();
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/admin/stats` | Analytics & metrics |
-| GET/POST | `/api/admin/seasons` | Season CRUD |
-| GET/PUT | `/api/admin/slots` | Slot management |
-| GET/DELETE | `/api/admin/clips` | Clip management |
-| POST | `/api/admin/approve` | Approve clip |
+| GET/POST/PATCH/DELETE | `/api/admin/seasons` | Season CRUD (create, update, archive, delete) |
+| GET/PATCH | `/api/admin/slots` | Slot management with voting constraints |
+| GET/PUT/DELETE | `/api/admin/clips` | Clip management (includes title, description) |
+| POST | `/api/admin/approve` | Approve clip (with race condition protection) |
 | POST | `/api/admin/reject` | Reject clip |
 | POST | `/api/admin/assign-winner` | Set slot winner |
-| POST | `/api/admin/advance-slot` | Advance to next slot |
+| POST | `/api/admin/advance-slot` | Advance to next slot (with pending clips check) |
 | GET/PUT/DELETE | `/api/admin/users` | User management |
 | GET/DELETE | `/api/admin/comments` | Comment moderation |
 | GET | `/api/admin/audit-logs` | View audit trail |
 | GET/POST/PUT | `/api/admin/feature-flags` | Feature toggles |
-| POST | `/api/admin/reset-season` | Reset season |
+| POST | `/api/admin/reset-season` | Reset season (supports any season by ID) |
 | POST | `/api/admin/reset-user-votes` | Reset user votes |
 | POST | `/api/admin/bulk` | Bulk operations |
 
@@ -2117,6 +2146,296 @@ Formula: `genre = GENRES[(slot - 1) % 4]`
 
 ---
 
-**Documentation Version:** 2.0.0
-**Last Updated:** December 25, 2025
+## 21. Changelog
+
+### Version 2.2.0 (December 27, 2025)
+
+#### New Features
+
+##### Automatic "Waiting for Clips" Slot Status
+When the admin advances a slot and no clips are available to move to the next slot, the system now:
+- Sets the next slot to `waiting_for_clips` status instead of finishing the season early
+- Dashboard shows "Waiting for Uploads" empty state encouraging users to upload
+- Admin panel shows orange "⏳ Waiting for Clips" status badge
+- Voting automatically resumes when admin approves a pending clip
+
+##### Auto-Resume Voting on Clip Approval
+- **File:** `src/app/api/admin/approve/route.ts`
+- When approving a clip to a `waiting_for_clips` slot:
+  - Slot status automatically changes to `voting`
+  - Voting timer starts (uses previous slot's duration or 24h default)
+  - Response includes `resumedVoting: true` flag
+- Users see "Voting has resumed!" toast notification
+
+#### API Changes
+
+##### GET /api/vote (Enhanced)
+```typescript
+// Response now includes waitingForClips flag
+{
+  "clips": [],
+  "currentSlot": 5,
+  "totalSlots": 75,
+  "waitingForClips": true,  // NEW: indicates slot is waiting
+  ...
+}
+```
+
+##### POST /api/vote (Enhanced)
+```typescript
+// New error code when slot is waiting
+{
+  "success": false,
+  "error": "Voting is paused - waiting for clips to be uploaded",
+  "code": "WAITING_FOR_CLIPS"  // NEW error code
+}
+```
+
+##### POST /api/admin/approve (Enhanced)
+```typescript
+// Response when resuming voting
+{
+  "success": true,
+  "message": "Clip approved and assigned to slot 5. Voting has resumed!",
+  "clip": {...},
+  "assignedToSlot": 5,
+  "resumedVoting": true  // NEW: indicates voting was resumed
+}
+```
+
+##### GET /api/admin/slots (Enhanced)
+```typescript
+// Response now includes slotStatus
+{
+  "ok": true,
+  "currentSlot": 5,
+  "totalSlots": 75,
+  "seasonStatus": "active",
+  "slotStatus": "waiting_for_clips",  // NEW: current slot status
+  "clipsInSlot": 0,
+  ...
+}
+```
+
+##### POST /api/admin/advance-slot (Changed)
+- **Removed:** Auto-finish season when no clips available
+- **Added:** Sets next slot to `waiting_for_clips` instead
+- Response includes `waitingForClips: true` flag
+
+##### POST /api/upload/register (Enhanced)
+- Now accepts uploads when slot is `waiting_for_clips`
+- Message indicates voting will resume after approval
+- Response includes `isWaitingForClips: true` flag
+
+#### UI Changes
+
+##### Dashboard Empty State
+- Detects `waitingForClips` flag from API
+- Shows "Waiting for Uploads" message with:
+  - Upload button (prominent)
+  - Story link
+  - Encouraging message about being first to upload
+
+##### Admin Panel Round Control
+- New `slotStatus` display with color coding:
+  - Green: `voting`
+  - Orange: `waiting_for_clips` (with ⏳ icon)
+  - Purple: `locked`
+  - Gray: `upcoming`
+- **Warning Banner** when `waiting_for_clips`:
+  - Orange background
+  - Clock icon
+  - Message: "Slot X is waiting for clips!"
+  - Explanation: "Voting will automatically resume when a clip is approved"
+
+#### Type Updates
+
+##### Types Updated
+- **`src/types/index.ts`** - `DbSlot.status` now includes `'waiting_for_clips'`
+- **`src/lib/validations.ts`** - `UpdateSlotSchema.status` enum updated
+- **`src/app/api/vote/route.ts`** - `StorySlotRow` interface updated
+- **`src/app/api/admin/advance-slot/route.ts`** - `StorySlotRow` interface updated
+- **`src/app/dashboard/page.tsx`** - Added `waitingForClips` to response interfaces
+
+#### Files Changed
+
+| File | Changes |
+|------|---------|
+| `src/types/index.ts` | Added `waiting_for_clips` to DbSlot status |
+| `src/lib/validations.ts` | Added `waiting_for_clips` to slot status enum |
+| `src/app/api/admin/advance-slot/route.ts` | Sets `waiting_for_clips` instead of finishing season |
+| `src/app/api/admin/approve/route.ts` | Auto-resumes voting on `waiting_for_clips` slot |
+| `src/app/api/admin/slots/route.ts` | Returns `slotStatus` field |
+| `src/app/api/upload/register/route.ts` | Accepts uploads to `waiting_for_clips` slots |
+| `src/app/api/vote/route.ts` | Returns `waitingForClips` flag, rejects votes when waiting |
+| `src/app/dashboard/page.tsx` | Handles `waitingForClips` in empty state |
+| `src/app/admin/page.tsx` | Shows slot status and warning banner |
+
+#### Migration Notes
+
+No database migrations required. The `waiting_for_clips` status is stored in the existing `status` TEXT column.
+
+---
+
+### Version 2.1.0 (December 27, 2025)
+
+#### New Features
+
+##### Season Delete Functionality
+- **DELETE `/api/admin/seasons`** - Permanently delete a season and all its data
+  - Requires `confirm: true` parameter for safety
+  - Cannot delete active seasons (must archive first)
+  - Cascades to delete all slots, clips, and votes
+  - Audit logged with deletion counts
+  - UI requires typing "DELETE" to confirm
+
+##### Season Archive/Unarchive
+- **Archive seasons** to hide from users without deleting data
+- **Unarchive seasons** to make them visible again
+- Archived seasons show as "(Archived)" in admin dropdown
+- Archive/Unarchive buttons in admin panel
+
+##### Enhanced Reset-Season API
+- **`season_id` parameter** - Reset any season, not just active one
+- **`reactivate` parameter** - Reactivate finished/archived seasons
+- Season-scoped vote clearing (no longer clears ALL votes)
+- Response includes `clips_reset_count` for transparency
+
+#### Bug Fixes
+
+##### Critical: Early Season Finish Prevention
+- **File:** `src/app/api/admin/advance-slot/route.ts`
+- **Issue:** Season ended immediately when no clips moved to next slot
+- **Fix:** Now checks for pending clips and future clips before finishing
+- Returns warning with counts instead of auto-finishing
+
+##### Critical: Multiple Voting Slots Prevention
+- **File:** `src/app/api/admin/slots/route.ts`
+- **Issue:** No validation prevented multiple slots in "voting" status
+- **Fix:** Returns HTTP 409 conflict if another slot is already voting
+- Requires `force: true` to override
+- Blocks locked → voting transitions
+
+##### Critical: Clip Approval Race Condition
+- **File:** `src/app/api/admin/approve/route.ts`
+- **Issue:** Clip could be assigned to already-locked slot
+- **Fix:** Re-verifies slot status before assignment
+- Falls back to new voting slot if original was locked
+
+##### Critical: Clip Reuse Between Seasons
+- **File:** `src/app/api/admin/reset-season/route.ts`
+- **Issue:** `reset_clip_counts` affected ALL seasons' clips
+- **Fix:** Now filters by `season_id` - only resets target season's clips
+- Removed `season_id` reassignment that caused cross-contamination
+
+##### Admin Edit Modal Crash
+- **File:** `src/app/api/admin/clips/route.ts`
+- **Issue:** Missing `title` and `description` in SELECT query
+- **Fix:** Added fields to query, fixing "Oops! Something went wrong" error
+
+#### API Changes
+
+##### DELETE /api/admin/seasons
+```typescript
+// Request
+{
+  "season_id": "uuid",
+  "confirm": true  // Required
+}
+
+// Response
+{
+  "success": true,
+  "message": "Season \"Season 1\" permanently deleted",
+  "deleted": {
+    "season_id": "...",
+    "season_label": "Season 1",
+    "slots_deleted": 75,
+    "clips_deleted": 45
+  }
+}
+```
+
+##### POST /api/admin/reset-season (Enhanced)
+```typescript
+// Request
+{
+  "season_id": "uuid",           // Optional: specific season (default: active)
+  "reactivate": true,            // Optional: reactivate finished/archived season
+  "clear_votes": true,           // Optional: clear votes for THIS season only
+  "reset_clip_counts": true,     // Optional: reset THIS season's clips
+  "start_slot": 1                // Optional: start voting at specific slot
+}
+
+// Response includes new fields
+{
+  "ok": true,
+  "actions": {
+    "clips_reset_count": 45,     // NEW: how many clips were reset
+    ...
+  }
+}
+```
+
+##### PATCH /api/admin/slots (Enhanced)
+```typescript
+// Request - setting slot to voting
+{
+  "slot_id": "uuid",
+  "status": "voting",
+  "force": true  // Required if another slot is already voting
+}
+
+// Error Response (409 Conflict)
+{
+  "error": "Slot 5 is already in voting status",
+  "existingVotingSlot": 5,
+  "hint": "Set force: true to override"
+}
+```
+
+#### Admin UI Changes
+
+##### Season Management
+- **Season dropdown** shows status: (Active), (Finished), (Archived), (Draft)
+- **Archive button** (orange) - appears for non-active seasons
+- **Unarchive button** (green) - appears for archived seasons
+- **Delete button** (red) - appears for non-active seasons
+  - Requires typing "DELETE" to confirm
+  - Shows count of clips/slots to be deleted
+
+#### Database Schema Updates
+
+##### Audit Log Actions
+Added new action type:
+```typescript
+type AuditAction =
+  | ...
+  | 'delete_season'  // NEW
+```
+
+#### Migration Notes
+
+No database migrations required. All changes are backward compatible.
+
+#### Security Improvements
+
+- Delete operations require explicit `confirm: true`
+- Type-to-confirm for destructive UI actions
+- Race condition protections in clip approval
+- Slot status transition validation
+
+---
+
+### Version 2.0.0 (December 25, 2025)
+
+- Initial comprehensive documentation
+- Complete API reference
+- Component documentation
+- Security guidelines
+
+---
+
+**Documentation Version:** 2.2.0
+**Last Updated:** December 27, 2025
 **Maintainer:** AiMoviez Team

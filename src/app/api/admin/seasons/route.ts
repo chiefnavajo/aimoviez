@@ -1,10 +1,11 @@
 // app/api/admin/seasons/route.ts
-// Admin Seasons API - Create, list, and manage seasons
+// Admin Seasons API - Create, list, manage, and delete seasons
 // Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin } from '@/lib/admin-auth';
+import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { logAdminAction } from '@/lib/audit-log';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -276,6 +277,161 @@ export async function PATCH(req: NextRequest) {
     }, { status: 200 });
   } catch (err) {
     console.error('[PATCH /api/admin/seasons] Unexpected error:', err);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * DELETE /api/admin/seasons
+ * Permanently delete a season and all its data (slots, clips, votes)
+ *
+ * Body: {
+ *   season_id: string,
+ *   confirm: boolean (must be true to proceed)
+ * }
+ *
+ * WARNING: This is a destructive operation that cannot be undone.
+ * All slots, clips, and votes associated with the season will be deleted.
+ */
+export async function DELETE(req: NextRequest) {
+  // Rate limit check
+  const rateLimitResponse = await rateLimit(req, 'admin');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Check admin authentication
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
+  // Get admin info for audit logging
+  const adminAuth = await checkAdminAuth();
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const body = await req.json();
+
+    const { season_id, confirm } = body;
+
+    if (!season_id) {
+      return NextResponse.json(
+        { error: 'season_id is required' },
+        { status: 400 }
+      );
+    }
+
+    if (confirm !== true) {
+      return NextResponse.json(
+        { error: 'Must set confirm: true to delete a season. This action cannot be undone.' },
+        { status: 400 }
+      );
+    }
+
+    // Get season details for validation and audit log
+    const { data: season, error: fetchError } = await supabase
+      .from('seasons')
+      .select('id, label, status, total_slots')
+      .eq('id', season_id)
+      .single();
+
+    if (fetchError || !season) {
+      return NextResponse.json(
+        { error: 'Season not found' },
+        { status: 404 }
+      );
+    }
+
+    // Prevent deleting active season
+    if (season.status === 'active') {
+      return NextResponse.json(
+        { error: 'Cannot delete an active season. Archive or finish it first.' },
+        { status: 400 }
+      );
+    }
+
+    // Get counts for audit log before deletion
+    const { count: clipCount } = await supabase
+      .from('tournament_clips')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', season_id);
+
+    const { count: slotCount } = await supabase
+      .from('story_slots')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', season_id);
+
+    // Delete story_slots first (no cascade from seasons)
+    const { error: slotsDeleteError } = await supabase
+      .from('story_slots')
+      .delete()
+      .eq('season_id', season_id);
+
+    if (slotsDeleteError) {
+      console.error('[DELETE /api/admin/seasons] Failed to delete slots:', slotsDeleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete season slots' },
+        { status: 500 }
+      );
+    }
+
+    // Delete tournament_clips (votes will cascade due to FK)
+    const { error: clipsDeleteError } = await supabase
+      .from('tournament_clips')
+      .delete()
+      .eq('season_id', season_id);
+
+    if (clipsDeleteError) {
+      console.error('[DELETE /api/admin/seasons] Failed to delete clips:', clipsDeleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete season clips' },
+        { status: 500 }
+      );
+    }
+
+    // Delete the season itself
+    const { error: seasonDeleteError } = await supabase
+      .from('seasons')
+      .delete()
+      .eq('id', season_id);
+
+    if (seasonDeleteError) {
+      console.error('[DELETE /api/admin/seasons] Failed to delete season:', seasonDeleteError);
+      return NextResponse.json(
+        { error: 'Failed to delete season' },
+        { status: 500 }
+      );
+    }
+
+    // Audit log the deletion
+    await logAdminAction(req, {
+      action: 'delete_season',
+      resourceType: 'season',
+      resourceId: season_id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        seasonLabel: season.label,
+        seasonStatus: season.status,
+        slotsDeleted: slotCount || 0,
+        clipsDeleted: clipCount || 0,
+      },
+    });
+
+    console.log(`[DELETE /api/admin/seasons] Deleted season "${season.label}" with ${slotCount} slots and ${clipCount} clips`);
+
+    return NextResponse.json({
+      success: true,
+      message: `Season "${season.label}" permanently deleted`,
+      deleted: {
+        season_id: season_id,
+        season_label: season.label,
+        slots_deleted: slotCount || 0,
+        clips_deleted: clipCount || 0,
+      },
+    }, { status: 200 });
+  } catch (err) {
+    console.error('[DELETE /api/admin/seasons] Unexpected error:', err);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

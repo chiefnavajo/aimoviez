@@ -166,7 +166,7 @@ export type CreateSeasonRequest = z.infer<typeof CreateSeasonSchema>;
 
 export const UpdateSlotSchema = z.object({
   slot_id: z.string().uuid('Invalid slot ID format'),
-  status: z.enum(['upcoming', 'voting', 'locked', 'archived']).optional(),
+  status: z.enum(['upcoming', 'voting', 'locked', 'archived', 'waiting_for_clips']).optional(),
   winning_clip_id: z.string().uuid().optional().nullable(),
 });
 
