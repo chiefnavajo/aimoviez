@@ -1448,7 +1448,7 @@ function VotingArena() {
       {/* Desktop: Centered portrait container. Mobile: Full screen */}
       <div className="absolute inset-0 md:flex md:items-center md:justify-center">
         <div
-          className="w-full h-full md:max-w-[420px] md:h-[100dvh] md:max-h-[100dvh] md:aspect-[9/16] md:relative"
+          className="relative w-full h-full overflow-hidden md:max-w-[420px] md:h-[100dvh] md:max-h-[100dvh] md:aspect-[9/16]"
           onClick={handleVideoTap}
           onKeyDown={(e) => {
             if (e.key === ' ' || e.key === 'Enter') {
@@ -1468,33 +1468,47 @@ function VotingArena() {
             </div>
           </div>
         ) : currentClip ? (
-          <video
-            ref={videoRef}
-            key={currentClip.clip_id}
-            src={currentClip.video_url ?? '/placeholder-video.mp4'}
-            poster={currentClip?.thumbnail_url}
-            className="w-full h-full object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
-            style={{ WebkitAppearance: 'none' } as React.CSSProperties}
-            autoPlay
-            loop
-            muted={isMuted}
-            playsInline
-            webkit-playsinline="true"
-            x5-playsinline="true"
-            disablePictureInPicture
-            controlsList="nodownload nofullscreen noremoteplayback"
-            preload="auto"
-            onError={() => setVideoError(true)}
-            onCanPlay={(e) => {
-              const video = e.currentTarget;
-              if (video.paused) {
-                video.play().catch(() => {
-                  video.muted = true;
-                  video.play().catch(() => {});
-                });
-              }
-            }}
-          />
+          <>
+            {/* Blurred background video - TikTok style fill */}
+            <video
+              key={`blur-${currentClip.clip_id}`}
+              src={currentClip.video_url ?? '/placeholder-video.mp4'}
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
+              autoPlay
+              loop
+              muted
+              playsInline
+              aria-hidden="true"
+            />
+            {/* Main video - shows full content */}
+            <video
+              ref={videoRef}
+              key={currentClip.clip_id}
+              src={currentClip.video_url ?? '/placeholder-video.mp4'}
+              poster={currentClip?.thumbnail_url}
+              className="relative w-full h-full object-contain [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
+              style={{ WebkitAppearance: 'none' } as React.CSSProperties}
+              autoPlay
+              loop
+              muted={isMuted}
+              playsInline
+              webkit-playsinline="true"
+              x5-playsinline="true"
+              disablePictureInPicture
+              controlsList="nodownload nofullscreen noremoteplayback"
+              preload="auto"
+              onError={() => setVideoError(true)}
+              onCanPlay={(e) => {
+                const video = e.currentTarget;
+                if (video.paused) {
+                  video.play().catch(() => {
+                    video.muted = true;
+                    video.play().catch(() => {});
+                  });
+                }
+              }}
+            />
+          </>
         ) : null}
         </div>
       </div>
