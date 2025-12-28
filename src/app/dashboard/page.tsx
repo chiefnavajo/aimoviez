@@ -1445,19 +1445,21 @@ function VotingArena() {
       )}
 
       {/* ============ VIDEO ============ */}
-      <div
-        className="absolute inset-0"
-        onClick={handleVideoTap}
-        onKeyDown={(e) => {
-          if (e.key === ' ' || e.key === 'Enter') {
-            e.preventDefault();
-            handleVideoTap();
-          }
-        }}
-        role="button"
-        tabIndex={0}
-        aria-label={currentClip ? `Video by ${currentClip.username}. Press space to play or pause` : 'Video player'}
-      >
+      {/* Desktop: Centered portrait container. Mobile: Full screen */}
+      <div className="absolute inset-0 md:flex md:items-center md:justify-center">
+        <div
+          className="w-full h-full md:max-w-[420px] md:h-[100dvh] md:max-h-[100dvh] md:aspect-[9/16] md:relative"
+          onClick={handleVideoTap}
+          onKeyDown={(e) => {
+            if (e.key === ' ' || e.key === 'Enter') {
+              e.preventDefault();
+              handleVideoTap();
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={currentClip ? `Video by ${currentClip.username}. Press space to play or pause` : 'Video player'}
+        >
         {videoError ? (
           <div className="w-full h-full flex items-center justify-center bg-black">
             <div className="text-center">
@@ -1494,6 +1496,7 @@ function VotingArena() {
             }}
           />
         ) : null}
+        </div>
       </div>
 
 
