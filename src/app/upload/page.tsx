@@ -416,7 +416,7 @@ function UploadPageContent() {
               className={`relative border-2 border-dashed rounded-2xl p-4 sm:p-8 md:p-12 text-center cursor-pointer transition-all ${isDragging ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/20 hover:border-white/40 bg-white/5'}`}
             >
               {videoPreview ? (
-                <div className="relative aspect-[9/16] max-h-[400px] mx-auto rounded-xl overflow-hidden bg-black">
+                <div className="relative aspect-[9/16] max-h-[70vh] sm:max-h-[500px] mx-auto rounded-xl overflow-hidden bg-black">
                   {/* Blurred background - TikTok style preview */}
                   <video
                     src={videoPreview}
