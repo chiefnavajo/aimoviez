@@ -200,7 +200,9 @@ export async function GET(req: NextRequest) {
  * Body: {
  *   slot_id: string,
  *   status?: 'upcoming' | 'voting' | 'locked' | 'archived' | 'waiting_for_clips',
- *   winning_clip_id?: string (for locking a slot)
+ *   winning_clip_id?: string (for locking a slot),
+ *   unlock?: boolean (to unlock a locked slot - clears winner and sets to voting),
+ *   revert_clip_to_pending?: boolean (when unlocking, also set the winning clip back to pending)
  * }
  */
 export async function PATCH(req: NextRequest) {
@@ -216,7 +218,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
 
-    const { slot_id, status, winning_clip_id } = body;
+    const { slot_id, status, winning_clip_id, unlock, revert_clip_to_pending } = body;
 
     if (!slot_id) {
       return NextResponse.json(
@@ -224,6 +226,102 @@ export async function PATCH(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // ========================================================================
+    // UNLOCK SLOT - Special action to revert a locked slot
+    // ========================================================================
+    if (unlock === true) {
+      // Get the slot to unlock
+      const { data: slotToUnlock } = await supabase
+        .from('story_slots')
+        .select('id, season_id, slot_position, status, winner_tournament_clip_id')
+        .eq('id', slot_id)
+        .single();
+
+      if (!slotToUnlock) {
+        return NextResponse.json(
+          { error: 'Slot not found' },
+          { status: 404 }
+        );
+      }
+
+      if (slotToUnlock.status !== 'locked') {
+        return NextResponse.json(
+          { error: `Slot is not locked (current status: ${slotToUnlock.status})` },
+          { status: 400 }
+        );
+      }
+
+      const previousWinnerId = slotToUnlock.winner_tournament_clip_id;
+
+      // Check if there's already a voting slot in this season
+      const { data: existingVotingSlot } = await supabase
+        .from('story_slots')
+        .select('id, slot_position')
+        .eq('season_id', slotToUnlock.season_id)
+        .eq('status', 'voting')
+        .maybeSingle();
+
+      if (existingVotingSlot) {
+        return NextResponse.json(
+          {
+            error: `Cannot unlock: Slot ${existingVotingSlot.slot_position} is already in voting. Only one slot can be voting at a time.`,
+            hint: 'Finish or lock the current voting slot first.'
+          },
+          { status: 409 }
+        );
+      }
+
+      // Unlock the slot: clear winner and set to voting
+      const { data: unlockedSlot, error: unlockError } = await supabase
+        .from('story_slots')
+        .update({
+          status: 'voting',
+          winner_tournament_clip_id: null,
+          voting_started_at: new Date().toISOString(),
+          voting_ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+        })
+        .eq('id', slot_id)
+        .select()
+        .single();
+
+      if (unlockError) {
+        console.error('[PATCH /api/admin/slots] unlock error:', unlockError);
+        return NextResponse.json(
+          { error: 'Failed to unlock slot' },
+          { status: 500 }
+        );
+      }
+
+      // Optionally revert the winning clip to pending status
+      let clipReverted = false;
+      if (revert_clip_to_pending && previousWinnerId) {
+        const { error: clipError } = await supabase
+          .from('tournament_clips')
+          .update({ status: 'pending' })
+          .eq('id', previousWinnerId);
+
+        if (clipError) {
+          console.warn('[PATCH /api/admin/slots] Failed to revert clip to pending:', clipError);
+        } else {
+          clipReverted = true;
+        }
+      }
+
+      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}`);
+
+      return NextResponse.json({
+        success: true,
+        slot: unlockedSlot,
+        message: `Slot #${slotToUnlock.slot_position} unlocked and set to voting`,
+        previousWinnerId,
+        clipReverted,
+      }, { status: 200 });
+    }
+
+    // ========================================================================
+    // NORMAL UPDATE - status change or set winner
+    // ========================================================================
 
     // Build update object
     const updates: Record<string, unknown> = {};

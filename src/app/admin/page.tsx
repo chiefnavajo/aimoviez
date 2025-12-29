@@ -43,6 +43,7 @@ import {
   Archive,
   ArchiveRestore,
   Flag,
+  Unlock,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -1224,6 +1225,65 @@ export default function AdminDashboard() {
   };
 
   // ============================================================================
+  // UNLOCK SLOT - Revert a locked slot back to voting
+  // ============================================================================
+
+  const handleUnlockSlot = async (clip: Clip) => {
+    const confirmMsg = `Unlock slot ${clip.slot_position}?\n\nThis will:\n- Remove "${clip.title}" as the winner\n- Set the slot back to "voting" status\n- Optionally revert the clip to "pending"\n\nDo you also want to revert the clip to pending status?`;
+
+    const revertToPending = confirm(confirmMsg);
+
+    // Second confirmation for the unlock action itself
+    if (!confirm(`Confirm: Unlock slot ${clip.slot_position} and remove winner?`)) {
+      return;
+    }
+
+    setProcessingClip(clip.id);
+    try {
+      // First, we need to get the slot_id for this slot_position
+      const slotsResponse = await fetch(`/api/admin/slots?season_id=${clip.season_id}`, {
+        headers: getHeaders(),
+        credentials: 'include',
+      });
+      const slotsData = await slotsResponse.json();
+
+      const slot = slotsData.slots?.find((s: { slot_position: number }) => s.slot_position === clip.slot_position);
+      if (!slot) {
+        alert('Could not find slot information');
+        setProcessingClip(null);
+        return;
+      }
+
+      // Call the unlock API
+      const response = await fetch('/api/admin/slots', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          slot_id: slot.id,
+          unlock: true,
+          revert_clip_to_pending: revertToPending,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Slot ${clip.slot_position} unlocked successfully!${data.clipReverted ? '\nClip reverted to pending.' : ''}`);
+        // Refresh data
+        fetchClips();
+        fetchSlotInfo();
+      } else {
+        alert(`Failed to unlock slot: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to unlock slot:', error);
+      alert('Failed to unlock slot. Check console for details.');
+    }
+    setProcessingClip(null);
+  };
+
+  // ============================================================================
   // BULK ACTIONS
   // ============================================================================
 
@@ -2391,6 +2451,20 @@ export default function AdminDashboard() {
                             title="Assign as winner for this slot"
                           >
                             <Crown className="w-5 h-5" />
+                          </motion.button>
+                        )}
+
+                        {/* Unlock Slot Button - For clips in locked slots (winners) */}
+                        {clip.slot_position < (slotInfo?.currentSlot || 0) && clip.status === 'active' && (
+                          <motion.button
+                            whileTap={{ scale: 0.95 }}
+                            onClick={() => handleUnlockSlot(clip)}
+                            disabled={processingClip === clip.id}
+                            className="py-3 px-4 rounded-xl bg-purple-500/20 border border-purple-500/40 font-medium hover:bg-purple-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            type="button"
+                            title="Unlock this slot and remove winner"
+                          >
+                            <Unlock className="w-5 h-5" />
                           </motion.button>
                         )}
 
