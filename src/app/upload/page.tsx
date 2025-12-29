@@ -416,12 +416,35 @@ function UploadPageContent() {
               className={`relative border-2 border-dashed rounded-2xl p-4 sm:p-8 md:p-12 text-center cursor-pointer transition-all ${isDragging ? 'border-cyan-500 bg-cyan-500/10' : 'border-white/20 hover:border-white/40 bg-white/5'}`}
             >
               {videoPreview ? (
-                <div className="relative aspect-[9/16] max-h-[400px] mx-auto rounded-xl overflow-hidden">
-                  <video ref={videoRef} src={videoPreview} className="w-full h-full object-cover" autoPlay loop muted={isMuted} playsInline />
-                  <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                <div className="relative aspect-[9/16] max-h-[400px] mx-auto rounded-xl overflow-hidden bg-black">
+                  {/* Blurred background - TikTok style preview */}
+                  <video
+                    src={videoPreview}
+                    className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    aria-hidden="true"
+                  />
+                  {/* Main video - shows full content */}
+                  <video
+                    ref={videoRef}
+                    src={videoPreview}
+                    className="relative w-full h-full object-contain"
+                    autoPlay
+                    loop
+                    muted={isMuted}
+                    playsInline
+                  />
+                  <button onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }} className="absolute bottom-4 right-4 w-10 h-10 rounded-full bg-black/50 flex items-center justify-center z-10">
                     {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
                   </button>
-                  <div className="absolute bottom-4 left-4 px-3 py-1 rounded-full bg-black/50 text-sm">{videoDuration.toFixed(1)}s</div>
+                  <div className="absolute bottom-4 left-4 px-3 py-1 rounded-full bg-black/50 text-sm z-10">{videoDuration.toFixed(1)}s</div>
+                  {/* Preview label */}
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-black/60 text-xs text-white/80 z-10">
+                    Preview - how it will appear
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
