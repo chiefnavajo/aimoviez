@@ -495,14 +495,24 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
           {currentSegment?.winning_clip?.video_url ? (
             <>
-              {/* Show video with first frame visible (paused until play) */}
+              {/* Blurred background video - TikTok style fill */}
+              <video
+                key={`blur-${currentIndex}-${currentSegment.winning_clip.id}`}
+                src={currentSegment.winning_clip.video_url}
+                className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
+                muted
+                playsInline
+                autoPlay={isPlaying}
+                aria-hidden="true"
+              />
+              {/* Main video - shows full content */}
               {/* Key forces remount on index change, preventing stale onEnded events */}
               <video
                 key={`video-${currentIndex}-${currentSegment.winning_clip.id}`}
                 ref={videoRef}
                 src={currentSegment.winning_clip.video_url}
                 poster={currentSegment.winning_clip.thumbnail_url || undefined}
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-contain"
                 muted={isMuted}
                 playsInline
                 preload="auto"
