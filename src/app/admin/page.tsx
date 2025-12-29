@@ -1229,12 +1229,23 @@ export default function AdminDashboard() {
   // ============================================================================
 
   const handleUnlockSlot = async (clip: Clip) => {
-    const confirmMsg = `Unlock slot ${clip.slot_position}?\n\nThis will:\n- Remove "${clip.title}" as the winner\n- Set the slot back to "voting" status\n- Optionally revert the clip to "pending"\n\nDo you also want to revert the clip to pending status?`;
+    const currentVotingSlot = slotInfo?.currentSlot || 0;
+    const hasActiveVoting = currentVotingSlot > clip.slot_position;
+
+    let confirmMsg = `Unlock slot ${clip.slot_position}?\n\nThis will:\n- Remove "${clip.title}" as the winner\n- Set slot ${clip.slot_position} back to "voting" status`;
+    if (hasActiveVoting) {
+      confirmMsg += `\n- ⚠️ PAUSE voting on Slot ${currentVotingSlot} (will be deactivated)`;
+    }
+    confirmMsg += `\n- Optionally revert the clip to "pending"\n\nDo you also want to revert the clip to pending status?`;
 
     const revertToPending = confirm(confirmMsg);
 
     // Second confirmation for the unlock action itself
-    if (!confirm(`Confirm: Unlock slot ${clip.slot_position} and remove winner?`)) {
+    let secondConfirm = `Confirm: Unlock slot ${clip.slot_position} and remove winner?`;
+    if (hasActiveVoting) {
+      secondConfirm += `\n\n⚠️ This will pause voting on Slot ${currentVotingSlot}!`;
+    }
+    if (!confirm(secondConfirm)) {
       return;
     }
 
@@ -1269,7 +1280,10 @@ export default function AdminDashboard() {
       const data = await response.json();
 
       if (data.success) {
-        alert(`Slot ${clip.slot_position} unlocked successfully!${data.clipReverted ? '\nClip reverted to pending.' : ''}`);
+        let message = `Slot ${clip.slot_position} unlocked successfully!`;
+        if (data.clipReverted) message += '\nClip reverted to pending.';
+        if (data.deactivatedSlot) message += `\nSlot ${data.deactivatedSlot} voting was paused.`;
+        alert(message);
         // Refresh data
         fetchClips();
         fetchSlotInfo();

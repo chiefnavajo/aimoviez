@@ -262,14 +262,28 @@ export async function PATCH(req: NextRequest) {
         .eq('status', 'voting')
         .maybeSingle();
 
+      // If there's an existing voting slot, deactivate it (set to upcoming)
+      let deactivatedSlot: { slot_position: number } | null = null;
       if (existingVotingSlot) {
-        return NextResponse.json(
-          {
-            error: `Cannot unlock: Slot ${existingVotingSlot.slot_position} is already in voting. Only one slot can be voting at a time.`,
-            hint: 'Finish or lock the current voting slot first.'
-          },
-          { status: 409 }
-        );
+        const { error: deactivateError } = await supabase
+          .from('story_slots')
+          .update({
+            status: 'upcoming',
+            voting_started_at: null,
+            voting_ends_at: null,
+          })
+          .eq('id', existingVotingSlot.id);
+
+        if (deactivateError) {
+          console.error('[PATCH /api/admin/slots] Failed to deactivate existing voting slot:', deactivateError);
+          return NextResponse.json(
+            { error: 'Failed to deactivate current voting slot' },
+            { status: 500 }
+          );
+        }
+
+        deactivatedSlot = { slot_position: existingVotingSlot.slot_position };
+        console.log(`[PATCH /api/admin/slots] Deactivated slot ${existingVotingSlot.slot_position} (was voting)`);
       }
 
       // Unlock the slot: clear winner and set to voting
@@ -308,7 +322,7 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}`);
+      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}`);
 
       return NextResponse.json({
         success: true,
@@ -316,6 +330,10 @@ export async function PATCH(req: NextRequest) {
         message: `Slot #${slotToUnlock.slot_position} unlocked and set to voting`,
         previousWinnerId,
         clipReverted,
+        ...(deactivatedSlot && {
+          deactivatedSlot: deactivatedSlot.slot_position,
+          warning: `Slot ${deactivatedSlot.slot_position} was deactivated (voting paused)`,
+        }),
       }, { status: 200 });
     }
 
