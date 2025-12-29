@@ -2454,8 +2454,8 @@ export default function AdminDashboard() {
                           </motion.button>
                         )}
 
-                        {/* Unlock Slot Button - For clips in locked slots (winners) */}
-                        {(clip.status === 'locked' || (clip.slot_position < (slotInfo?.currentSlot || 0) && clip.status === 'active')) && (
+                        {/* Unlock Slot Button - For winning clips in locked slots */}
+                        {clip.status === 'locked' && (
                           <motion.button
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUnlockSlot(clip)}
