@@ -1445,10 +1445,10 @@ function VotingArena() {
       )}
 
       {/* ============ VIDEO ============ */}
-      {/* Desktop: Centered portrait container. Mobile: Full screen */}
-      <div className="absolute inset-0 md:flex md:items-center md:justify-center">
+      {/* Desktop: Full screen. Mobile: Full screen with blur background */}
+      <div className="absolute inset-0">
         <div
-          className="relative w-full h-full overflow-hidden md:max-w-[420px] md:h-[100dvh] md:max-h-[100dvh] md:aspect-[9/16]"
+          className="relative w-full h-full overflow-hidden"
           onClick={handleVideoTap}
           onKeyDown={(e) => {
             if (e.key === ' ' || e.key === 'Enter') {
@@ -1469,24 +1469,24 @@ function VotingArena() {
           </div>
         ) : currentClip ? (
           <>
-            {/* Blurred background video - TikTok style fill */}
+            {/* Blurred background video - Mobile only (desktop uses full screen) */}
             <video
               key={`blur-${currentClip.clip_id}`}
               src={currentClip.video_url ?? '/placeholder-video.mp4'}
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
+              className="md:hidden absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
               autoPlay
               loop
               muted
               playsInline
               aria-hidden="true"
             />
-            {/* Main video - shows full content */}
+            {/* Main video - Mobile: full video with blur, Desktop: full screen (may crop) */}
             <video
               ref={videoRef}
               key={currentClip.clip_id}
               src={currentClip.video_url ?? '/placeholder-video.mp4'}
               poster={currentClip?.thumbnail_url}
-              className="relative w-full h-full object-contain [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
+              className="relative w-full h-full object-contain md:object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
               style={{ WebkitAppearance: 'none' } as React.CSSProperties}
               autoPlay
               loop
