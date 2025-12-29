@@ -1469,24 +1469,24 @@ function VotingArena() {
           </div>
         ) : currentClip ? (
           <>
-            {/* Blurred background video - Mobile only (desktop uses full screen) */}
+            {/* Blurred background video - fills empty space around non-matching aspect ratios */}
             <video
               key={`blur-${currentClip.clip_id}`}
               src={currentClip.video_url ?? '/placeholder-video.mp4'}
-              className="md:hidden absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
               autoPlay
               loop
               muted
               playsInline
               aria-hidden="true"
             />
-            {/* Main video - Mobile: full video with blur, Desktop: full screen (may crop) */}
+            {/* Main video - full video visible, blur background fills empty space */}
             <video
               ref={videoRef}
               key={currentClip.clip_id}
               src={currentClip.video_url ?? '/placeholder-video.mp4'}
               poster={currentClip?.thumbnail_url}
-              className="relative w-full h-full object-contain md:object-cover [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
+              className="relative w-full h-full object-contain [&::-webkit-media-controls]:hidden [&::-webkit-media-controls-enclosure]:hidden [&::-webkit-media-controls-panel]:hidden [&::-webkit-media-controls-start-playback-button]:hidden"
               style={{ WebkitAppearance: 'none' } as React.CSSProperties}
               autoPlay
               loop
