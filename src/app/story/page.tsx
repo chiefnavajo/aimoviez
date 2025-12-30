@@ -46,6 +46,7 @@ import {
 import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
+import { ActionButton } from '@/components/ActionButton';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload, SeasonResetPayload } from '@/hooks/useRealtimeClips';
 
@@ -635,14 +636,14 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         )}
       </AnimatePresence>
 
-      {/* Right Column - Responsive position for mobile */}
-      <div className="absolute right-3 bottom-40 z-20 flex flex-col items-center gap-3 md:gap-4 md:bottom-28" onClick={(e) => e.stopPropagation()}>
+      {/* Right Column - Unified with Dashboard styling */}
+      <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
         {/* Creator Avatar - Same size as dashboard */}
         {currentSegment?.winning_clip && (
           <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
             <Image
               src={currentSegment.winning_clip.avatar_url}
-              alt=""
+              alt={`${currentSegment.winning_clip.username}'s avatar`}
               width={48}
               height={48}
               className="w-12 h-12 rounded-full border-2 border-white/80 object-cover"
@@ -655,12 +656,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
           </Link>
         )}
 
-        
         {/* Vote Button - Dashboard style with infinity symbol */}
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
           className="flex flex-col items-center gap-1 relative"
+          aria-label="Vote now"
         >
           {/* Glowing vote button */}
           <div className="relative w-16 h-16 flex items-center justify-center">
@@ -707,17 +708,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
               ∞
             </motion.span>
           </div>
-
         </motion.button>
-        
-        {/* Rankings Button (Completed) */}
+
+        {/* Rankings Button (Completed seasons only) */}
         {isCompleted && (
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => {
-              window.location.href = '/leaderboard';
-            }}
+            onClick={() => { window.location.href = '/leaderboard'; }}
             className="flex flex-col items-center gap-1"
+            aria-label="View rankings"
           >
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
               <Trophy className="w-7 h-7 text-white drop-shadow-lg" />
@@ -725,62 +724,43 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Rankings</span>
           </motion.button>
         )}
-        
-        {/* Comments */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+
+        {/* Comments - Using shared ActionButton */}
+        <ActionButton
+          icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          label={formatNumber(commentCount)}
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
-          className="flex flex-col items-center gap-1 focus:outline-none"
-        >
-          <div className="w-12 h-12 rounded-full flex items-center justify-center">
-            <MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          </div>
-          <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-            {formatNumber(commentCount)}
-          </span>
-        </motion.button>
+          ariaLabel="Open comments"
+        />
 
-        {/* Share */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+        {/* Share - Using shared ActionButton */}
+        <ActionButton
+          icon={<Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
           onClick={handleShare}
-          className="flex flex-col items-center gap-1"
-        >
-          <div className="w-12 h-12 rounded-full flex items-center justify-center">
-            <Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          </div>
-        </motion.button>
+          ariaLabel="Share this video"
+        />
 
-        {/* Mute */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const newMutedState = !isMuted;
-            setIsMuted(newMutedState);
-            if (videoRef.current) {
-              videoRef.current.muted = newMutedState;
-            }
-          }}
-          className="flex flex-col items-center gap-1"
-        >
-          <div className="w-12 h-12 rounded-full flex items-center justify-center">
-            {isMuted ? (
+        {/* Mute - Using shared ActionButton */}
+        <ActionButton
+          icon={
+            isMuted ? (
               <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
             ) : (
               <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-            )}
-          </div>
-        </motion.button>
+            )
+          }
+          onClick={toggleMute}
+          ariaLabel={isMuted ? "Unmute video" : "Mute video"}
+        />
       </div>
 
-      {/* Left Side: Up/Down Navigation Arrows - Segment navigation within a season */}
+      {/* Left Side: Up/Down Navigation Arrows - Unified with Dashboard styling */}
       {/* On mobile: show internal nav. On desktop: hide if external navigation provided */}
       {completedSegments.length > 1 && !hideInternalNav && (
-        <div className="absolute left-2 top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-2">
-          {/* Up Arrow */}
+        <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-4 md:gap-6">
+          {/* Previous Segment Arrow */}
           <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
             whileTap={{ scale: 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
@@ -790,21 +770,27 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 ${
-              currentIndex === 0 ? 'opacity-30' : 'opacity-100'
-            }`}
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === 0}
+            aria-label="Previous segment"
           >
-            <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-white rotate-180" />
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
+            </svg>
           </motion.button>
 
-          {/* Segment Counter */}
-          <div className="px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
-            <span className="text-white text-xs font-bold">{currentIndex + 1}/{completedSegments.length}</span>
+          {/* Segment Counter - Matching dashboard style */}
+          <div className="text-center">
+            <span className="text-white/80 text-xs md:text-sm font-medium drop-shadow-lg">
+              {currentIndex + 1}/{completedSegments.length}
+            </span>
           </div>
 
-          {/* Down Arrow */}
+          {/* Next Segment Arrow */}
           <motion.button
+            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
             whileTap={{ scale: 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
@@ -814,12 +800,15 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 ${
-              currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'
-            }`}
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+                     border border-white/20 flex items-center justify-center
+                     transition-all shadow-lg ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === completedSegments.length - 1}
+            aria-label="Next segment"
           >
-            <ChevronDown className="w-5 h-5 md:w-6 md:h-6 text-white" />
+            <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+            </svg>
           </motion.button>
         </div>
       )}

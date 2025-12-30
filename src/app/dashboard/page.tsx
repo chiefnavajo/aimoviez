@@ -22,6 +22,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import { ActionButton } from '@/components/ActionButton';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { sounds } from '@/lib/sounds';
@@ -413,37 +414,7 @@ const PowerVoteButton = memo(function PowerVoteButton({
   );
 });
 
-// ============================================================================
-// RIGHT COLUMN ACTION BUTTON
-// ============================================================================
-
-interface ActionButtonProps {
-  icon: React.ReactNode;
-  label?: string | number;
-  onClick?: () => void;
-  ariaLabel?: string;
-}
-
-const ActionButton = memo(function ActionButton({ icon, label, onClick, ariaLabel }: ActionButtonProps) {
-  return (
-    <motion.button
-      whileTap={{ scale: 0.9 }}
-      onClick={onClick}
-      className="flex flex-col items-center gap-1"
-      aria-label={ariaLabel || (typeof label === 'string' ? label : undefined)}
-      type="button"
-    >
-      <div className="w-12 h-12 rounded-full flex items-center justify-center">
-        {icon}
-      </div>
-      {label !== undefined && (
-        <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
-          {label}
-        </span>
-      )}
-    </motion.button>
-  );
-});
+// ActionButton imported from shared component
 
 // ============================================================================
 // MAIN VOTING ARENA
