@@ -262,9 +262,39 @@ export async function PATCH(req: NextRequest) {
         .eq('status', 'voting')
         .maybeSingle();
 
-      // If there's an existing voting slot, deactivate it (set to upcoming)
+      // If there's an existing voting slot, deactivate it and move clips to the unlocked slot
       let deactivatedSlot: { slot_position: number } | null = null;
+      let movedClipsCount = 0;
       if (existingVotingSlot) {
+        // First, move clips from the deactivated slot to the unlocked slot
+        const { data: clipsToMove, error: fetchClipsError } = await supabase
+          .from('tournament_clips')
+          .select('id')
+          .eq('slot_position', existingVotingSlot.slot_position)
+          .in('status', ['pending', 'active']); // Only move clips that are in voting
+
+        if (fetchClipsError) {
+          console.error('[PATCH /api/admin/slots] Failed to fetch clips to move:', fetchClipsError);
+        } else if (clipsToMove && clipsToMove.length > 0) {
+          // Move clips to the unlocked slot
+          const { error: moveClipsError } = await supabase
+            .from('tournament_clips')
+            .update({
+              slot_position: slotToUnlock.slot_position,
+              segment_index: slotToUnlock.slot_position
+            })
+            .eq('slot_position', existingVotingSlot.slot_position)
+            .in('status', ['pending', 'active']);
+
+          if (moveClipsError) {
+            console.error('[PATCH /api/admin/slots] Failed to move clips:', moveClipsError);
+          } else {
+            movedClipsCount = clipsToMove.length;
+            console.log(`[PATCH /api/admin/slots] Moved ${movedClipsCount} clips from slot ${existingVotingSlot.slot_position} to slot ${slotToUnlock.slot_position}`);
+          }
+        }
+
+        // Deactivate the existing voting slot
         const { error: deactivateError } = await supabase
           .from('story_slots')
           .update({
@@ -322,7 +352,7 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}`);
+      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}, moved clips: ${movedClipsCount}`);
 
       return NextResponse.json({
         success: true,
@@ -330,9 +360,10 @@ export async function PATCH(req: NextRequest) {
         message: `Slot #${slotToUnlock.slot_position} unlocked and set to voting`,
         previousWinnerId,
         clipReverted,
+        movedClipsCount,
         ...(deactivatedSlot && {
           deactivatedSlot: deactivatedSlot.slot_position,
-          warning: `Slot ${deactivatedSlot.slot_position} was deactivated (voting paused)`,
+          warning: `Slot ${deactivatedSlot.slot_position} was deactivated, ${movedClipsCount} clip(s) moved to slot ${slotToUnlock.slot_position}`,
         }),
       }, { status: 200 });
     }
