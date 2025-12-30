@@ -1,0 +1,113 @@
+SESSION NOTES - December 30, 2024
+UI Consistency Fixes & Slot Management Updates
+================================================
+
+FIXES COMPLETED & PUSHED TO MAIN
+================================
+
+1. BLUR BACKGROUND ON DESKTOP (commit 82e1427)
+   - Enabled blur background on both mobile AND desktop
+   - All videos now show fully without cropping (object-contain)
+   - Files: src/app/dashboard/page.tsx, src/app/story/page.tsx
+
+2. MOVE CLIPS WHEN UNLOCKING SLOTS (commit 1f82ce9)
+   - When unlocking a slot while another is voting, clips are now moved to the new voting slot
+   - Prevents orphaned clips stuck in deactivated slots
+   - File: src/app/api/admin/slots/route.ts
+
+3. SHARED ACTIONBUTTON COMPONENT (commit 5f28118)
+   - Created /src/components/ActionButton.tsx
+   - Dashboard and Story page now use same button component
+   - Unified navigation arrows:
+     * Same position: left-3 md:left-8 top-1/2
+     * Same gap: gap-4 md:gap-6
+     * Added whileHover effect and shadow-lg
+     * Same SVG arrow icons
+     * Same counter text style
+   - Added accessibility labels (aria-label) throughout
+   - Files:
+     * src/components/ActionButton.tsx (NEW)
+     * src/app/dashboard/page.tsx
+     * src/app/story/page.tsx
+
+4. STORY PAGE BUTTON POSITIONS (commit b5261fb)
+   - Fixed right column to match dashboard exactly
+   - Changed from: right-3 bottom-32 gap-4
+   - Changed to: right-2 sm:right-3 bottom-28 sm:bottom-32 gap-3 sm:gap-4
+   - File: src/app/story/page.tsx
+
+
+PENDING DECISION (FOR NEXT SESSION)
+===================================
+
+STORY PAGE DESKTOP SIDEBAR POSITIONING:
+
+Current state:
+- Dashboard desktop: Navigation arrows at top-1/2 (vertically centered)
+- Story desktop: Left sidebar with nav links starting at mt-40 (160px from top)
+
+Two options discussed:
+
+OPTION A: Keep sidebar, center nav items vertically
+- Change mt-40 to justify-center so nav links are vertically centered
+- Matches dashboard's centered approach
+- Season list stays at bottom or moves up
+
+OPTION B: Remove sidebar entirely on desktop
+- Story page desktop would look exactly like dashboard
+- Just navigation arrows on left, buttons on right
+- Would lose the season selector and navigation links on desktop
+
+Recommendation: Option A (center the nav items)
+
+Files that would need changes:
+- src/app/story/page.tsx (desktop layout section, lines ~1699-1763)
+
+
+CURRENT DESKTOP LAYOUTS
+=======================
+
+Dashboard (desktop):
++-------------------------------------+
+|                                     |
+|                                     |
+|  ^ (arrow)                          |
+|  1/5           VIDEO            [O] | <- buttons on right
+|  v (arrow)                      [O] |
+|                                 [O] |
+|                                     |
+|  [Bottom Nav Bar]                   |
++-------------------------------------+
+
+Story (desktop) - CURRENT:
++-------------------------------------+
+| +-------------+                     |
+| | Vote Now    |                     |  <- nav at mt-40
+| | Story       |  ^ (arrow)          |
+| | Upload      |  1/5    VIDEO   [O] |
+| | Leaderboard |  v (arrow)      [O] |
+| | Profile     |                 [O] |
+| |             |                     |
+| | SEASONS     |                     |
+| | * Season 1  |                     |
+| +-------------+                     |
++-------------------------------------+
+
+Story (desktop) - PROPOSED (Option A):
++-------------------------------------+
+| +-------------+                     |
+| |             |                     |
+| | Vote Now    |  ^ (arrow)          |
+| | Story       |  1/5    VIDEO   [O] | <- nav vertically centered
+| | Upload      |  v (arrow)      [O] |
+| | Leaderboard |                 [O] |
+| | Profile     |                     |
+| |             |                     |
+| | SEASONS     |                     |
+| +-------------+                     |
++-------------------------------------+
+
+
+HOW TO CONTINUE NEXT SESSION
+============================
+Say: "continue with the sidebar fix" or "implement option A/B for the sidebar"
