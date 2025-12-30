@@ -637,7 +637,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       </AnimatePresence>
 
       {/* Right Column - Unified with Dashboard styling */}
-      <div className="absolute right-3 bottom-32 z-20 flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+      <div className="absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4" onClick={(e) => e.stopPropagation()}>
         {/* Creator Avatar - Same size as dashboard */}
         {currentSegment?.winning_clip && (
           <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
