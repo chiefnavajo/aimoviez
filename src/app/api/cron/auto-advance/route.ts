@@ -85,25 +85,23 @@ export async function GET(req: NextRequest) {
           .maybeSingle();
 
         if (!topClip) {
-          // No clips in slot - mark as locked (empty) and finish season
-          // This prevents zombie voting slots with no clips
-          console.log(`[auto-advance] Slot ${slot.slot_position} has no clips - marking as locked and finishing season`);
+          // No clips in slot - set to waiting_for_clips instead of finishing season
+          // Season should only finish when all 75 slots have winners
+          console.log(`[auto-advance] Slot ${slot.slot_position} has no clips - setting to waiting_for_clips`);
 
           await supabase
             .from('story_slots')
-            .update({ status: 'locked' })
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
             .eq('id', slot.id);
-
-          // Finish the season since there are no more clips to vote on
-          await supabase
-            .from('seasons')
-            .update({ status: 'finished' })
-            .eq('id', slot.season_id);
 
           results.push({
             slot_position: slot.slot_position,
-            status: 'finished_empty',
-            reason: 'No clips in slot - season finished. Admin needs to create new season.',
+            status: 'waiting_for_clips',
+            reason: 'No clips in slot - waiting for uploads. Encourage users to upload!',
           });
           continue;
         }
@@ -150,29 +148,55 @@ export async function GET(req: NextRequest) {
 
         const clipsMovedCount = movedClips?.length ?? 0;
 
-        // Check if this was the last slot OR if no clips remain
+        // Check if this was the last slot
         const totalSlots = slot.seasons?.total_slots || 75;
         const nextPosition = slot.slot_position + 1;
 
-        // Finish season if: reached max slots OR no more clips to vote on
-        if (nextPosition > totalSlots || clipsMovedCount === 0) {
-          // Finish the season
+        // ONLY finish season when all 75 slots are filled
+        if (nextPosition > totalSlots) {
+          // All slots filled - season is truly complete!
           await supabase
             .from('seasons')
             .update({ status: 'finished' })
             .eq('id', slot.season_id);
-
-          const reason = nextPosition > totalSlots
-            ? 'Season completed! Admin needs to create new season.'
-            : 'No more clips to vote on - season finished. Admin needs to create new season.';
 
           results.push({
             slot_position: slot.slot_position,
             status: 'finished',
             winner_clip_id: topClip.id,
             winner_username: topClip.username,
-            message: reason,
+            message: 'All 75 slots complete! Season finished.',
             clips_remaining: clipsMovedCount,
+          });
+          continue;
+        }
+
+        // If no clips moved to next slot, set it to waiting_for_clips
+        if (clipsMovedCount === 0) {
+          console.log(`[auto-advance] No clips for slot ${nextPosition} - setting to waiting_for_clips`);
+
+          const { error: waitingError } = await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('season_id', slot.season_id)
+            .eq('slot_position', nextPosition);
+
+          if (waitingError) {
+            console.error('[auto-advance] Failed to set waiting_for_clips:', waitingError);
+          }
+
+          results.push({
+            slot_position: slot.slot_position,
+            status: 'locked_waiting',
+            winner_clip_id: topClip.id,
+            winner_username: topClip.username,
+            next_slot: nextPosition,
+            next_status: 'waiting_for_clips',
+            message: `Slot ${slot.slot_position} locked. Slot ${nextPosition} waiting for clips. Upload more to continue the story!`,
           });
           continue;
         }
