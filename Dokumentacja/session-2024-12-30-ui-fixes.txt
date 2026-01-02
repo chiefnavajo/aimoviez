@@ -2,6 +2,8 @@ SESSION NOTES - December 30, 2024
 UI Consistency Fixes & Slot Management Updates
 ================================================
 
+UPDATE: Added fix #5 at end of session
+
 FIXES COMPLETED & PUSHED TO MAIN
 ================================
 
@@ -35,6 +37,13 @@ FIXES COMPLETED & PUSHED TO MAIN
    - Changed from: right-3 bottom-32 gap-4
    - Changed to: right-2 sm:right-3 bottom-28 sm:bottom-32 gap-3 sm:gap-4
    - File: src/app/story/page.tsx
+
+5. AUTO-ADVANCE SEASON FIX (commit c2c74e8)
+   - Season now ONLY finishes when all 75 slots have winners
+   - Empty voting slot -> set to waiting_for_clips (not finished)
+   - No clips for next slot -> set next slot to waiting_for_clips
+   - Encourages users to upload more clips to continue the story
+   - File: src/app/api/cron/auto-advance/route.ts
 
 
 PENDING DECISION (FOR NEXT SESSION)
