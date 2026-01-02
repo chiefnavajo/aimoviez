@@ -1,0 +1,140 @@
+SCALING ROADMAP: 1K → 1M USERS IN 6 MONTHS
+============================================
+Created: 2024-12-30
+
+GROWTH ASSUMPTIONS
+==================
+Month 1: 1,000 users
+Month 2: 10,000 users
+Month 3: 100,000 users
+Month 4-5: 500,000 users
+Month 6: 1,000,000 users
+
+
+MONTH 1: 1,000 USERS ($0/mo)
+============================
+Status: READY ✅
+
+Actions completed:
+- [x] Database indexes added
+- [x] Auto-advance season fix
+- [x] UI consistency fixes
+
+No upgrades needed - current setup handles this.
+
+
+MONTH 2: 10,000 USERS (~$75/mo)
+===============================
+Status: TODO
+
+Upgrades needed:
+- [ ] Supabase Pro ($25/mo)
+- [ ] Vercel Pro ($20/mo)
+- [ ] Upstash Redis Pro ($30/mo)
+
+Development tasks:
+- [ ] Move in-memory cache to Redis (vote route)
+- [ ] Cache leaderboard in Redis (5 min TTL)
+- [ ] Cache active season/slot in Redis
+
+Files to modify:
+- src/app/api/vote/route.ts (replace in-memory cache)
+- src/app/api/leaderboard/route.ts (add Redis cache)
+
+
+MONTH 3: 100,000 USERS (~$300/mo)
+=================================
+Status: TODO
+
+Upgrades needed:
+- [ ] CloudFlare R2 for video storage ($50/mo)
+- [ ] CloudFlare CDN (free)
+- [ ] Database read replica ($100/mo)
+
+Development tasks:
+- [ ] Set up CloudFlare R2 bucket
+- [ ] Update upload route to store in R2
+- [ ] Add CDN URLs for video delivery
+- [ ] Migrate existing videos to R2
+- [ ] Split read queries to replica (leaderboard, story)
+- [ ] Reduce WebSocket usage
+
+Files to modify:
+- src/lib/video-storage.ts (add R2 provider)
+- src/app/api/upload/route.ts (use R2)
+- src/app/api/leaderboard/route.ts (use read replica)
+- src/app/api/story/route.ts (use read replica)
+
+
+MONTH 4-5: 500,000 USERS (~$600/mo)
+===================================
+Status: TODO
+
+Upgrades needed:
+- [ ] Supabase compute upgrade ($200/mo)
+- [ ] CloudFlare Stream ($200/mo)
+- [ ] Second read replica ($100/mo)
+
+Development tasks:
+- [ ] Video transcoding (adaptive bitrate)
+- [ ] Replace WebSockets with polling for 80% of users
+- [ ] Add database connection pooling
+- [ ] Implement smart polling (only real-time for active voters)
+
+Files to modify:
+- src/hooks/useRealtimeClips.ts (smart polling)
+- src/app/story/page.tsx (reduce real-time)
+- src/app/dashboard/page.tsx (reduce real-time)
+
+
+MONTH 6: 1,000,000 USERS (~$1,200/mo)
+=====================================
+Status: TODO
+
+Upgrades needed:
+- [ ] Supabase Enterprise or scale ($500/mo)
+- [ ] CloudFlare Stream scale ($300/mo)
+- [ ] Third read replica ($100/mo)
+
+Development tasks:
+- [ ] Performance optimization
+- [ ] Query optimization
+- [ ] Caching fine-tuning
+
+
+COST SUMMARY
+============
+Month 1: $0
+Month 2: $75
+Month 3: $300
+Month 4: $500
+Month 5: $600
+Month 6: $1,200
+
+Total 6-month cost: ~$2,675
+
+
+CRITICAL PATH (DON'T SKIP)
+==========================
+Month 2: Supabase Pro → Database crashes at 5K users
+Month 3: CloudFlare R2 → Video costs explode ($10K+/mo)
+Month 3: Read replica → Slow queries, timeouts
+Month 4: CloudFlare Stream → Poor video quality
+Month 6: Enterprise DB → Connection limits exceeded
+
+
+DEVELOPMENT TIME ESTIMATES
+==========================
+Month 2: Redis caching - 8-16 hours
+Month 3: Video CDN migration - 16-24 hours
+Month 4: Polling implementation - 8-16 hours
+Month 5: Performance tuning - 8-16 hours
+
+Total dev time: ~50-70 hours over 6 months
+
+
+NEXT STEPS FOR TOMORROW
+=======================
+1. Start Redis caching implementation (Month 2 prep)
+2. Research CloudFlare R2 setup (Month 3 prep)
+3. Decide on sidebar positioning (UI pending decision)
