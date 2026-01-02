@@ -600,11 +600,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
             <div className="w-2 h-2 rounded-full bg-cyan-400" />
             <span className="text-white text-sm font-bold">
-              {completedSegments.length}/{season.total_slots}
+              {currentSegment?.slot_position || 1}/{season.total_slots}
             </span>
             <span className="text-white/60 text-sm">·</span>
             <span className="text-white/80 text-sm font-medium">
-              {formatDuration(completedSegments.length * 8)}
+              {formatDuration(Math.floor(duration))}
             </span>
           </div>
 
