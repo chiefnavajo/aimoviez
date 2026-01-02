@@ -45,6 +45,12 @@ FIXES COMPLETED & PUSHED TO MAIN
    - Encourages users to upload more clips to continue the story
    - File: src/app/api/cron/auto-advance/route.ts
 
+6. DATABASE PERFORMANCE INDEXES (commit pending)
+   - Created Dokumentacja/database-indexes.sql
+   - 20+ indexes for critical tables
+   - Run in Supabase SQL Editor to apply
+   - Expected: 50-80% faster queries
+
 
 PENDING DECISION (FOR NEXT SESSION)
 ===================================
