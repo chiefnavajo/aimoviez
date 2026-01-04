@@ -175,7 +175,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const [showComments, setShowComments] = useState(false);
   const [lastTap, setLastTap] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [_duration, setDuration] = useState(0);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [clipDurations, setClipDurations] = useState<number[]>([]);
   const [commentCount, setCommentCount] = useState(0);
@@ -604,7 +604,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             </span>
             <span className="text-white/60 text-sm">·</span>
             <span className="text-white/80 text-sm font-medium">
-              {formatDuration(Math.floor(duration))}
+              {formatDuration(
+                completedSegments.reduce((sum, _, idx) =>
+                  sum + Math.floor(clipDurations[idx] || 8), 0)
+              )}
             </span>
           </div>
 
