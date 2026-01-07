@@ -303,12 +303,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get current voting slot
+    // Get current voting slot (accept both 'voting' and 'waiting_for_clips' statuses)
     const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
-      .select('id, slot_position')
+      .select('id, slot_position, status')
       .eq('season_id', season.id)
-      .eq('status', 'voting')
+      .in('status', ['voting', 'waiting_for_clips'])
       .order('slot_position', { ascending: true })
       .limit(1)
       .single();
@@ -316,10 +316,15 @@ export async function POST(request: NextRequest) {
     // Fail if no active voting slot (don't silently assign to wrong slot)
     if (slotError || !votingSlot) {
       console.error('[UPLOAD] No active voting slot:', slotError);
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'No active voting slot. Voting is currently closed for this round.' 
+        error: 'No active voting slot. Voting is currently closed for this round.'
       }, { status: 400 });
+    }
+
+    // Log if slot is waiting for clips (approval will transition it to voting)
+    if (votingSlot.status === 'waiting_for_clips') {
+      console.log(`[UPLOAD] Slot ${votingSlot.slot_position} is waiting for clips - upload will be assigned here`);
     }
 
     const slotPosition = votingSlot.slot_position;
