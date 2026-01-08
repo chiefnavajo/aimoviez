@@ -428,25 +428,28 @@ function ProfilePageContent() {
           <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
             <h3 className="font-bold text-red-500 mb-3">Account</h3>
             <button
-              onClick={() => {
+              onClick={async () => {
                 // Clear cached user profile on sign out
                 localStorage.removeItem('user_profile');
                 // Set flag to skip intro on return (persists through logout)
                 localStorage.setItem('hasUsedAppBefore', 'true');
-                signOut({ callbackUrl: '/?from=logout' });
+                // Wait for signOut to complete before redirecting to avoid race conditions
+                await signOut({ redirect: false });
+                window.location.href = '/?from=logout';
               }}
               className="w-full px-4 py-3 bg-red-500 hover:bg-red-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-colors"
             >
               <LogOut className="w-5 h-5" />
               Sign Out
             </button>
-            <button 
-              onClick={() => { 
-                if (confirm('Clear all local data? This will sign you out.')) { 
-                  localStorage.clear(); 
+            <button
+              onClick={async () => {
+                if (confirm('Clear all local data? This will sign you out.')) {
+                  localStorage.clear();
                   sessionStorage.clear();
-                  signOut({ callbackUrl: '/' });
-                } 
+                  await signOut({ redirect: false });
+                  window.location.href = '/';
+                }
               }} 
               className="w-full px-4 py-3 mt-2 bg-white/5 hover:bg-white/10 rounded-lg font-medium flex items-center justify-center gap-2 transition-colors text-white/70"
             >
@@ -538,9 +541,10 @@ function ProfilePageContent() {
                     </div>
                     <motion.button
                       whileTap={{ scale: 0.95 }}
-                      onClick={() => {
+                      onClick={async () => {
                         localStorage.setItem('hasUsedAppBefore', 'true');
-                        signOut({ callbackUrl: '/?from=logout' });
+                        await signOut({ redirect: false });
+                        window.location.href = '/?from=logout';
                       }}
                       className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg font-medium flex items-center gap-2 transition-colors text-red-400"
                     >
@@ -623,9 +627,10 @@ function ProfilePageContent() {
                   <h1 className="text-xl font-black truncate">@{username}</h1>
                   <motion.button
                     whileTap={{ scale: 0.95 }}
-                    onClick={() => {
+                    onClick={async () => {
                       localStorage.setItem('hasUsedAppBefore', 'true');
-                      signOut({ callbackUrl: '/?from=logout' });
+                      await signOut({ redirect: false });
+                      window.location.href = '/?from=logout';
                     }}
                     className="p-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/30 rounded-lg transition-colors"
                   >

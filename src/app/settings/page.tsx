@@ -102,8 +102,9 @@ export default function SettingsPage() {
 
       // Clear local storage and sign out
       localStorage.removeItem('user_profile');
+      localStorage.setItem('hasUsedAppBefore', 'true');
       await signOut({ redirect: false });
-      router.push('/?deleted=true');
+      window.location.href = '/?deleted=true';
     } catch (error) {
       console.error('Delete error:', error);
       setDeleteError(error instanceof Error ? error.message : 'Failed to delete account');
@@ -256,7 +257,12 @@ export default function SettingsPage() {
         <section>
           <motion.button
             whileTap={{ scale: 0.98 }}
-            onClick={() => signOut({ callbackUrl: '/' })}
+            onClick={async () => {
+              localStorage.removeItem('user_profile');
+              localStorage.setItem('hasUsedAppBefore', 'true');
+              await signOut({ redirect: false });
+              window.location.href = '/?from=logout';
+            }}
             className="w-full p-4 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-colors flex items-center justify-center gap-3 text-white/80"
           >
             <LogOut className="w-5 h-5" />
