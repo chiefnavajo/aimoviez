@@ -242,12 +242,6 @@ export async function GET(req: NextRequest) {
       total_users = Number(rankDataFast[0].total_users) || 1;
     } else {
       // Fallback: calculate rank based on vote count comparison
-      // Count users with more votes than current user
-      const { count: higherRanked } = await supabase
-        .from('votes')
-        .select('user_id', { count: 'exact', head: true })
-        .not('user_id', 'is', null);
-
       // Count distinct users who have voted
       const { data: distinctUsers } = await supabase
         .from('votes')

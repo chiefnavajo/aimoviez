@@ -1418,17 +1418,7 @@ export async function POST(req: NextRequest) {
     // The trigger atomically increments both vote_count and weighted_score by vote_weight
     // Mega = 10, Super = 3, Standard = 1
     // We calculate the expected new score for the response
-    const newVoteCount = (clipData.vote_count ?? 0) + weight;
     const newWeightedScore = (clipData.weighted_score ?? 0) + weight;
-
-    // Fetch actual vote count after database trigger has run
-    // This ensures Pusher broadcasts the correct count, not a stale estimate
-    const { data: updatedClip } = await supabase
-      .from('tournament_clips')
-      .select('vote_count')
-      .eq('id', clipId)
-      .single();
-    const actualVoteCount = updatedClip?.vote_count ?? newVoteCount;
 
     // 8. Calculate remaining votes
     // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)

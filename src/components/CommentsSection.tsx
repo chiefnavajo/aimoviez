@@ -82,7 +82,6 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   const [total, setTotal] = useState(0);
   const [showEmojis, setShowEmojis] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
-  const [likingComments, setLikingComments] = useState<Set<string>>(new Set()); // Track comments being liked to prevent race conditions
 
   // Use ref for synchronous race condition prevention (state is async)
   const likingCommentsRef = useRef<Set<string>>(new Set());
@@ -323,9 +322,6 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
     const originalLikesCount = comment.likes_count;
     const action = originalIsLiked ? 'unlike' : 'like';
 
-    // Mark as in-flight (for UI indication)
-    setLikingComments(prev => new Set(prev).add(comment.id));
-
     // Optimistic update
     const updateComment = (c: Comment): Comment => {
       if (c.id === comment.id) {
@@ -366,13 +362,8 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
       const errorMessage = err instanceof Error ? err.message : 'Failed to update like. Please try again.';
       toast.error(errorMessage);
     } finally {
-      // Clear in-flight status from ref and state
+      // Clear in-flight status from ref
       likingCommentsRef.current.delete(comment.id);
-      setLikingComments(prev => {
-        const next = new Set(prev);
-        next.delete(comment.id);
-        return next;
-      });
     }
   };
 
