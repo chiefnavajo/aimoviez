@@ -30,8 +30,9 @@ import { authOptions } from '@/lib/auth-options';
 const isDev = process.env.NODE_ENV === 'development';
 const debugLog = isDev ? console.log.bind(console) : () => {};
 
-const CLIP_POOL_SIZE = 30;
-const CLIPS_PER_SESSION = 8;  // Show 8 random clips per request
+const CLIP_POOL_SIZE = 30;  // How many clips to fetch per batch
+const CLIPS_PER_SESSION = 8;  // Show 8 clips per initial request
+const MAX_CLIPS_PER_REQUEST = 20;  // Max clips for pagination requests
 const DAILY_VOTE_LIMIT = 200;
 const SUPER_VOTES_PER_SLOT = 1;
 const MEGA_VOTES_PER_SLOT = 1;
@@ -193,10 +194,12 @@ interface VotingStateResponse {
   votingEndsAt: string | null;
   votingStartedAt: string | null;
   timeRemainingSeconds: number | null;
-  // Sampling info
+  // Pagination info
   totalClipsInSlot: number;
   clipsShown: number;
   hasMoreClips: boolean;
+  offset?: number;       // Current offset
+  nextOffset?: number;   // Next offset for loading more (null if no more)
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -524,6 +527,12 @@ export async function GET(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'read');
   if (rateLimitResponse) return rateLimitResponse;
 
+  // Parse pagination parameters
+  const { searchParams } = new URL(req.url);
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
+  const limit = Math.min(MAX_CLIPS_PER_REQUEST, Math.max(1, parseInt(searchParams.get('limit') || String(CLIPS_PER_SESSION), 10)));
+  const isPaginationRequest = offset > 0;
+
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
@@ -730,8 +739,7 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. Fetch ALL active clips for this slot (both voted and unvoted)
-    // This ensures user can always navigate between clips and revoke votes
+    // 6. Fetch clips for this slot with pagination
     // Filter by season_id to ensure correct clips for this season
     // PERFORMANCE: Select only needed columns instead of *
     const { data: allClips, error: clipsError } = await supabase
@@ -741,7 +749,7 @@ export async function GET(req: NextRequest) {
       .eq('season_id', seasonRow.id)
       .eq('status', 'active')
       .order('created_at', { ascending: true })
-      .limit(CLIP_POOL_SIZE);
+      .range(offset, offset + limit - 1);  // Use pagination with offset/limit
 
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
@@ -797,9 +805,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    // 7. Take clips in consistent order (no shuffle to prevent video rotation on refetch)
+    // 7. Use all fetched clips (already paginated by DB query)
     // Clips are already ordered by created_at from the DB query
-    const sampledClips = clipPool.slice(0, CLIPS_PER_SESSION);
+    const sampledClips = clipPool;  // No additional slicing needed - DB handles pagination
 
     // 8. Record clip views (non-blocking, for analytics only)
     const clipIdsToRecord = sampledClips.map(c => c.id);
@@ -870,6 +878,11 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // Calculate pagination info
+    const currentEndOffset = offset + sampledClips.length;
+    const hasMoreClips = currentEndOffset < totalClipsInSlot;
+    const nextOffset = hasMoreClips ? currentEndOffset : undefined;
+
     const response: VotingStateResponse = {
       clips: clipsForClient,
       totalVotesToday,
@@ -888,7 +901,9 @@ export async function GET(req: NextRequest) {
       timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
       totalClipsInSlot,
       clipsShown: sampledClips.length,
-      hasMoreClips: totalClipsInSlot > votedClipIds.length,
+      hasMoreClips,
+      offset,
+      nextOffset,
     };
 
     return NextResponse.json(response, { status: 200 });

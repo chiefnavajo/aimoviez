@@ -132,6 +132,9 @@ interface APIVotingResponse {
   totalClipsInSlot: number;
   clipsShown: number;
   hasMoreClips: boolean;
+  // Pagination
+  offset?: number;
+  nextOffset?: number;
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -155,6 +158,9 @@ interface VotingState {
   votingEndsAt: string | null;
   votingStartedAt: string | null;
   hasMoreClips: boolean;
+  // Pagination
+  totalClipsInSlot: number;
+  nextOffset?: number;
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -199,9 +205,52 @@ function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
     votingEndsAt: apiResponse.votingEndsAt,
     votingStartedAt: apiResponse.votingStartedAt,
     hasMoreClips: apiResponse.hasMoreClips,
+    totalClipsInSlot: apiResponse.totalClipsInSlot,
+    nextOffset: apiResponse.nextOffset,
     seasonStatus: apiResponse.seasonStatus,
     finishedSeasonName: apiResponse.finishedSeasonName,
     waitingForClips: apiResponse.waitingForClips,
+  };
+}
+
+// Transform API response for appending more clips (pagination)
+function transformAndAppendClips(existing: VotingState, apiResponse: APIVotingResponse): VotingState {
+  const newClips: ClipForClient[] = apiResponse.clips.map((clip) => ({
+    id: clip.id,
+    clip_id: clip.clip_id,
+    user_id: clip.user_id,
+    thumbnail_url: clip.thumbnail_url,
+    video_url: clip.video_url,
+    username: clip.user?.username || 'Creator',
+    avatar_url: clip.user?.avatar_url || `https://api.dicebear.com/7.x/identicon/svg?seed=${clip.id}`,
+    badge_level: clip.user?.badge_level || 'CREATOR',
+    vote_count: clip.vote_count,
+    weighted_score: clip.weighted_score,
+    rank_in_track: clip.rank_in_track,
+    genre: clip.genre,
+    duration: clip.duration,
+    round_number: clip.round_number,
+    total_rounds: clip.total_rounds,
+    segment_index: clip.segment_index,
+    hype_score: clip.hype_score,
+    is_featured: clip.is_featured || false,
+    is_creator_followed: clip.is_creator_followed || false,
+    has_voted: clip.has_voted,
+    comment_count: clip.comment_count ?? 0,
+  }));
+
+  // Filter out duplicates (in case some clips were already loaded)
+  const existingIds = new Set(existing.clips.map(c => c.id));
+  const uniqueNewClips = newClips.filter(c => !existingIds.has(c.id));
+
+  return {
+    ...existing,
+    clips: [...existing.clips, ...uniqueNewClips],
+    hasMoreClips: apiResponse.hasMoreClips,
+    nextOffset: apiResponse.nextOffset,
+    // Update vote-related state from new response
+    totalVotesToday: apiResponse.totalVotesToday,
+    remainingVotes: apiResponse.remainingVotes,
   };
 }
 
@@ -476,6 +525,10 @@ function VotingArena() {
   // Video preload cache to prevent DOM accumulation on swipes
   const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
+  // Track if we're loading more clips
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const loadingMoreRef = useRef(false);
+
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
@@ -494,6 +547,35 @@ function VotingArena() {
     refetchOnMount: 'always', // Always refetch fresh data on page load
     placeholderData: (previousData) => previousData, // Show cached data immediately while fetching
   });
+
+  // Load more clips when approaching the end of the list
+  const loadMoreClips = useCallback(async () => {
+    if (!votingData?.hasMoreClips || !votingData?.nextOffset || loadingMoreRef.current) {
+      return;
+    }
+
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+
+    try {
+      const response = await fetch(`/api/vote?trackId=track-main&offset=${votingData.nextOffset}&limit=10`);
+      if (!response.ok) {
+        throw new Error('Failed to load more clips');
+      }
+      const apiResponse: APIVotingResponse = await response.json();
+
+      // Update the query cache with appended clips
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (old) => {
+        if (!old) return old;
+        return transformAndAppendClips(old, apiResponse);
+      });
+    } catch (error) {
+      console.error('Error loading more clips:', error);
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }, [votingData?.hasMoreClips, votingData?.nextOffset, queryClient]);
 
   // Auto-refresh at midnight UTC when daily votes reset
   // This ensures users don't need to manually refresh to see their reset vote count
@@ -944,8 +1026,16 @@ function VotingArena() {
   const handleNext = useCallback(() => {
     if (!votingData?.clips?.length) return;
     setVideoError(false);
-    setActiveIndex((prev) => (prev + 1) % votingData.clips.length);
-  }, [votingData?.clips]);
+
+    // Load more clips when approaching the end (3 clips before last)
+    const nextIndex = (activeIndex + 1) % votingData.clips.length;
+    const clipsRemaining = votingData.clips.length - nextIndex;
+    if (clipsRemaining <= 3 && votingData.hasMoreClips) {
+      loadMoreClips();
+    }
+
+    setActiveIndex(nextIndex);
+  }, [votingData?.clips, votingData?.hasMoreClips, activeIndex, loadMoreClips]);
 
   const handlePrevious = useCallback(() => {
     if (!votingData?.clips?.length) return;
