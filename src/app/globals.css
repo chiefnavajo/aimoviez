@@ -414,8 +414,38 @@ video::cue {
    LANDSCAPE VIDEO MODE
    ============================================================================ */
 
+/* Landscape controls - fade animation (works outside media query) */
+.landscape-controls {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  pointer-events: none;
+}
+
+.landscape-controls > * {
+  pointer-events: auto;
+}
+
+.landscape-controls-visible {
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.landscape-controls-hidden {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none !important;
+}
+
+.landscape-controls-hidden > * {
+  pointer-events: none !important;
+}
+
 /* Landscape video container - fills viewport on mobile phones */
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 600px) {
   .video-landscape-mode {
     position: fixed !important;
     top: 0 !important;
@@ -437,36 +467,5 @@ video::cue {
   /* Hide elements in landscape mode */
   .hide-in-landscape {
     display: none !important;
-  }
-
-  /* Landscape controls overlay */
-  .landscape-controls {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10000;
-    pointer-events: none;
-  }
-
-  .landscape-controls > * {
-    pointer-events: auto;
-  }
-
-  /* Fade animation for controls */
-  .landscape-controls-visible {
-    opacity: 1;
-    transition: opacity 0.3s ease;
-  }
-
-  .landscape-controls-hidden {
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none !important;
-  }
-
-  .landscape-controls-hidden > * {
-    pointer-events: none !important;
   }
 }

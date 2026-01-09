@@ -1,7 +1,7 @@
 // AiMoviez Service Worker
-const _CACHE_NAME = 'aimoviez-v2';
-const STATIC_CACHE = 'aimoviez-static-v2';
-const DYNAMIC_CACHE = 'aimoviez-dynamic-v2';
+const _CACHE_NAME = 'aimoviez-v3';
+const STATIC_CACHE = 'aimoviez-static-v3';
+const DYNAMIC_CACHE = 'aimoviez-dynamic-v3';
 
 // Static assets to cache on install (only public/static assets, not protected routes)
 const STATIC_ASSETS = [
