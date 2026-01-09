@@ -21,28 +21,32 @@ export async function GET() {
   try {
     const supabase = createSupabaseClient();
 
-    // Get the active season
-    const { data: activeSeason, error: seasonError } = await supabase
+    // Get the active season first
+    const { data: activeSeason } = await supabase
       .from('seasons')
-      .select('id, name, status')
+      .select('id, label, status')
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
 
-    if (seasonError || !activeSeason) {
-      // Try to get the most recent season if no active one
-      const { data: recentSeason } = await supabase
+    let seasonId = activeSeason?.id;
+
+    // If no active season, try to get the most recent finished season
+    if (!seasonId) {
+      const { data: finishedSeason } = await supabase
         .from('seasons')
-        .select('id, name, status')
+        .select('id, label, status')
+        .eq('status', 'finished')
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
-      if (!recentSeason) {
-        return NextResponse.json([]);
-      }
+      seasonId = finishedSeason?.id;
     }
 
-    const seasonId = activeSeason?.id;
+    // If still no season found, return empty
+    if (!seasonId) {
+      return NextResponse.json([]);
+    }
 
     // Fetch locked slots with their winning clips
     const { data: lockedSlots, error: slotsError } = await supabase
