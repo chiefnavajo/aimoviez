@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Play, Pause, SkipForward, SkipBack, Volume2, VolumeX,
-  Maximize, Share2, List, X, ArrowLeft
+  Maximize, Share2, List, X, ArrowLeft, Film, Clock, ChevronRight
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -16,7 +16,7 @@ import { AuthGuard } from '@/hooks/useAuth';
 // ============================================================================
 // WATCH MOVIE PAGE
 // ============================================================================
-// Seamless playback of all locked-in slots forming the complete movie
+// Shows only FINISHED seasons - active seasons are viewed on Story page
 // ============================================================================
 
 interface LockedSlot {
@@ -32,6 +32,23 @@ interface LockedSlot {
     genre: string;
     vote_count: number;
   };
+}
+
+interface FinishedSeason {
+  id: string;
+  label: string;
+  total_slots: number;
+  locked_slots: number;
+  total_duration_seconds: number;
+  total_duration_formatted: string;
+  created_at: string;
+  slots: LockedSlot[];
+}
+
+interface WatchAPIResponse {
+  hasFinishedSeasons: boolean;
+  seasons: FinishedSeason[];
+  message?: string;
 }
 
 // Memoized playlist item to prevent unnecessary re-renders
@@ -105,10 +122,84 @@ const PlaylistItem = memo(function PlaylistItem({
   );
 });
 
+// Season card for library view
+interface SeasonCardProps {
+  season: FinishedSeason;
+  onSelect: () => void;
+}
+
+const SeasonCard = memo(function SeasonCard({ season, onSelect }: SeasonCardProps) {
+  // Get first slot's thumbnail as cover
+  const coverUrl = season.slots[0]?.clip?.thumbnail_url || season.slots[0]?.clip?.video_url;
+
+  return (
+    <motion.button
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      onClick={onSelect}
+      className="w-full bg-gradient-to-br from-white/10 to-white/5 rounded-2xl overflow-hidden border border-white/10 hover:border-cyan-500/50 transition-all group"
+    >
+      {/* Cover Image */}
+      <div className="relative aspect-video bg-gradient-to-br from-gray-800 to-gray-900">
+        {coverUrl && !coverUrl.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
+          <Image
+            src={coverUrl}
+            alt={season.label}
+            fill
+            sizes="(max-width: 768px) 100vw, 50vw"
+            className="object-cover"
+          />
+        ) : coverUrl ? (
+          <video
+            src={coverUrl}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Film className="w-16 h-16 text-white/20" />
+          </div>
+        )}
+
+        {/* Play overlay */}
+        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="w-16 h-16 rounded-full bg-cyan-500 flex items-center justify-center">
+            <Play className="w-8 h-8 text-white ml-1" />
+          </div>
+        </div>
+
+        {/* Duration badge */}
+        <div className="absolute bottom-3 right-3 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-sm flex items-center gap-1">
+          <Clock className="w-3 h-3 text-cyan-400" />
+          <span className="text-xs font-medium">{season.total_duration_formatted}</span>
+        </div>
+      </div>
+
+      {/* Info */}
+      <div className="p-4 text-left">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-lg font-bold">{season.label}</h3>
+          <ChevronRight className="w-5 h-5 text-white/40 group-hover:text-cyan-400 transition-colors" />
+        </div>
+        <p className="text-sm text-white/60">
+          {season.locked_slots} clips • Complete movie
+        </p>
+      </div>
+    </motion.button>
+  );
+});
+
 function WatchMoviePageContent() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
+
+  // View state: 'library' shows season list, 'player' shows video player
+  const [viewMode, setViewMode] = useState<'library' | 'player'>('library');
+  const [selectedSeason, setSelectedSeason] = useState<FinishedSeason | null>(null);
+
   const [currentSlotIndex, setCurrentSlotIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
@@ -122,18 +213,19 @@ function WatchMoviePageContent() {
 
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Fetch locked slots
-  const { data: lockedSlots, isLoading } = useQuery<LockedSlot[]>({
-    queryKey: ['locked-slots'],
+  // Fetch finished seasons
+  const { data: watchData, isLoading } = useQuery<WatchAPIResponse>({
+    queryKey: ['watch-seasons'],
     queryFn: async () => {
       const response = await fetch('/api/watch');
-      if (!response.ok) throw new Error('Failed to fetch movie');
+      if (!response.ok) throw new Error('Failed to fetch movies');
       return response.json();
     },
   });
 
-  const currentSlot = lockedSlots?.[currentSlotIndex];
-  const totalSlots = lockedSlots?.length || 0;
+  const lockedSlots = selectedSeason?.slots || [];
+  const currentSlot = lockedSlots[currentSlotIndex];
+  const totalSlots = lockedSlots.length;
 
   // Use refs to access current values in event handlers without causing re-renders
   const currentSlotIndexRef = useRef(currentSlotIndex);
@@ -155,7 +247,7 @@ function WatchMoviePageContent() {
 
   // Video preloading - preload next 2 slots for smooth playback
   useEffect(() => {
-    if (!lockedSlots?.length) return;
+    if (!lockedSlots.length) return;
 
     const cache = preloadedVideosRef.current;
     const slotsToPreload = [
@@ -265,6 +357,21 @@ function WatchMoviePageContent() {
     };
   }, [isPlaying, showControls]);
 
+  // Select a season and start playing
+  const selectSeason = (season: FinishedSeason) => {
+    setSelectedSeason(season);
+    setCurrentSlotIndex(0);
+    setViewMode('player');
+  };
+
+  // Go back to library
+  const backToLibrary = () => {
+    setViewMode('library');
+    setSelectedSeason(null);
+    setCurrentSlotIndex(0);
+    setIsPlaying(false);
+  };
+
   // Toggle play/pause
   const togglePlay = () => {
     const video = videoRef.current;
@@ -323,7 +430,7 @@ function WatchMoviePageContent() {
     if (navigator.share && currentSlot) {
       try {
         await navigator.share({
-          title: `AiMoviez - Slot ${currentSlot.slot_position}`,
+          title: `AiMoviez - ${selectedSeason?.label}`,
           text: `Check out "${currentSlot.clip.title}" by @${currentSlot.clip.username}`,
           url: window.location.href,
         });
@@ -403,7 +510,8 @@ function WatchMoviePageContent() {
     );
   }
 
-  if (!lockedSlots || lockedSlots.length === 0) {
+  // No finished seasons - show "Coming Soon" message
+  if (!watchData?.hasFinishedSeasons) {
     return (
       <div className="relative min-h-screen bg-black text-white flex flex-col pb-24">
         {/* Cyberpunk Back Button */}
@@ -419,30 +527,72 @@ function WatchMoviePageContent() {
         </motion.button>
 
         <div className="flex-1 flex items-center justify-center">
-        <div className="text-center">
-          <Play className="w-16 h-16 mx-auto mb-4 text-white/20" />
-          <h2 className="text-2xl font-bold mb-2">No Movie Yet</h2>
-          <p className="text-white/60 mb-6">The movie is still being created!</p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="px-6 py-3 bg-cyan-500 hover:bg-cyan-600 rounded-xl font-bold"
-          >
-            Go Vote
-          </button>
-        </div>
+          <div className="text-center px-6">
+            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-cyan-500/20 to-purple-500/20 flex items-center justify-center">
+              <Film className="w-12 h-12 text-cyan-400" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">No Movies Yet</h2>
+            <p className="text-white/60 mb-6 max-w-sm mx-auto">
+              Completed movies will appear here after a season finishes. Check the Story page to see the current season in progress!
+            </p>
+            <button
+              onClick={() => router.push('/story')}
+              className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 rounded-xl font-bold transition-all"
+            >
+              View Story Progress
+            </button>
+          </div>
         </div>
         <BottomNavigation />
       </div>
     );
   }
 
+  // Library view - show finished seasons
+  if (viewMode === 'library') {
+    return (
+      <div className="relative min-h-screen bg-black text-white pb-24">
+        {/* Header */}
+        <div className="sticky top-0 z-20 bg-black/80 backdrop-blur-xl border-b border-white/10 px-4 py-4">
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={() => router.back()}
+              className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </motion.button>
+            <div>
+              <h1 className="text-xl font-bold">Movie Library</h1>
+              <p className="text-sm text-white/60">{watchData.seasons.length} completed movie{watchData.seasons.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Season list */}
+        <div className="p-4 space-y-4">
+          {watchData.seasons.map((season) => (
+            <SeasonCard
+              key={season.id}
+              season={season}
+              onSelect={() => selectSeason(season)}
+            />
+          ))}
+        </div>
+
+        <BottomNavigation />
+      </div>
+    );
+  }
+
+  // Player view
   return (
     <div className="relative min-h-screen min-h-[100dvh] w-full bg-black overflow-hidden">
       {/* Cyberpunk Back Button - Always Visible */}
       <motion.button
         whileTap={{ scale: 0.9 }}
         whileHover={{ scale: 1.05 }}
-        onClick={() => router.back()}
+        onClick={backToLibrary}
         className="absolute top-4 left-4 z-30 p-[2px] rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 shadow-[0_0_20px_rgba(59,130,246,0.6),0_0_40px_rgba(147,51,234,0.4)] hover:shadow-[0_0_30px_rgba(59,130,246,0.8),0_0_60px_rgba(147,51,234,0.6)] transition-all duration-300"
       >
         <div className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-cyan-400/30">
@@ -474,7 +624,7 @@ function WatchMoviePageContent() {
             {/* Top Bar */}
             <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between pointer-events-auto">
               <button
-                onClick={() => router.back()}
+                onClick={backToLibrary}
                 className="w-10 h-10 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center hover:bg-black/70 transition-all"
               >
                 <X className="w-6 h-6" />
@@ -513,6 +663,7 @@ function WatchMoviePageContent() {
             <div className="absolute bottom-0 left-0 right-0 p-6 pointer-events-auto">
               {/* Slot Info */}
               <div className="mb-4">
+                <div className="text-sm text-cyan-400 font-medium mb-1">{selectedSeason?.label}</div>
                 <div className="text-2xl font-black mb-1">
                   {currentSlot?.clip.title}
                 </div>
@@ -613,7 +764,7 @@ function WatchMoviePageContent() {
             >
               <div className="sticky top-0 bg-black/80 backdrop-blur-xl border-b border-white/10 p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-xl font-bold">Movie Playlist</h2>
+                  <h2 className="text-xl font-bold">{selectedSeason?.label}</h2>
                   <button
                     onClick={() => setShowPlaylist(false)}
                     className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center"
@@ -621,7 +772,7 @@ function WatchMoviePageContent() {
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                <p className="text-sm text-white/60">{totalSlots} slots locked in</p>
+                <p className="text-sm text-white/60">{totalSlots} clips • {selectedSeason?.total_duration_formatted}</p>
               </div>
 
               <div className="p-4 space-y-2">
