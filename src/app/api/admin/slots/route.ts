@@ -98,11 +98,12 @@ export async function GET(req: NextRequest) {
       timeRemainingSeconds = Math.max(0, Math.floor((endTime - now) / 1000));
     }
 
-    // Get clips in current slot
+    // Get clips in current slot (only count active/approved clips that are actually competing)
     const { count: clipsInSlot } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
-      .eq('slot_position', currentSlot);
+      .eq('slot_position', currentSlot)
+      .eq('status', 'active');
 
     // If simple mode, return just the summary
     if (simple || !searchParams.has('season_id')) {
