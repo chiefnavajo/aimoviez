@@ -13,7 +13,7 @@ export default function BottomNavigation() {
   const navItems = [
     isDashboard
       ? { href: '/story', icon: Clapperboard, label: 'Story' }
-      : { href: '/dashboard', icon: Home, label: 'Home' },
+      : { href: '/dashboard', icon: Home, label: 'Vote' },
     { href: '/watch', icon: Play, label: 'Watch' },
     { href: '/upload', icon: Upload, label: 'Upload' },
     { href: '/leaderboard', icon: Trophy, label: 'Ranks' },
