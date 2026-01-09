@@ -21,8 +21,14 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
   const [showControls, setShowControls] = useState(true);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Check if device is mobile (landscape mode mainly useful on phones)
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Check if device is mobile - use the smaller dimension to handle both orientations
+  // Also check for touch support as additional signal
+  const checkIsMobile = useCallback(() => {
+    if (typeof window === 'undefined') return false;
+    const smallerDimension = Math.min(window.innerWidth, window.innerHeight);
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    return smallerDimension < 768 && hasTouch;
+  }, []);
 
   // Clear any existing timeout
   const clearHideTimeout = useCallback(() => {
@@ -57,7 +63,9 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
     const checkOrientation = () => {
       // Use matchMedia for reliable orientation detection
       const landscapeQuery = window.matchMedia('(orientation: landscape)');
-      const isNowLandscape = landscapeQuery.matches && isMobile;
+      // Check if mobile on each orientation change (not a stale value)
+      const isMobileDevice = checkIsMobile();
+      const isNowLandscape = landscapeQuery.matches && isMobileDevice;
 
       setIsLandscape(isNowLandscape);
 
@@ -101,7 +109,7 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
       }
       window.removeEventListener('resize', checkOrientation);
     };
-  }, [enabled, isMobile, startHideTimer, clearHideTimeout]);
+  }, [enabled, checkIsMobile, startHideTimer, clearHideTimeout]);
 
   // Cleanup on unmount
   useEffect(() => {
