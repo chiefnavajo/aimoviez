@@ -194,12 +194,10 @@ interface VotingStateResponse {
   votingEndsAt: string | null;
   votingStartedAt: string | null;
   timeRemainingSeconds: number | null;
-  // Pagination info
+  // Pagination info (uses excludeIds approach, not offset)
   totalClipsInSlot: number;
   clipsShown: number;
   hasMoreClips: boolean;
-  offset?: number;       // Current offset
-  nextOffset?: number;   // Next offset for loading more (null if no more)
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -529,9 +527,11 @@ export async function GET(req: NextRequest) {
 
   // Parse pagination parameters
   const { searchParams } = new URL(req.url);
-  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
   const limit = Math.min(MAX_CLIPS_PER_REQUEST, Math.max(1, parseInt(searchParams.get('limit') || String(CLIPS_PER_SESSION), 10)));
-  const isPaginationRequest = offset > 0;
+
+  // Get IDs of clips already seen (for weighted random sampling)
+  const excludeIdsParam = searchParams.get('excludeIds') || '';
+  const excludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0) : [];
 
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
@@ -739,18 +739,62 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 6. Fetch clips for this slot with pagination
-    // Filter by season_id to ensure correct clips for this season
-    // PERFORMANCE: Select only needed columns instead of *
-    const { data: allClips, error: clipsError } = await supabase
+    // 6. Fetch clips using WEIGHTED RANDOM SAMPLING for fair exposure
+    // This ensures all videos get roughly equal exposure regardless of upload time
+    // Pool distribution: 50% least viewed, 30% recent (<24h), 20% random
+
+    const poolSize = Math.max(limit * 3, 30); // Fetch larger pool to sample from
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+
+    // Build base query conditions
+    const baseConditions = {
+      slot_position: activeSlot.slot_position,
+      season_id: seasonRow.id,
+      status: 'active' as const,
+    };
+
+    // Pool 1: Least viewed clips (50% of pool) - ensures fair exposure
+    const leastViewedQuery = supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-      .eq('slot_position', activeSlot.slot_position)
-      .eq('season_id', seasonRow.id)
-      .eq('status', 'active')
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1);  // Use pagination with offset/limit
+      .eq('slot_position', baseConditions.slot_position)
+      .eq('season_id', baseConditions.season_id)
+      .eq('status', baseConditions.status)
+      .order('view_count', { ascending: true, nullsFirst: true })
+      .limit(Math.ceil(poolSize * 0.5));
 
+    // Pool 2: Recent clips (<24h) (30% of pool) - ensures fresh content gets seen
+    const recentQuery = supabase
+      .from('tournament_clips')
+      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
+      .eq('slot_position', baseConditions.slot_position)
+      .eq('season_id', baseConditions.season_id)
+      .eq('status', baseConditions.status)
+      .gte('created_at', oneDayAgo)
+      .order('created_at', { ascending: false })
+      .limit(Math.ceil(poolSize * 0.3));
+
+    // Pool 3: Random clips (20% of pool) - discovery/variety
+    // Use created_at desc as a simple randomization (will be shuffled anyway)
+    const randomQuery = supabase
+      .from('tournament_clips')
+      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
+      .eq('slot_position', baseConditions.slot_position)
+      .eq('season_id', baseConditions.season_id)
+      .eq('status', baseConditions.status)
+      .order('vote_count', { ascending: false }) // High engagement clips
+      .limit(Math.ceil(poolSize * 0.2));
+
+    // Execute all queries in parallel
+    const [leastViewedResult, recentResult, randomResult] = await Promise.all([
+      leastViewedQuery,
+      recentQuery,
+      randomQuery,
+    ]);
+
+    // Check for errors
+    const clipsError = leastViewedResult.error || recentResult.error || randomResult.error;
     if (clipsError) {
       console.error('[GET /api/vote] clipsError:', clipsError);
       const empty: VotingStateResponse = {
@@ -776,7 +820,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(empty, { status: 200 });
     }
 
-    const clipPool = (allClips as TournamentClipRow[]) || [];
+    // Merge all pools and deduplicate by ID
+    const allPoolClips = [
+      ...(leastViewedResult.data || []),
+      ...(recentResult.data || []),
+      ...(randomResult.data || []),
+    ] as TournamentClipRow[];
+
+    const uniqueClipsMap = new Map<string, TournamentClipRow>();
+    for (const clip of allPoolClips) {
+      if (!uniqueClipsMap.has(clip.id)) {
+        uniqueClipsMap.set(clip.id, clip);
+      }
+    }
+
+    // Convert to array and filter out already-seen clips
+    const excludeIdsSet = new Set(excludeIds);
+    let availableClips = Array.from(uniqueClipsMap.values())
+      .filter(clip => !excludeIdsSet.has(clip.id));
+
+    // Fisher-Yates shuffle for true randomization
+    for (let i = availableClips.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [availableClips[i], availableClips[j]] = [availableClips[j], availableClips[i]];
+    }
+
+    // Take only the requested limit
+    const clipPool = availableClips.slice(0, limit);
 
     if (clipPool.length === 0) {
       // No clips at all in this slot - check if waiting for clips
@@ -878,10 +948,9 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Calculate pagination info
-    const currentEndOffset = offset + sampledClips.length;
-    const hasMoreClips = currentEndOffset < totalClipsInSlot;
-    const nextOffset = hasMoreClips ? currentEndOffset : undefined;
+    // Calculate pagination info (based on excludeIds, not offset)
+    const totalSeen = excludeIds.length + sampledClips.length;
+    const hasMoreClips = totalSeen < totalClipsInSlot;
 
     const response: VotingStateResponse = {
       clips: clipsForClient,
@@ -902,8 +971,6 @@ export async function GET(req: NextRequest) {
       totalClipsInSlot,
       clipsShown: sampledClips.length,
       hasMoreClips,
-      offset,
-      nextOffset,
     };
 
     return NextResponse.json(response, { status: 200 });

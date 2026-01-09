@@ -132,9 +132,6 @@ interface APIVotingResponse {
   totalClipsInSlot: number;
   clipsShown: number;
   hasMoreClips: boolean;
-  // Pagination
-  offset?: number;
-  nextOffset?: number;
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -158,9 +155,7 @@ interface VotingState {
   votingEndsAt: string | null;
   votingStartedAt: string | null;
   hasMoreClips: boolean;
-  // Pagination
   totalClipsInSlot: number;
-  nextOffset?: number;
   // Season status info
   seasonStatus?: 'active' | 'finished' | 'none';
   finishedSeasonName?: string;
@@ -206,7 +201,6 @@ function transformAPIResponse(apiResponse: APIVotingResponse): VotingState {
     votingStartedAt: apiResponse.votingStartedAt,
     hasMoreClips: apiResponse.hasMoreClips,
     totalClipsInSlot: apiResponse.totalClipsInSlot,
-    nextOffset: apiResponse.nextOffset,
     seasonStatus: apiResponse.seasonStatus,
     finishedSeasonName: apiResponse.finishedSeasonName,
     waitingForClips: apiResponse.waitingForClips,
@@ -247,7 +241,7 @@ function transformAndAppendClips(existing: VotingState, apiResponse: APIVotingRe
     ...existing,
     clips: [...existing.clips, ...uniqueNewClips],
     hasMoreClips: apiResponse.hasMoreClips,
-    nextOffset: apiResponse.nextOffset,
+    totalClipsInSlot: apiResponse.totalClipsInSlot,
     // Update vote-related state from new response
     totalVotesToday: apiResponse.totalVotesToday,
     remainingVotes: apiResponse.remainingVotes,
@@ -549,8 +543,9 @@ function VotingArena() {
   });
 
   // Load more clips when approaching the end of the list
+  // Uses excludeIds to get fresh random clips that haven't been shown yet
   const loadMoreClips = useCallback(async () => {
-    if (!votingData?.hasMoreClips || !votingData?.nextOffset || loadingMoreRef.current) {
+    if (!votingData?.hasMoreClips || !votingData?.clips?.length || loadingMoreRef.current) {
       return;
     }
 
@@ -558,7 +553,9 @@ function VotingArena() {
     setIsLoadingMore(true);
 
     try {
-      const response = await fetch(`/api/vote?trackId=track-main&offset=${votingData.nextOffset}&limit=10`);
+      // Send IDs of all already-loaded clips to exclude them from new batch
+      const excludeIds = votingData.clips.map(c => c.id).join(',');
+      const response = await fetch(`/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10`);
       if (!response.ok) {
         throw new Error('Failed to load more clips');
       }
@@ -575,7 +572,7 @@ function VotingArena() {
       loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [votingData?.hasMoreClips, votingData?.nextOffset, queryClient]);
+  }, [votingData?.hasMoreClips, votingData?.clips, queryClient]);
 
   // Auto-refresh at midnight UTC when daily votes reset
   // This ensures users don't need to manually refresh to see their reset vote count
