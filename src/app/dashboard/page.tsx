@@ -1305,9 +1305,10 @@ function VotingArena() {
     const waitingForUploads = isWaitingForClips || ((votingData?.currentSlot ?? 0) > 0 && !votingData?.votingStartedAt);
 
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-6">
-        <div className="text-center">
-          {seasonEnded ? (
+      <div className="min-h-screen bg-black flex flex-col pb-20">
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center">
+            {seasonEnded ? (
             <>
               <div className="text-5xl mb-4">🏆</div>
               <h2 className="text-white text-xl font-bold mb-2">
@@ -1411,8 +1412,10 @@ function VotingArena() {
                 </Link>
               </div>
             </>
-          )}
+            )}
+          </div>
         </div>
+        <BottomNavigation />
       </div>
     );
   }
