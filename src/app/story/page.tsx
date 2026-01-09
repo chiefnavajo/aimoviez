@@ -49,6 +49,7 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { ActionButton } from '@/components/ActionButton';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload, SeasonResetPayload } from '@/hooks/useRealtimeClips';
+import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 
 // ============================================================================
 // TYPES
@@ -1437,6 +1438,9 @@ function StoryPage() {
   // Ref for imperative control of VideoPlayer
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
+  // Landscape video mode - auto-fill screen when phone rotates
+  const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
+
   // Fetch seasons from API
   // Realtime updates are primary, polling is a safety net for missed websocket events
   const { data: seasons = [], isLoading, error } = useQuery<Season[]>({
@@ -1767,20 +1771,43 @@ function StoryPage() {
       </div>
 
       {/* Mobile Layout - Full screen video with overlay controls */}
-      <div className="md:hidden h-[100dvh] relative">
+      <div
+        className={`md:hidden h-[100dvh] relative ${isLandscape ? 'video-landscape-mode' : ''}`}
+        onClick={isLandscape ? handleScreenTap : undefined}
+      >
         {/* Video Player - Full screen */}
         <div className="absolute inset-0">
           <VideoPlayer
             season={selectedSeason}
             onVote={handleVoteNow}
-            isFullscreen={isFullscreen}
+            isFullscreen={isFullscreen || isLandscape}
             onToggleFullscreen={toggleFullscreen}
           />
         </div>
 
-        {/* Season Strip - Overlay at bottom (above nav, hidden when fullscreen) */}
+        {/* Landscape mode controls overlay */}
+        {isLandscape && (
+          <div className={`landscape-controls ${showControls ? 'landscape-controls-visible' : 'landscape-controls-hidden'}`}>
+            {/* Mute button - bottom left */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Toggle mute would need to be passed down - for now just show the control
+              }}
+              className="absolute bottom-4 left-4 w-12 h-12 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center"
+            >
+              <Volume2 className="w-6 h-6 text-white" />
+            </button>
+            {/* Rotate hint - bottom center */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 backdrop-blur-md rounded-full text-white/60 text-sm">
+              Rotate to exit fullscreen
+            </div>
+          </div>
+        )}
+
+        {/* Season Strip - Overlay at bottom (above nav, hidden when fullscreen or landscape) */}
         <AnimatePresence>
-          {!isFullscreen && (
+          {!isFullscreen && !isLandscape && (
             <motion.div
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1798,8 +1825,8 @@ function StoryPage() {
           )}
         </AnimatePresence>
 
-        {/* Bottom Navigation - Using shared component (hidden when fullscreen) */}
-        {!isFullscreen && <BottomNavigation />}
+        {/* Bottom Navigation - Using shared component (hidden when fullscreen or landscape) */}
+        {!isFullscreen && !isLandscape && <BottomNavigation />}
       </div>
     </div>
   );

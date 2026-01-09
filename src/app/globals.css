@@ -409,3 +409,64 @@ video::cue {
   border-radius: 0.5rem;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
+
+/* ============================================================================
+   LANDSCAPE VIDEO MODE
+   ============================================================================ */
+
+/* Landscape video container - fills viewport on mobile phones */
+@media (orientation: landscape) and (max-height: 500px) {
+  .video-landscape-mode {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    z-index: 9999 !important;
+    background: black !important;
+  }
+
+  .video-landscape-mode video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain !important;
+  }
+
+  /* Hide elements in landscape mode */
+  .hide-in-landscape {
+    display: none !important;
+  }
+
+  /* Landscape controls overlay */
+  .landscape-controls {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    pointer-events: none;
+  }
+
+  .landscape-controls > * {
+    pointer-events: auto;
+  }
+
+  /* Fade animation for controls */
+  .landscape-controls-visible {
+    opacity: 1;
+    transition: opacity 0.3s ease;
+  }
+
+  .landscape-controls-hidden {
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none !important;
+  }
+
+  .landscape-controls-hidden > * {
+    pointer-events: none !important;
+  }
+}

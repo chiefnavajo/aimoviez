@@ -30,6 +30,7 @@ import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVer
 import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { useRealtimeClips, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
+import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -522,6 +523,9 @@ function VotingArena() {
   // Track if we're loading more clips
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
+
+  // Landscape video mode - auto-fill screen when phone rotates
+  const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
@@ -1426,10 +1430,11 @@ function VotingArena() {
 
   return (
     <div
-      className="relative min-h-screen min-h-[100dvh] w-full overflow-hidden bg-black"
+      className={`relative min-h-screen min-h-[100dvh] w-full overflow-hidden bg-black ${isLandscape ? 'video-landscape-mode' : ''}`}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onClick={isLandscape ? handleScreenTap : undefined}
     >
       <Toaster position="top-center" />
 
@@ -1605,8 +1610,8 @@ function VotingArena() {
         </div>
       )}
 
-      {/* ============ RIGHT COLUMN ============ */}
-      <div className="absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4">
+      {/* ============ RIGHT COLUMN (hidden in landscape) ============ */}
+      <div className={`absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4 ${isLandscape ? 'hidden' : ''}`}>
         {/* Creator Avatar */}
         <Link href={`/profile/${currentClip?.username}`}>
           <motion.div whileTap={{ scale: 0.9 }} className="relative">
@@ -1685,8 +1690,8 @@ function VotingArena() {
 
       </div>
 
-      {/* ============ BOTTOM: Creator Info ============ */}
-      <div className="absolute bottom-24 left-0 right-16 z-20 px-4">
+      {/* ============ BOTTOM: Creator Info (hidden in landscape) ============ */}
+      <div className={`absolute bottom-24 left-0 right-16 z-20 px-4 ${isLandscape ? 'hidden' : ''}`}>
         <div className="flex items-center gap-2">
           <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
             @{currentClip?.username || 'creator'}
@@ -1765,8 +1770,40 @@ function VotingArena() {
         onCommentAdded={handleCommentAdded}
       />
 
-      {/* ============ BOTTOM NAV ============ */}
-      <BottomNavigation />
+      {/* ============ BOTTOM NAV (hidden in landscape) ============ */}
+      {!isLandscape && <BottomNavigation />}
+
+      {/* Landscape mode controls overlay */}
+      {isLandscape && (
+        <div className={`landscape-controls ${showControls ? 'landscape-controls-visible' : 'landscape-controls-hidden'}`}>
+          {/* Mute button - bottom left */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            className="absolute bottom-4 left-4 w-12 h-12 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center"
+          >
+            {isMuted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
+          </button>
+          {/* Vote button - right side */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleVote('standard');
+            }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg"
+          >
+            <svg aria-hidden="true" className="w-7 h-7" viewBox="0 0 24 24" fill="white">
+              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+            </svg>
+          </button>
+          {/* Rotate hint - bottom center */}
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 backdrop-blur-md rounded-full text-white/60 text-sm">
+            Rotate to exit fullscreen
+          </div>
+        </div>
+      )}
     </div>
   );
 }
