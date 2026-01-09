@@ -19,6 +19,9 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
 
   const [isLandscape, setIsLandscape] = useState(false);
   const [showControls, setShowControls] = useState(true);
+
+  // Use ref to track landscape state to avoid closure issues
+  const isLandscapeRef = useRef(false);
   const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if device is mobile - use the smaller dimension to handle both orientations
@@ -38,23 +41,27 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
     }
   }, []);
 
-  // Start the auto-hide timer
+  // Start the auto-hide timer - uses ref instead of state to avoid closure issues
   const startHideTimer = useCallback(() => {
     clearHideTimeout();
-    if (isLandscape) {
+    // Use ref to check current landscape state (not stale closure value)
+    if (isLandscapeRef.current) {
       hideTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
+        // Double-check we're still in landscape before hiding
+        if (isLandscapeRef.current) {
+          setShowControls(false);
+        }
       }, autoHideDelay);
     }
-  }, [isLandscape, autoHideDelay, clearHideTimeout]);
+  }, [autoHideDelay, clearHideTimeout]);
 
   // Handle screen tap - show controls and restart timer
   const handleScreenTap = useCallback(() => {
-    if (isLandscape) {
+    if (isLandscapeRef.current) {
       setShowControls(true);
       startHideTimer();
     }
-  }, [isLandscape, startHideTimer]);
+  }, [startHideTimer]);
 
   // Detect orientation changes
   useEffect(() => {
@@ -67,17 +74,23 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
       const isMobileDevice = checkIsMobile();
       const isNowLandscape = landscapeQuery.matches && isMobileDevice;
 
+      // Update both ref and state
+      isLandscapeRef.current = isNowLandscape;
       setIsLandscape(isNowLandscape);
 
       // When entering landscape, show controls initially then start hide timer
       if (isNowLandscape) {
         setShowControls(true);
-        // Start hide timer after a short delay
-        setTimeout(() => {
-          startHideTimer();
-        }, 100);
+        // Clear any existing timer and start fresh
+        clearHideTimeout();
+        // Start hide timer after controls are shown
+        hideTimeoutRef.current = setTimeout(() => {
+          if (isLandscapeRef.current) {
+            setShowControls(false);
+          }
+        }, autoHideDelay);
       } else {
-        // In portrait, always show controls
+        // In portrait, always show controls and clear any pending hide
         setShowControls(true);
         clearHideTimeout();
       }
@@ -109,7 +122,7 @@ export function useLandscapeVideo(options: UseLandscapeVideoOptions = {}): UseLa
       }
       window.removeEventListener('resize', checkOrientation);
     };
-  }, [enabled, checkIsMobile, startHideTimer, clearHideTimeout]);
+  }, [enabled, checkIsMobile, autoHideDelay, clearHideTimeout]);
 
   // Cleanup on unmount
   useEffect(() => {
