@@ -1,6 +1,6 @@
 'use client';
 
-import { Home, Play, Upload, Trophy, User, Clapperboard } from 'lucide-react';
+import { Infinity, Play, Upload, Trophy, User, Clapperboard } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -13,7 +13,7 @@ export default function BottomNavigation() {
   const navItems = [
     isDashboard
       ? { href: '/story', icon: Clapperboard, label: 'Story' }
-      : { href: '/dashboard', icon: Home, label: 'Vote' },
+      : { href: '/dashboard', icon: Infinity, label: 'Vote' },
     { href: '/watch', icon: Play, label: 'Watch' },
     { href: '/upload', icon: Upload, label: 'Upload' },
     { href: '/leaderboard', icon: Trophy, label: 'Ranks' },
