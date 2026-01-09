@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
-  Clock, Bell, LogOut, Heart, ArrowLeft,
+  Clock, Bell, LogOut, Heart,
   ChevronRight, BookOpen, Plus, ShieldCheck
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
@@ -87,7 +86,6 @@ function formatNumber(num: number): string {
 // ============================================================================
 
 function ProfilePageContent() {
-  const router = useRouter();
   const { user, session } = useAuth();
   const { isAdmin } = useAdminAuth();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
@@ -594,18 +592,7 @@ function ProfilePageContent() {
         <div className="relative">
           <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/20 via-purple-900/20 to-pink-900/20" />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
-          {/* Cyberpunk Back Button */}
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            whileHover={{ scale: 1.05 }}
-            onClick={() => router.back()}
-            className="absolute top-3 left-3 z-30 p-[2px] rounded-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 shadow-[0_0_15px_rgba(59,130,246,0.5),0_0_30px_rgba(147,51,234,0.3)] hover:shadow-[0_0_20px_rgba(59,130,246,0.7),0_0_40px_rgba(147,51,234,0.5)] transition-all duration-300"
-          >
-            <div className="w-8 h-8 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center border border-cyan-400/30">
-              <ArrowLeft className="w-4 h-4 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,1)]" />
-            </div>
-          </motion.button>
-          <div className="relative z-10 px-4 pt-12 pb-6">
+          <div className="relative z-10 px-4 pt-6 pb-6">
             <div className="flex items-start gap-5 mb-6">
               <div className="relative flex-shrink-0">
                 {/* Outer glow ring */}
