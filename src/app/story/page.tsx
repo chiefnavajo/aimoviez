@@ -166,9 +166,11 @@ interface VideoPlayerProps {
   onSegmentChange?: (index: number, total: number) => void;
   // Ref for imperative control
   playerRef?: React.RefObject<VideoPlayerHandle | null>;
+  // Landscape mode - hide UI elements for true fullscreen
+  isLandscape?: boolean;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMuted, setIsMuted] = useState(true);
@@ -579,8 +581,8 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       {/* Gradient */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/50 pointer-events-none" />
 
-      {/* Top Right: Fullscreen toggle */}
-      <div className="absolute top-0 right-0 pt-12 pr-4 z-30">
+      {/* Top Right: Fullscreen toggle (hidden in landscape) */}
+      <div className={`absolute top-0 right-0 pt-12 pr-4 z-30 ${isLandscape ? 'hidden' : ''}`}>
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
@@ -594,8 +596,8 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         </motion.button>
       </div>
 
-      {/* Top Left: Compact progress info (mobile-friendly) */}
-      <div className="absolute top-0 left-0 pt-12 px-3 z-10">
+      {/* Top Left: Compact progress info (hidden in landscape) */}
+      <div className={`absolute top-0 left-0 pt-12 px-3 z-10 ${isLandscape ? 'hidden' : ''}`}>
         <div className="flex flex-col gap-1.5">
           {/* Progress pill - larger for better visibility */}
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
@@ -640,8 +642,8 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         )}
       </AnimatePresence>
 
-      {/* Right Column - Unified with Dashboard styling */}
-      <div className="absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4" onClick={(e) => e.stopPropagation()}>
+      {/* Right Column - Unified with Dashboard styling (hidden in landscape) */}
+      <div className={`absolute right-2 sm:right-3 bottom-28 sm:bottom-32 z-20 flex flex-col items-center gap-3 sm:gap-4 ${isLandscape ? 'hidden' : ''}`} onClick={(e) => e.stopPropagation()}>
         {/* Creator Avatar - Same size as dashboard */}
         {currentSegment?.winning_clip && (
           <Link href={`/profile/${currentSegment.winning_clip.username}`} className="block relative">
@@ -758,9 +760,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         />
       </div>
 
-      {/* Left Side: Up/Down Navigation Arrows - Unified with Dashboard styling */}
+      {/* Left Side: Up/Down Navigation Arrows - Unified with Dashboard styling (hidden in landscape) */}
       {/* On mobile: show internal nav. On desktop: hide if external navigation provided */}
-      {completedSegments.length > 1 && !hideInternalNav && (
+      {completedSegments.length > 1 && !hideInternalNav && !isLandscape && (
         <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-4 md:gap-6">
           {/* Previous Segment Arrow */}
           <motion.button
@@ -895,8 +897,8 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         </div>
       )}
 
-      {/* Bottom left: Creator info - Higher on mobile to avoid season list */}
-      {currentSegment?.winning_clip && (
+      {/* Bottom left: Creator info - Higher on mobile to avoid season list (hidden in landscape) */}
+      {currentSegment?.winning_clip && !isLandscape && (
         <div className="absolute bottom-28 md:bottom-12 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
             <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
@@ -1782,6 +1784,7 @@ function StoryPage() {
             onVote={handleVoteNow}
             isFullscreen={isFullscreen || isLandscape}
             onToggleFullscreen={toggleFullscreen}
+            isLandscape={isLandscape}
           />
         </div>
 
