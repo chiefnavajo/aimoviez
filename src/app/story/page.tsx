@@ -347,16 +347,14 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (onMuteToggle) {
-      // Use parent-controlled mute state
+      // Use parent-controlled mute state - React will update the video element via muted prop
       onMuteToggle();
     } else {
       // Fall back to internal state
       setIsMutedInternal(!isMuted);
     }
-    // Also update the video element directly in case ref is stale
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-    }
+    // Note: Don't manually set videoRef.current.muted here - let React handle it
+    // via the muted={isMuted} prop to avoid race conditions and double-updates
   };
 
   const jumpToSegment = (index: number) => {
