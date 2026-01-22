@@ -1584,19 +1584,21 @@ function VotingArena() {
       </div>
 
 
-      {/* ============ HELP BUTTON (Top Right Corner) ============ */}
-      <motion.button
-        whileTap={{ scale: 0.9 }}
-        onClick={resetTour}
-        className="absolute top-2 right-3 z-50 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
-        aria-label="Show tutorial"
-      >
-        <HelpCircle className="w-5 h-5 text-white/70" aria-hidden="true" />
-      </motion.button>
+      {/* ============ HELP BUTTON (Top Right Corner, hidden in landscape) ============ */}
+      {!isLandscape && (
+        <motion.button
+          whileTap={{ scale: 0.9 }}
+          onClick={resetTour}
+          className="absolute top-2 right-3 z-50 p-2 rounded-full bg-black/40 backdrop-blur-sm border border-white/20"
+          aria-label="Show tutorial"
+        >
+          <HelpCircle className="w-5 h-5 text-white/70" aria-hidden="true" />
+        </motion.button>
+      )}
 
 
-      {/* ============ ROUND INFO - Top of screen, above MiniLeaderboard ============ */}
-      {votingData && (
+      {/* ============ ROUND INFO - Top of screen, above MiniLeaderboard (hidden in landscape) ============ */}
+      {votingData && !isLandscape && (
         <div className="absolute top-2 left-0 right-0 z-40 flex justify-center">
           <motion.div
             initial={{ opacity: 0, y: -10 }}
@@ -1705,8 +1707,8 @@ function VotingArena() {
         </div>
       </div>
 
-      {/* ============ NAVIGATION ARROWS - LEFT SIDE (All Screens) ============ */}
-      {votingData?.clips && votingData.clips.length > 1 && (
+      {/* ============ NAVIGATION ARROWS - LEFT SIDE (hidden in landscape) ============ */}
+      {votingData?.clips && votingData.clips.length > 1 && !isLandscape && (
         <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4 md:gap-6">
           {/* Previous Clip Arrow */}
           <motion.button
