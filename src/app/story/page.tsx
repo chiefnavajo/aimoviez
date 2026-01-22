@@ -168,12 +168,17 @@ interface VideoPlayerProps {
   playerRef?: React.RefObject<VideoPlayerHandle | null>;
   // Landscape mode - hide UI elements for true fullscreen
   isLandscape?: boolean;
+  // Mute control - lifted to parent for landscape overlay access
+  isMuted?: boolean;
+  onMuteToggle?: () => void;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, isMuted: isMutedProp, onMuteToggle }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMuted, setIsMuted] = useState(true);
+  // Use prop if provided, otherwise use internal state (backwards compatible)
+  const [isMutedInternal, setIsMutedInternal] = useState(true);
+  const isMuted = isMutedProp !== undefined ? isMutedProp : isMutedInternal;
   const [showContributors, setShowContributors] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [lastTap, setLastTap] = useState(0);
@@ -341,11 +346,16 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
 
   const toggleMute = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const newMutedState = !isMuted;
-    setIsMuted(newMutedState);
+    if (onMuteToggle) {
+      // Use parent-controlled mute state
+      onMuteToggle();
+    } else {
+      // Fall back to internal state
+      setIsMutedInternal(!isMuted);
+    }
     // Also update the video element directly in case ref is stale
     if (videoRef.current) {
-      videoRef.current.muted = newMutedState;
+      videoRef.current.muted = !isMuted;
     }
   };
 
@@ -1437,6 +1447,8 @@ function StoryPage() {
   // Desktop navigation - track current segment for the counter display
   const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
   const [totalSegments, setTotalSegments] = useState(0);
+  // Mute state - lifted here for landscape overlay access
+  const [isMuted, setIsMuted] = useState(true);
   // Ref for imperative control of VideoPlayer
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
@@ -1664,6 +1676,8 @@ function StoryPage() {
             hideInternalNav={true}
             onSegmentChange={handleSegmentChange}
             playerRef={videoPlayerRef}
+            isMuted={isMuted}
+            onMuteToggle={() => setIsMuted(!isMuted)}
           />
         </div>
 
@@ -1785,6 +1799,8 @@ function StoryPage() {
             isFullscreen={isFullscreen || isLandscape}
             onToggleFullscreen={toggleFullscreen}
             isLandscape={isLandscape}
+            isMuted={isMuted}
+            onMuteToggle={() => setIsMuted(!isMuted)}
           />
         </div>
 
@@ -1795,11 +1811,11 @@ function StoryPage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                // Toggle mute would need to be passed down - for now just show the control
+                setIsMuted(!isMuted);
               }}
               className="absolute bottom-4 left-4 w-12 h-12 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center"
             >
-              <Volume2 className="w-6 h-6 text-white" />
+              {isMuted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
             </button>
             {/* Rotate hint - bottom center */}
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 backdrop-blur-md rounded-full text-white/60 text-sm">
