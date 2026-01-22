@@ -19,7 +19,9 @@ import {
   LogOut,
   User,
   X,
+  Smartphone,
 } from 'lucide-react';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -167,6 +169,15 @@ export default function SettingsPage() {
               </div>
             </Link>
           </div>
+        </section>
+
+        {/* App Section */}
+        <section>
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Smartphone className="w-5 h-5 text-cyan-400" />
+            App
+          </h2>
+          <InstallPrompt variant="settings" />
         </section>
 
         {/* Legal Section */}

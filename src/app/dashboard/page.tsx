@@ -31,6 +31,7 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { useRealtimeClips, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
+import { InstallPrompt } from '@/components/InstallPrompt';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -1437,6 +1438,9 @@ function VotingArena() {
       onClick={isLandscape ? handleScreenTap : undefined}
     >
       <Toaster position="top-center" />
+
+      {/* PWA Install Banner - shows at top when not installed */}
+      {!isLandscape && <InstallPrompt variant="banner" />}
 
       {/* Invisible CAPTCHA widget (renders nothing visible) */}
       {captchaConfigured && <CaptchaWidget />}

@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { InstallPrompt } from '@/components/InstallPrompt';
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
@@ -207,9 +206,6 @@ export default function Home() {
               </svg>
               Continue with Google
             </motion.button>
-
-            {/* PWA Install Prompt */}
-            <InstallPrompt />
           </div>
 
           {/* Footer text */}
