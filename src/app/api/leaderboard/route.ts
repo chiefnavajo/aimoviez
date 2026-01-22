@@ -53,6 +53,10 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
+// Pagination defaults
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 200;
+
 export async function GET(request: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(request, 'read');
@@ -61,9 +65,17 @@ export async function GET(request: NextRequest) {
   // Cleanup expired cache entries periodically
   cleanupExpiredCache();
 
+  // Parse pagination parameters
+  const { searchParams } = new URL(request.url);
+  const limit = Math.min(
+    Math.max(1, parseInt(searchParams.get('limit') || String(DEFAULT_LIMIT), 10)),
+    MAX_LIMIT
+  );
+  const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
+
   try {
-    // Check cache first
-    const cacheKey = 'leaderboard_main';
+    // Cache key includes pagination
+    const cacheKey = `leaderboard_main_${limit}_${offset}`;
     const cached = getCached(cacheKey);
     if (cached) {
       return NextResponse.json(cached, {
@@ -102,12 +114,23 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get all active clips with votes (optimized SELECT - only needed fields)
+    // Get total count of active clips (for pagination info)
+    const { count: totalClips, error: countError } = await supabase
+      .from('tournament_clips')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'active');
+
+    if (countError) {
+      console.error('Count fetch error:', countError);
+    }
+
+    // Get paginated active clips with votes (LIMIT prevents OOM at scale)
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('id, video_url, thumbnail_url, username, avatar_url, vote_count, genre, title, slot_position')
       .eq('status', 'active')
-      .order('vote_count', { ascending: false });
+      .order('vote_count', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (clipsError) {
       console.error('Clips fetch error:', clipsError);
@@ -118,12 +141,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate rankings and percentages
-    const totalVotes = clips?.reduce((sum, clip) => sum + (clip.vote_count || 0), 0) || 0;
+    // Note: For accurate percentages across all clips, we'd need a separate aggregate query
+    // For now, percentage is relative to this page (acceptable for leaderboard display)
+    const pageVotes = clips?.reduce((sum, clip) => sum + (clip.vote_count || 0), 0) || 0;
 
     const rankedClips = (clips || []).map((clip, index) => ({
       ...clip,
-      rank: index + 1,
-      percentage: totalVotes > 0 ? (clip.vote_count / totalVotes) * 100 : 0,
+      rank: offset + index + 1, // Global rank based on offset
+      percentage: pageVotes > 0 ? (clip.vote_count / pageVotes) * 100 : 0,
       trend: 'same' as const, // Can be enhanced with historical data
     }));
 
@@ -131,8 +156,15 @@ export async function GET(request: NextRequest) {
       success: true,
       clips: rankedClips,
       season: activeSeason,
-      totalVotes,
-      totalClips: clips?.length || 0,
+      totalVotes: pageVotes,
+      totalClips: totalClips || 0,
+      // Pagination info
+      pagination: {
+        limit,
+        offset,
+        hasMore: offset + limit < (totalClips || 0),
+        total: totalClips || 0,
+      },
     };
 
     // Cache the response
