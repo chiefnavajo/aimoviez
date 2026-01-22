@@ -168,12 +168,14 @@ interface VideoPlayerProps {
   playerRef?: React.RefObject<VideoPlayerHandle | null>;
   // Landscape mode - hide UI elements for true fullscreen
   isLandscape?: boolean;
+  // Show controls in landscape mode (auto-hides after delay)
+  showLandscapeControls?: boolean;
   // Mute control - lifted to parent for landscape overlay access
   isMuted?: boolean;
   onMuteToggle?: () => void;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, isMuted: isMutedProp, onMuteToggle }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   // Use prop if provided, otherwise use internal state (backwards compatible)
@@ -828,9 +830,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       )}
 
       {/* Top: Seekable Progress Line - Shows overall story progress with time-based seeking */}
+      {/* In landscape mode, fades with other controls */}
       {completedSegments.length > 0 && (
         <div
-          className="absolute top-0 left-0 right-0 z-30 pt-2 px-2 cursor-pointer group"
+          className={`absolute top-0 left-0 right-0 z-30 pt-2 px-2 cursor-pointer group transition-opacity duration-300 ${
+            isLandscape && !showLandscapeControls ? 'opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
           onClick={(e) => {
             e.stopPropagation();
             const rect = e.currentTarget.getBoundingClientRect();
@@ -1812,6 +1817,7 @@ function StoryPage() {
             isFullscreen={isFullscreen || isLandscape}
             onToggleFullscreen={toggleFullscreen}
             isLandscape={isLandscape}
+            showLandscapeControls={showControls}
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted(!isMuted)}
           />
