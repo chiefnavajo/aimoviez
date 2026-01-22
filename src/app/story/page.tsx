@@ -1447,11 +1447,23 @@ function StoryPage() {
   const [totalSegments, setTotalSegments] = useState(0);
   // Mute state - lifted here for landscape overlay access
   const [isMuted, setIsMuted] = useState(true);
+  // Track if we're on desktop to conditionally render only ONE VideoPlayer (prevents double audio)
+  const [isDesktop, setIsDesktop] = useState(false);
   // Ref for imperative control of VideoPlayer
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
 
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
+
+  // Detect desktop vs mobile to render only ONE VideoPlayer (CSS hidden still plays audio)
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mediaQuery.matches);
+
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
 
   // Fetch seasons from API
   // Realtime updates are primary, polling is a safety net for missed websocket events
@@ -1662,8 +1674,9 @@ function StoryPage() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-black overflow-hidden">
-      {/* Desktop Layout - TikTok Style */}
-      <div className="hidden md:flex h-[100dvh] relative">
+      {/* Desktop Layout - TikTok Style (only render on desktop to prevent double audio) */}
+      {isDesktop && (
+      <div className="flex h-[100dvh] relative">
         {/* Full Screen Video Background */}
         <div className="absolute inset-0 z-0">
           <VideoPlayer
@@ -1783,10 +1796,12 @@ function StoryPage() {
 
         {/* Season Navigation Arrows - REMOVED: overlapped with segment navigation, use sidebar season selector instead */}
       </div>
+      )}
 
-      {/* Mobile Layout - Full screen video with overlay controls */}
+      {/* Mobile Layout - Full screen video with overlay controls (only render on mobile to prevent double audio) */}
+      {!isDesktop && (
       <div
-        className={`md:hidden h-[100dvh] relative ${isLandscape ? 'video-landscape-mode' : ''}`}
+        className={`h-[100dvh] relative ${isLandscape ? 'video-landscape-mode' : ''}`}
         onClick={isLandscape ? handleScreenTap : undefined}
       >
         {/* Video Player - Full screen */}
@@ -1845,6 +1860,7 @@ function StoryPage() {
         {/* Bottom Navigation - Using shared component (hidden when fullscreen or landscape) */}
         {!isFullscreen && !isLandscape && <BottomNavigation />}
       </div>
+      )}
     </div>
   );
 }
