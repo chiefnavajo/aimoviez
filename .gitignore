@@ -46,3 +46,6 @@ Archiv.zip
 .env.*.local
 
 certificates
+
+# Documentation exports (contain user data)
+Dokumentacja/*.csv
