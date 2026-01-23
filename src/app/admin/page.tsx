@@ -1852,7 +1852,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="flex flex-1 gap-3 items-center">
+              <div className="flex flex-col sm:flex-row flex-1 gap-2 sm:gap-3">
                 <input
                   type="text"
                   value={resetVotesUsername}
@@ -1866,9 +1866,9 @@ export default function AdminDashboard() {
                   whileTap={{ scale: 0.95 }}
                   onClick={handleResetUserVotes}
                   disabled={resettingUserVotes || !resetVotesUsername.trim()}
-                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 font-bold
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 font-bold
                            hover:shadow-lg hover:shadow-red-500/20 transition-all disabled:opacity-50
-                           flex items-center gap-2 whitespace-nowrap"
+                           flex items-center justify-center gap-2 whitespace-nowrap"
                   type="button"
                 >
                   {resettingUserVotes ? (
