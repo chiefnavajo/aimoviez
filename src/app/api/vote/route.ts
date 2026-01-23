@@ -904,6 +904,7 @@ export async function GET(req: NextRequest) {
 
     // Filter out seen clips using Redis Bloom filters (O(1) per clip, scalable to millions)
     // This replaces the expensive database JOIN with clip_views table
+    const allClipsBeforeSeenFilter = [...availableClips];
     if (!forceNew && availableClips.length > 0) {
       const clipIds = availableClips.map(c => c.id);
       const unseenIds = await filterUnseenClipIds(
@@ -913,6 +914,12 @@ export async function GET(req: NextRequest) {
       );
       const unseenSet = new Set(unseenIds);
       availableClips = availableClips.filter(clip => unseenSet.has(clip.id));
+    }
+
+    // Fallback: If all clips have been seen, show them anyway so users can still vote
+    // This prevents the "no clips" state when there are actually clips in the slot
+    if (availableClips.length === 0 && allClipsBeforeSeenFilter.length > 0) {
+      availableClips = allClipsBeforeSeenFilter;
     }
 
     // Fisher-Yates shuffle for true randomization
