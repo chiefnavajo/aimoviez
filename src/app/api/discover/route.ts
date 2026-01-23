@@ -6,7 +6,8 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+// Use anon key for public read-only operations (principle of least privilege)
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 interface DiscoverClip {
   id: string;
@@ -142,8 +143,8 @@ export async function GET(req: NextRequest) {
       }
 
       // PERFORMANCE FIX: Add limit to prevent loading entire table
-      // Fetch enough to aggregate top creators (limit * 10 gives good coverage)
-      const maxClipsToFetch = Math.min(limit * 50, 5000);
+      // Fetch enough to aggregate top creators while keeping memory usage reasonable
+      const maxClipsToFetch = Math.min(limit * 20, 1000);
 
       const [clipsResult, lockedSlotsResult] = await Promise.all([
         creatorsQuery.limit(maxClipsToFetch),

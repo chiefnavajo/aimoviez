@@ -68,7 +68,7 @@ function getSupabaseClient() {
 
 // Pagination defaults
 const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 200;
+const MAX_LIMIT = 100; // Reduced from 200 for better performance
 
 export async function GET(request: NextRequest) {
   // Rate limiting

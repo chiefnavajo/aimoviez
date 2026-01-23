@@ -71,12 +71,16 @@ export async function GET(_req: NextRequest) {
     }
 
     // PERFORMANCE FIX: Select only needed columns instead of SELECT *
+    // Add pagination to prevent memory issues with prolific creators
+    const MAX_CLIPS = 200; // Reasonable limit for profile display
+
     // Get user's clips from tournament_clips using user_id (UUID)
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('id, video_url, thumbnail_url, username, genre, vote_count, weighted_score, rank_in_track, status, slot_position, created_at')
       .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(MAX_CLIPS);
 
     if (clipsError) {
       console.error('[GET /api/profile/clips] clipsError:', clipsError);
