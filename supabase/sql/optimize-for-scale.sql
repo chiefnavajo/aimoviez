@@ -123,7 +123,7 @@ RETURNS TABLE (
   genre TEXT,
   slot_position INTEGER,
   vote_count INTEGER,
-  weighted_score INTEGER,
+  weighted_score NUMERIC(10,2),
   view_count INTEGER,
   created_at TIMESTAMPTZ,
   has_voted BOOLEAN,
