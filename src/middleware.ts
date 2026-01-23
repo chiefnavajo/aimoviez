@@ -72,6 +72,34 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     'camera=(), microphone=(), geolocation=()'
   );
 
+  // Content Security Policy
+  // Protects against XSS, clickjacking, and other injection attacks
+  const cspDirectives = [
+    "default-src 'self'",
+    // Scripts: self + inline (Next.js requires inline scripts)
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    // Styles: self + inline (Tailwind/Next.js requires inline styles)
+    "style-src 'self' 'unsafe-inline'",
+    // Images: self + data URIs + external sources (Supabase, DiceBear, Google)
+    "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
+    // Fonts: self + Google Fonts
+    "font-src 'self' https://fonts.gstatic.com",
+    // Connect: API calls to self + Supabase + Google
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com",
+    // Media: self + Supabase storage (videos)
+    "media-src 'self' blob: https://*.supabase.co",
+    // Frames: none (prevent embedding)
+    "frame-ancestors 'none'",
+    // Forms: self only
+    "form-action 'self'",
+    // Base URI: self only (prevents base tag injection)
+    "base-uri 'self'",
+    // Object/embed: none
+    "object-src 'none'",
+  ];
+
+  response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
+
   return response;
 }
 
