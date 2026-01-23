@@ -303,7 +303,8 @@ async function getUserVotesToday(
   }
 
   const votes = (data as VoteRow[]) || [];
-  // Sum vote_weight to get total votes consumed (mega=10, super=3, standard=1)
+  // Sum vote_weight to get total votes consumed (each standard vote = 1)
+  // Note: legacy votes may have different weights for backwards compatibility
   const totalWeight = votes.reduce((sum, vote) => sum + (vote.vote_weight ?? 1), 0);
 
   debugLog('[getUserVotesToday] Total weight calculated:', totalWeight);
