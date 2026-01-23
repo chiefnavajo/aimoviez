@@ -20,7 +20,8 @@ import {
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
-import { filterUnseenClipIds, markClipsAsSeen } from '@/lib/seen-tracking';
+// Note: Redis seen-tracking removed for scalability
+// Using view_count + random jitter for fair distribution instead
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -783,93 +784,91 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 5.5 Client exclusions (passed from frontend for immediate deduplication)
-    // Server-side seen tracking is now done via Redis Bloom filters AFTER fetching clips
-    // This is more efficient than JOINing with clip_views table
+    // 5.5 Client exclusions (passed from frontend for session deduplication)
+    // This is the ONLY deduplication needed - no per-user server storage required
     const allExcludeIds = new Set(clientExcludeIds);
-    const _unseenClipsCount = totalClipsInSlot - allExcludeIds.size;
 
-    // 6. Fetch clips using WEIGHTED RANDOM SAMPLING for fair exposure
-    // This ensures all videos get roughly equal exposure regardless of upload time
-    // Pool distribution: 50% least viewed, 30% recent (<24h), 20% high engagement
+    // 6. Fetch clips using RANDOMIZED FAIR DISTRIBUTION
+    // ============================================================================
+    // Scalability approach: Use view_count + random jitter instead of per-user tracking
     //
-    // Dynamic pool sizing based on total clips:
-    // - Small slot (<50 clips): fetch all
-    // - Medium slot (50-500): fetch 20% or min 50
-    // - Large slot (500+): fetch 10% or min 100, max 200
+    // Why this scales to millions:
+    // - No per-user storage (Redis or DB)
+    // - view_count naturally balances exposure (low-view clips get priority)
+    // - Random jitter ensures variety (different clips each request)
+    // - Client-side exclusion handles session deduplication
+    // ============================================================================
 
-    let poolSize: number;
-    if (totalClipsInSlot <= 50) {
-      poolSize = totalClipsInSlot;
-    } else if (totalClipsInSlot <= 500) {
-      poolSize = Math.max(50, Math.ceil(totalClipsInSlot * 0.2));
-    } else {
-      poolSize = Math.min(200, Math.max(100, Math.ceil(totalClipsInSlot * 0.1)));
-    }
+    // Convert client exclude IDs to array for RPC
+    const excludeIdsArray = Array.from(allExcludeIds);
 
-    // Ensure we fetch enough to satisfy the request after filtering
-    poolSize = Math.max(poolSize, limit * 4);
+    // Calculate fetch limit (fetch more than needed to allow for client filtering)
+    const fetchLimit = Math.min(limit * 3, 60);
 
-    const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    // Try RPC first (database-side randomization is more efficient)
+    const { data: rpcClips, error: rpcError } = await supabase.rpc(
+      'get_clips_randomized',
+      {
+        p_slot_position: activeSlot.slot_position,
+        p_season_id: seasonRow.id,
+        p_exclude_ids: excludeIdsArray,
+        p_limit: fetchLimit,
+        p_jitter: 50, // Random jitter added to view_count for variety
+      }
+    );
 
-    // Build base query conditions
-    const baseConditions = {
-      slot_position: activeSlot.slot_position,
-      season_id: seasonRow.id,
-      status: 'active' as const,
-    };
+    let availableClips: TournamentClipRow[] = [];
 
-    // Pool 1: Least viewed clips (50% of pool) - ensures fair exposure
-    const leastViewedQuery = supabase
-      .from('tournament_clips')
-      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-      .eq('slot_position', baseConditions.slot_position)
-      .eq('season_id', baseConditions.season_id)
-      .eq('status', baseConditions.status)
-      .order('view_count', { ascending: true, nullsFirst: true })
-      .limit(Math.ceil(poolSize * 0.5));
+    if (rpcError?.code === '42883' || rpcError?.code === 'PGRST202') {
+      // RPC not available - fallback to simple query with client-side shuffle
+      console.warn('[GET /api/vote] get_clips_randomized RPC not found, using fallback');
 
-    // Pool 2: Recent clips (<24h) (30% of pool) - ensures fresh content gets seen
-    const recentQuery = supabase
-      .from('tournament_clips')
-      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-      .eq('slot_position', baseConditions.slot_position)
-      .eq('season_id', baseConditions.season_id)
-      .eq('status', baseConditions.status)
-      .gte('created_at', oneDayAgo)
-      .order('created_at', { ascending: false })
-      .limit(Math.ceil(poolSize * 0.3));
+      const { data: fallbackClips, error: fallbackError } = await supabase
+        .from('tournament_clips')
+        .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
+        .eq('slot_position', activeSlot.slot_position)
+        .eq('season_id', seasonRow.id)
+        .eq('status', 'active')
+        .order('view_count', { ascending: true, nullsFirst: true })
+        .limit(fetchLimit);
 
-    // Pool 3: Random clips (20% of pool) - discovery/variety
-    // Use created_at desc as a simple randomization (will be shuffled anyway)
-    const randomQuery = supabase
-      .from('tournament_clips')
-      .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-      .eq('slot_position', baseConditions.slot_position)
-      .eq('season_id', baseConditions.season_id)
-      .eq('status', baseConditions.status)
-      .order('vote_count', { ascending: false }) // High engagement clips
-      .limit(Math.ceil(poolSize * 0.2));
+      if (fallbackError) {
+        console.error('[GET /api/vote] fallbackError:', fallbackError);
+        const empty: VotingStateResponse = {
+          clips: [],
+          totalVotesToday,
+          userRank: 0,
+          remainingVotes: { standard: dailyRemaining },
+          votedClipIds,
+          currentSlot: activeSlot.slot_position,
+          totalSlots,
+          streak: 1,
+          votingEndsAt: activeSlot.voting_ends_at || null,
+          votingStartedAt: activeSlot.voting_started_at || null,
+          timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
+          totalClipsInSlot: 0,
+          clipsShown: 0,
+          hasMoreClips: false,
+        };
+        return NextResponse.json(empty, { status: 200 });
+      }
 
-    // Execute all queries in parallel
-    const [leastViewedResult, recentResult, randomResult] = await Promise.all([
-      leastViewedQuery,
-      recentQuery,
-      randomQuery,
-    ]);
+      // Filter out client-excluded clips
+      availableClips = (fallbackClips || [])
+        .filter(clip => !allExcludeIds.has(clip.id)) as TournamentClipRow[];
 
-    // Check for errors
-    const clipsError = leastViewedResult.error || recentResult.error || randomResult.error;
-    if (clipsError) {
-      console.error('[GET /api/vote] clipsError:', clipsError);
+      // Shuffle since fallback doesn't have DB-side randomization
+      for (let i = availableClips.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [availableClips[i], availableClips[j]] = [availableClips[j], availableClips[i]];
+      }
+    } else if (rpcError) {
+      console.error('[GET /api/vote] RPC error:', rpcError);
       const empty: VotingStateResponse = {
         clips: [],
         totalVotesToday,
         userRank: 0,
-        remainingVotes: {
-          standard: dailyRemaining,
-        },
+        remainingVotes: { standard: dailyRemaining },
         votedClipIds,
         currentSlot: activeSlot.slot_position,
         totalSlots,
@@ -882,50 +881,9 @@ export async function GET(req: NextRequest) {
         hasMoreClips: false,
       };
       return NextResponse.json(empty, { status: 200 });
-    }
-
-    // Merge all pools and deduplicate by ID
-    const allPoolClips = [
-      ...(leastViewedResult.data || []),
-      ...(recentResult.data || []),
-      ...(randomResult.data || []),
-    ] as TournamentClipRow[];
-
-    const uniqueClipsMap = new Map<string, TournamentClipRow>();
-    for (const clip of allPoolClips) {
-      if (!uniqueClipsMap.has(clip.id)) {
-        uniqueClipsMap.set(clip.id, clip);
-      }
-    }
-
-    // Convert to array and filter out client-excluded clips first
-    let availableClips = Array.from(uniqueClipsMap.values())
-      .filter(clip => !allExcludeIds.has(clip.id));
-
-    // Filter out seen clips using Redis Bloom filters (O(1) per clip, scalable to millions)
-    // This replaces the expensive database JOIN with clip_views table
-    const allClipsBeforeSeenFilter = [...availableClips];
-    if (!forceNew && availableClips.length > 0) {
-      const clipIds = availableClips.map(c => c.id);
-      const unseenIds = await filterUnseenClipIds(
-        effectiveVoterKey,
-        activeSlot.slot_position,
-        clipIds
-      );
-      const unseenSet = new Set(unseenIds);
-      availableClips = availableClips.filter(clip => unseenSet.has(clip.id));
-    }
-
-    // Fallback: If all clips have been seen, show them anyway so users can still vote
-    // This prevents the "no clips" state when there are actually clips in the slot
-    if (availableClips.length === 0 && allClipsBeforeSeenFilter.length > 0) {
-      availableClips = allClipsBeforeSeenFilter;
-    }
-
-    // Fisher-Yates shuffle for true randomization
-    for (let i = availableClips.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [availableClips[i], availableClips[j]] = [availableClips[j], availableClips[i]];
+    } else {
+      // RPC succeeded - clips already randomized by DB
+      availableClips = (rpcClips || []) as TournamentClipRow[];
     }
 
     // Take only the requested limit
@@ -960,15 +918,11 @@ export async function GET(req: NextRequest) {
     // Clips are already ordered by created_at from the DB query
     const sampledClips = clipPool;  // No additional slicing needed - DB handles pagination
 
-    // 8. Mark clips as seen in Redis (primary - scalable tracking)
+    // 8. Record clip views for analytics and view_count increment
+    // Note: Redis seen-tracking removed for scalability - using view_count + jitter instead
     const clipIdsToRecord = sampledClips.map(c => c.id);
     if (clipIdsToRecord.length > 0) {
-      // Mark as seen in Redis Bloom filter (fast, scalable)
-      // This is awaited because it's critical for seen tracking
-      await markClipsAsSeen(effectiveVoterKey, activeSlot.slot_position, clipIdsToRecord);
-
-      // Also record in database for analytics (fire and forget - non-blocking)
-      // This is kept for view_count tracking and historical data
+      // Record in database for view_count tracking (fire and forget - non-blocking)
       recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
