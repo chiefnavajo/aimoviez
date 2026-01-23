@@ -6,8 +6,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 
-// Choose your storage provider (uncomment one)
-const STORAGE_PROVIDER: 'supabase' | 'cloudinary' | 's3' = 'supabase';
+// Choose your storage provider
+// Change to 'r2' when ready to switch to Cloudflare R2
+const STORAGE_PROVIDER: 'supabase' | 'cloudinary' | 's3' | 'r2' = 'supabase';
 
 // ============================================================================
 // CONFIGURATION
@@ -25,6 +26,14 @@ const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || 'aimovi
 // AWS S3 config (if using S3)
 const _AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const _AWS_BUCKET = process.env.AWS_S3_BUCKET || 'aimoviez-videos';
+
+// Cloudflare R2 config (S3-compatible, FREE egress!)
+// See: /Dokumentacja/2026-01-23-cloudflare-r2-migration-guide.md
+const R2_ENDPOINT = process.env.CLOUDFLARE_R2_ENDPOINT;
+const R2_ACCESS_KEY = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+const R2_SECRET_KEY = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
+const R2_BUCKET = process.env.CLOUDFLARE_R2_BUCKET || 'aimoviez-videos';
+const R2_PUBLIC_URL = process.env.CLOUDFLARE_R2_PUBLIC_URL;
 
 // Upload constraints
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -194,6 +203,49 @@ async function uploadToS3(_file: File, _fileId: string): Promise<{ url: string; 
   }
 }
 
+// 4. CLOUDFLARE R2 (S3-compatible, FREE egress)
+async function uploadToR2(file: File, fileId: string): Promise<{ url: string; error?: string }> {
+  try {
+    if (!R2_ENDPOINT || !R2_ACCESS_KEY || !R2_SECRET_KEY || !R2_PUBLIC_URL) {
+      return { url: '', error: 'Cloudflare R2 not configured. Set environment variables.' };
+    }
+
+    // R2 uses S3-compatible API
+    const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+
+    const s3Client = new S3Client({
+      region: 'auto',
+      endpoint: R2_ENDPOINT,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY,
+        secretAccessKey: R2_SECRET_KEY,
+      },
+    });
+
+    const extension = file.name.split('.').pop() || 'mp4';
+    const fileName = `clips/${fileId}.${extension}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const command = new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: fileName,
+      Body: buffer,
+      ContentType: file.type,
+    });
+
+    await s3Client.send(command);
+
+    // Return public CDN URL
+    const url = `${R2_PUBLIC_URL}/${fileName}`;
+    return { url };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[R2 Upload Error]', message);
+    return { url: '', error: message };
+  }
+}
+
 // ============================================================================
 // MAIN UPLOAD HANDLER
 // ============================================================================
@@ -244,6 +296,9 @@ export async function POST(req: NextRequest) {
         break;
       case 's3':
         uploadResult = await uploadToS3(file, fileId);
+        break;
+      case 'r2':
+        uploadResult = await uploadToR2(file, fileId);
         break;
       case 'supabase':
       default:
@@ -425,6 +480,21 @@ Option 3: AWS S3 (Best for scale)
 4. Set bucket permissions to public read
 5. Uncomment the S3 code in uploadToS3 function
 6. Set STORAGE_PROVIDER = 's3' at the top
+
+Option 4: CLOUDFLARE R2 (Best for scale - FREE egress!)
+========================================================
+See full guide: /Dokumentacja/2026-01-23-cloudflare-r2-migration-guide.md
+
+1. Create R2 bucket in Cloudflare Dashboard
+2. Get API credentials (R2 → Manage API Tokens)
+3. Set up custom domain for CDN (videos.yourdomain.com)
+4. Add to .env.local:
+   CLOUDFLARE_R2_ENDPOINT=https://your-account-id.r2.cloudflarestorage.com
+   CLOUDFLARE_R2_ACCESS_KEY_ID=your-access-key
+   CLOUDFLARE_R2_SECRET_ACCESS_KEY=your-secret-key
+   CLOUDFLARE_R2_BUCKET=aimoviez-videos
+   CLOUDFLARE_R2_PUBLIC_URL=https://videos.yourdomain.com
+5. Set STORAGE_PROVIDER = 'r2' at the top
 
 TESTING:
 ========

@@ -1,0 +1,176 @@
+12:46:13.248 Running build in Washington, D.C., USA (East) – iad1
+12:46:13.249 Build machine configuration: 4 cores, 8 GB
+12:46:13.398 Cloning github.com/chiefnavajo/aimoviez (Branch: main, Commit: 563fa35)
+12:46:15.547 Cloning completed: 2.149s
+12:46:15.711 Restored build cache from previous deployment (GZ4u13bo5RECQb8fqEX15QUCjENk)
+12:46:16.108 Running "vercel build"
+12:46:17.212 Vercel CLI 50.4.10
+12:46:17.594 Installing dependencies...
+12:46:19.804 
+12:46:19.804 up to date in 2s
+12:46:19.804 
+12:46:19.804 209 packages are looking for funding
+12:46:19.804   run `npm fund` for details
+12:46:19.831 Detected Next.js version: 15.5.7
+12:46:19.839 Running "npm run build"
+12:46:19.954 
+12:46:19.954 > aimoviez-app@0.1.0 build
+12:46:19.954 > next build
+12:46:19.954 
+12:46:21.451    ▲ Next.js 15.5.7
+12:46:21.451 
+12:46:21.542    Creating an optimized production build ...
+12:46:31.829  ⚠ Compiled with warnings in 9.1s
+12:46:31.829 
+12:46:31.829 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+12:46:31.829 Critical dependency: the request of a dependency is an expression
+12:46:31.829 
+12:46:31.829 Import trace for requested module:
+12:46:31.830 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/instrumentation.js
+12:46:31.830 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/node/index.js
+12:46:31.830 ./node_modules/@opentelemetry/instrumentation/build/esm/platform/index.js
+12:46:31.830 ./node_modules/@opentelemetry/instrumentation/build/esm/index.js
+12:46:31.830 ./node_modules/@sentry/node/build/cjs/integrations/tracing/postgresjs.js
+12:46:31.830 ./node_modules/@sentry/node/build/cjs/index.js
+12:46:31.830 ./node_modules/@sentry/nextjs/build/cjs/index.server.js
+12:46:31.830 ./sentry.server.config.ts
+12:46:31.830 
+12:46:38.400  ✓ Compiled successfully in 13.3s
+12:46:38.405    Linting and checking validity of types ...
+12:46:41.443 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+12:47:00.976 
+12:47:00.976 ./src/__tests__/lib/sounds.test.ts
+12:47:00.978 8:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.978 84:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.978 
+12:47:00.978 ./src/app/api/admin/moderation/route.ts
+12:47:00.979 136:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.979 225:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.980 322:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.980 
+12:47:00.980 ./src/app/api/leaderboard/clips/route.ts
+12:47:00.980 14:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.981 26:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.981 
+12:47:00.981 ./src/app/api/leaderboard/creators/route.ts
+12:47:00.982 15:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.982 27:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.982 107:64  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.982 
+12:47:00.983 ./src/app/api/leaderboard/route.ts
+12:47:00.983 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.983 26:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.983 
+12:47:00.983 ./src/app/api/leaderboard/voters/route.ts
+12:47:00.983 110:60  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.984 
+12:47:00.984 ./src/app/api/notifications/route.ts
+12:47:00.984 36:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.984 
+12:47:00.984 ./src/app/api/story/route.ts
+12:47:00.984 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.984 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.984 152:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.984 
+12:47:00.985 ./src/app/api/vote/route.ts
+12:47:00.985 33:7  Warning: 'CLIP_POOL_SIZE' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.985 50:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.985 51:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.985 52:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.985 114:61  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.986 118:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.991 128:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.991 341:16  Warning: 'hasVotedOnClip' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.991 894:9  Warning: 'availableClips' is never reassigned. Use 'const' instead.  prefer-const
+12:47:00.992 1395:11  Warning: 'voteData' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.992 
+12:47:00.992 ./src/app/clip/[id]/ClipPageClient.tsx
+12:47:00.993 84:10  Warning: 'voteType' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.993 
+12:47:00.993 ./src/app/dashboard/page.tsx
+12:47:00.993 525:10  Warning: 'isLoadingMore' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.994 
+12:47:00.994 ./src/app/leaderboard/page.tsx
+12:47:00.994 106:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 122:76  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 136:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 
+12:47:00.994 ./src/app/onboarding/page.tsx
+12:47:00.994 72:58  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 87:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 
+12:47:00.994 ./src/app/profile/[id]/page.tsx
+12:47:00.994 82:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.994 
+12:47:00.994 ./src/app/profile/page.tsx
+12:47:00.994 154:69  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 170:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 197:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 580:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 662:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 679:106  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 751:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.995 
+12:47:00.995 ./src/app/story/page.tsx
+12:47:00.995 44:3  Warning: 'X' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.995 442:11  Warning: 'isSwipeDown' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.995 
+12:47:00.995 ./src/app/watch/page.tsx
+12:47:00.995 65:3  Warning: 'index' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+12:47:00.996 226:9  Warning: The 'lockedSlots' logical expression could make the dependencies of useEffect Hook (at line 283) change on every render. To fix this, wrap the initialization of 'lockedSlots' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+12:47:00.996 
+12:47:00.996 ./src/components/MiniLeaderboard.tsx
+12:47:00.996 62:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.996 
+12:47:00.996 ./src/hooks/useAuth.tsx
+12:47:00.996 20:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.996 
+12:47:00.996 ./src/hooks/useRealtimeClips.ts
+12:47:00.996 392:6  Warning: React Hook useCallback has a missing dependency: 'scheduleReconnect'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+12:47:00.996 
+12:47:00.997 ./src/lib/api-errors.ts
+12:47:00.997 185:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 
+12:47:00.997 ./src/lib/api-utils.ts
+12:47:00.997 15:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 24:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 31:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 48:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 97:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.997 121:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 167:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 202:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 239:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 240:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 241:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 271:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 319:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 343:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 348:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 356:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.998 
+12:47:00.999 ./src/lib/rate-limit.ts
+12:47:00.999 314:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.999 318:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.999 
+12:47:00.999 ./src/lib/sounds.ts
+12:47:00.999 15:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.999 
+12:47:00.999 ./src/lib/validations.ts
+12:47:00.999 50:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+12:47:00.999 
+12:47:00.999 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+12:47:03.690 Failed to compile.
+12:47:03.692 
+12:47:03.692 ./src/app/api/vote/route.ts:1169:85
+12:47:03.692 Type error: Cannot find name 'rawEnabled'.
+12:47:03.692 
+12:47:03.692 [0m [90m 1167 |[39m     [90m// 1. Check multi-vote mode feature flag (from cached feature flags)[39m
+12:47:03.692  [90m 1168 |[39m     [36mconst[39m multiVoteEnabled [33m=[39m featureFlags[[32m'multi_vote_mode'[39m] [33m?[39m[33m?[39m [36mfalse[39m[33m;[39m
+12:47:03.692 [31m[1m>[22m[39m[90m 1169 |[39m     debugLog([32m'[POST /api/vote] multiVoteEnabled:'[39m[33m,[39m multiVoteEnabled[33m,[39m [32m'rawEnabled:'[39m[33m,[39m rawEnabled[33m,[39m [32m'typeof:'[39m[33m,[39m [36mtypeof[39m rawEnabled[33m,[39m [32m'isPowerVote:'[39m[33m,[39m voteType [33m===[39m [32m'super'[39m [33m||[39m voteType [33m===[39m [32m'mega'[39m)[33m;[39m
+12:47:03.692  [90m      |[39m                                                                                     [31m[1m^[22m[39m
+12:47:03.692  [90m 1170 |[39m
+12:47:03.692  [90m 1171 |[39m     [90m// 2. Determine if this is a power vote (super/mega)[39m
+12:47:03.692  [90m 1172 |[39m     [90m// Power votes can upgrade existing votes, so we handle them differently[39m[0m
+12:47:03.753 Next.js build worker exited with code: 1 and signal: null
+12:47:03.781 Error: Command "npm run build" exited with 1
