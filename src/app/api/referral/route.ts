@@ -185,8 +185,16 @@ export async function POST(request: NextRequest) {
       .eq('referral_code', referral_code.toUpperCase())
       .single();
 
+    // SECURITY: Don't reveal whether code exists or not (prevents enumeration)
+    // Return success-like response for invalid codes, but don't create referral
     if (referrerError || !referrer) {
-      return NextResponse.json({ error: 'Invalid referral code' }, { status: 404 });
+      console.warn('[REFERRAL] Invalid code attempt:', referral_code.slice(0, 4) + '***');
+      return NextResponse.json({
+        success: true,
+        message: 'Referral code processed',
+        // Don't reveal actual reward - use placeholder
+        reward_amount: 0,
+      });
     }
 
     // Don't allow self-referral
