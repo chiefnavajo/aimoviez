@@ -121,7 +121,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
       {/* Header */}
       <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
         <div className="max-w-2xl mx-auto px-4 py-4">

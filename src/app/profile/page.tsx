@@ -468,7 +468,7 @@ function ProfilePageContent() {
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
       {/* Desktop Layout */}
       <div className="hidden md:flex h-screen">
         {/* Left Sidebar */}
