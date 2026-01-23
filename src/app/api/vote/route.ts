@@ -1,11 +1,9 @@
 // app/api/vote/route.ts
 // AiMoviez · 8SEC MADNESS
-// HYBRID VOTING SYSTEM:
+// VOTING SYSTEM:
 //   - 1 vote per clip per user (no multi-voting on same clip)
-//   - Can vote on multiple clips in same round  
+//   - Can vote on multiple clips in same round
 //   - Daily limit: 200 votes
-//   - Super vote (3x): 1 per round
-//   - Mega vote (10x): 1 per round
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -30,12 +28,10 @@ import { authOptions } from '@/lib/auth-options';
 const isDev = process.env.NODE_ENV === 'development';
 const debugLog = isDev ? console.log.bind(console) : () => {};
 
-const CLIP_POOL_SIZE = 30;  // How many clips to fetch per batch
+const _CLIP_POOL_SIZE = 30;  // How many clips to fetch per batch
 const CLIPS_PER_SESSION = 8;  // Show 8 clips per initial request
 const MAX_CLIPS_PER_REQUEST = 20;  // Max clips for pagination requests
 const DAILY_VOTE_LIMIT = 200;
-const SUPER_VOTES_PER_SLOT = 1;
-const MEGA_VOTES_PER_SLOT = 1;
 const FRESH_CLIP_HOURS = 2;   // Clips < 2 hours old get boost
 
 // =========================
@@ -161,7 +157,8 @@ function createSupabaseServerClient(): SupabaseClient {
 // Types
 // =========================
 
-type VoteType = 'standard' | 'super' | 'mega';
+// VoteType for database compatibility (only standard used now)
+type VoteType = 'standard';
 
 interface SeasonRow {
   id: string;
@@ -238,8 +235,6 @@ interface VotingStateResponse {
   userRank: number;
   remainingVotes: {
     standard: number;
-    super: number;
-    mega: number;
   };
   votedClipIds: string[];
   currentSlot: number;
@@ -263,13 +258,10 @@ interface VotingStateResponse {
 interface VoteResponseBody {
   success: boolean;
   newScore: number;
-  voteType: VoteType;
   clipId: string;
   totalVotesToday?: number;
   remainingVotes?: {
     standard: number;
-    super: number;
-    mega: number;
   };
   error?: string;
 }
@@ -338,7 +330,7 @@ async function getUserVotesInSlot(
   return { votes: (data as VoteRow[]) || [] };
 }
 
-async function hasVotedOnClip(
+async function _hasVotedOnClip(
   supabase: SupabaseClient,
   voterKey: string,
   clipId: string
@@ -422,18 +414,6 @@ function normalizeGenre(genre: string | null | undefined): ClientClip['genre'] {
   if (upper === 'ACTION') return 'ACTION';
   if (upper === 'ANIMATION') return 'ANIMATION';
   return 'COMEDY';
-}
-
-function calculateRemainingSpecialVotes(
-  slotVotes: VoteRow[]
-): { super: number; mega: number } {
-  const superUsed = slotVotes.filter(v => v.vote_type === 'super').length;
-  const megaUsed = slotVotes.filter(v => v.vote_type === 'mega').length;
-
-  return {
-    super: Math.max(0, SUPER_VOTES_PER_SLOT - superUsed),
-    mega: Math.max(0, MEGA_VOTES_PER_SLOT - megaUsed),
-  };
 }
 
 // =========================
@@ -675,8 +655,6 @@ export async function GET(req: NextRequest) {
         userRank: 0,
         remainingVotes: {
           standard: dailyRemaining,
-          super: SUPER_VOTES_PER_SLOT,
-          mega: MEGA_VOTES_PER_SLOT,
         },
         votedClipIds: [],
         currentSlot: 0,
@@ -751,8 +729,6 @@ export async function GET(req: NextRequest) {
         userRank: 0,
         remainingVotes: {
           standard: dailyRemaining,
-          super: SUPER_VOTES_PER_SLOT,
-          mega: MEGA_VOTES_PER_SLOT,
         },
         votedClipIds: [],
         currentSlot: 0,
@@ -770,12 +746,11 @@ export async function GET(req: NextRequest) {
 
     const activeSlot = storySlot as StorySlotRow;
 
-    // 4. Get user's votes in current slot (for special vote tracking)
+    // 4. Get user's votes in current slot
     const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position);
     // For GET, we can proceed with empty votes if there's an error (graceful degradation)
     const slotVotes = slotVotesResult.votes;
     const votedClipIds = slotVotes.map(v => v.clip_id);
-    const specialVotesRemaining = calculateRemainingSpecialVotes(slotVotes);
     const votedIdsSet = new Set(votedClipIds);
 
     // 5. Get total clip count for this slot (lightweight query)
@@ -858,8 +833,6 @@ export async function GET(req: NextRequest) {
         userRank: 0,
         remainingVotes: {
           standard: dailyRemaining,
-          super: specialVotesRemaining.super,
-          mega: specialVotesRemaining.mega,
         },
         votedClipIds,
         currentSlot: activeSlot.slot_position,
@@ -891,7 +864,7 @@ export async function GET(req: NextRequest) {
 
     // Convert to array and filter out already-seen clips
     const excludeIdsSet = new Set(excludeIds);
-    let availableClips = Array.from(uniqueClipsMap.values())
+    const availableClips = Array.from(uniqueClipsMap.values())
       .filter(clip => !excludeIdsSet.has(clip.id));
 
     // Fisher-Yates shuffle for true randomization
@@ -912,8 +885,6 @@ export async function GET(req: NextRequest) {
         userRank: 0,
         remainingVotes: {
           standard: dailyRemaining,
-          super: specialVotesRemaining.super,
-          mega: specialVotesRemaining.mega,
         },
         votedClipIds,
         currentSlot: activeSlot.slot_position,
@@ -1020,8 +991,6 @@ export async function GET(req: NextRequest) {
       userRank: 0,
       remainingVotes: {
         standard: dailyRemaining,
-        super: specialVotesRemaining.super,
-        mega: specialVotesRemaining.mega,
       },
       votedClipIds,
       currentSlot: activeSlot.slot_position,
@@ -1044,8 +1013,6 @@ export async function GET(req: NextRequest) {
       userRank: 0,
       remainingVotes: {
         standard: DAILY_VOTE_LIMIT,
-        super: SUPER_VOTES_PER_SLOT,
-        mega: MEGA_VOTES_PER_SLOT,
       },
       votedClipIds: [],
       currentSlot: 0,
@@ -1121,7 +1088,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { clipId, voteType } = validation.data;
+    const { clipId } = validation.data;
 
     const voterKey = getVoterKey(req);
 
@@ -1158,11 +1125,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Check multi-vote mode feature flag (from cached feature flags)
     const multiVoteEnabled = featureFlags['multi_vote_mode'] ?? false;
-    debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
-
-    // 2. Determine if this is a power vote (super/mega)
-    // Power votes can upgrade existing votes, so we handle them differently
-    const isPowerVote = voteType === 'super' || voteType === 'mega';
+    debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled);
 
     // NOTE: We removed the check-then-insert pattern here because it has a race condition.
     // Instead, we rely on the database unique constraint and atomic RPC function.
@@ -1185,23 +1148,18 @@ export async function POST(req: NextRequest) {
     }
     const totalVotesToday = votesTodayResult.count;
 
-    // Calculate vote weight before checking limit
-    const weight: number =
-      voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
+    // Standard votes always have weight of 1
+    const weight = 1;
 
-    // Check if this vote would exceed the daily limit (accounting for vote weight)
+    // Check if this vote would exceed the daily limit
     if (totalVotesToday + weight > DAILY_VOTE_LIMIT) {
-      const remaining = DAILY_VOTE_LIMIT - totalVotesToday;
       return NextResponse.json(
         {
           success: false,
-          error: remaining <= 0
-            ? 'Daily vote limit reached (200 votes)'
-            : `Not enough votes remaining. You have ${remaining} vote${remaining === 1 ? '' : 's'} left, but ${voteType} vote requires ${weight}.`,
+          error: 'Daily vote limit reached (200 votes)',
           code: 'DAILY_LIMIT',
           totalVotesToday,
-          remaining,
-          required: weight,
+          remaining: 0,
         },
         { status: 429 }
       );
@@ -1292,84 +1250,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. For super/mega votes: check if already used in this slot
-    // This check applies regardless of multi-vote mode - special votes are always limited
-    if (voteType === 'super' || voteType === 'mega') {
-      const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
-      // SECURITY: If we can't verify slot votes, reject special votes
-      if (slotVotesResult.error) {
-        console.error('[POST /api/vote] Failed to check slot votes:', slotVotesResult.error);
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Unable to process special vote. Please try again.',
-            code: 'DB_ERROR',
-          },
-          { status: 503 }
-        );
-      }
-
-      // Check if user is trying to use super/mega on a clip they already voted with that type
-      const existingVoteOnClip = slotVotesResult.votes.find(v => v.clip_id === clipId);
-      const alreadyUsedThisTypeOnClip = existingVoteOnClip?.vote_type === voteType;
-
-      // Count special votes across ALL clips in slot (not just unique vote_type values)
-      // In multi-vote mode, users might upgrade standard→super on same clip, which is ok
-      // But they can't use super on multiple clips, or super twice on same clip
-      const specialRemaining = calculateRemainingSpecialVotes(slotVotesResult.votes);
-
-      if (voteType === 'super') {
-        // If already used super on this clip, block (no stacking super votes)
-        if (alreadyUsedThisTypeOnClip) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Already used super vote on this clip',
-              code: 'SUPER_ALREADY_ON_CLIP',
-            },
-            { status: 429 }
-          );
-        }
-        // If super used on another clip, block
-        if (specialRemaining.super <= 0) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Super vote already used this round',
-              code: 'SUPER_LIMIT',
-            },
-            { status: 429 }
-          );
-        }
-      }
-
-      if (voteType === 'mega') {
-        // If already used mega on this clip, block (no stacking mega votes)
-        if (alreadyUsedThisTypeOnClip) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Already used mega vote on this clip',
-              code: 'MEGA_ALREADY_ON_CLIP',
-            },
-            { status: 429 }
-          );
-        }
-        // If mega used on another clip, block
-        if (specialRemaining.mega <= 0) {
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'Mega vote already used this round',
-              code: 'MEGA_LIMIT',
-            },
-            { status: 429 }
-          );
-        }
-      }
-    }
-
-    // 5.5. Check vote risk (for fraud detection)
+    // 5. Check vote risk (for fraud detection)
     // Note: vote weight was already calculated above (before daily limit check)
     const voteRisk = checkVoteRisk(req);
     if (voteRisk.riskScore >= 70) {
@@ -1386,21 +1267,9 @@ export async function POST(req: NextRequest) {
     // - user_id: only set if logged in (null for anonymous users)
     // - flagged: true if suspicious activity detected
     //
-    // When multi_vote_mode is enabled, we update the existing vote instead of failing
-    // This allows users to "add" to their vote weight on the same clip
     // Explicitly set created_at from JavaScript to ensure consistent timestamp comparison
     // This avoids timezone/precision mismatches between JS Date and PostgreSQL NOW()
     const voteCreatedAt = new Date().toISOString();
-    const voteData = {
-      clip_id: clipId,
-      voter_key: effectiveVoterKey,
-      user_id: loggedInUserId, // null if not logged in
-      vote_weight: weight,
-      vote_type: voteType,
-      slot_position: slotPosition,
-      flagged: voteRisk.flagged || undefined, // Only set if flagged
-      created_at: voteCreatedAt, // Explicitly set timestamp from JS
-    };
 
     const todayDateStr = getTodayDateString();
     const filterDate = new Date(todayDateStr).toISOString();
@@ -1419,11 +1288,11 @@ export async function POST(req: NextRequest) {
         p_voter_key: effectiveVoterKey,
         p_user_id: loggedInUserId,
         p_vote_weight: weight,
-        p_vote_type: voteType,
+        p_vote_type: 'standard',
         p_slot_position: slotPosition,
         p_flagged: voteRisk.flagged || false,
         p_multi_vote_mode: multiVoteEnabled,
-        p_is_power_vote: isPowerVote,
+        p_is_power_vote: false,
       }
     );
 
@@ -1435,7 +1304,6 @@ export async function POST(req: NextRequest) {
         p_clip_id: clipId,
         p_voter_key: effectiveVoterKey.slice(0, 20) + '...',
         p_multi_vote_mode: multiVoteEnabled,
-        p_is_power_vote: isPowerVote,
       });
 
       // CRITICAL: Do NOT use legacy fallback - it has race conditions
@@ -1473,29 +1341,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Handle special vote limit errors (race condition protection)
-      if (result?.error_code === 'SUPER_LIMIT_EXCEEDED') {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Super vote already used this round',
-            code: 'SUPER_LIMIT',
-          },
-          { status: 429 }
-        );
-      }
-
-      if (result?.error_code === 'MEGA_LIMIT_EXCEEDED') {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'Mega vote already used this round',
-            code: 'MEGA_LIMIT',
-          },
-          { status: 429 }
-        );
-      }
-
       debugLog('[POST /api/vote] Vote recorded:', {
         voteId: result?.vote_id,
         wasNewVote: result?.was_new_vote,
@@ -1510,27 +1355,20 @@ export async function POST(req: NextRequest) {
     const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
 
     // 8. Calculate remaining votes
-    // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
     const newTotalVotesToday = totalVotesToday + weight;
-    const slotVotesAfterResult = await getUserVotesInSlot(supabase, effectiveVoterKey, slotPosition);
-    // Non-critical: if this fails, we still return success but with estimated values
-    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
     const response: VoteResponseBody = {
       success: true,
       clipId,
-      voteType,
       newScore: newWeightedScore,
       totalVotesToday: newTotalVotesToday,
       remainingVotes: {
         standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
-        super: specialRemaining.super,
-        mega: specialRemaining.mega,
       },
     };
 
-    // Audit log for votes (especially flagged or special votes)
-    if (voteRisk.flagged || voteType !== 'standard') {
+    // Audit log for flagged votes
+    if (voteRisk.flagged) {
       const logger = createRequestLogger('vote', req);
       logAudit(logger, {
         action: 'vote_cast',
@@ -1538,8 +1376,6 @@ export async function POST(req: NextRequest) {
         resourceType: 'clip',
         resourceId: clipId,
         details: {
-          voteType,
-          weight,
           slotPosition,
           flagged: voteRisk.flagged,
           riskScore: voteRisk.riskScore,
@@ -1570,13 +1406,10 @@ export async function POST(req: NextRequest) {
 interface RevokeResponseBody {
   success: boolean;
   clipId: string;
-  revokedVoteType: VoteType;
   newScore: number;
   totalVotesToday: number;
   remainingVotes: {
     standard: number;
-    super: number;
-    mega: number;
   };
   error?: string;
 }
@@ -1673,19 +1506,14 @@ export async function DELETE(req: NextRequest) {
         // Calculate remaining votes
         const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
         const newTotalVotesToday = votesTodayResult.count;
-        const slotVotesAfterResult = await getUserVotesInSlot(supabase, effectiveVoterKey, existingVote.slot_position);
-        const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
         return NextResponse.json({
           success: true,
           clipId,
-          revokedVoteType: existingVote.vote_type,
           newScore: newWeightedScore,
           totalVotesToday: newTotalVotesToday,
           remainingVotes: {
             standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
-            super: specialRemaining.super,
-            mega: specialRemaining.mega,
           },
         }, { status: 200 });
       }
@@ -1716,23 +1544,14 @@ export async function DELETE(req: NextRequest) {
     // Non-critical: if these fail, we still return success with fallback values
     const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
     const newTotalVotesToday = votesTodayResult.count;
-    const slotVotesAfterResult = await getUserVotesInSlot(
-      supabase,
-      effectiveVoterKey,
-      deletedVote.slot_position
-    );
-    const specialRemaining = calculateRemainingSpecialVotes(slotVotesAfterResult.votes);
 
     const response: RevokeResponseBody = {
       success: true,
       clipId,
-      revokedVoteType: deletedVote.vote_type as VoteType,
       newScore: newWeightedScore,
       totalVotesToday: newTotalVotesToday,
       remainingVotes: {
         standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
-        super: specialRemaining.super,
-        mega: specialRemaining.mega,
       },
     };
 

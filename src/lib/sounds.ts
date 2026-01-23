@@ -1,7 +1,7 @@
 // Sound effects for voting interactions using Web Audio API
 // No audio files required - sounds are generated programmatically
 
-type SoundType = 'vote' | 'superVote' | 'megaVote' | 'milestone' | 'error';
+type SoundType = 'vote' | 'milestone' | 'error';
 
 class SoundManager {
   private audioContext: AudioContext | null = null;
@@ -73,25 +73,6 @@ class SoundManager {
         // Quick, satisfying pop sound
         this.playTone(880, 0.1, 'sine', 0.2);
         setTimeout(() => this.playTone(1100, 0.08, 'sine', 0.15), 50);
-        break;
-
-      case 'superVote':
-        // Rising arpeggio for super vote
-        this.playTone(660, 0.1, 'sine', 0.25);
-        setTimeout(() => this.playTone(880, 0.1, 'sine', 0.25), 80);
-        setTimeout(() => this.playTone(1100, 0.15, 'sine', 0.25), 160);
-        break;
-
-      case 'megaVote':
-        // Power-up chord for mega vote
-        this.playTone(440, 0.15, 'sine', 0.2);
-        this.playTone(554, 0.15, 'sine', 0.2);
-        this.playTone(659, 0.15, 'sine', 0.2);
-        setTimeout(() => {
-          this.playTone(880, 0.2, 'sine', 0.3);
-          this.playTone(1100, 0.2, 'sine', 0.25);
-          this.playTone(1320, 0.2, 'sine', 0.2);
-        }, 150);
         break;
 
       case 'milestone':

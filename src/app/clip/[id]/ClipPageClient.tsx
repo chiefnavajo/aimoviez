@@ -36,7 +36,6 @@ interface ClipAPIResponse {
   clip: ClipData;
   user_vote: {
     has_voted: boolean;
-    vote_type: 'standard' | 'super' | 'mega' | null;
   };
   season: {
     id: string;
@@ -81,7 +80,6 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isPlaying, setIsPlaying] = useState(true);
   const [hasVoted, setHasVoted] = useState(false);
-  const [voteType, setVoteType] = useState<'standard' | 'super' | 'mega' | null>(null);
   const [voteCount, setVoteCount] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
@@ -113,7 +111,6 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
         setSlot(data.slot);
         setVoteCount(data.clip.vote_count);
         setHasVoted(data.user_vote.has_voted);
-        setVoteType(data.user_vote.vote_type);
       } catch (err) {
         console.error('Failed to fetch clip:', err);
         setError('Failed to load clip');
@@ -140,7 +137,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
     }
   };
 
-  const handleVote = async (type: 'standard' | 'super' | 'mega' = 'standard') => {
+  const handleVote = async () => {
     if (!clip || hasVoted || isVoting) return;
 
     setIsVoting(true);
@@ -148,15 +145,14 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clipId: clip.id, voteType: type }),
+        body: JSON.stringify({ clipId: clip.id }),
       });
 
       const data = await res.json();
 
       if (data.success) {
         setHasVoted(true);
-        setVoteType(type);
-        setVoteCount(data.newScore || voteCount + (type === 'mega' ? 10 : type === 'super' ? 3 : 1));
+        setVoteCount(data.newScore || voteCount + 1);
       } else if (data.code === 'ALREADY_VOTED') {
         setHasVoted(true);
       }
@@ -268,7 +264,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
           {/* Vote Button */}
           <motion.button
             whileTap={{ scale: 0.9 }}
-            onClick={() => handleVote('standard')}
+            onClick={() => handleVote()}
             disabled={!canVote || isVoting}
             className="flex flex-col items-center gap-1"
           >

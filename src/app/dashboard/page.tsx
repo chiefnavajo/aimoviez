@@ -60,7 +60,7 @@ const CommentsSection = dynamic(() => import('@/components/CommentsSection'), {
 // TYPES
 // ============================================================================
 
-type VoteType = 'standard' | 'super' | 'mega';
+type _VoteType = 'standard';
 
 // API response clip structure (from /api/vote)
 interface APIClip {
@@ -121,8 +121,6 @@ interface APIVotingResponse {
   userRank: number;
   remainingVotes: {
     standard: number;
-    super: number;
-    mega: number;
   };
   votedClipIds: string[];
   currentSlot: number;
@@ -148,8 +146,6 @@ interface VotingState {
   userRank: number;
   remainingVotes: {
     standard: number;
-    super: number;
-    mega: number;
   };
   streak: number;
   currentSlot: number;
@@ -256,7 +252,6 @@ interface VoteResponse {
   newScore?: number;
   totalVotesToday?: number;
   remainingVotes?: number;
-  voteType?: VoteType;
 }
 
 interface MutationContext {
@@ -295,12 +290,10 @@ const GENRE_LABELS: Record<string, string> = {
 // ============================================================================
 
 interface PowerVoteButtonProps {
-  onVote: (voteType: VoteType) => void;
+  onVote: () => void;
   isVoting: boolean;
   isDisabled: boolean;
   hasVoted: boolean;
-  superRemaining: number;
-  megaRemaining: number;
   votesToday?: number;
   dailyGoal?: number;
   showDailyProgress?: boolean;
@@ -315,7 +308,7 @@ const PowerVoteButton = memo(function PowerVoteButton({
   votesToday = 0,
   dailyGoal = 200,
   showDailyProgress = false,
-}: PowerVoteButtonProps) {
+}: Omit<PowerVoteButtonProps, 'multiVoteMode'>) {
   const colors = {
     glow: 'rgba(56, 189, 248, 0.5)',
     ring: '#3CF2FF',
@@ -343,7 +336,7 @@ const PowerVoteButton = memo(function PowerVoteButton({
 
   const handleClick = () => {
     if (isVoting || isDisabled) return;
-    onVote('standard');
+    onVote();
   };
 
   return (
@@ -522,7 +515,7 @@ function VotingArena() {
   const preloadedVideosRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
   // Track if we're loading more clips
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [_isLoadingMore, setIsLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
 
   // Landscape video mode - auto-fill screen when phone rotates
@@ -791,14 +784,14 @@ function VotingArena() {
     };
   }, []);
 
-  // Vote mutation - supports standard, super, mega vote types
-  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; voteType: VoteType; captchaToken?: string | null }, MutationContext>({
-    mutationFn: async ({ clipId, voteType, captchaToken }) => {
+  // Vote mutation - standard votes only
+  const voteMutation = useMutation<VoteResponse, Error, { clipId: string; captchaToken?: string | null }, MutationContext>({
+    mutationFn: async ({ clipId, captchaToken }) => {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: getHeaders(),
         credentials: 'include',
-        body: JSON.stringify({ clipId, voteType, captchaToken }),
+        body: JSON.stringify({ clipId, captchaToken }),
       });
       if (!res.ok) {
         const errorData = await res.json();
@@ -806,36 +799,26 @@ function VotingArena() {
       }
       return res.json();
     },
-    onMutate: async ({ clipId, voteType }): Promise<MutationContext> => {
+    onMutate: async ({ clipId }): Promise<MutationContext> => {
       setIsVoting(true);
 
-      // Vibration feedback based on vote type
+      // Vibration feedback
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-        if (voteType === 'mega') {
-          navigator.vibrate([50, 30, 50, 30, 100]);
-        } else if (voteType === 'super') {
-          navigator.vibrate([50, 30, 50]);
-        } else {
-          navigator.vibrate(50);
-        }
+        navigator.vibrate(50);
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
-
-      // Calculate vote weight for optimistic update
-      const voteWeight = voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
 
       if (previous) {
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
-              ? { ...clip, vote_count: clip.vote_count + voteWeight, has_voted: true }
+              ? { ...clip, vote_count: clip.vote_count + 1, has_voted: true }
               : clip
           ),
-          // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
-          totalVotesToday: (previous.totalVotesToday ?? 0) + voteWeight,
+          totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
         });
       }
 
@@ -852,23 +835,13 @@ function VotingArena() {
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: async (_data, { voteType }) => {
+    onSuccess: async () => {
       // Get the UPDATED votesToday from query cache (after optimistic update)
       const updatedData = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
       const currentVotesToday = updatedData?.totalVotesToday ?? 0;
 
-      // Sound effects and confetti for milestones and special votes
-      if (voteType === 'mega') {
-        sounds.play('megaVote');
-        const confettiLib = await loadConfetti();
-        confettiLib({ particleCount: 150, spread: 100, origin: { y: 0.6 } });
-        toast.success('MEGA VOTE! 10x Power!', { icon: '💎' });
-      } else if (voteType === 'super') {
-        sounds.play('superVote');
-        const confettiLib = await loadConfetti();
-        confettiLib({ particleCount: 100, spread: 80, origin: { y: 0.6 } });
-        toast.success('SUPER VOTE! 3x Power!', { icon: '⚡' });
-      } else if (currentVotesToday === 1 || currentVotesToday === 50 || currentVotesToday === 100 || currentVotesToday === 200) {
+      // Sound effects and confetti for milestones
+      if (currentVotesToday === 1 || currentVotesToday === 50 || currentVotesToday === 100 || currentVotesToday === 200) {
         // Milestone confetti: 1st vote, 50th, 100th, 200th
         sounds.play('milestone');
         const confettiLib = await loadConfetti();
@@ -884,7 +857,7 @@ function VotingArena() {
 
   // Revoke vote mutation
   const revokeMutation = useMutation<
-    { success: boolean; newScore: number; revokedVoteType: VoteType },
+    { success: boolean; newScore: number },
     Error,
     { clipId: string },
     MutationContext
@@ -914,7 +887,6 @@ function VotingArena() {
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
 
       if (previous) {
-        // Find the clip to get approximate vote weight (assume standard for optimistic)
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
           ...previous,
           clips: previous.clips.map((clip) =>
@@ -936,17 +908,10 @@ function VotingArena() {
       setIsVoting(false);
     },
     onSuccess: (data, { clipId }) => {
-      const voteType = data.revokedVoteType;
-      if (voteType === 'mega') {
-        toast.success('Mega vote removed', { icon: '💎' });
-      } else if (voteType === 'super') {
-        toast.success('Super vote removed', { icon: '⚡' });
-      } else {
-        toast.success('Vote removed');
-      }
+      toast.success('Vote removed');
       setIsVoting(false);
 
-      // Update with actual server value (optimistic used -1, but could be -3 or -10)
+      // Update with actual server value
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
       if (previous) {
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
@@ -1075,12 +1040,12 @@ function VotingArena() {
   }, [handleNext, handlePrevious]);
 
   // Handle vote - if already voted, revoke (unless multi-vote mode); otherwise cast new vote
-  const handleVote = async (voteType: VoteType = 'standard') => {
+  const handleVote = async () => {
     if (!currentClip || isVoting) return;
 
     // If already voted on this clip and multi-vote mode is OFF, revoke the vote
     // When multi-vote mode is ON, allow voting again (no revoke)
-    if (currentClip.has_voted && voteType === 'standard' && !multiVoteMode) {
+    if (currentClip.has_voted && !multiVoteMode) {
       revokeMutation.mutate({ clipId: currentClip.clip_id });
       return;
     }
@@ -1106,7 +1071,7 @@ function VotingArena() {
       }
     }
 
-    voteMutation.mutate({ clipId: currentClip.clip_id, voteType, captchaToken });
+    voteMutation.mutate({ clipId: currentClip.clip_id, captchaToken });
 
     // Reset CAPTCHA for next vote
     resetCaptcha();
@@ -1150,7 +1115,7 @@ function VotingArena() {
         if (navigator.vibrate) navigator.vibrate([50, 30, 50]);
 
         // Trigger vote
-        handleVote('standard');
+        handleVote();
 
         // Hide heart after animation
         setTimeout(() => {
@@ -1636,19 +1601,16 @@ function VotingArena() {
           </motion.div>
         </Link>
 
-        {/* POWER VOTE BUTTON - Long press for Super/Mega votes */}
+        {/* Vote Button */}
         <div className="flex flex-col items-center gap-1">
           <PowerVoteButton
             onVote={handleVote}
             isVoting={isVoting}
             isDisabled={votesToday >= DAILY_GOAL}
             hasVoted={currentClip?.has_voted ?? false}
-            superRemaining={votingData?.remainingVotes?.super ?? 1}
-            megaRemaining={votingData?.remainingVotes?.mega ?? 1}
             votesToday={votesToday}
             dailyGoal={DAILY_GOAL}
             showDailyProgress={showVoteProgress}
-            multiVoteMode={multiVoteMode}
           />
           {/* Vote Count */}
           <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
@@ -1796,7 +1758,7 @@ function VotingArena() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              handleVote('standard');
+              handleVote();
             }}
             className="absolute right-4 top-1/2 -translate-y-1/2 w-14 h-14 bg-gradient-to-br from-cyan-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg"
           >

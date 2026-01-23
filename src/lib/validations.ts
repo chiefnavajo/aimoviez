@@ -7,11 +7,9 @@ import { z } from 'zod';
 // VOTE VALIDATION
 // =============================================================================
 
-export const VoteTypeSchema = z.enum(['standard', 'super', 'mega']);
-
+// Simplified to standard votes only (super/mega removed)
 export const VoteRequestSchema = z.object({
   clipId: z.string().uuid('Invalid clip ID format'),
-  voteType: VoteTypeSchema.optional().default('standard'),
 });
 
 export type VoteRequest = z.infer<typeof VoteRequestSchema>;

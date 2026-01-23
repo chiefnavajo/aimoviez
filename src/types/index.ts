@@ -73,15 +73,11 @@ export interface UserProfile {
 }
 
 // =========================
-// HYBRID VOTING SYSTEM TYPES
+// VOTING SYSTEM TYPES
 // =========================
-
-export type VoteType = 'standard' | 'super' | 'mega';
 
 export interface RemainingVotes {
   standard: number;  // Daily limit remaining (out of 200)
-  super: number;     // Per-round super votes remaining (1 per round)
-  mega: number;      // Per-round mega votes remaining (1 per round)
 }
 
 export interface VotingClip {
@@ -123,12 +119,11 @@ export interface VotingState {
 export interface VoteResponse {
   success: boolean;
   clipId: string;
-  voteType: VoteType;
   newScore: number;
   totalVotesToday?: number;
   remainingVotes?: RemainingVotes;
   error?: string;
-  code?: 'ALREADY_VOTED' | 'DAILY_LIMIT' | 'SUPER_LIMIT' | 'MEGA_LIMIT';
+  code?: 'ALREADY_VOTED' | 'DAILY_LIMIT';
 }
 
 // =========================
@@ -225,8 +220,6 @@ export interface LeaderboardVoter {
   badgeLevel: string | null;
   totalVotes: number;
   clipsVotedOn: number;
-  superVotesUsed: number;
-  megaVotesUsed: number;
   streak: number;
 }
 

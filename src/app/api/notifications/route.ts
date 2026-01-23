@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
   // Rate limiting
-  const rateLimitResponse = await rateLimit(req, 'write');
+  const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
@@ -272,7 +272,7 @@ export async function PATCH(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   // Rate limiting
-  const rateLimitResponse = await rateLimit(req, 'write');
+  const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
