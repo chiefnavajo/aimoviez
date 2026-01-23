@@ -1483,9 +1483,19 @@ export async function POST(req: NextRequest) {
 
     // 7. Vote count update is handled by database trigger (on_vote_insert)
     // The trigger atomically increments both vote_count and weighted_score by vote_weight
-    // Mega = 10, Super = 3, Standard = 1
-    // We calculate the expected new score for the response
-    const newWeightedScore = (clipData.weighted_score ?? 0) + weight;
+    // Fetch the ACTUAL updated score to avoid showing stale data
+    let newWeightedScore = (clipData.weighted_score ?? 0) + weight; // Fallback estimate
+
+    // Read back actual value after trigger has run (more accurate)
+    const { data: updatedClip } = await supabase
+      .from('tournament_clips')
+      .select('weighted_score')
+      .eq('id', clipId)
+      .single();
+
+    if (updatedClip?.weighted_score != null) {
+      newWeightedScore = updatedClip.weighted_score;
+    }
 
     // 8. Calculate remaining votes
     // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
