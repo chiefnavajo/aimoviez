@@ -263,26 +263,31 @@ export async function PATCH(req: NextRequest) {
         .eq('status', 'voting')
         .maybeSingle();
 
-      // If there's an existing voting slot, deactivate it and move clips to the unlocked slot
+      // Determine if the unlocked slot should become the new voting slot
+      // Rule: The lowest-positioned unlocked slot should be voting
+      const unlockedSlotPosition = slotToUnlock.slot_position;
+      const shouldBecomeVoting = !existingVotingSlot || unlockedSlotPosition < existingVotingSlot.slot_position;
+
       let deactivatedSlot: { slot_position: number } | null = null;
       let movedClipsCount = 0;
-      if (existingVotingSlot) {
-        // First, move clips from the deactivated slot to the unlocked slot
+
+      if (existingVotingSlot && shouldBecomeVoting) {
+        // Unlocked slot has lower position - it should become voting
+        // Move clips from the existing voting slot to the unlocked slot
         const { data: clipsToMove, error: fetchClipsError } = await supabase
           .from('tournament_clips')
           .select('id')
           .eq('slot_position', existingVotingSlot.slot_position)
-          .in('status', ['pending', 'active']); // Only move clips that are in voting
+          .in('status', ['pending', 'active']);
 
         if (fetchClipsError) {
           console.error('[PATCH /api/admin/slots] Failed to fetch clips to move:', fetchClipsError);
         } else if (clipsToMove && clipsToMove.length > 0) {
-          // Move clips to the unlocked slot
           const { error: moveClipsError } = await supabase
             .from('tournament_clips')
             .update({
-              slot_position: slotToUnlock.slot_position,
-              segment_index: slotToUnlock.slot_position
+              slot_position: unlockedSlotPosition,
+              segment_index: unlockedSlotPosition
             })
             .eq('slot_position', existingVotingSlot.slot_position)
             .in('status', ['pending', 'active']);
@@ -291,11 +296,11 @@ export async function PATCH(req: NextRequest) {
             console.error('[PATCH /api/admin/slots] Failed to move clips:', moveClipsError);
           } else {
             movedClipsCount = clipsToMove.length;
-            console.log(`[PATCH /api/admin/slots] Moved ${movedClipsCount} clips from slot ${existingVotingSlot.slot_position} to slot ${slotToUnlock.slot_position}`);
+            console.log(`[PATCH /api/admin/slots] Moved ${movedClipsCount} clips from slot ${existingVotingSlot.slot_position} to slot ${unlockedSlotPosition}`);
           }
         }
 
-        // Deactivate the existing voting slot
+        // Deactivate the existing voting slot (set to upcoming)
         const { error: deactivateError } = await supabase
           .from('story_slots')
           .update({
@@ -314,18 +319,30 @@ export async function PATCH(req: NextRequest) {
         }
 
         deactivatedSlot = { slot_position: existingVotingSlot.slot_position };
-        console.log(`[PATCH /api/admin/slots] Deactivated slot ${existingVotingSlot.slot_position} (was voting)`);
+        console.log(`[PATCH /api/admin/slots] Deactivated slot ${existingVotingSlot.slot_position} (was voting, lower slot ${unlockedSlotPosition} unlocked)`);
       }
 
-      // Unlock the slot: clear winner and set to voting
+      // Unlock the slot: clear winner and set appropriate status
+      // If this slot should be voting (lowest position), set to 'voting'
+      // If a lower slot is already voting, set this to 'upcoming' (waiting its turn)
+      const newStatus = shouldBecomeVoting ? 'voting' : 'upcoming';
+      const updateData: Record<string, unknown> = {
+        status: newStatus,
+        winner_tournament_clip_id: null,
+      };
+
+      // Only set voting timestamps if this slot becomes the voting slot
+      if (shouldBecomeVoting) {
+        updateData.voting_started_at = new Date().toISOString();
+        updateData.voting_ends_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      } else {
+        updateData.voting_started_at = null;
+        updateData.voting_ends_at = null;
+      }
+
       const { data: unlockedSlot, error: unlockError } = await supabase
         .from('story_slots')
-        .update({
-          status: 'voting',
-          winner_tournament_clip_id: null,
-          voting_started_at: new Date().toISOString(),
-          voting_ends_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
-        })
+        .update(updateData)
         .eq('id', slot_id)
         .select()
         .single();
@@ -353,18 +370,31 @@ export async function PATCH(req: NextRequest) {
         }
       }
 
-      console.log(`[PATCH /api/admin/slots] Unlocked slot ${slotToUnlock.slot_position}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}, moved clips: ${movedClipsCount}`);
+      console.log(`[PATCH /api/admin/slots] Unlocked slot ${unlockedSlotPosition}, status: ${newStatus}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}, moved clips: ${movedClipsCount}`);
+
+      // Build response message based on what happened
+      let message: string;
+      if (shouldBecomeVoting) {
+        message = `Slot #${unlockedSlotPosition} unlocked and set to voting`;
+      } else {
+        message = `Slot #${unlockedSlotPosition} unlocked and set to upcoming (slot ${existingVotingSlot!.slot_position} is currently voting)`;
+      }
 
       return NextResponse.json({
         success: true,
         slot: unlockedSlot,
-        message: `Slot #${slotToUnlock.slot_position} unlocked and set to voting`,
+        message,
+        newStatus,
         previousWinnerId,
         clipReverted,
         movedClipsCount,
+        ...(existingVotingSlot && !shouldBecomeVoting && {
+          currentVotingSlot: existingVotingSlot.slot_position,
+          info: `Slot ${existingVotingSlot.slot_position} remains as the active voting slot (lower position)`,
+        }),
         ...(deactivatedSlot && {
           deactivatedSlot: deactivatedSlot.slot_position,
-          warning: `Slot ${deactivatedSlot.slot_position} was deactivated, ${movedClipsCount} clip(s) moved to slot ${slotToUnlock.slot_position}`,
+          warning: `Slot ${deactivatedSlot.slot_position} was deactivated, ${movedClipsCount} clip(s) moved to slot ${unlockedSlotPosition}`,
         }),
       }, { status: 200 });
     }
@@ -445,6 +475,12 @@ export async function PATCH(req: NextRequest) {
       }
 
       updates.status = status;
+
+      // If setting to 'voting', also set voting timestamps
+      if (status === 'voting') {
+        updates.voting_started_at = new Date().toISOString();
+        updates.voting_ends_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+      }
     }
 
     if (winning_clip_id !== undefined) {
