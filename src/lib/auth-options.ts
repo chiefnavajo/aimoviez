@@ -87,9 +87,9 @@ export const authOptions: NextAuthOptions = {
         token._profileCheckedAt = null;
       }
 
-      // Only query DB if we don't have userId yet, or it's been more than 1 hour
-      // This reduces DB queries from every-request to once-per-hour max
-      const PROFILE_CACHE_TTL = 60 * 60 * 1000; // 1 hour in ms
+      // Only query DB if we don't have userId yet, or cache expired
+      // SECURITY: 5 min TTL ensures role changes (e.g., admin demotion) apply quickly
+      const PROFILE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes (reduced from 1 hour for security)
       const now = Date.now();
       const profileAge = token._profileCheckedAt ? now - (token._profileCheckedAt as number) : Infinity;
       const needsRefresh = !token.userId || profileAge > PROFILE_CACHE_TTL;
