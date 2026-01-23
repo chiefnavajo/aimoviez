@@ -8,15 +8,17 @@ import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
-// In-memory cache with TTL and size limit
+// In-memory cache with TTL, size limit, and proper LRU eviction
 // ============================================================================
-const cache = new Map<string, { data: any; expires: number }>();
+const cache = new Map<string, { data: any; expires: number; lastAccessed: number }>();
 const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 const MAX_CACHE_SIZE = 50; // Maximum number of cache entries
 
 function getCached(key: string) {
   const entry = cache.get(key);
   if (entry && Date.now() < entry.expires) {
+    // Update last accessed time for LRU tracking
+    entry.lastAccessed = Date.now();
     return entry.data;
   }
   cache.delete(key); // Clean up expired entry
@@ -24,12 +26,23 @@ function getCached(key: string) {
 }
 
 function setCache(key: string, data: any) {
-  // Evict oldest entries if cache is full
+  // Evict LEAST RECENTLY USED entry if cache is full
   if (cache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = cache.keys().next().value;
-    if (oldestKey) cache.delete(oldestKey);
+    let lruKey: string | null = null;
+    let lruTime = Infinity;
+
+    for (const [k, v] of cache.entries()) {
+      if (v.lastAccessed < lruTime) {
+        lruTime = v.lastAccessed;
+        lruKey = k;
+      }
+    }
+
+    if (lruKey) cache.delete(lruKey);
   }
-  cache.set(key, { data, expires: Date.now() + CACHE_TTL });
+
+  const now = Date.now();
+  cache.set(key, { data, expires: now + CACHE_TTL, lastAccessed: now });
 }
 
 // Periodic cleanup of expired entries (runs on each request, lightweight)
