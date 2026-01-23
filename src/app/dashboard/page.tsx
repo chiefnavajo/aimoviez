@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle, TrendingUp, Shuffle } from 'lucide-react';
+import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { ActionButton } from '@/components/ActionButton';
 import { AuthGuard } from '@/hooks/useAuth';
@@ -518,18 +518,15 @@ function VotingArena() {
   const [_isLoadingMore, setIsLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
 
-  // Sort mode: 'fair' (default) or 'trending' (top clips by votes)
-  const [sortMode, setSortMode] = useState<'fair' | 'trending'>('fair');
-
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
-    queryKey: ['voting', 'track-main', sortMode],
+    queryKey: ['voting', 'track-main'],
     queryFn: async () => {
-      const response = await fetch(`/api/vote?trackId=track-main&sort=${sortMode}`);
+      const response = await fetch('/api/vote?trackId=track-main');
       if (!response.ok) {
         throw new Error('Failed to fetch voting data');
       }
@@ -556,14 +553,14 @@ function VotingArena() {
     try {
       // Send IDs of all already-loaded clips to exclude them from new batch
       const excludeIds = votingData.clips.map(c => c.id).join(',');
-      const response = await fetch(`/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10&sort=${sortMode}`);
+      const response = await fetch(`/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10`);
       if (!response.ok) {
         throw new Error('Failed to load more clips');
       }
       const apiResponse: APIVotingResponse = await response.json();
 
       // Update the query cache with appended clips
-      queryClient.setQueryData<VotingState>(['voting', 'track-main', sortMode], (old) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (old) => {
         if (!old) return old;
         return transformAndAppendClips(old, apiResponse);
       });
@@ -573,7 +570,7 @@ function VotingArena() {
       loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [votingData?.hasMoreClips, votingData?.clips, queryClient, sortMode]);
+  }, [votingData?.hasMoreClips, votingData?.clips, queryClient]);
 
   // Auto-refresh at midnight UTC when daily votes reset
   // This ensures users don't need to manually refresh to see their reset vote count
@@ -1647,24 +1644,6 @@ function VotingArena() {
           }
           onClick={() => setIsMuted(!isMuted)}
           ariaLabel={isMuted ? "Unmute video" : "Mute video"}
-        />
-
-        {/* Sort Mode Toggle: Fair vs Trending */}
-        <ActionButton
-          icon={
-            sortMode === 'trending' ? (
-              <TrendingUp className="w-7 h-7 text-orange-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-            ) : (
-              <Shuffle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-            )
-          }
-          onClick={() => {
-            const newMode = sortMode === 'fair' ? 'trending' : 'fair';
-            setSortMode(newMode);
-            setActiveIndex(0); // Reset to first clip when switching modes
-            toast.success(newMode === 'trending' ? '🔥 Showing top clips' : '🎲 Showing fair mix');
-          }}
-          ariaLabel={sortMode === 'trending' ? "Switch to fair mode" : "Switch to trending mode"}
         />
 
         {/* Daily Vote Progress */}

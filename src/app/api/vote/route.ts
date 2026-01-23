@@ -583,9 +583,6 @@ export async function GET(req: NextRequest) {
   // Flag to force showing new clips (skip seen tracking)
   const forceNew = searchParams.get('forceNew') === 'true';
 
-  // Sort mode: 'fair' (default) or 'trending' (by vote count)
-  const sortMode = searchParams.get('sort') === 'trending' ? 'trending' : 'fair';
-
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
@@ -791,11 +788,15 @@ export async function GET(req: NextRequest) {
     // This is the ONLY deduplication needed - no per-user server storage required
     const allExcludeIds = new Set(clientExcludeIds);
 
-    // 6. Fetch clips based on sort mode
+    // 6. Fetch clips using RANDOMIZED FAIR DISTRIBUTION
     // ============================================================================
-    // Two modes:
-    // - 'fair' (default): view_count + random jitter for fair exposure
-    // - 'trending': sorted by vote_count DESC to show top performers
+    // Scalability approach: Use view_count + random jitter instead of per-user tracking
+    //
+    // Why this scales to millions:
+    // - No per-user storage (Redis or DB)
+    // - view_count naturally balances exposure (low-view clips get priority)
+    // - Random jitter ensures variety (different clips each request)
+    // - Client-side exclusion handles session deduplication
     // ============================================================================
 
     // Convert client exclude IDs to array for RPC
@@ -806,46 +807,8 @@ export async function GET(req: NextRequest) {
 
     let availableClips: TournamentClipRow[] = [];
 
-    if (sortMode === 'trending') {
-      // TRENDING MODE: Sort by vote_count descending (show top performers)
-      const { data: trendingClips, error: trendingError } = await supabase
-        .from('tournament_clips')
-        .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
-        .eq('slot_position', activeSlot.slot_position)
-        .eq('season_id', seasonRow.id)
-        .eq('status', 'active')
-        .order('vote_count', { ascending: false })
-        .limit(fetchLimit);
-
-      if (trendingError) {
-        console.error('[GET /api/vote] trendingError:', trendingError);
-        const empty: VotingStateResponse = {
-          clips: [],
-          totalVotesToday,
-          userRank: 0,
-          remainingVotes: { standard: dailyRemaining },
-          votedClipIds,
-          currentSlot: activeSlot.slot_position,
-          totalSlots,
-          streak: 1,
-          votingEndsAt: activeSlot.voting_ends_at || null,
-          votingStartedAt: activeSlot.voting_started_at || null,
-          timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
-          totalClipsInSlot: 0,
-          clipsShown: 0,
-          hasMoreClips: false,
-        };
-        return NextResponse.json(empty, { status: 200 });
-      }
-
-      // Filter out client-excluded clips (keep order - already sorted by votes)
-      availableClips = (trendingClips || [])
-        .filter(clip => !allExcludeIds.has(clip.id)) as TournamentClipRow[];
-
-    } else {
-      // FAIR MODE: Use view_count + random jitter for fair exposure
-      // Try RPC first (database-side randomization is more efficient)
-      const { data: rpcClips, error: rpcError } = await supabase.rpc(
+    // Try RPC first (database-side randomization is more efficient)
+    const { data: rpcClips, error: rpcError } = await supabase.rpc(
         'get_clips_randomized',
         {
           p_slot_position: activeSlot.slot_position,
@@ -918,10 +881,9 @@ export async function GET(req: NextRequest) {
           hasMoreClips: false,
         };
         return NextResponse.json(empty, { status: 200 });
-      } else {
-        // RPC succeeded - clips already randomized by DB
-        availableClips = (rpcClips || []) as TournamentClipRow[];
-      }
+    } else {
+      // RPC succeeded - clips already randomized by DB
+      availableClips = (rpcClips || []) as TournamentClipRow[];
     }
 
     // Take only the requested limit
