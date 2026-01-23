@@ -45,6 +45,48 @@ export async function GET(req: NextRequest) {
   const supabase = createSupabaseClient();
 
   try {
+    // ========================================================================
+    // DISTRIBUTED LOCK - Prevent multiple instances from running simultaneously
+    // ========================================================================
+    const lockId = `auto-advance-${Date.now()}`;
+    const lockExpiry = new Date(Date.now() + 60 * 1000).toISOString(); // 60 second lock
+
+    // Try to acquire lock - only succeeds if no active lock exists
+    const { data: existingLock } = await supabase
+      .from('cron_locks')
+      .select('id, job_name, expires_at')
+      .eq('job_name', 'auto-advance')
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+
+    if (existingLock) {
+      console.log('[auto-advance] Another instance is running, skipping');
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        message: 'Another instance is already running',
+        existing_lock_expires: existingLock.expires_at
+      });
+    }
+
+    // Acquire lock (upsert to handle race condition at lock acquisition)
+    const { error: lockError } = await supabase
+      .from('cron_locks')
+      .upsert({
+        job_name: 'auto-advance',
+        lock_id: lockId,
+        expires_at: lockExpiry,
+        acquired_at: new Date().toISOString()
+      }, {
+        onConflict: 'job_name'
+      });
+
+    if (lockError) {
+      console.warn('[auto-advance] Could not acquire lock:', lockError.message);
+      // Continue anyway - lock table might not exist yet
+    }
+
+    // ========================================================================
     // 1. Find expired voting slots
     const { data: expiredSlots, error: findError } = await supabase
       .from('story_slots')
@@ -249,6 +291,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Release lock after completion
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('job_name', 'auto-advance');
+
     return NextResponse.json({
       ok: true,
       processed: results.length,
@@ -258,9 +306,21 @@ export async function GET(req: NextRequest) {
 
   } catch (error) {
     console.error('[auto-advance] Unexpected error:', error);
-    return NextResponse.json({ 
-      ok: false, 
-      error: 'Unexpected error during auto-advance' 
+
+    // Release lock even on error
+    try {
+      const supabase = createSupabaseClient();
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'auto-advance');
+    } catch {
+      // Ignore cleanup errors
+    }
+
+    return NextResponse.json({
+      ok: false,
+      error: 'Unexpected error during auto-advance'
     }, { status: 500 });
   }
 }

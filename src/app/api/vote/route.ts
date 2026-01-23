@@ -58,6 +58,9 @@ const CACHE_TTL = {
   clips: 45 * 1000,       // 45 seconds for clips (optimized from 15s)
 };
 
+// Maximum cache entries to prevent unbounded memory growth
+const MAX_CLIPS_CACHE_ENTRIES = 20;
+
 function getCached<T>(key: 'activeSeason' | 'activeSlot', fallback?: T): T | null {
   const entry = cache[key];
   if (entry && Date.now() < entry.expires) {
@@ -82,6 +85,16 @@ function _getCachedClips(slotPosition: number): any[] | null {
 
 function _setCachedClips(slotPosition: number, data: any[]) {
   const key = `slot_${slotPosition}`;
+
+  // Enforce cache size limit to prevent unbounded memory growth
+  if (cache.clips.size >= MAX_CLIPS_CACHE_ENTRIES) {
+    // Evict oldest/first entry (FIFO eviction)
+    const firstKey = cache.clips.keys().next().value;
+    if (firstKey) {
+      cache.clips.delete(firstKey);
+    }
+  }
+
   cache.clips.set(key, { data, expires: Date.now() + CACHE_TTL.clips });
 }
 
@@ -886,30 +899,37 @@ export async function GET(req: NextRequest) {
       recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
-    // 8.5 Fetch comment counts for sampled clips (optimized with RPC or aggregation)
+    // 8.5 Fetch comment counts for sampled clips (optimized with single batch query)
     const commentCountsMap = new Map<string, number>();
     if (clipIdsToRecord.length > 0) {
-      // Use a single query that returns counts grouped by clip_id
-      // This is more efficient than fetching all rows and counting in JS
-      const { data: commentCounts } = await supabase
+      // Try RPC first (most efficient - database-side aggregation)
+      const { data: commentCounts, error: rpcError } = await supabase
         .rpc('get_comment_counts', { clip_ids: clipIdsToRecord })
         .select('clip_id, count');
 
-      if (commentCounts && Array.isArray(commentCounts)) {
+      if (commentCounts && Array.isArray(commentCounts) && !rpcError) {
         commentCounts.forEach((c: { clip_id: string; count: number }) => {
           commentCountsMap.set(c.clip_id, c.count);
         });
       } else {
-        // Fallback: Use individual count queries (still better than loading all rows)
-        // This only runs if the RPC doesn't exist
-        for (const clipId of clipIdsToRecord) {
-          const { count } = await supabase
-            .from('comments')
-            .select('*', { count: 'exact', head: true })
-            .eq('clip_id', clipId)
-            .eq('is_deleted', false)
-            .is('parent_comment_id', null);
-          commentCountsMap.set(clipId, count || 0);
+        // Fallback: Single batch query instead of N+1 individual queries
+        // Fetch all comments for all clips in ONE query, then count in JS
+        const { data: allComments } = await supabase
+          .from('comments')
+          .select('clip_id')
+          .in('clip_id', clipIdsToRecord)
+          .eq('is_deleted', false)
+          .is('parent_comment_id', null);
+
+        // Initialize all clips with 0 count
+        clipIdsToRecord.forEach(id => commentCountsMap.set(id, 0));
+
+        // Count comments per clip in JavaScript (O(n) - much faster than N queries)
+        if (allComments) {
+          allComments.forEach((comment: { clip_id: string }) => {
+            const current = commentCountsMap.get(comment.clip_id) || 0;
+            commentCountsMap.set(comment.clip_id, current + 1);
+          });
         }
       }
     }
@@ -1400,80 +1420,26 @@ export async function POST(req: NextRequest) {
         p_is_power_vote: isPowerVote,
       });
 
-      // Fallback to traditional method if RPC doesn't exist yet
-      // This allows the app to work before the migration is run
+      // CRITICAL: Do NOT use legacy fallback - it has race conditions
       // 42883 = PostgreSQL "function does not exist"
       // PGRST202 = PostgREST "function not found in schema cache"
       if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
-        // Function does not exist - use legacy method with logging
-        console.warn('[POST /api/vote] Using legacy insert method - please run fix-vote-insert-race-condition.sql migration');
-
-        let insertError;
-
-        if (multiVoteEnabled || isPowerVote) {
-          // Legacy: In multi-vote mode OR for power votes, update existing vote or insert new
-          const { data: existingVote } = await supabase
-            .from('votes')
-            .select('id, vote_weight')
-            .eq('clip_id', clipId)
-            .eq('voter_key', effectiveVoterKey)
-            .maybeSingle();
-
-          debugLog('[POST /api/vote] Legacy multiVote/power branch - existingVote:', existingVote ? 'found' : 'null');
-          if (existingVote) {
-            const newWeight = (existingVote.vote_weight || 0) + weight;
-            debugLog('[POST /api/vote] Legacy updating existing vote, newWeight:', newWeight);
-            const { error } = await supabase
-              .from('votes')
-              .update({
-                vote_weight: newWeight,
-                vote_type: voteType,
-                created_at: new Date().toISOString(),
-              })
-              .eq('id', existingVote.id)
-              .select('vote_weight');
-            insertError = error;
-
-            if (!error) {
-              await supabase
-                .from('tournament_clips')
-                .update({
-                  vote_count: (clipData?.vote_count || 0) + weight,
-                  weighted_score: (clipData?.weighted_score || 0) + weight,
-                })
-                .eq('id', clipId);
-            }
-          } else {
-            debugLog('[POST /api/vote] Legacy multiVote branch - Inserting NEW vote');
-            const { error } = await supabase.from('votes').insert(voteData);
-            insertError = error;
-          }
-        } else {
-          // Legacy: Normal mode - just insert
-          debugLog('[POST /api/vote] Legacy inserting vote');
-          const { error } = await supabase.from('votes').insert(voteData);
-          insertError = error;
-        }
-
-        if (insertError) {
-          console.error('[POST /api/vote] Legacy insertError:', insertError);
-          if (insertError.code === '23505') {
-            return NextResponse.json(
-              { success: false, error: 'Already voted on this clip', code: 'ALREADY_VOTED' },
-              { status: 409 }
-            );
-          }
-          return NextResponse.json(
-            { success: false, error: 'Failed to insert vote' },
-            { status: 500 }
-          );
-        }
-      } else {
+        console.error('[POST /api/vote] CRITICAL: insert_vote_atomic RPC function not found. Please run the migration: fix-vote-insert-race-condition.sql');
         return NextResponse.json(
-          { success: false, error: 'Failed to insert vote' },
-          { status: 500 }
+          {
+            success: false,
+            error: 'Vote system not configured. Please contact support.',
+            code: 'RPC_NOT_FOUND'
+          },
+          { status: 503 }
         );
       }
+
+      // Other RPC errors - return failure
+      return NextResponse.json(
+        { success: false, error: 'Failed to insert vote' },
+        { status: 500 }
+      );
     } else {
       // RPC succeeded - check the result
       const result = insertResult?.[0];
