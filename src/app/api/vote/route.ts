@@ -583,6 +583,9 @@ export async function GET(req: NextRequest) {
   // Flag to force showing new clips (skip seen tracking)
   const forceNew = searchParams.get('forceNew') === 'true';
 
+  // Sort mode: 'fair' (default) or 'trending' (by vote count)
+  const sortMode = searchParams.get('sort') === 'trending' ? 'trending' : 'fair';
+
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
 
@@ -788,15 +791,11 @@ export async function GET(req: NextRequest) {
     // This is the ONLY deduplication needed - no per-user server storage required
     const allExcludeIds = new Set(clientExcludeIds);
 
-    // 6. Fetch clips using RANDOMIZED FAIR DISTRIBUTION
+    // 6. Fetch clips based on sort mode
     // ============================================================================
-    // Scalability approach: Use view_count + random jitter instead of per-user tracking
-    //
-    // Why this scales to millions:
-    // - No per-user storage (Redis or DB)
-    // - view_count naturally balances exposure (low-view clips get priority)
-    // - Random jitter ensures variety (different clips each request)
-    // - Client-side exclusion handles session deduplication
+    // Two modes:
+    // - 'fair' (default): view_count + random jitter for fair exposure
+    // - 'trending': sorted by vote_count DESC to show top performers
     // ============================================================================
 
     // Convert client exclude IDs to array for RPC
@@ -805,35 +804,21 @@ export async function GET(req: NextRequest) {
     // Calculate fetch limit (fetch more than needed to allow for client filtering)
     const fetchLimit = Math.min(limit * 3, 60);
 
-    // Try RPC first (database-side randomization is more efficient)
-    const { data: rpcClips, error: rpcError } = await supabase.rpc(
-      'get_clips_randomized',
-      {
-        p_slot_position: activeSlot.slot_position,
-        p_season_id: seasonRow.id,
-        p_exclude_ids: excludeIdsArray,
-        p_limit: fetchLimit,
-        p_jitter: 50, // Random jitter added to view_count for variety
-      }
-    );
-
     let availableClips: TournamentClipRow[] = [];
 
-    if (rpcError?.code === '42883' || rpcError?.code === 'PGRST202') {
-      // RPC not available - fallback to simple query with client-side shuffle
-      console.warn('[GET /api/vote] get_clips_randomized RPC not found, using fallback');
-
-      const { data: fallbackClips, error: fallbackError } = await supabase
+    if (sortMode === 'trending') {
+      // TRENDING MODE: Sort by vote_count descending (show top performers)
+      const { data: trendingClips, error: trendingError } = await supabase
         .from('tournament_clips')
         .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
         .eq('slot_position', activeSlot.slot_position)
         .eq('season_id', seasonRow.id)
         .eq('status', 'active')
-        .order('view_count', { ascending: true, nullsFirst: true })
+        .order('vote_count', { ascending: false })
         .limit(fetchLimit);
 
-      if (fallbackError) {
-        console.error('[GET /api/vote] fallbackError:', fallbackError);
+      if (trendingError) {
+        console.error('[GET /api/vote] trendingError:', trendingError);
         const empty: VotingStateResponse = {
           clips: [],
           totalVotesToday,
@@ -853,37 +838,90 @@ export async function GET(req: NextRequest) {
         return NextResponse.json(empty, { status: 200 });
       }
 
-      // Filter out client-excluded clips
-      availableClips = (fallbackClips || [])
+      // Filter out client-excluded clips (keep order - already sorted by votes)
+      availableClips = (trendingClips || [])
         .filter(clip => !allExcludeIds.has(clip.id)) as TournamentClipRow[];
 
-      // Shuffle since fallback doesn't have DB-side randomization
-      for (let i = availableClips.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [availableClips[i], availableClips[j]] = [availableClips[j], availableClips[i]];
-      }
-    } else if (rpcError) {
-      console.error('[GET /api/vote] RPC error:', rpcError);
-      const empty: VotingStateResponse = {
-        clips: [],
-        totalVotesToday,
-        userRank: 0,
-        remainingVotes: { standard: dailyRemaining },
-        votedClipIds,
-        currentSlot: activeSlot.slot_position,
-        totalSlots,
-        streak: 1,
-        votingEndsAt: activeSlot.voting_ends_at || null,
-        votingStartedAt: activeSlot.voting_started_at || null,
-        timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
-        totalClipsInSlot: 0,
-        clipsShown: 0,
-        hasMoreClips: false,
-      };
-      return NextResponse.json(empty, { status: 200 });
     } else {
-      // RPC succeeded - clips already randomized by DB
-      availableClips = (rpcClips || []) as TournamentClipRow[];
+      // FAIR MODE: Use view_count + random jitter for fair exposure
+      // Try RPC first (database-side randomization is more efficient)
+      const { data: rpcClips, error: rpcError } = await supabase.rpc(
+        'get_clips_randomized',
+        {
+          p_slot_position: activeSlot.slot_position,
+          p_season_id: seasonRow.id,
+          p_exclude_ids: excludeIdsArray,
+          p_limit: fetchLimit,
+          p_jitter: 50, // Random jitter added to view_count for variety
+        }
+      );
+
+      if (rpcError?.code === '42883' || rpcError?.code === 'PGRST202') {
+        // RPC not available - fallback to simple query with client-side shuffle
+        console.warn('[GET /api/vote] get_clips_randomized RPC not found, using fallback');
+
+        const { data: fallbackClips, error: fallbackError } = await supabase
+          .from('tournament_clips')
+          .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at, view_count')
+          .eq('slot_position', activeSlot.slot_position)
+          .eq('season_id', seasonRow.id)
+          .eq('status', 'active')
+          .order('view_count', { ascending: true, nullsFirst: true })
+          .limit(fetchLimit);
+
+        if (fallbackError) {
+          console.error('[GET /api/vote] fallbackError:', fallbackError);
+          const empty: VotingStateResponse = {
+            clips: [],
+            totalVotesToday,
+            userRank: 0,
+            remainingVotes: { standard: dailyRemaining },
+            votedClipIds,
+            currentSlot: activeSlot.slot_position,
+            totalSlots,
+            streak: 1,
+            votingEndsAt: activeSlot.voting_ends_at || null,
+            votingStartedAt: activeSlot.voting_started_at || null,
+            timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
+            totalClipsInSlot: 0,
+            clipsShown: 0,
+            hasMoreClips: false,
+          };
+          return NextResponse.json(empty, { status: 200 });
+        }
+
+        // Filter out client-excluded clips
+        availableClips = (fallbackClips || [])
+          .filter(clip => !allExcludeIds.has(clip.id)) as TournamentClipRow[];
+
+        // Shuffle since fallback doesn't have DB-side randomization
+        for (let i = availableClips.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [availableClips[i], availableClips[j]] = [availableClips[j], availableClips[i]];
+        }
+      } else if (rpcError) {
+        console.error('[GET /api/vote] RPC error:', rpcError);
+        const empty: VotingStateResponse = {
+          clips: [],
+          totalVotesToday,
+          userRank: 0,
+          remainingVotes: { standard: dailyRemaining },
+          votedClipIds,
+          currentSlot: activeSlot.slot_position,
+          totalSlots,
+          streak: 1,
+          votingEndsAt: activeSlot.voting_ends_at || null,
+          votingStartedAt: activeSlot.voting_started_at || null,
+          timeRemainingSeconds: calculateTimeRemaining(activeSlot.voting_ends_at || null),
+          totalClipsInSlot: 0,
+          clipsShown: 0,
+          hasMoreClips: false,
+        };
+        return NextResponse.json(empty, { status: 200 });
+      } else {
+        // RPC succeeded - clips already randomized by DB
+        availableClips = (rpcClips || []) as TournamentClipRow[];
+      }
     }
 
     // Take only the requested limit
