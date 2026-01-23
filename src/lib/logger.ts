@@ -115,7 +115,7 @@ class Logger {
 
   // Sanitize context to remove sensitive data
   private sanitizeContext(context: Record<string, unknown>): Record<string, unknown> {
-    const sensitiveKeys = ['password', 'token', 'secret', 'key', 'authorization', 'cookie'];
+    const sensitiveKeys = ['password', 'token', 'secret', 'key', 'authorization', 'cookie', 'email', 'ip', 'ip_address', 'ipaddress'];
     const sanitized: Record<string, unknown> = {};
 
     for (const [key, value] of Object.entries(context)) {

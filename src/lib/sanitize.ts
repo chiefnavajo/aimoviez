@@ -58,11 +58,40 @@ export function sanitizeUsername(input: string | null | undefined): string {
 
 /**
  * Sanitize URL - only allow http/https URLs
+ * Handles URL-encoded attack attempts and validates URL structure
  */
 export function sanitizeUrl(input: string | null | undefined): string | null {
   if (!input) return null;
 
   try {
+    // First, decode the URL to catch encoded attacks
+    // Decode multiple times to handle double/triple encoding
+    let decoded = input;
+    let prevDecoded = '';
+    let iterations = 0;
+    const maxIterations = 3; // Prevent infinite loops
+
+    while (decoded !== prevDecoded && iterations < maxIterations) {
+      prevDecoded = decoded;
+      try {
+        decoded = decodeURIComponent(decoded);
+      } catch {
+        // Invalid encoding, use as-is
+        break;
+      }
+      iterations++;
+    }
+
+    // Check decoded string for dangerous patterns before parsing
+    const decodedLower = decoded.toLowerCase();
+    if (decodedLower.includes('javascript:') ||
+        decodedLower.includes('data:') ||
+        decodedLower.includes('vbscript:') ||
+        decodedLower.includes('file:')) {
+      return null;
+    }
+
+    // Parse the original URL (not decoded, to preserve proper structure)
     const url = new URL(input);
 
     // Only allow http and https protocols
@@ -70,9 +99,28 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
       return null;
     }
 
-    // Block javascript: and data: URLs that might have bypassed
-    if (url.href.toLowerCase().includes('javascript:') ||
-        url.href.toLowerCase().includes('data:')) {
+    // Block URLs with credentials (user:pass@host)
+    if (url.username || url.password) {
+      return null;
+    }
+
+    // Block localhost and internal IPs for SSRF protection
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === 'localhost' ||
+        hostname === '127.0.0.1' ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.') ||
+        hostname.startsWith('172.16.') ||
+        hostname.endsWith('.local') ||
+        hostname === '0.0.0.0') {
+      return null;
+    }
+
+    // Block javascript: and data: in href (redundant but defense in depth)
+    const hrefLower = url.href.toLowerCase();
+    if (hrefLower.includes('javascript:') ||
+        hrefLower.includes('data:') ||
+        hrefLower.includes('vbscript:')) {
       return null;
     }
 

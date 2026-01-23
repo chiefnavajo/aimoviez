@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { sanitizeText } from '@/lib/sanitize';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -96,7 +97,7 @@ export async function POST(request: NextRequest) {
         reported_user_id: userId || null,
         comment_id: commentId || null,
         reason,
-        description: description?.slice(0, 1000) || null,
+        description: description ? sanitizeText(description).slice(0, 1000) : null,
         status: 'pending',
       });
 
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
       // If table doesn't exist, still return success
       if (insertError.code === '42P01') {
         console.log('content_reports table does not exist, logging to console only');
-        console.log('Report:', { clipId, userId, commentId, reason, description, reporter: session.user.userId });
+        console.log('Report:', { clipId, userId, commentId, reason, descriptionLength: description?.length || 0, reporter: session.user.userId });
         return NextResponse.json({ success: true });
       }
       throw insertError;

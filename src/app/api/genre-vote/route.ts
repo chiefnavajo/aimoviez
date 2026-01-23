@@ -47,7 +47,7 @@ interface GenreVoteResponse {
 /**
  * GET /api/genre-vote
  * Returns current genre voting stats and user's previous vote if any
- * OPTIMIZED: Uses database aggregation instead of loading all rows
+ * OPTIMIZED: Uses single RPC call instead of 7+ parallel queries
  */
 export async function GET(req: NextRequest) {
   // Rate limiting
@@ -58,42 +58,66 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);
 
-    // OPTIMIZED: Run lightweight queries in parallel
-    // 1. Get genre counts using COUNT queries (not loading all rows)
-    // 2. Get user's previous vote (single row lookup)
-    const [genreCountsResult, userVoteResult] = await Promise.all([
-      // Query 1: Count per genre using parallel COUNT queries
-      Promise.all(
-        GENRES.map(async (genre) => {
-          const { count } = await supabase
-            .from('genre_votes')
-            .select('id', { count: 'exact', head: true })
-            .eq('genre', genre);
-          return { genre, count: count || 0 };
-        })
-      ),
+    // Try optimized RPC function first (single query)
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'get_genre_vote_stats',
+      { p_voter_key: voterKey }
+    );
 
-      // Query 2: Get user's previous vote (single row)
-      supabase
-        .from('genre_votes')
-        .select('genre')
-        .eq('voter_key', voterKey)
-        .maybeSingle(),
-    ]);
-
-    // Process genre counts
+    // Initialize genre counts
     const genreCounts = new Map<Genre, number>();
     GENRES.forEach((g) => genreCounts.set(g, 0));
+    let userPreviousVote: Genre | undefined;
 
-    // Process count results
-    genreCountsResult.forEach(({ genre, count }) => {
-      if (GENRES.includes(genre as Genre)) {
-        genreCounts.set(genre as Genre, count);
+    if (rpcError) {
+      // RPC not available - fall back to parallel queries
+      console.warn('[GET /api/genre-vote] RPC not available, using fallback:', rpcError.code);
+
+      const [genreCountsResult, userVoteResult] = await Promise.all([
+        // Query 1: Count per genre using parallel COUNT queries
+        Promise.all(
+          GENRES.map(async (genre) => {
+            const { count } = await supabase
+              .from('genre_votes')
+              .select('id', { count: 'exact', head: true })
+              .eq('genre', genre);
+            return { genre, count: count || 0 };
+          })
+        ),
+
+        // Query 2: Get user's previous vote (single row)
+        supabase
+          .from('genre_votes')
+          .select('genre')
+          .eq('voter_key', voterKey)
+          .maybeSingle(),
+      ]);
+
+      // Process count results
+      genreCountsResult.forEach(({ genre, count }) => {
+        if (GENRES.includes(genre as Genre)) {
+          genreCounts.set(genre as Genre, count);
+        }
+      });
+
+      userPreviousVote = userVoteResult.data?.genre as Genre | undefined;
+    } else {
+      // RPC succeeded - process results
+      interface RpcRow {
+        genre: string;
+        vote_count: number;
+        user_voted: boolean;
       }
-    });
 
-    // Get user's previous vote
-    const userPreviousVote = userVoteResult.data?.genre as Genre | undefined;
+      (rpcData as RpcRow[])?.forEach((row: RpcRow) => {
+        if (GENRES.includes(row.genre as Genre)) {
+          genreCounts.set(row.genre as Genre, row.vote_count);
+          if (row.user_voted) {
+            userPreviousVote = row.genre as Genre;
+          }
+        }
+      });
+    }
 
     // Calculate percentages
     const totalVotes = Array.from(genreCounts.values()).reduce((sum, count) => sum + count, 0);
@@ -171,21 +195,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // OPTIMIZED: Get updated counts using parallel COUNT queries (not loading all rows)
-    const genreCountResults = await Promise.all(
-      GENRES.map(async (g) => {
-        const { count } = await supabase
-          .from('genre_votes')
-          .select('id', { count: 'exact', head: true })
-          .eq('genre', g);
-        return { genre: g, count: count || 0 };
-      })
+    // OPTIMIZED: Get updated counts using RPC (single query) with fallback
+    const genreCounts = new Map<Genre, number>();
+    GENRES.forEach((g) => genreCounts.set(g, 0));
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc(
+      'get_genre_vote_stats',
+      { p_voter_key: voterKey }
     );
 
-    const genreCounts = new Map<Genre, number>();
-    genreCountResults.forEach(({ genre, count }) => {
-      genreCounts.set(genre, count);
-    });
+    if (rpcError) {
+      // Fallback to parallel queries if RPC not available
+      const genreCountResults = await Promise.all(
+        GENRES.map(async (g) => {
+          const { count } = await supabase
+            .from('genre_votes')
+            .select('id', { count: 'exact', head: true })
+            .eq('genre', g);
+          return { genre: g, count: count || 0 };
+        })
+      );
+
+      genreCountResults.forEach(({ genre, count }) => {
+        genreCounts.set(genre, count);
+      });
+    } else {
+      // Process RPC results
+      interface RpcRow {
+        genre: string;
+        vote_count: number;
+        user_voted: boolean;
+      }
+      (rpcData as RpcRow[])?.forEach((row: RpcRow) => {
+        if (GENRES.includes(row.genre as Genre)) {
+          genreCounts.set(row.genre as Genre, row.vote_count);
+        }
+      });
+    }
 
     const totalVotes = Array.from(genreCounts.values()).reduce((sum, count) => sum + count, 0);
     const percentages: Record<string, number> = {};

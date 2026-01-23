@@ -38,19 +38,22 @@ export async function GET(request: NextRequest) {
 
   try {
     const { searchParams } = new URL(request.url);
-    const search = searchParams.get('search') || '';
+    // Limit search parameter length to prevent expensive LIKE operations
+    const rawSearch = searchParams.get('search') || '';
+    const search = rawSearch.slice(0, 100); // Max 100 characters
     const status = searchParams.get('status') || 'all';
     const sort = searchParams.get('sort') || 'newest';
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '20') || 20), 100);
     const offset = (page - 1) * limit;
 
     const supabase = getSupabaseClient();
 
     // Build query - use 'users' table (not 'profiles')
+    // Select specific columns instead of * for performance and security
     let query = supabase
       .from('users')
-      .select('*', { count: 'exact' });
+      .select('id, username, email, avatar_url, level, xp, total_votes_cast, total_votes_received, clips_uploaded, is_verified, is_banned, is_admin, role, created_at, updated_at', { count: 'exact' });
 
     // Search filter (escape SQL special characters to prevent injection)
     if (search) {

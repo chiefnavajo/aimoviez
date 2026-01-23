@@ -1473,6 +1473,29 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Handle special vote limit errors (race condition protection)
+      if (result?.error_code === 'SUPER_LIMIT_EXCEEDED') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Super vote already used this round',
+            code: 'SUPER_LIMIT',
+          },
+          { status: 429 }
+        );
+      }
+
+      if (result?.error_code === 'MEGA_LIMIT_EXCEEDED') {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Mega vote already used this round',
+            code: 'MEGA_LIMIT',
+          },
+          { status: 429 }
+        );
+      }
+
       debugLog('[POST /api/vote] Vote recorded:', {
         voteId: result?.vote_id,
         wasNewVote: result?.was_new_vote,
