@@ -518,37 +518,44 @@ async function recordClipViews(
   }
 }
 
-async function _getSeenClipIds(
+async function getSeenClipIds(
   supabase: SupabaseClient,
   voterKey: string,
-  slotPosition: number
+  slotPosition: number,
+  seasonId: string
 ): Promise<Set<string>> {
   try {
-    // Get clips user has seen in this slot (from clip_views)
+    // Optimized: Join clip_views with tournament_clips to filter by slot in one query
+    // This avoids fetching all views and then filtering in JS
     const { data } = await supabase
       .from('clip_views')
-      .select('clip_id')
-      .eq('voter_key', voterKey);
+      .select(`
+        clip_id,
+        tournament_clips!inner(slot_position, season_id)
+      `)
+      .eq('voter_key', voterKey)
+      .eq('tournament_clips.slot_position', slotPosition)
+      .eq('tournament_clips.season_id', seasonId);
 
-    // Also get clip IDs for this slot to filter
-    const { data: slotClips } = await supabase
-      .from('tournament_clips')
-      .select('id')
-      .eq('slot_position', slotPosition);
-
-    const slotClipIds = new Set((slotClips || []).map(c => c.id));
     const seenIds = new Set<string>();
-
     for (const view of (data || [])) {
-      if (slotClipIds.has(view.clip_id)) {
-        seenIds.add(view.clip_id);
-      }
+      seenIds.add(view.clip_id);
     }
 
     return seenIds;
   } catch (error) {
-    console.error('[vote] getSeenClipIds error:', error);
-    return new Set();
+    // Fallback: If join fails, try simpler query
+    console.warn('[vote] getSeenClipIds join failed, using fallback:', error);
+    try {
+      const { data } = await supabase
+        .from('clip_views')
+        .select('clip_id')
+        .eq('voter_key', voterKey);
+
+      return new Set((data || []).map(v => v.clip_id));
+    } catch {
+      return new Set();
+    }
   }
 }
 
@@ -565,9 +572,12 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const limit = Math.min(MAX_CLIPS_PER_REQUEST, Math.max(1, parseInt(searchParams.get('limit') || String(CLIPS_PER_SESSION), 10)));
 
-  // Get IDs of clips already seen (for weighted random sampling)
+  // Client can optionally pass excludeIds for immediate deduplication (before server-side check)
   const excludeIdsParam = searchParams.get('excludeIds') || '';
-  const excludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0) : [];
+  const clientExcludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0) : [];
+
+  // Flag to force showing new clips (skip seen tracking)
+  const forceNew = searchParams.get('forceNew') === 'true';
 
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);
@@ -770,11 +780,42 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
+    // 5.5 Get server-side seen clip tracking (unless forceNew is set)
+    let serverSeenIds = new Set<string>();
+    if (!forceNew) {
+      serverSeenIds = await getSeenClipIds(
+        supabase,
+        effectiveVoterKey,
+        activeSlot.slot_position,
+        seasonRow.id
+      );
+    }
+
+    // Combine client and server exclusions
+    const allExcludeIds = new Set([...clientExcludeIds, ...serverSeenIds]);
+    const unseenClipsCount = totalClipsInSlot - allExcludeIds.size;
+
     // 6. Fetch clips using WEIGHTED RANDOM SAMPLING for fair exposure
     // This ensures all videos get roughly equal exposure regardless of upload time
-    // Pool distribution: 50% least viewed, 30% recent (<24h), 20% random
+    // Pool distribution: 50% least viewed, 30% recent (<24h), 20% high engagement
+    //
+    // Dynamic pool sizing based on total clips:
+    // - Small slot (<50 clips): fetch all
+    // - Medium slot (50-500): fetch 20% or min 50
+    // - Large slot (500+): fetch 10% or min 100, max 200
 
-    const poolSize = Math.max(limit * 3, 30); // Fetch larger pool to sample from
+    let poolSize: number;
+    if (totalClipsInSlot <= 50) {
+      poolSize = totalClipsInSlot;
+    } else if (totalClipsInSlot <= 500) {
+      poolSize = Math.max(50, Math.ceil(totalClipsInSlot * 0.2));
+    } else {
+      poolSize = Math.min(200, Math.max(100, Math.ceil(totalClipsInSlot * 0.1)));
+    }
+
+    // Ensure we fetch enough to satisfy the request after filtering
+    poolSize = Math.max(poolSize, limit * 4);
+
     const now = new Date();
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
 
@@ -863,10 +904,9 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Convert to array and filter out already-seen clips
-    const excludeIdsSet = new Set(excludeIds);
+    // Convert to array and filter out already-seen clips (server + client tracking)
     const availableClips = Array.from(uniqueClipsMap.values())
-      .filter(clip => !excludeIdsSet.has(clip.id));
+      .filter(clip => !allExcludeIds.has(clip.id));
 
     // Fisher-Yates shuffle for true randomization
     for (let i = availableClips.length - 1; i > 0; i--) {
@@ -982,8 +1022,8 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    // Calculate pagination info (based on excludeIds, not offset)
-    const totalSeen = excludeIds.length + sampledClips.length;
+    // Calculate pagination info (based on server-side seen tracking)
+    const totalSeen = allExcludeIds.size + sampledClips.length;
     const hasMoreClips = totalSeen < totalClipsInSlot;
 
     const response: VotingStateResponse = {
