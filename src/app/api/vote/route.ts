@@ -20,6 +20,7 @@ import {
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
+import { filterUnseenClipIds, markClipsAsSeen } from '@/lib/seen-tracking';
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -518,7 +519,9 @@ async function recordClipViews(
   }
 }
 
-async function getSeenClipIds(
+// Legacy database-based seen tracking (kept for fallback/analytics)
+// Primary seen tracking now uses Redis Bloom filters for scalability
+async function _getSeenClipIds(
   supabase: SupabaseClient,
   voterKey: string,
   slotPosition: number,
@@ -780,20 +783,11 @@ export async function GET(req: NextRequest) {
 
     const totalClipsInSlot = totalClipCount ?? 0;
 
-    // 5.5 Get server-side seen clip tracking (unless forceNew is set)
-    let serverSeenIds = new Set<string>();
-    if (!forceNew) {
-      serverSeenIds = await getSeenClipIds(
-        supabase,
-        effectiveVoterKey,
-        activeSlot.slot_position,
-        seasonRow.id
-      );
-    }
-
-    // Combine client and server exclusions
-    const allExcludeIds = new Set([...clientExcludeIds, ...serverSeenIds]);
-    const unseenClipsCount = totalClipsInSlot - allExcludeIds.size;
+    // 5.5 Client exclusions (passed from frontend for immediate deduplication)
+    // Server-side seen tracking is now done via Redis Bloom filters AFTER fetching clips
+    // This is more efficient than JOINing with clip_views table
+    const allExcludeIds = new Set(clientExcludeIds);
+    const _unseenClipsCount = totalClipsInSlot - allExcludeIds.size;
 
     // 6. Fetch clips using WEIGHTED RANDOM SAMPLING for fair exposure
     // This ensures all videos get roughly equal exposure regardless of upload time
@@ -904,9 +898,22 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Convert to array and filter out already-seen clips (server + client tracking)
-    const availableClips = Array.from(uniqueClipsMap.values())
+    // Convert to array and filter out client-excluded clips first
+    let availableClips = Array.from(uniqueClipsMap.values())
       .filter(clip => !allExcludeIds.has(clip.id));
+
+    // Filter out seen clips using Redis Bloom filters (O(1) per clip, scalable to millions)
+    // This replaces the expensive database JOIN with clip_views table
+    if (!forceNew && availableClips.length > 0) {
+      const clipIds = availableClips.map(c => c.id);
+      const unseenIds = await filterUnseenClipIds(
+        effectiveVoterKey,
+        activeSlot.slot_position,
+        clipIds
+      );
+      const unseenSet = new Set(unseenIds);
+      availableClips = availableClips.filter(clip => unseenSet.has(clip.id));
+    }
 
     // Fisher-Yates shuffle for true randomization
     for (let i = availableClips.length - 1; i > 0; i--) {
@@ -946,10 +953,15 @@ export async function GET(req: NextRequest) {
     // Clips are already ordered by created_at from the DB query
     const sampledClips = clipPool;  // No additional slicing needed - DB handles pagination
 
-    // 8. Record clip views (non-blocking, for analytics only)
+    // 8. Mark clips as seen in Redis (primary - scalable tracking)
     const clipIdsToRecord = sampledClips.map(c => c.id);
     if (clipIdsToRecord.length > 0) {
-      // Fire and forget - don't await, don't block response
+      // Mark as seen in Redis Bloom filter (fast, scalable)
+      // This is awaited because it's critical for seen tracking
+      await markClipsAsSeen(effectiveVoterKey, activeSlot.slot_position, clipIdsToRecord);
+
+      // Also record in database for analytics (fire and forget - non-blocking)
+      // This is kept for view_count tracking and historical data
       recordClipViews(supabase, effectiveVoterKey, clipIdsToRecord).catch(() => {});
     }
 
