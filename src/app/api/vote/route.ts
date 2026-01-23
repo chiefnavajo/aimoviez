@@ -56,10 +56,52 @@ const CACHE_TTL = {
   season: 60 * 1000,      // 1 minute for season
   slot: 30 * 1000,        // 30 seconds for active slot
   clips: 45 * 1000,       // 45 seconds for clips (optimized from 15s)
+  featureFlags: 5 * 60 * 1000,  // 5 minutes for feature flags (rarely change)
 };
 
 // Maximum cache entries to prevent unbounded memory growth
 const MAX_CLIPS_CACHE_ENTRIES = 20;
+
+// Feature flags cache - reduces 3 queries per vote to 1 query every 5 minutes
+interface FeatureFlagsCache {
+  data: Record<string, boolean> | null;
+  expires: number;
+}
+
+const featureFlagsCache: FeatureFlagsCache = {
+  data: null,
+  expires: 0,
+};
+
+async function getFeatureFlags(supabase: SupabaseClient): Promise<Record<string, boolean>> {
+  // Return cached flags if not expired
+  if (featureFlagsCache.data && Date.now() < featureFlagsCache.expires) {
+    return featureFlagsCache.data;
+  }
+
+  // Fetch all feature flags in ONE query
+  const { data: flags, error } = await supabase
+    .from('feature_flags')
+    .select('key, enabled');
+
+  if (error || !flags) {
+    console.warn('[getFeatureFlags] Failed to fetch flags:', error?.message);
+    // Return empty object on error (all flags default to false)
+    return featureFlagsCache.data || {};
+  }
+
+  // Convert array to key-value object
+  const flagsMap: Record<string, boolean> = {};
+  flags.forEach((flag: { key: string; enabled: boolean }) => {
+    flagsMap[flag.key] = flag.enabled ?? false;
+  });
+
+  // Cache for 5 minutes
+  featureFlagsCache.data = flagsMap;
+  featureFlagsCache.expires = Date.now() + CACHE_TTL.featureFlags;
+
+  return flagsMap;
+}
 
 function getCached<T>(key: 'activeSeason' | 'activeSlot', fallback?: T): T | null {
   const entry = cache[key];
@@ -1034,15 +1076,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    // Verify CAPTCHA token if provided (bot protection)
-    // CAPTCHA is required when the feature flag is enabled
-    const { data: captchaFlag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'require_captcha_voting')
-      .maybeSingle();
+    // Fetch all feature flags with caching (1 query every 5 min instead of 3 per request)
+    const featureFlags = await getFeatureFlags(supabase);
 
-    const captchaRequired = captchaFlag?.enabled ?? false;
+    // Verify CAPTCHA token if provided (bot protection)
+    const captchaRequired = featureFlags['require_captcha_voting'] ?? false;
 
     if (captchaRequired) {
       const captchaToken = body.captchaToken;
@@ -1107,14 +1145,8 @@ export async function POST(req: NextRequest) {
       // No session - continue with voterKey only
     }
 
-    // Check if authentication is required for voting (security feature flag)
-    const { data: authRequiredFlag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'require_auth_voting')
-      .maybeSingle();
-
-    const requireAuth = authRequiredFlag?.enabled ?? false;
+    // Check if authentication is required for voting (from cached feature flags)
+    const requireAuth = featureFlags['require_auth_voting'] ?? false;
 
     if (requireAuth && !loggedInUserId) {
       return NextResponse.json(
@@ -1132,21 +1164,8 @@ export async function POST(req: NextRequest) {
     const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
     debugLog('[POST /api/vote] Auth type:', loggedInUserId ? 'authenticated' : 'device');
 
-    // 1. Check multi-vote mode feature flag
-    const { data: multiVoteFlag, error: flagError } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'multi_vote_mode')
-      .maybeSingle();
-
-    if (flagError) {
-      console.warn('[POST /api/vote] Failed to fetch multi_vote_mode flag:', flagError.message);
-    }
-
-    // Handle various truthy values (boolean true, string "true", number 1, etc.)
-    // The enabled column can be: boolean true, string "true", number 1, or similar
-    const rawEnabled = multiVoteFlag?.enabled;
-    const multiVoteEnabled = rawEnabled === true || rawEnabled === 'true' || rawEnabled === 1 || rawEnabled === '1';
+    // 1. Check multi-vote mode feature flag (from cached feature flags)
+    const multiVoteEnabled = featureFlags['multi_vote_mode'] ?? false;
     debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'rawEnabled:', rawEnabled, 'typeof:', typeof rawEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
 
     // 2. Determine if this is a power vote (super/mega)
