@@ -80,10 +80,21 @@ export const authOptions: NextAuthOptions = {
       // Set email on initial sign in
       if (account && user) {
         token.email = user.email;
+        // Clear cached data to force fresh lookup on new sign-in
+        token.userId = null;
+        token.username = null;
+        token.hasProfile = false;
+        token._profileCheckedAt = null;
       }
 
-      // Check profile status on every request if we have an email
-      if (token.email && supabaseUrl && supabaseKey) {
+      // Only query DB if we don't have userId yet, or it's been more than 1 hour
+      // This reduces DB queries from every-request to once-per-hour max
+      const PROFILE_CACHE_TTL = 60 * 60 * 1000; // 1 hour in ms
+      const now = Date.now();
+      const profileAge = token._profileCheckedAt ? now - (token._profileCheckedAt as number) : Infinity;
+      const needsRefresh = !token.userId || profileAge > PROFILE_CACHE_TTL;
+
+      if (needsRefresh && token.email && supabaseUrl && supabaseKey) {
         try {
           const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -100,6 +111,7 @@ export const authOptions: NextAuthOptions = {
           token.hasProfile = !!data;
           token.username = data?.username || null;
           token.userId = data?.id || null;
+          token._profileCheckedAt = now;
         } catch (err) {
           console.error("❌ Could not check user profile:", err);
           token.hasProfile = false;

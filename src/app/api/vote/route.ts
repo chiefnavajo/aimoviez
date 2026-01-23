@@ -1125,21 +1125,13 @@ export async function POST(req: NextRequest) {
 
     const voterKey = getVoterKey(req);
 
-    // Get logged-in user's ID if available
+    // Get logged-in user's ID if available (from JWT - no DB query needed)
     let loggedInUserId: string | null = null;
-    let _userEmail: string | null = null;
     try {
       const session = await getServerSession(authOptions);
-      if (session?.user?.email) {
-        _userEmail = session.user.email;
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', session.user.email)
-          .single();
-        if (userData) {
-          loggedInUserId = userData.id;
-        }
+      // userId is cached in the JWT token by auth-options.ts
+      if (session?.user?.userId) {
+        loggedInUserId = session.user.userId;
       }
     } catch {
       // No session - continue with voterKey only
@@ -1166,7 +1158,7 @@ export async function POST(req: NextRequest) {
 
     // 1. Check multi-vote mode feature flag (from cached feature flags)
     const multiVoteEnabled = featureFlags['multi_vote_mode'] ?? false;
-    debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'rawEnabled:', rawEnabled, 'typeof:', typeof rawEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
+    debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled, 'isPowerVote:', voteType === 'super' || voteType === 'mega');
 
     // 2. Determine if this is a power vote (super/mega)
     // Power votes can upgrade existing votes, so we handle them differently
