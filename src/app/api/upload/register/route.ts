@@ -163,10 +163,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (clipError) {
+      // SECURITY: Log full error server-side, return generic message to client
       console.error('[REGISTER] Database insert error:', clipError);
       return NextResponse.json({
         success: false,
-        error: `Failed to save clip: ${clipError.message || 'Database error'}`
+        error: 'Failed to save clip. Please try again.'
       }, { status: 500 });
     }
 

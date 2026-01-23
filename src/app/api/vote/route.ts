@@ -1099,13 +1099,13 @@ export async function POST(req: NextRequest) {
       const captchaResult = await verifyCaptcha(captchaToken, clientIp);
 
       if (!captchaResult.success) {
+        // SECURITY: Log error codes server-side, don't expose to client
         console.warn('[POST /api/vote] CAPTCHA verification failed:', captchaResult.error_codes);
         return NextResponse.json(
           {
             success: false,
-            error: 'CAPTCHA verification failed',
+            error: 'CAPTCHA verification failed. Please try again.',
             code: 'CAPTCHA_FAILED',
-            details: captchaResult.error_codes,
           },
           { status: 400 }
         );

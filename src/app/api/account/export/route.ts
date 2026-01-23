@@ -43,25 +43,36 @@ export async function GET(request: NextRequest) {
       .eq('email', userEmail)
       .single();
 
-    // Get user's clips
-    const { data: clips } = await supabase
-      .from('tournament_clips')
-      .select('id, title, description, genre, status, vote_count, created_at, slot_position')
-      .eq('user_id', profile?.id || '');
+    // SECURITY: Only query user data if profile exists with valid ID
+    // Prevents querying with empty string which could return unintended data
+    let clips = null;
+    let votes = null;
+    let comments = null;
 
-    // Get user's votes (if user_id is tracked)
-    const { data: votes } = await supabase
-      .from('votes')
-      .select('id, clip_id, vote_type, created_at')
-      .eq('user_id', profile?.id || '')
-      .limit(1000);
+    if (profile?.id) {
+      // Get user's clips
+      const { data: clipsData } = await supabase
+        .from('tournament_clips')
+        .select('id, title, description, genre, status, vote_count, created_at, slot_position')
+        .eq('user_id', profile.id);
+      clips = clipsData;
 
-    // Get user's comments
-    const { data: comments } = await supabase
-      .from('comments')
-      .select('id, comment_text, created_at, clip_id')
-      .eq('user_id', profile?.id || '')
-      .limit(1000);
+      // Get user's votes
+      const { data: votesData } = await supabase
+        .from('votes')
+        .select('id, clip_id, vote_type, created_at')
+        .eq('user_id', profile.id)
+        .limit(1000);
+      votes = votesData;
+
+      // Get user's comments
+      const { data: commentsData } = await supabase
+        .from('comments')
+        .select('id, comment_text, created_at, clip_id')
+        .eq('user_id', profile.id)
+        .limit(1000);
+      comments = commentsData;
+    }
 
     // Compile export data
     const exportData = {

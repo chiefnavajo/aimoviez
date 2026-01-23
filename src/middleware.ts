@@ -66,6 +66,14 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // Referrer policy
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
 
+  // HSTS - Force HTTPS (only in production)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains'
+    );
+  }
+
   // Permissions policy
   response.headers.set(
     'Permissions-Policy',

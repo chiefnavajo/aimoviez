@@ -302,10 +302,10 @@ export async function GET(req: NextRequest) {
     });
 
   } catch (error) {
+    // SECURITY: Log full error server-side, return generic message to client
     console.error('[story] Unexpected error:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Internal server error', message, seasons: [] },
+      { error: 'Internal server error', seasons: [] },
       { status: 500 }
     );
   }

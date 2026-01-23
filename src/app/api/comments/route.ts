@@ -322,9 +322,10 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !comment) {
+      // SECURITY: Log full error server-side, return generic message to client
       console.error('[POST /api/comments] error:', error);
       return NextResponse.json(
-        { error: 'Failed to create comment', details: error?.message },
+        { error: 'Failed to create comment. Please try again.' },
         { status: 500 }
       );
     }
@@ -448,7 +449,8 @@ export async function DELETE(req: NextRequest) {
     const userInfo = await getUserInfo(req, supabase);
 
     // SECURITY: Require authentication for comment deletion
-    if (!userInfo.isAuthenticated) {
+    // Double-check both isAuthenticated AND userId to prevent device fingerprint bypass
+    if (!userInfo.isAuthenticated || !userInfo.userId) {
       return NextResponse.json(
         { error: 'Authentication required to delete comments' },
         { status: 401 }

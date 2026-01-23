@@ -6,13 +6,19 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { escapeHtml } from '@/lib/sanitize';
 
-// Sanitize user input to prevent XSS and injection
+// SECURITY: Sanitize user input using HTML entity encoding
+// This is more robust than regex-based removal which can be bypassed
 function sanitizeInput(input: string): string {
-  return input
-    .replace(/[<>]/g, '') // Remove HTML brackets
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .replace(/on\w+=/gi, '') // Remove event handlers
+  if (!input) return '';
+
+  // First escape HTML entities to prevent XSS
+  const escaped = escapeHtml(input);
+
+  // Remove control characters (except newlines for message field)
+  return escaped
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     .trim();
 }
 

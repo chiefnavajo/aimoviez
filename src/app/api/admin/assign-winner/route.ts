@@ -406,10 +406,10 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    // SECURITY: Log full error server-side, return generic message to client
     console.error('[assign-winner] Unexpected error:', err);
     return NextResponse.json(
-      { ok: false, error: 'Internal server error', details: errorMessage },
+      { ok: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
