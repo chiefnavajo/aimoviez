@@ -26,8 +26,8 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(request, 'admin');
+  // Rate limit check - use read limit for viewing user details
+  const rateLimitResponse = await rateLimit(request, 'admin_read');
   if (rateLimitResponse) return rateLimitResponse;
 
   const adminError = await requireAdmin();
@@ -115,8 +115,8 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(request, 'admin');
+  // Rate limit check - use sensitive limit for ban/role actions
+  const rateLimitResponse = await rateLimit(request, 'admin_sensitive');
   if (rateLimitResponse) return rateLimitResponse;
 
   const adminError = await requireAdmin();

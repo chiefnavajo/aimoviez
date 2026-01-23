@@ -19,22 +19,25 @@ export const RATE_LIMITS = {
   vote: { requests: 30, window: '1m' as const },
 
   // Upload endpoints - very strict
-  upload: { requests: 5, window: '1m' as const }, // Reduced from 10
+  upload: { requests: 5, window: '1m' as const },
 
   // Comment endpoints
-  comment: { requests: 15, window: '1m' as const }, // Reduced from 20
+  comment: { requests: 15, window: '1m' as const },
 
   // General API endpoints
-  api: { requests: 60, window: '1m' as const }, // Reduced from 100
+  api: { requests: 60, window: '1m' as const },
 
-  // Admin endpoints - lowered for security (was too high)
-  admin: { requests: 50, window: '1m' as const }, // Reduced from 200
+  // Admin endpoints - split by operation type for security
+  admin: { requests: 30, window: '1m' as const },        // General admin (legacy)
+  admin_read: { requests: 30, window: '1m' as const },   // Listing users/clips
+  admin_write: { requests: 15, window: '1m' as const },  // Moderation actions
+  admin_sensitive: { requests: 5, window: '1m' as const }, // Ban/role changes
 
   // Leaderboard/read-heavy endpoints - cached, more lenient
-  read: { requests: 120, window: '1m' as const }, // Reduced from 200
+  read: { requests: 120, window: '1m' as const },
 
   // Auth endpoints - strict to prevent brute force
-  auth: { requests: 5, window: '1m' as const }, // Reduced from 10
+  auth: { requests: 5, window: '1m' as const },
 
   // Contact/report endpoints - strict to prevent spam
   contact: { requests: 3, window: '1m' as const },

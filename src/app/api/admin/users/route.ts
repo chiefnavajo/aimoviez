@@ -29,8 +29,8 @@ function getSupabaseClient() {
  *   limit: number
  */
 export async function GET(request: NextRequest) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(request, 'admin');
+  // Rate limit check - use read limit for listing users
+  const rateLimitResponse = await rateLimit(request, 'admin_read');
   if (rateLimitResponse) return rateLimitResponse;
 
   const adminError = await requireAdmin();

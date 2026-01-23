@@ -33,8 +33,8 @@ interface ModerationQueueItem {
  * - limit?: number (default: 20, max: 100)
  */
 export async function GET(req: NextRequest) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(req, 'admin');
+  // Rate limit check - use read limit for listing
+  const rateLimitResponse = await rateLimit(req, 'admin_read');
   if (rateLimitResponse) return rateLimitResponse;
 
   // Check admin authentication
@@ -110,8 +110,8 @@ export async function GET(req: NextRequest) {
  * }
  */
 export async function POST(req: NextRequest) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(req, 'admin');
+  // Rate limit check - use write limit for moderation actions
+  const rateLimitResponse = await rateLimit(req, 'admin_write');
   if (rateLimitResponse) return rateLimitResponse;
 
   // Check admin authentication
@@ -199,8 +199,8 @@ export async function POST(req: NextRequest) {
  * }
  */
 export async function DELETE(req: NextRequest) {
-  // Rate limit check
-  const rateLimitResponse = await rateLimit(req, 'admin');
+  // Rate limit check - use write limit for moderation actions
+  const rateLimitResponse = await rateLimit(req, 'admin_write');
   if (rateLimitResponse) return rateLimitResponse;
 
   // Check admin authentication

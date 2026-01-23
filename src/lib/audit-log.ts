@@ -1,10 +1,12 @@
 // ============================================================================
 // AUDIT LOGGING
 // Tracks admin actions for security and compliance
+// SECURITY: Sensitive fields are redacted before storage
 // ============================================================================
 
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest } from 'next/server';
+import crypto from 'crypto';
 
 // ============================================================================
 // TYPES
@@ -43,8 +45,55 @@ export interface AuditLogEntry {
   resourceType: ResourceType;
   resourceId?: string;
   details?: Record<string, unknown>;
-  adminEmail: string;
-  adminId?: string;
+  adminEmail?: string;  // SECURITY: Only used for lookup, not stored directly
+  adminId?: string;     // Preferred: store ID instead of email
+}
+
+// ============================================================================
+// SECURITY HELPERS
+// ============================================================================
+
+/**
+ * Hash sensitive text for audit logs (one-way, for integrity verification)
+ */
+function hashSensitiveText(text: string): string {
+  return crypto.createHash('sha256').update(text).digest('hex').substring(0, 16);
+}
+
+/**
+ * Redact sensitive fields from audit log details
+ * SECURITY: Removes PII and sensitive data before storage
+ */
+function redactSensitiveDetails(details: Record<string, unknown>): Record<string, unknown> {
+  const redacted = { ...details };
+
+  // Hash admin notes (free text could contain PII)
+  if (typeof redacted.adminNotes === 'string' && redacted.adminNotes) {
+    redacted.adminNotes_hash = hashSensitiveText(redacted.adminNotes);
+    redacted.adminNotes_length = redacted.adminNotes.length;
+    delete redacted.adminNotes;
+  }
+
+  // Hash admin_notes variant
+  if (typeof redacted.admin_notes === 'string' && redacted.admin_notes) {
+    redacted.admin_notes_hash = hashSensitiveText(redacted.admin_notes);
+    redacted.admin_notes_length = (redacted.admin_notes as string).length;
+    delete redacted.admin_notes;
+  }
+
+  // Hash reason field (could contain sensitive info)
+  if (typeof redacted.reason === 'string' && redacted.reason) {
+    redacted.reason_hash = hashSensitiveText(redacted.reason);
+    redacted.reason_length = redacted.reason.length;
+    delete redacted.reason;
+  }
+
+  // Remove email addresses from details
+  if (typeof redacted.email === 'string') {
+    delete redacted.email;
+  }
+
+  return redacted;
 }
 
 // ============================================================================
@@ -69,6 +118,7 @@ function getSupabaseClient() {
 /**
  * Log an admin action for audit trail
  * Non-blocking - failures are logged but don't affect the main operation
+ * SECURITY: Sensitive fields are redacted before storage
  */
 export async function logAdminAction(
   req: NextRequest,
@@ -84,16 +134,25 @@ export async function logAdminAction(
       : req.headers.get('x-real-ip') || 'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
+    // SECURITY: Redact sensitive details before storage
+    const redactedDetails = entry.details
+      ? redactSensitiveDetails(entry.details)
+      : {};
+
+    // SECURITY: Hash IP address for privacy (still allows pattern matching)
+    const ipHash = crypto.createHash('sha256').update(ipAddress).digest('hex').substring(0, 16);
+
     // Insert audit log entry
+    // SECURITY: Store admin_id instead of admin_email when possible
     const { error } = await supabase.from('audit_logs').insert({
       admin_id: entry.adminId || null,
-      admin_email: entry.adminEmail,
+      admin_email: entry.adminId ? null : entry.adminEmail, // Only store email if no ID available
       action: entry.action,
       resource_type: entry.resourceType,
       resource_id: entry.resourceId || null,
-      details: entry.details || {},
-      ip_address: ipAddress,
-      user_agent: userAgent,
+      details: redactedDetails,
+      ip_address: ipHash, // Store hash instead of raw IP
+      user_agent: userAgent?.substring(0, 200) || 'unknown', // Truncate long UA strings
     });
 
     if (error) {
