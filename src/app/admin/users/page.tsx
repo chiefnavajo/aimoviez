@@ -336,25 +336,26 @@ export default function AdminUsersPage() {
       </header>
 
       {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex flex-wrap gap-4 items-center">
-          {/* Search */}
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-white/40" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by username or email..."
-              className="w-full bg-white/10 border border-white/20 rounded-xl pl-10 pr-4 py-2.5 text-white placeholder-white/40 focus:border-cyan-500 focus:outline-none"
-            />
-          </div>
+      <div className="max-w-7xl mx-auto px-4 py-4 space-y-3">
+        {/* Search - Full width on mobile */}
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-white/40" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search username or email..."
+            className="w-full bg-white/10 border border-white/20 rounded-xl pl-9 sm:pl-10 pr-4 py-2 sm:py-2.5 text-sm sm:text-base text-white placeholder-white/40 focus:border-cyan-500 focus:outline-none"
+          />
+        </div>
 
+        {/* Status & Sort Filters - Flex row */}
+        <div className="flex gap-2 sm:gap-4">
           {/* Status Filter */}
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value as typeof statusFilter); setPage(1); }}
-            className="bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white focus:border-cyan-500 focus:outline-none"
+            className="flex-1 sm:flex-none bg-white/10 border border-white/20 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base text-white focus:border-cyan-500 focus:outline-none"
           >
             <option value="all" className="bg-gray-900">All Users</option>
             <option value="active" className="bg-gray-900">Active</option>
@@ -365,10 +366,10 @@ export default function AdminUsersPage() {
           <select
             value={sortBy}
             onChange={(e) => { setSortBy(e.target.value as typeof sortBy); setPage(1); }}
-            className="bg-white/10 border border-white/20 rounded-xl px-4 py-2.5 text-white focus:border-cyan-500 focus:outline-none"
+            className="flex-1 sm:flex-none bg-white/10 border border-white/20 rounded-xl px-3 sm:px-4 py-2 sm:py-2.5 text-sm sm:text-base text-white focus:border-cyan-500 focus:outline-none"
           >
-            <option value="newest" className="bg-gray-900">Newest First</option>
-            <option value="oldest" className="bg-gray-900">Oldest First</option>
+            <option value="newest" className="bg-gray-900">Newest</option>
+            <option value="oldest" className="bg-gray-900">Oldest</option>
             <option value="most_clips" className="bg-gray-900">Most Clips</option>
             <option value="most_votes" className="bg-gray-900">Most Votes</option>
           </select>
@@ -395,90 +396,93 @@ export default function AdminUsersPage() {
                   key={user.id}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`bg-white/5 rounded-xl border p-4 ${
+                  className={`bg-white/5 rounded-xl border p-3 sm:p-4 ${
                     user.is_banned ? 'border-red-500/30' : 'border-white/10'
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    {/* Avatar */}
-                    <Image
-                      src={user.avatar_url || '/default-avatar.png'}
-                      alt={user.username}
-                      width={48}
-                      height={48}
-                      className="w-12 h-12 rounded-full bg-white/10"
-                      unoptimized={user.avatar_url?.includes('dicebear') || user.avatar_url?.endsWith('.svg')}
-                    />
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                    {/* Top row: Avatar + Info */}
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Avatar */}
+                      <Image
+                        src={user.avatar_url || '/default-avatar.png'}
+                        alt={user.username}
+                        width={48}
+                        height={48}
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-white/10 flex-shrink-0"
+                        unoptimized={user.avatar_url?.includes('dicebear') || user.avatar_url?.endsWith('.svg')}
+                      />
 
-                    {/* Info */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold truncate">@{user.username}</h3>
-                        {user.is_admin && (
-                          <span className="px-2 py-0.5 bg-purple-500/30 text-purple-300 rounded-full text-xs">
-                            Admin
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold truncate text-sm sm:text-base">@{user.username}</h3>
+                          {user.is_admin && (
+                            <span className="px-1.5 py-0.5 bg-purple-500/30 text-purple-300 rounded-full text-[10px] sm:text-xs">
+                              Admin
+                            </span>
+                          )}
+                          {user.is_banned && (
+                            <span className="px-1.5 py-0.5 bg-red-500/30 text-red-300 rounded-full text-[10px] sm:text-xs">
+                              Banned
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs sm:text-sm text-white/60 truncate">{user.email}</p>
+                        <div className="flex items-center gap-3 sm:gap-4 mt-1 text-[10px] sm:text-xs text-white/40">
+                          <span className="flex items-center gap-1">
+                            <Film className="w-3 h-3" />
+                            {user.clip_count}
                           </span>
-                        )}
-                        {user.is_banned && (
-                          <span className="px-2 py-0.5 bg-red-500/30 text-red-300 rounded-full text-xs">
-                            Banned
+                          <span className="flex items-center gap-1">
+                            <Heart className="w-3 h-3" />
+                            {user.vote_count}
                           </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-white/60 truncate">{user.email}</p>
-                      <div className="flex items-center gap-4 mt-1 text-xs text-white/40">
-                        <span className="flex items-center gap-1">
-                          <Film className="w-3 h-3" />
-                          {user.clip_count} clips
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Heart className="w-3 h-3" />
-                          {user.vote_count} votes
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-3 h-3" />
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </span>
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-3 h-3" />
+                            {new Date(user.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex items-center gap-2">
+                    {/* Actions - Grid on mobile */}
+                    <div className="grid grid-cols-4 sm:flex items-center gap-1.5 sm:gap-2">
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => fetchUserDetail(user.id)}
-                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex items-center justify-center"
                         title="View Details"
                       >
-                        <Eye className="w-5 h-5" />
+                        <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
                       </motion.button>
 
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => openEditUsername(user)}
-                        className="p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-lg transition-colors text-cyan-400"
+                        className="p-2 bg-cyan-500/20 hover:bg-cyan-500/30 rounded-lg transition-colors text-cyan-400 flex items-center justify-center"
                         title="Edit Username"
                       >
-                        <Edit3 className="w-5 h-5" />
+                        <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
                       </motion.button>
 
                       {user.is_banned ? (
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleBanAction(user.id, 'unban')}
-                          className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors text-green-400"
+                          className="p-2 bg-green-500/20 hover:bg-green-500/30 rounded-lg transition-colors text-green-400 flex items-center justify-center"
                           title="Unban User"
                         >
-                          <CheckCircle className="w-5 h-5" />
+                          <CheckCircle className="w-4 h-4 sm:w-5 sm:h-5" />
                         </motion.button>
                       ) : (
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={() => setBanningUser(user)}
-                          className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-400"
+                          className="p-2 bg-red-500/20 hover:bg-red-500/30 rounded-lg transition-colors text-red-400 flex items-center justify-center"
                           title="Ban User"
                         >
-                          <Ban className="w-5 h-5" />
+                          <Ban className="w-4 h-4 sm:w-5 sm:h-5" />
                         </motion.button>
                       )}
 
@@ -486,19 +490,19 @@ export default function AdminUsersPage() {
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAdminToggle(user.id, false)}
-                          className="p-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg transition-colors text-purple-400"
+                          className="p-2 bg-purple-500/20 hover:bg-purple-500/30 rounded-lg transition-colors text-purple-400 flex items-center justify-center"
                           title="Remove Admin"
                         >
-                          <ShieldOff className="w-5 h-5" />
+                          <ShieldOff className="w-4 h-4 sm:w-5 sm:h-5" />
                         </motion.button>
                       ) : (
                         <motion.button
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleAdminToggle(user.id, true)}
-                          className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors"
+                          className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition-colors flex items-center justify-center"
                           title="Make Admin"
                         >
-                          <Shield className="w-5 h-5" />
+                          <Shield className="w-4 h-4 sm:w-5 sm:h-5" />
                         </motion.button>
                       )}
                     </div>

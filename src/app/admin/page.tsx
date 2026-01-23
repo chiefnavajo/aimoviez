@@ -1714,16 +1714,17 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 flex-wrap">
+            {/* Action Buttons - Grid on mobile, flex on desktop */}
+            <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={fetchSlotInfo}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors col-span-2 sm:col-span-1 flex items-center justify-center gap-2 sm:w-auto"
                 type="button"
                 title="Refresh slot info"
               >
                 <RefreshCw className="w-5 h-5" />
+                <span className="sm:hidden">Refresh</span>
               </motion.button>
 
               {/* Reset Season Button */}
@@ -1731,21 +1732,18 @@ export default function AdminDashboard() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleResetSeason}
                 disabled={resettingSeason || fullResetting || !slotInfo}
-                className="px-4 py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold
+                className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold
                          hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50
-                         flex items-center gap-2"
+                         flex items-center justify-center gap-2 text-sm sm:text-base"
                 type="button"
                 title="Reset season to slot 1"
               >
                 {resettingSeason ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Resetting...
-                  </>
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
                   <>
-                    <RotateCcw className="w-5 h-5" />
-                    Reset Season
+                    <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden xs:inline">Reset</span>
                   </>
                 )}
               </motion.button>
@@ -1755,21 +1753,18 @@ export default function AdminDashboard() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleFullCleanReset}
                 disabled={resettingSeason || fullResetting || !slotInfo}
-                className="px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-800 font-bold
+                className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-800 font-bold
                          hover:shadow-lg hover:shadow-red-500/20 transition-all disabled:opacity-50
-                         flex items-center gap-2 border border-red-400/50"
+                         flex items-center justify-center gap-2 border border-red-400/50 text-sm sm:text-base"
                 type="button"
                 title="Complete reset: clears all votes and resets everything"
               >
                 {fullResetting ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Full Reset...
-                  </>
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
                   <>
-                    <Trash2 className="w-5 h-5" />
-                    Full Clean Reset
+                    <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span className="hidden xs:inline">Full Reset</span>
                   </>
                 )}
               </motion.button>
@@ -1779,20 +1774,17 @@ export default function AdminDashboard() {
                 whileTap={{ scale: 0.95 }}
                 onClick={handleAdvanceSlot}
                 disabled={advancingSlot || !slotInfo || slotInfo.seasonStatus !== 'active'}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold
+                className="px-3 py-2.5 sm:px-6 sm:py-3 rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-bold
                          hover:shadow-lg hover:shadow-orange-500/20 transition-all disabled:opacity-50
-                         flex items-center gap-2"
+                         flex items-center justify-center gap-2 col-span-2 text-sm sm:text-base"
                 type="button"
               >
                 {advancingSlot ? (
-                  <>
-                    <RefreshCw className="w-5 h-5 animate-spin" />
-                    Advancing...
-                  </>
+                  <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
                   <>
-                    <SkipForward className="w-5 h-5" />
-                    Advance to Next Slot
+                    <SkipForward className="w-4 h-4 sm:w-5 sm:h-5" />
+                    <span>Advance Slot</span>
                   </>
                 )}
               </motion.button>
@@ -2045,34 +2037,35 @@ export default function AdminDashboard() {
       </div>
 
       {/* Filters */}
-      <div className="max-w-7xl mx-auto px-4 py-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Status Filter */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {(['all', 'pending', 'active', 'locked', 'rejected'] as FilterStatus[]).map((status) => (
-              <motion.button
-                key={status}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setFilter(status)}
-                className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                  filter === status
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-white/10 text-white/70 hover:bg-white/20'
-                }`}
-                type="button"
-              >
-                {status.charAt(0).toUpperCase() + status.slice(1)}
-              </motion.button>
-            ))}
-          </div>
+      <div className="max-w-7xl mx-auto px-4 py-4 space-y-3">
+        {/* Status Filter - Horizontal scroll on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          {(['all', 'pending', 'active', 'locked', 'rejected'] as FilterStatus[]).map((status) => (
+            <motion.button
+              key={status}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setFilter(status)}
+              className={`px-3 sm:px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all text-sm sm:text-base ${
+                filter === status
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+              type="button"
+            >
+              {status.charAt(0).toUpperCase() + status.slice(1)}
+            </motion.button>
+          ))}
+        </div>
 
+        {/* Season & Slot Filters - Stack on mobile */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           {/* Season Filter */}
-          <div className="flex items-center gap-2">
-            <span className="text-white/60 text-sm">Season:</span>
+          <div className="flex items-center gap-2 overflow-x-auto">
+            <span className="text-white/60 text-sm whitespace-nowrap">Season:</span>
             <select
               value={seasonFilter}
               onChange={(e) => setSeasonFilter(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition"
+              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition text-sm"
             >
               <option value="all" className="bg-gray-900">All Seasons</option>
               {seasons.map((season) => (
@@ -2084,106 +2077,18 @@ export default function AdminDashboard() {
                 </option>
               ))}
             </select>
-            {/* Archive/Unarchive Button - only show when a specific season is selected */}
-            {seasonFilter !== 'all' && (() => {
-              const selectedSeason = seasons.find(s => s.id === seasonFilter);
-              if (!selectedSeason || selectedSeason.status === 'active') return null;
-              const isArchived = selectedSeason.status === 'archived';
-              return (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleArchiveSeason(seasonFilter, !isArchived)}
-                  disabled={archivingSeason || deletingSeason}
-                  className={`px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 ${
-                    isArchived
-                      ? 'bg-green-500/20 border border-green-500/40 hover:bg-green-500/30 text-green-300'
-                      : 'bg-orange-500/20 border border-orange-500/40 hover:bg-orange-500/30 text-orange-300'
-                  } disabled:opacity-50`}
-                  type="button"
-                  title={isArchived ? 'Unarchive season (make visible to users)' : 'Archive season (hide from users)'}
-                >
-                  {archivingSeason ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : isArchived ? (
-                    <ArchiveRestore className="w-4 h-4" />
-                  ) : (
-                    <Archive className="w-4 h-4" />
-                  )}
-                  {isArchived ? 'Unarchive' : 'Archive'}
-                </motion.button>
-              );
-            })()}
-            {/* Delete Season Button - only show when a non-active season is selected */}
-            {seasonFilter !== 'all' && (() => {
-              const selectedSeason = seasons.find(s => s.id === seasonFilter);
-              if (!selectedSeason || selectedSeason.status === 'active') return null;
-              return (
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => handleDeleteSeason(seasonFilter)}
-                  disabled={deletingSeason || archivingSeason}
-                  className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300 disabled:opacity-50"
-                  type="button"
-                  title="Permanently delete season and all its data"
-                >
-                  {deletingSeason ? (
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                  Delete
-                </motion.button>
-              );
-            })()}
-            {/* Finish Season Early Button - only show when there's an active season */}
-            {seasons.some(s => s.status === 'active') && (
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={handleFinishSeason}
-                disabled={finishingSeason || deletingSeason || archivingSeason}
-                className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/40 hover:bg-yellow-500/30 text-yellow-300 disabled:opacity-50"
-                type="button"
-                title="Finish the active season early (keeps all data)"
-              >
-                {finishingSeason ? (
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Flag className="w-4 h-4" />
-                )}
-                Finish Season
-              </motion.button>
-            )}
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowBulkCleanup(true)}
-              className="px-3 py-2 rounded-lg transition-all font-medium text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300"
-              type="button"
-              title="Delete all seasons and start fresh with Season 1"
-            >
-              <Trash2 className="w-4 h-4" />
-              Fresh Start
-            </motion.button>
-            <motion.button
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setShowCreateSeason(true)}
-              className="px-3 py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 transition-all font-medium text-sm flex items-center gap-1"
-              type="button"
-            >
-              <Layers className="w-4 h-4" />
-              New Season
-            </motion.button>
           </div>
 
           {/* Slot Filter */}
-          <div className="flex items-center gap-2 ml-auto">
-            <span className="text-white/60 text-sm">Slot:</span>
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <span className="text-white/60 text-sm whitespace-nowrap">Slot:</span>
             <select
               value={slotFilter}
               onChange={(e) => {
                 const val = e.target.value;
                 setSlotFilter(val === 'all' ? 'all' : val === 'locked' ? 'locked' : Number(val));
               }}
-              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition"
+              className="px-3 py-2 rounded-lg bg-white/10 text-white border border-white/20 outline-none focus:border-cyan-500 transition text-sm"
             >
               <option value="all" className="bg-gray-900">All Slots</option>
               <option value="locked" className="bg-gray-900">🏆 Winners (Locked)</option>
@@ -2194,6 +2099,98 @@ export default function AdminDashboard() {
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Season Action Buttons - Scrollable on mobile */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          {/* Archive/Unarchive Button - only show when a specific season is selected */}
+          {seasonFilter !== 'all' && (() => {
+            const selectedSeason = seasons.find(s => s.id === seasonFilter);
+            if (!selectedSeason || selectedSeason.status === 'active') return null;
+            const isArchived = selectedSeason.status === 'archived';
+            return (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleArchiveSeason(seasonFilter, !isArchived)}
+                disabled={archivingSeason || deletingSeason}
+                className={`px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 whitespace-nowrap ${
+                  isArchived
+                    ? 'bg-green-500/20 border border-green-500/40 hover:bg-green-500/30 text-green-300'
+                    : 'bg-orange-500/20 border border-orange-500/40 hover:bg-orange-500/30 text-orange-300'
+                } disabled:opacity-50`}
+                type="button"
+                title={isArchived ? 'Unarchive season (make visible to users)' : 'Archive season (hide from users)'}
+              >
+                {archivingSeason ? (
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                ) : isArchived ? (
+                  <ArchiveRestore className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                ) : (
+                  <Archive className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                )}
+                <span className="hidden sm:inline">{isArchived ? 'Unarchive' : 'Archive'}</span>
+              </motion.button>
+            );
+          })()}
+          {/* Delete Season Button - only show when a non-active season is selected */}
+          {seasonFilter !== 'all' && (() => {
+            const selectedSeason = seasons.find(s => s.id === seasonFilter);
+            if (!selectedSeason || selectedSeason.status === 'active') return null;
+            return (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleDeleteSeason(seasonFilter)}
+                disabled={deletingSeason || archivingSeason}
+                className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300 disabled:opacity-50 whitespace-nowrap"
+                type="button"
+                title="Permanently delete season and all its data"
+              >
+                {deletingSeason ? (
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                )}
+                <span className="hidden sm:inline">Delete</span>
+              </motion.button>
+            );
+          })()}
+          {/* Finish Season Early Button - only show when there's an active season */}
+          {seasons.some(s => s.status === 'active') && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={handleFinishSeason}
+              disabled={finishingSeason || deletingSeason || archivingSeason}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-yellow-500/20 border border-yellow-500/40 hover:bg-yellow-500/30 text-yellow-300 disabled:opacity-50 whitespace-nowrap"
+              type="button"
+              title="Finish the active season early (keeps all data)"
+            >
+              {finishingSeason ? (
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" />
+              ) : (
+                <Flag className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              )}
+              <span className="hidden sm:inline">Finish</span>
+            </motion.button>
+          )}
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowBulkCleanup(true)}
+            className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-red-500/20 border border-red-500/40 hover:bg-red-500/30 text-red-300 whitespace-nowrap"
+            type="button"
+            title="Delete all seasons and start fresh with Season 1"
+          >
+            <Trash2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Fresh Start</span>
+          </motion.button>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowCreateSeason(true)}
+            className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-400 hover:to-purple-400 transition-all font-medium text-xs sm:text-sm flex items-center gap-1 whitespace-nowrap"
+            type="button"
+          >
+            <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            <span>New Season</span>
+          </motion.button>
         </div>
       </div>
 
@@ -2407,11 +2404,11 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Clip Details */}
-                    <div className="flex flex-col justify-between">
+                    <div className="flex flex-col justify-between min-w-0">
                       <div className="space-y-4">
                         <div>
-                          <h3 className="text-xl font-bold mb-1">{clip.title}</h3>
-                          <p className="text-white/60 text-sm">{clip.description || 'No description'}</p>
+                          <h3 className="text-lg sm:text-xl font-bold mb-1 truncate">{clip.title}</h3>
+                          <p className="text-white/60 text-sm line-clamp-2">{clip.description || 'No description'}</p>
                         </div>
 
                         <div className="flex flex-wrap gap-2">
@@ -2452,19 +2449,20 @@ export default function AdminDashboard() {
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-3 mt-4">
+                      {/* Action Buttons - Grid on mobile */}
+                      <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3 mt-4">
                         {/* Assign Winner Button - Only for active clips in current voting slot */}
                         {clip.status === 'active' && clip.slot_position === slotInfo?.currentSlot && (
                           <motion.button
                             whileTap={{ scale: 0.95 }}
                             onClick={() => openWinnerModal(clip)}
                             disabled={processingClip === clip.id}
-                            className="py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 font-bold hover:shadow-lg hover:shadow-yellow-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                             type="button"
                             title="Assign as winner for this slot"
                           >
-                            <Crown className="w-5 h-5" />
+                            <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="sm:hidden">Winner</span>
                           </motion.button>
                         )}
 
@@ -2474,11 +2472,12 @@ export default function AdminDashboard() {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleUnlockSlot(clip)}
                             disabled={processingClip === clip.id}
-                            className="py-3 px-4 rounded-xl bg-purple-500/20 border border-purple-500/40 font-medium hover:bg-purple-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                            className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl bg-purple-500/20 border border-purple-500/40 font-medium hover:bg-purple-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                             type="button"
                             title="Unlock this slot and remove winner"
                           >
-                            <Unlock className="w-5 h-5" />
+                            <Unlock className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="sm:hidden">Unlock</span>
                           </motion.button>
                         )}
 
@@ -2487,10 +2486,10 @@ export default function AdminDashboard() {
                           whileTap={{ scale: 0.95 }}
                           onClick={() => openEditModal(clip)}
                           disabled={processingClip === clip.id}
-                          className="flex-1 py-3 rounded-xl bg-blue-500/20 border border-blue-500/40 font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="sm:flex-1 py-2.5 sm:py-3 px-3 rounded-xl bg-blue-500/20 border border-blue-500/40 font-medium hover:bg-blue-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                           type="button"
                         >
-                          <Edit className="w-5 h-5" />
+                          <Edit className="w-4 h-4 sm:w-5 sm:h-5" />
                           Edit
                         </motion.button>
 
@@ -2499,10 +2498,11 @@ export default function AdminDashboard() {
                           whileTap={{ scale: 0.95 }}
                           onClick={() => handleDelete(clip.id)}
                           disabled={processingClip === clip.id}
-                          className="py-3 px-4 rounded-xl bg-red-500/20 border border-red-500/40 font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                          className="py-2.5 sm:py-3 px-3 sm:px-4 rounded-xl bg-red-500/20 border border-red-500/40 font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                           type="button"
                         >
-                          <Trash2 className="w-5 h-5" />
+                          <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <span className="sm:hidden">Delete</span>
                         </motion.button>
 
                         {/* Approve/Reject - Only for pending */}
@@ -2512,10 +2512,10 @@ export default function AdminDashboard() {
                               whileTap={{ scale: 0.95 }}
                               onClick={() => handleReject(clip.id)}
                               disabled={processingClip === clip.id}
-                              className="flex-1 py-3 rounded-xl bg-red-500/20 border border-red-500/40 font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                              className="sm:flex-1 py-2.5 sm:py-3 px-3 rounded-xl bg-red-500/20 border border-red-500/40 font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 text-sm sm:text-base"
                               type="button"
                             >
-                              <X className="w-5 h-5" />
+                              <X className="w-4 h-4 sm:w-5 sm:h-5" />
                               Reject
                             </motion.button>
 
@@ -2523,10 +2523,10 @@ export default function AdminDashboard() {
                               whileTap={{ scale: 0.95 }}
                               onClick={() => handleApprove(clip.id)}
                               disabled={processingClip === clip.id}
-                              className="flex-1 py-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 font-bold hover:shadow-lg hover:shadow-green-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                              className="sm:flex-1 py-2.5 sm:py-3 px-3 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 font-bold hover:shadow-lg hover:shadow-green-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2 col-span-2 sm:col-span-1 text-sm sm:text-base"
                               type="button"
                             >
-                              <Check className="w-5 h-5" />
+                              <Check className="w-4 h-4 sm:w-5 sm:h-5" />
                               {processingClip === clip.id ? 'Processing...' : 'Approve'}
                             </motion.button>
                           </>
