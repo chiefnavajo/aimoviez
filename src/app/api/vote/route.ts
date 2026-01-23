@@ -1185,13 +1185,23 @@ export async function POST(req: NextRequest) {
     }
     const totalVotesToday = votesTodayResult.count;
 
-    if (totalVotesToday >= DAILY_VOTE_LIMIT) {
+    // Calculate vote weight before checking limit
+    const weight: number =
+      voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
+
+    // Check if this vote would exceed the daily limit (accounting for vote weight)
+    if (totalVotesToday + weight > DAILY_VOTE_LIMIT) {
+      const remaining = DAILY_VOTE_LIMIT - totalVotesToday;
       return NextResponse.json(
         {
           success: false,
-          error: 'Daily vote limit reached (200 votes)',
+          error: remaining <= 0
+            ? 'Daily vote limit reached (200 votes)'
+            : `Not enough votes remaining. You have ${remaining} vote${remaining === 1 ? '' : 's'} left, but ${voteType} vote requires ${weight}.`,
           code: 'DAILY_LIMIT',
           totalVotesToday,
+          remaining,
+          required: weight,
         },
         { status: 429 }
       );
@@ -1359,11 +1369,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Calculate vote weight
-    const weight: number =
-      voteType === 'mega' ? 10 : voteType === 'super' ? 3 : 1;
-
     // 5.5. Check vote risk (for fraud detection)
+    // Note: vote weight was already calculated above (before daily limit check)
     const voteRisk = checkVoteRisk(req);
     if (voteRisk.riskScore >= 70) {
       // High risk - log but still allow (could be legitimate user behind VPN/proxy)
@@ -1474,20 +1481,10 @@ export async function POST(req: NextRequest) {
     }
 
     // 7. Vote count update is handled by database trigger (on_vote_insert)
-    // The trigger atomically increments both vote_count and weighted_score by vote_weight
-    // Fetch the ACTUAL updated score to avoid showing stale data
-    let newWeightedScore = (clipData.weighted_score ?? 0) + weight; // Fallback estimate
-
-    // Read back actual value after trigger has run (more accurate)
-    const { data: updatedClip } = await supabase
-      .from('tournament_clips')
-      .select('weighted_score')
-      .eq('id', clipId)
-      .single();
-
-    if (updatedClip?.weighted_score != null) {
-      newWeightedScore = updatedClip.weighted_score;
-    }
+    // The RPC function returns the updated score atomically, so use that instead of a separate query
+    // This eliminates the race condition where we read stale data after trigger runs
+    const rpcResult = insertResult?.[0];
+    const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
 
     // 8. Calculate remaining votes
     // Each vote type consumes its weight from daily limit (mega=10, super=3, standard=1)
@@ -1581,19 +1578,13 @@ export async function DELETE(req: NextRequest) {
 
     const voterKey = getVoterKey(req);
 
-    // SECURITY FIX: Apply same auth logic as POST to prevent spoofing
+    // Use cached userId from JWT (same as POST - no extra DB query needed)
     let loggedInUserId: string | null = null;
     try {
       const session = await getServerSession(authOptions);
-      if (session?.user?.email) {
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', session.user.email)
-          .single();
-        if (userData) {
-          loggedInUserId = userData.id;
-        }
+      // userId is cached in the JWT token by auth-options.ts
+      if (session?.user?.userId) {
+        loggedInUserId = session.user.userId;
       }
     } catch {
       // No session - continue with voterKey only

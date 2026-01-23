@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Get current clip status for audit log
+    // Get current clip status for audit log (before approval)
     const { data: currentClip } = await supabase
       .from('tournament_clips')
       .select('status, username, season_id')
@@ -60,123 +60,105 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the current active voting slot for this season
-    const { data: activeSlot } = await supabase
-      .from('story_slots')
-      .select('id, slot_position, status')
-      .eq('season_id', currentClip.season_id)
-      .in('status', ['voting', 'waiting_for_clips'])
-      .order('slot_position', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // Use atomic RPC function to prevent race conditions
+    // This locks the clip and slot rows during the operation
+    const { data: rpcResult, error: rpcError } = await supabase.rpc(
+      'admin_approve_clip_atomic',
+      {
+        p_clip_id: clipId,
+        p_admin_id: adminAuth.userId || null,
+      }
+    );
 
-    // Update clip status to 'active' and set slot_position to current voting slot
-    const updateData: { status: string; updated_at: string; slot_position?: number } = {
-      status: 'active',
-      updated_at: new Date().toISOString()
-    };
-
+    // Fallback to legacy method if RPC doesn't exist
+    let data;
     let resumedVoting = false;
+    let assignedSlot: number | null = null;
 
-    // If there's an active voting slot or waiting_for_clips slot
-    if (activeSlot?.slot_position != null) {
-      updateData.slot_position = activeSlot.slot_position;
+    if (rpcError?.code === '42883' || rpcError?.code === 'PGRST202') {
+      // RPC function not found - use legacy method with warning
+      console.warn('[approve] Using legacy method - please run fix-critical-issues-2025-01.sql migration');
 
-      // If slot is waiting_for_clips, activate voting now that we have a clip
-      if (activeSlot.status === 'waiting_for_clips') {
-        console.log(`[approve] Resuming voting on slot ${activeSlot.slot_position} - clip approved`);
+      // Get the current active voting slot for this season
+      const { data: activeSlot } = await supabase
+        .from('story_slots')
+        .select('id, slot_position, status')
+        .eq('season_id', currentClip.season_id)
+        .in('status', ['voting', 'waiting_for_clips'])
+        .order('slot_position', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-        // Get voting duration from previous locked slot (or default 24h)
-        const { data: previousSlot } = await supabase
-          .from('story_slots')
-          .select('voting_duration_hours')
-          .eq('season_id', currentClip.season_id)
-          .eq('status', 'locked')
-          .order('slot_position', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const updateData: { status: string; updated_at: string; slot_position?: number } = {
+        status: 'active',
+        updated_at: new Date().toISOString()
+      };
 
-        const durationHours = previousSlot?.voting_duration_hours || 24;
-        const now = new Date();
-        const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+      if (activeSlot?.slot_position != null) {
+        updateData.slot_position = activeSlot.slot_position;
+        assignedSlot = activeSlot.slot_position;
 
-        const { error: activateError } = await supabase
-          .from('story_slots')
-          .update({
-            status: 'voting',
-            voting_started_at: now.toISOString(),
-            voting_ends_at: votingEndsAt.toISOString(),
-            voting_duration_hours: durationHours,
-          })
-          .eq('id', activeSlot.id);
+        if (activeSlot.status === 'waiting_for_clips') {
+          const durationHours = 24;
+          const now = new Date();
+          const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
 
-        if (activateError) {
-          console.error('[approve] Failed to activate waiting slot:', activateError);
-        } else {
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'voting',
+              voting_started_at: now.toISOString(),
+              voting_ends_at: votingEndsAt.toISOString(),
+              voting_duration_hours: durationHours,
+            })
+            .eq('id', activeSlot.id);
           resumedVoting = true;
         }
-      } else if (activeSlot.status === 'voting') {
-        // Verify slot is still voting (race condition check)
-        const { data: verifySlot } = await supabase
-          .from('story_slots')
-          .select('status')
-          .eq('id', activeSlot.id)
-          .single();
-
-        if (verifySlot?.status !== 'voting') {
-          // Slot was locked between our queries - find the new voting/waiting slot
-          console.warn(`[approve] Slot ${activeSlot.slot_position} status changed, finding new slot`);
-
-          const { data: newActiveSlot } = await supabase
-            .from('story_slots')
-            .select('id, slot_position, status')
-            .eq('season_id', currentClip.season_id)
-            .in('status', ['voting', 'waiting_for_clips'])
-            .order('slot_position', { ascending: true })
-            .limit(1)
-            .maybeSingle();
-
-          if (newActiveSlot?.slot_position != null) {
-            updateData.slot_position = newActiveSlot.slot_position;
-            // Handle waiting_for_clips for the new slot too
-            if (newActiveSlot.status === 'waiting_for_clips') {
-              const durationHours = 24;
-              const now = new Date();
-              const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-              await supabase
-                .from('story_slots')
-                .update({
-                  status: 'voting',
-                  voting_started_at: now.toISOString(),
-                  voting_ends_at: votingEndsAt.toISOString(),
-                  voting_duration_hours: durationHours,
-                })
-                .eq('id', newActiveSlot.id);
-              resumedVoting = true;
-            }
-          } else {
-            delete updateData.slot_position;
-          }
-        }
       }
-    }
 
-    const { data, error } = await supabase
-      .from('tournament_clips')
-      .update(updateData)
-      .eq('id', clipId)
-      .select()
-      .single();
+      const { data: updateResult, error: updateError } = await supabase
+        .from('tournament_clips')
+        .update(updateData)
+        .eq('id', clipId)
+        .select()
+        .single();
 
-    if (error) {
-      console.error('Database error:', error);
+      if (updateError) {
+        console.error('Database error:', updateError);
+        return NextResponse.json(
+          { error: 'Failed to approve clip' },
+          { status: 500 }
+        );
+      }
+      data = updateResult;
+    } else if (rpcError) {
+      console.error('RPC error:', rpcError);
       return NextResponse.json(
         { error: 'Failed to approve clip' },
         { status: 500 }
       );
+    } else {
+      // RPC succeeded
+      const result = rpcResult?.[0];
+      if (!result?.success) {
+        return NextResponse.json(
+          { error: result?.error_message || 'Failed to approve clip' },
+          { status: 500 }
+        );
+      }
+      assignedSlot = result.assigned_slot;
+      resumedVoting = result.resumed_voting;
+
+      // Fetch updated clip for response
+      const { data: updatedClip } = await supabase
+        .from('tournament_clips')
+        .select()
+        .eq('id', clipId)
+        .single();
+      data = updatedClip;
     }
 
-    // Audit log the action - use actual assigned slot from updateData
+    // Audit log the action
     await logAdminAction(request, {
       action: 'approve_clip',
       resourceType: 'clip',
@@ -187,15 +169,15 @@ export async function POST(request: NextRequest) {
         previousStatus: currentClip?.status,
         newStatus: 'active',
         clipOwner: currentClip?.username,
-        assignedToSlot: updateData.slot_position ?? null,
+        assignedToSlot: assignedSlot,
         resumedVoting,
       },
     });
 
     // Build response message
     let message = 'Clip approved';
-    if (updateData.slot_position) {
-      message = `Clip approved and assigned to slot ${updateData.slot_position}`;
+    if (assignedSlot) {
+      message = `Clip approved and assigned to slot ${assignedSlot}`;
       if (resumedVoting) {
         message += '. Voting has resumed!';
       }
@@ -207,7 +189,7 @@ export async function POST(request: NextRequest) {
       success: true,
       message,
       clip: data,
-      assignedToSlot: updateData.slot_position ?? null,
+      assignedToSlot: assignedSlot,
       resumedVoting,
     });
   } catch (error) {
