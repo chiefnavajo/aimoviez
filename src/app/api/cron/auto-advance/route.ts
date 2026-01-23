@@ -28,18 +28,25 @@ export async function GET(req: NextRequest) {
   // Vercel sends this header automatically for cron jobs
   const authHeader = req.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
+  const isProduction = process.env.NODE_ENV === 'production';
 
-  // Check for Vercel's CRON_SECRET verification
-  // Vercel Cron sends: Authorization: Bearer <CRON_SECRET>
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // If CRON_SECRET is set but doesn't match, reject
-    console.error('[auto-advance] Invalid CRON_SECRET');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // SECURITY: In production, CRON_SECRET is MANDATORY
+  if (!cronSecret) {
+    if (isProduction) {
+      console.error('[auto-advance] CRITICAL: CRON_SECRET not configured in production');
+      return NextResponse.json(
+        { error: 'Server misconfiguration' },
+        { status: 500 }
+      );
+    }
+    // Only allow no-auth in development
+    console.warn('[auto-advance] DEV MODE: Running without auth (not allowed in production)');
   }
 
-  // If no CRON_SECRET is set, allow for development/testing
-  if (!cronSecret) {
-    console.warn('[auto-advance] CRON_SECRET not configured - running without auth');
+  // Verify the secret matches (when configured)
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    console.error('[auto-advance] Invalid CRON_SECRET provided');
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const supabase = createSupabaseClient();
