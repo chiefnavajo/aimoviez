@@ -35,10 +35,10 @@ CREATE POLICY "votes_delete_service" ON votes
 
 ALTER TABLE tournament_clips ENABLE ROW LEVEL SECURITY;
 
--- Anyone can view approved clips
+-- Anyone can view clips (all valid statuses)
 CREATE POLICY "clips_select_approved" ON tournament_clips
   FOR SELECT
-  USING (status IN ('approved', 'active', 'winner') OR status IS NULL);
+  USING (status IN ('approved', 'active', 'winner', 'locked', 'competing', 'locked_in') OR status IS NULL);
 
 -- Authenticated users can insert clips
 CREATE POLICY "clips_insert_authenticated" ON tournament_clips
