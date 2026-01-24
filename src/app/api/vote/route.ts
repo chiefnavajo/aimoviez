@@ -1338,7 +1338,7 @@ export async function POST(req: NextRequest) {
 
       // Other RPC errors - return failure
       return NextResponse.json(
-        { success: false, error: 'Failed to insert vote' },
+        { success: false, error: 'Failed to insert vote', debug: { errorCode: rpcError.code, errorMessage: rpcError.message, errorDetails: rpcError.details } },
         { status: 500 }
       );
     } else {
