@@ -78,9 +78,10 @@ export async function POST(request: NextRequest) {
 
     const { videoUrl, genre, title, description, duration } = validation.data;
 
-    // Look up user profile to get their username
+    // Look up user profile to get their username and ID
     let uploaderUsername = `creator_${voterKey.slice(-8)}`;
     let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
+    let userId: string | null = null;
 
     const { data: userProfile } = await supabase
       .from('users')
@@ -89,6 +90,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (userProfile) {
+      userId = userProfile.id;
       uploaderUsername = userProfile.username || uploaderUsername;
       uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
     }
@@ -146,6 +148,7 @@ export async function POST(request: NextRequest) {
         track_id: 'track-main',
         video_url: videoUrl,
         thumbnail_url: videoUrl, // Use video URL as thumbnail for now
+        user_id: userId,  // Link to user for "My Clips" feature
         username: sanitizeText(uploaderUsername),
         avatar_url: uploaderAvatar,
         genre: genre.toUpperCase(),
