@@ -127,7 +127,11 @@ export async function GET(req: NextRequest) {
         page_size: limit,
         has_more: total_voters > offset + limit,
         current_user_rank: rankData || undefined,
-      } satisfies LeaderboardVotersResponse);
+      } satisfies LeaderboardVotersResponse, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+        },
+      });
     }
 
     // FALLBACK: Use optimized query with LIMIT (not loading all votes)
@@ -200,7 +204,11 @@ export async function GET(req: NextRequest) {
       page_size: limit,
       has_more: total_voters > offset + limit,
       current_user_rank: currentUserRank > 0 ? currentUserRank : undefined,
-    } satisfies LeaderboardVotersResponse);
+    } satisfies LeaderboardVotersResponse, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    });
   } catch (err) {
     console.error('[GET /api/leaderboard/voters] Unexpected error:', err);
     return NextResponse.json(

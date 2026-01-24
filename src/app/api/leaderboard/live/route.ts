@@ -196,7 +196,12 @@ export async function GET(req: NextRequest) {
       },
     };
 
-    return NextResponse.json(response, { status: 200 });
+    return NextResponse.json(response, {
+      status: 200,
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+      },
+    });
   } catch (err) {
     console.error('[GET /api/leaderboard/live] Unexpected error:', err);
     return NextResponse.json(

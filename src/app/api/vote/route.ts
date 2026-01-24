@@ -51,10 +51,10 @@ const cache = {
 };
 
 const CACHE_TTL = {
-  season: 60 * 1000,      // 1 minute for season
-  slot: 30 * 1000,        // 30 seconds for active slot
-  clips: 45 * 1000,       // 45 seconds for clips (optimized from 15s)
-  featureFlags: 5 * 60 * 1000,  // 5 minutes for feature flags (rarely change)
+  season: 5 * 60 * 1000,    // 5 minutes for season (rarely changes)
+  slot: 60 * 1000,          // 1 minute for active slot
+  clips: 2 * 60 * 1000,     // 2 minutes for clips (was 45s)
+  featureFlags: 10 * 60 * 1000,  // 10 minutes for feature flags (rarely change)
 };
 
 // Maximum cache entries to prevent unbounded memory growth
@@ -1018,7 +1018,13 @@ export async function GET(req: NextRequest) {
       hasMoreClips,
     };
 
-    return NextResponse.json(response, { status: 200 });
+    return NextResponse.json(response, {
+      status: 200,
+      headers: {
+        // CDN cache: 30 seconds fresh, serve stale up to 2 minutes while revalidating
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+      },
+    });
   } catch (error) {
     console.error('Error in GET /api/vote', error);
     const fallback: VotingStateResponse = {
