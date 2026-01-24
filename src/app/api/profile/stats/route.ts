@@ -115,26 +115,11 @@ export async function GET(req: NextRequest) {
     const userProfile: UserProfile = userData;
     const userId = userData.id;
 
-    // PERFORMANCE FIX: Batch queries to avoid N+1 problem
-    // Run independent queries in parallel using Promise.all
-    const today = new Date();
-    today.setUTCHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
-
-    // Parallel query batch 1: votes, today's votes, and user clips
-    const [votesResult, todayVotesResult, userClipsResult] = await Promise.all([
-      // All votes for streak/XP calculation
-      supabase
-        .from('votes')
-        .select('created_at, vote_weight')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: true }),
-      // Today's votes count
-      supabase
-        .from('votes')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .gte('created_at', todayStr),
+    // PERFORMANCE FIX: Use RPC to calculate stats in database (not JS)
+    // This avoids loading all votes into memory - O(1) instead of O(n)
+    const [statsResult, userClipsResult] = await Promise.all([
+      // Get all stats in one efficient RPC call
+      supabase.rpc('get_user_stats', { p_user_id: userId }),
       // User's uploaded clips
       supabase
         .from('tournament_clips')
@@ -142,74 +127,60 @@ export async function GET(req: NextRequest) {
         .eq('user_id', userId),
     ]);
 
-    if (votesResult.error) {
-      console.error('[GET /api/profile/stats] votesError:', votesResult.error);
+    // Fallback values if RPC not available
+    let total_votes = 0;
+    let total_xp = 0;
+    let votes_today = 0;
+    let current_streak = 0;
+    let longest_streak = 0;
+
+    if (statsResult.error?.code === '42883' || statsResult.error?.code === 'PGRST202') {
+      // RPC not available - use simple fallback (less accurate but works)
+      console.warn('[GET /api/profile/stats] get_user_stats RPC not found, using fallback');
+
+      const today = new Date();
+      today.setUTCHours(0, 0, 0, 0);
+      const todayStr = today.toISOString();
+
+      const [votesCount, todayCount] = await Promise.all([
+        supabase
+          .from('votes')
+          .select('vote_weight', { count: 'exact' })
+          .eq('user_id', userId),
+        supabase
+          .from('votes')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', todayStr),
+      ]);
+
+      total_votes = votesCount.count || 0;
+      total_xp = total_votes; // Simplified: 1 XP per vote
+      votes_today = todayCount.count || 0;
+      current_streak = votes_today > 0 ? 1 : 0; // Simplified
+      longest_streak = current_streak;
+    } else if (statsResult.error) {
+      console.error('[GET /api/profile/stats] statsError:', statsResult.error);
       return NextResponse.json(
-        { error: 'Failed to fetch votes' },
+        { error: 'Failed to fetch stats' },
         { status: 500 }
       );
+    } else if (statsResult.data && statsResult.data.length > 0) {
+      // RPC succeeded - use database-calculated values
+      const stats = statsResult.data[0];
+      total_votes = Number(stats.total_votes) || 0;
+      total_xp = Number(stats.total_xp) || 0;
+      votes_today = Number(stats.votes_today) || 0;
+      current_streak = Number(stats.current_streak) || 0;
+      longest_streak = Number(stats.longest_streak) || 0;
     }
 
-    const allVotes = votesResult.data || [];
-    const total_votes = allVotes.length;
-    const votes_today = todayVotesResult.count || 0;
     const userClips = userClipsResult.data || [];
 
-    // Calculate XP (1 XP per standard vote)
-    const total_xp = allVotes.reduce((sum, v) => sum + (v.vote_weight || 1), 0);
+    // Calculate level from XP
     const level = calculateLevel(total_xp);
     const xp_needed = xpForNextLevel(level);
     const xp_progress = ((total_xp % xp_needed) / xp_needed) * 100;
-
-    // 3. Calculate streak (simplified - days with at least 1 vote)
-    const voteDates = new Set<string>();
-    allVotes?.forEach((vote) => {
-      const date = new Date(vote.created_at);
-      const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-      voteDates.add(dateStr);
-    });
-
-    // Calculate current streak (consecutive days up to today)
-    let current_streak = 0;
-    const todayDate = new Date();
-    todayDate.setUTCHours(0, 0, 0, 0);
-
-    for (let i = 0; i < 365; i++) {
-      const checkDate = new Date(todayDate);
-      checkDate.setDate(checkDate.getDate() - i);
-      const checkStr = checkDate.toISOString().split('T')[0];
-
-      if (voteDates.has(checkStr)) {
-        current_streak++;
-      } else {
-        break;
-      }
-    }
-
-    // Calculate longest streak ever (find max consecutive days in all voting history)
-    let longest_streak = current_streak;
-    if (voteDates.size > 0) {
-      // Sort all vote dates chronologically
-      const sortedDates = Array.from(voteDates).sort();
-      let tempStreak = 1;
-
-      for (let i = 1; i < sortedDates.length; i++) {
-        const prevDate = new Date(sortedDates[i - 1]);
-        const currDate = new Date(sortedDates[i]);
-
-        // Check if dates are consecutive (difference of 1 day)
-        const diffDays = Math.round((currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 1) {
-          tempStreak++;
-          if (tempStreak > longest_streak) {
-            longest_streak = tempStreak;
-          }
-        } else {
-          tempStreak = 1;
-        }
-      }
-    }
 
     // Use clips from parallel query batch
     const clips_uploaded = userClips.length;
@@ -227,11 +198,11 @@ export async function GET(req: NextRequest) {
     }
 
     // 5. Calculate global rank (based on total votes by user_id)
-    // SECURITY FIX: Use user_id based ranking, not voter_key
+    // Uses RPC for efficiency - avoids loading all votes into memory
     let global_rank = 0;
     let total_users = 0;
 
-    // Try RPC with user_id first
+    // Try RPC first (uses materialized view for speed)
     const { data: rankDataFast, error: rankErrorFast } = await supabase.rpc(
       'get_user_rank_by_id',
       { p_user_id: userId }
@@ -241,31 +212,27 @@ export async function GET(req: NextRequest) {
       global_rank = Number(rankDataFast[0].global_rank) || 1;
       total_users = Number(rankDataFast[0].total_users) || 1;
     } else {
-      // Fallback: calculate rank based on vote count comparison
-      // Count distinct users who have voted
-      const { data: distinctUsers } = await supabase
-        .from('votes')
-        .select('user_id')
-        .not('user_id', 'is', null);
+      // Fallback: Use materialized view directly (still efficient)
+      const voterKey = `user_${userId}`;
+      const { data: mvData } = await supabase
+        .from('mv_user_vote_counts')
+        .select('global_rank')
+        .eq('voter_key', voterKey)
+        .single();
 
-      const uniqueUserIds = new Set(distinctUsers?.map(v => v.user_id) || []);
-      total_users = uniqueUserIds.size || 1;
-
-      // Simple rank estimate based on vote count percentile
-      if (total_votes > 0 && total_users > 0) {
-        // Count how many users have more votes
-        const userVoteCounts = new Map<string, number>();
-        distinctUsers?.forEach(v => {
-          userVoteCounts.set(v.user_id, (userVoteCounts.get(v.user_id) || 0) + 1);
-        });
-        let usersWithMoreVotes = 0;
-        userVoteCounts.forEach((count) => {
-          if (count > total_votes) usersWithMoreVotes++;
-        });
-        global_rank = usersWithMoreVotes + 1;
+      if (mvData) {
+        global_rank = Number(mvData.global_rank) || 1;
       } else {
-        global_rank = total_users;
+        // User not in materialized view yet - they're new or view needs refresh
+        global_rank = 1;
       }
+
+      // Get total users from materialized view (fast)
+      const { count } = await supabase
+        .from('mv_user_vote_counts')
+        .select('*', { count: 'exact', head: true });
+
+      total_users = count || 1;
     }
 
     // 6. Define achievements
