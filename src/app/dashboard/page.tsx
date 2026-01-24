@@ -443,9 +443,9 @@ const PowerVoteButton = memo(function PowerVoteButton({
       </motion.button>
 
       {/* Status indicator */}
-      {hasVoted && (
-        <span className="text-[10px] text-green-400/70 font-medium mt-1">
-          tap to undo
+      {!hasVoted && (
+        <span className="text-[10px] text-white/70 font-medium mt-1">
+          Vote now!
         </span>
       )}
     </div>
