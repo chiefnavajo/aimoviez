@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { motion } from 'framer-motion';
@@ -18,15 +18,26 @@ export default function OnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usernameError, setUsernameError] = useState<string | null>(null);
+  const [authCheckComplete, setAuthCheckComplete] = useState(false);
 
-  // Redirect if not authenticated
-  if (status === 'unauthenticated') {
-    router.push('/');
-    return null;
-  }
+  // Handle redirect for unauthenticated users with delay to avoid race condition
+  // During OAuth callback, status briefly shows 'unauthenticated' before session is ready
+  useEffect(() => {
+    if (status === 'loading') return;
+
+    if (status === 'unauthenticated') {
+      // Wait a moment before redirecting to allow session to establish
+      const timer = setTimeout(() => {
+        router.push('/');
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+
+    setAuthCheckComplete(true);
+  }, [status, router]);
 
   // Show loading while checking session
-  if (status === 'loading') {
+  if (status === 'loading' || !authCheckComplete) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#050510] via-[#0a0a18] to-[#050510] flex items-center justify-center">
         <div className="text-center space-y-4">
