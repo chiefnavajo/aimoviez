@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User, Trophy, Film, Heart, ArrowLeft, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
+import { User, Trophy, Film, Heart, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
@@ -218,8 +218,7 @@ export default function CreatorProfilePage() {
         <div className="absolute inset-0 bg-gradient-to-br from-cyan-900/30 via-purple-900/30 to-pink-900/30" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
         
-        <div className="relative z-20 flex items-center justify-between px-4 md:px-6 pt-12 md:pt-6 pb-4">
-          <button onClick={() => router.back()} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><ArrowLeft className="w-5 h-5" /></button>
+        <div className="relative z-20 flex items-center justify-end px-4 md:px-6 pt-12 md:pt-6 pb-4">
           <div className="relative">
             <button onClick={() => setShowMoreMenu(!showMoreMenu)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center"><MoreVertical className="w-5 h-5" /></button>
             {showMoreMenu && (
