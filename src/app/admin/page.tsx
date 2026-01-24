@@ -21,6 +21,7 @@ import {
   Clock,
   Film,
   AlertCircle,
+  ArrowLeft,
   RefreshCw,
   Edit,
   Trash2,
@@ -43,12 +44,7 @@ import {
   ArchiveRestore,
   Flag,
   Unlock,
-  Heart,
-  BookOpen,
-  Plus,
-  User,
 } from 'lucide-react';
-import BottomNavigation from '@/components/BottomNavigation';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
 
@@ -1513,130 +1509,80 @@ export default function AdminDashboard() {
 
   // Authorized admin - show dashboard
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* Desktop Layout */}
-      <div className="hidden md:flex h-screen">
-        {/* Left Sidebar - Navigation */}
-        <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10 flex-shrink-0">
-          {/* Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4">
-            <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">
-              AiMoviez
-            </span>
-          </Link>
-
-          {/* Vote Now Button */}
-          <Link href="/dashboard" className="mb-4">
-            <motion.div
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"
-            >
-              <Heart className="w-5 h-5" fill="white" />
-              <span>Vote Now</span>
-            </motion.div>
-          </Link>
-
-          {/* Navigation Items */}
-          <nav className="flex-1 space-y-1">
-            <Link href="/story">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
-                <BookOpen className="w-6 h-6" />
-                <span>Story</span>
-              </div>
-            </Link>
-            <Link href="/upload">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
-                <Plus className="w-6 h-6" />
-                <span>Upload</span>
-              </div>
-            </Link>
-            <Link href="/leaderboard">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
-                <Trophy className="w-6 h-6" />
-                <span>Leaderboard</span>
-              </div>
-            </Link>
-            <Link href="/profile">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition">
-                <User className="w-6 h-6" />
-                <span>Profile</span>
-              </div>
-            </Link>
-            <div className="border-t border-white/10 my-2" />
-            <Link href="/admin">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-white/10 text-white border border-white/10">
-                <Shield className="w-6 h-6 text-red-500" />
-                <span className="font-semibold">Admin</span>
-              </div>
-            </Link>
-          </nav>
-        </div>
-
-        {/* Main Content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden">
-          {/* Header */}
-          <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-lg border-b border-white/10">
-            <div className="max-w-7xl mx-auto px-4 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                    Admin Dashboard
-                  </h1>
-                  <p className="text-sm text-white/60">Review and manage uploaded clips</p>
-                </div>
-
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
+      {/* Header */}
+      <header className="sticky top-0 z-50 bg-black/80 backdrop-blur-lg border-b border-white/10">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link href="/dashboard">
                 <motion.button
                   whileTap={{ scale: 0.95 }}
-                  onClick={activeTab === 'clips' ? fetchClips : fetchFeatureFlags}
                   className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
                   type="button"
                 >
-                  <RefreshCw className="w-5 h-5" />
+                  <ArrowLeft className="w-5 h-5" />
                 </motion.button>
-              </div>
-
-              {/* Tab Navigation */}
-              <div className="flex gap-2 mt-4">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveTab('clips')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-                    activeTab === 'clips'
-                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
-                  type="button"
-                >
-                  <Film className="w-4 h-4" />
-                  Clips
-                </motion.button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={() => setActiveTab('features')}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
-                    activeTab === 'features'
-                      ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
-                  }`}
-                  type="button"
-                >
-                  <Settings className="w-4 h-4" />
-                  Feature Flags
-                </motion.button>
-                <Link href="/admin/users">
-                  <motion.button
-                    whileTap={{ scale: 0.95 }}
-                    className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
-                    type="button"
-                  >
-                    <Users className="w-4 h-4" />
-                    Users
-                  </motion.button>
-                </Link>
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
+                  Admin Dashboard
+                </h1>
+                <p className="text-sm text-white/60">Review and manage uploaded clips</p>
               </div>
             </div>
-          </header>
+
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={activeTab === 'clips' ? fetchClips : fetchFeatureFlags}
+              className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              type="button"
+            >
+              <RefreshCw className="w-5 h-5" />
+            </motion.button>
+          </div>
+
+          {/* Tab Navigation */}
+          <div className="flex gap-2 mt-4">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab('clips')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'clips'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+              type="button"
+            >
+              <Film className="w-4 h-4" />
+              Clips
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setActiveTab('features')}
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                activeTab === 'features'
+                  ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
+                  : 'bg-white/10 text-white/70 hover:bg-white/20'
+              }`}
+              type="button"
+            >
+              <Settings className="w-4 h-4" />
+              Feature Flags
+            </motion.button>
+            <Link href="/admin/users">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
+                type="button"
+              >
+                <Users className="w-4 h-4" />
+                Users
+              </motion.button>
+            </Link>
+          </div>
+        </div>
+      </header>
 
       {/* CLIPS TAB CONTENT */}
       {activeTab === 'clips' && (
@@ -3242,82 +3188,6 @@ export default function AdminDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Mobile Layout */}
-      <div className="md:hidden min-h-screen pb-20 overflow-x-hidden">
-        {/* Mobile Header */}
-        <header className="sticky top-0 z-40 bg-black/80 backdrop-blur-lg border-b border-white/10">
-          <div className="px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-500 bg-clip-text text-transparent">
-                  Admin
-                </h1>
-                <p className="text-xs text-white/60">Manage clips</p>
-              </div>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={activeTab === 'clips' ? fetchClips : fetchFeatureFlags}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-                type="button"
-              >
-                <RefreshCw className="w-5 h-5" />
-              </motion.button>
-            </div>
-
-            {/* Mobile Tab Navigation */}
-            <div className="flex gap-2 mt-3 overflow-x-auto">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab('clips')}
-                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-all flex items-center gap-1.5 flex-shrink-0 ${
-                  activeTab === 'clips'
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-white/10 text-white/70'
-                }`}
-                type="button"
-              >
-                <Film className="w-3.5 h-3.5" />
-                Clips
-              </motion.button>
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab('features')}
-                className={`px-3 py-1.5 rounded-lg font-medium text-sm transition-all flex items-center gap-1.5 flex-shrink-0 ${
-                  activeTab === 'features'
-                    ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
-                    : 'bg-white/10 text-white/70'
-                }`}
-                type="button"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                Flags
-              </motion.button>
-              <Link href="/admin/users">
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  className="px-3 py-1.5 rounded-lg font-medium text-sm flex items-center gap-1.5 bg-white/10 text-white/70 flex-shrink-0"
-                  type="button"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Users
-                </motion.button>
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {/* Mobile content mirrors desktop content - admin actions work the same */}
-        <div className="px-4 py-4">
-          <p className="text-white/50 text-sm text-center">
-            For full admin functionality, please use desktop view.
-          </p>
-        </div>
-
-        <BottomNavigation />
-      </div>
     </div>
   );
 }
