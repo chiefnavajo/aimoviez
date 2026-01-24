@@ -74,10 +74,12 @@ describe('Navbar', () => {
   const mockProps = {
     round: {
       id: 'round-1',
-      number: 1,
-      status: 'active' as const,
-      closesAt: new Date(Date.now() + 3600000).toISOString(), // 1 hour from now
-      theme: 'Comedy',
+      segmentNumber: 1,
+      totalSegments: 75,
+      genre: 'comedy' as const,
+      opensAt: new Date(Date.now() - 3600000), // 1 hour ago
+      closesAt: new Date(Date.now() + 3600000), // 1 hour from now
+      status: 'open' as const,
     },
     userName: 'Test User',
     userAvatar: 'https://example.com/avatar.jpg',

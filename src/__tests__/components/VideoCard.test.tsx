@@ -35,10 +35,12 @@ describe('VideoCard', () => {
     id: 'clip-123',
     title: 'Amazing Sunset',
     thumbnailUrl: 'https://example.com/thumb.jpg',
-    videoUrl: 'https://example.com/video.mp4',
-    genre: 'NATURE',
+    previewUrl: 'https://example.com/video.mp4',
+    genre: 'comedy' as const,
     duration: 8,
     votes: 150,
+    aspect: '9:16' as const,
+    uploadedAt: new Date(),
     user: {
       id: 'user-1',
       name: 'John Creator',
@@ -61,7 +63,7 @@ describe('VideoCard', () => {
     expect(screen.getByText('John Creator')).toBeInTheDocument();
     expect(screen.getByText('150')).toBeInTheDocument();
     expect(screen.getByText('8s')).toBeInTheDocument();
-    expect(screen.getByTestId('genre-badge')).toHaveTextContent('NATURE');
+    expect(screen.getByTestId('genre-badge')).toHaveTextContent('comedy');
   });
 
   it('renders thumbnail image', () => {

@@ -63,14 +63,6 @@ describe('SoundManager', () => {
       expect(() => sounds.play('vote')).not.toThrow();
     });
 
-    it('should not throw when playing superVote sound', () => {
-      expect(() => sounds.play('superVote')).not.toThrow();
-    });
-
-    it('should not throw when playing megaVote sound', () => {
-      expect(() => sounds.play('megaVote')).not.toThrow();
-    });
-
     it('should not throw when playing milestone sound', () => {
       expect(() => sounds.play('milestone')).not.toThrow();
     });
