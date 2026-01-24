@@ -99,36 +99,13 @@ export async function GET(request: NextRequest) {
     const voteCounts: Record<string, number> = {};
 
     if (userIds.length > 0) {
-      // PERFORMANCE FIX: Run both queries in parallel instead of sequentially
-      const [clipsResult, votesResult] = await Promise.all([
-        // Get clip counts
-        supabase
-          .from('tournament_clips')
-          .select('user_id')
-          .in('user_id', userIds),
-        // Get vote counts
-        supabase
-          .from('votes')
-          .select('user_id')
-          .in('user_id', userIds)
-      ]);
-
-      const { data: clips } = clipsResult;
-      const { data: votes } = votesResult;
-
-      if (clips) {
-        clips.forEach(c => {
-          clipCounts[c.user_id] = (clipCounts[c.user_id] || 0) + 1;
-        });
-      }
-
-      if (votes) {
-        votes.forEach(v => {
-          if (v.user_id) {
-            voteCounts[v.user_id] = (voteCounts[v.user_id] || 0) + 1;
-          }
-        });
-      }
+      // PERFORMANCE FIX: Use denormalized columns from users table instead of counting rows
+      // The users table already has total_votes_cast and clips_uploaded columns
+      // which are updated by triggers - no need to query votes/clips tables
+      users?.forEach(user => {
+        clipCounts[user.id] = user.clips_uploaded || 0;
+        voteCounts[user.id] = user.total_votes_cast || 0;
+      });
     }
 
     // Enrich users with counts

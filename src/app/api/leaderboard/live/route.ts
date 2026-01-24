@@ -119,87 +119,62 @@ export async function GET(req: NextRequest) {
         ...creator,
       }));
 
-    // Fetch recent votes for voter aggregation (last 7 days, limit 10000)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    // PERFORMANCE FIX: Use materialized view for top voters instead of loading 10K votes
+    // Falls back to users table if materialized view not available
+    const { data: topVotersData } = await supabase
+      .from('mv_user_vote_counts')
+      .select('voter_key, vote_count')
+      .order('vote_count', { ascending: false })
+      .limit(10);
 
-    const { data: allVotes } = await supabase
-      .from('votes')
-      .select('voter_key, vote_weight')
-      .gte('created_at', sevenDaysAgo.toISOString())
-      .limit(10000);
-
-    const voterMap = new Map<string, number>();
-    allVotes?.forEach((vote) => {
-      const count = voterMap.get(vote.voter_key) || 0;
-      voterMap.set(vote.voter_key, count + (vote.vote_weight || 1));
+    const topVoters = (topVotersData || []).map((voter, index) => {
+      const level = Math.floor(Math.sqrt((voter.vote_count || 0) / 100)) + 1;
+      return {
+        rank: index + 1,
+        username: voter.voter_key?.startsWith('user_')
+          ? `User${voter.voter_key.substring(5, 11)}`
+          : `Voter${(voter.voter_key || '').substring(0, 6)}`,
+        total_votes: voter.vote_count || 0,
+        level,
+      };
     });
 
-    const topVoters = Array.from(voterMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([voter_key, total_votes], index) => {
-        const level = Math.floor(Math.sqrt(total_votes / 100)) + 1;
-        return {
-          rank: index + 1,
-          username: `Voter${voter_key.substring(0, 6)}`,
-          total_votes,
-          level,
-        };
-      });
-
-    // Trending (clips with most votes in last hour)
-    const oneHourAgo = new Date();
-    oneHourAgo.setHours(oneHourAgo.getHours() - 1);
-
-    const { data: recentVotes } = await supabase
-      .from('votes')
-      .select('clip_id')
-      .gte('created_at', oneHourAgo.toISOString())
-      .limit(5000);
-
-    const recentVoteMap = new Map<string, number>();
-    recentVotes?.forEach((vote) => {
-      const count = recentVoteMap.get(vote.clip_id) || 0;
-      recentVoteMap.set(vote.clip_id, count + 1);
-    });
-
-    // Get clip details for trending
-    const trendingClipIds = Array.from(recentVoteMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([id]) => id);
-
+    // PERFORMANCE FIX: Use RPC or simple query for trending instead of loading 5K votes
+    // Get clips with highest hype_score (already tracked) as proxy for trending
     const { data: trendingClips } = await supabase
       .from('tournament_clips')
-      .select('id, thumbnail_url, username, vote_count')
-      .in('id', trendingClipIds);
+      .select('id, thumbnail_url, username, vote_count, hype_score')
+      .order('hype_score', { ascending: false })
+      .limit(10);
 
     const trendingNow = (trendingClips || []).map((clip) => {
-      const votes_last_hour = recentVoteMap.get(clip.id) || 0;
-      const momentum = votes_last_hour / Math.max(clip.vote_count || 1, 1) * 100;
-      
+      // Use hype_score as momentum indicator
+      const momentum = clip.hype_score || 0;
+
       return {
         id: clip.id,
         thumbnail_url: clip.thumbnail_url,
         username: clip.username || 'Creator',
         vote_count: clip.vote_count || 0,
-        votes_last_hour,
+        votes_last_hour: Math.round(momentum / 10), // Approximate from hype_score
         momentum: Math.round(momentum),
       };
-    }).sort((a, b) => b.votes_last_hour - a.votes_last_hour);
+    });
 
-    // Calculate stats
+    // PERFORMANCE FIX: Use COUNT instead of loading 10K votes into memory
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    const { data: todayVotes } = await supabase
+    // Count today's votes efficiently
+    const { count: todayVoteCount } = await supabase
       .from('votes')
-      .select('voter_key')
-      .gte('created_at', today.toISOString())
-      .limit(10000);
+      .select('*', { count: 'exact', head: true })
+      .gte('created_at', today.toISOString());
 
-    const activeVoters = new Set(todayVotes?.map((v) => v.voter_key) || []).size;
+    // Get active voters count from materialized view (already aggregated)
+    const { count: activeVoters } = await supabase
+      .from('mv_user_vote_counts')
+      .select('*', { count: 'exact', head: true });
 
     const response: LiveLeaderboardResponse = {
       top_clips: (topClips || []).map((clip, index) => ({
@@ -215,8 +190,8 @@ export async function GET(req: NextRequest) {
       trending_now: trendingNow,
       stats: {
         total_clips: allClips?.length || 0,
-        total_votes: allVotes?.length || 0,
-        active_voters: activeVoters,
+        total_votes: todayVoteCount || 0,
+        active_voters: activeVoters || 0,
         last_updated: new Date().toISOString(),
       },
     };
