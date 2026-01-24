@@ -1316,11 +1316,22 @@ export async function POST(req: NextRequest) {
 
       // Handle duplicate vote (unique constraint violation) - add to existing vote
       if (insertError.code === '23505') {
+        // Get current vote weight
+        const { data: existingVote } = await supabase
+          .from('votes')
+          .select('vote_weight')
+          .eq('clip_id', clipId)
+          .eq('voter_key', effectiveVoterKey)
+          .single();
+
+        const currentWeight = existingVote?.vote_weight ?? 0;
+        const newWeight = currentWeight + weight;
+
         // Update existing vote weight (multi-vote mode)
         const { error: updateError } = await supabase
           .from('votes')
           .update({
-            vote_weight: supabase.rpc ? weight : weight, // Will be incremented below
+            vote_weight: newWeight,
             created_at: new Date().toISOString(),
           })
           .eq('clip_id', clipId)
@@ -1343,7 +1354,7 @@ export async function POST(req: NextRequest) {
           })
           .eq('id', clipId);
 
-        debugLog('[POST /api/vote] Vote updated (multi-vote)');
+        debugLog('[POST /api/vote] Vote updated (multi-vote)', { currentWeight, newWeight });
       } else {
         // Other insert errors
         return NextResponse.json(
