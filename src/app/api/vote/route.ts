@@ -1300,12 +1300,12 @@ export async function POST(req: NextRequest) {
       {
         p_clip_id: String(clipId),
         p_voter_key: String(effectiveVoterKey),
-        p_user_id: loggedInUserId ? String(loggedInUserId) : null,
-        p_vote_weight: weight,
+        p_user_id: loggedInUserId ? String(loggedInUserId) : '',
+        p_vote_weight: Number(weight),
         p_vote_type: 'standard',
-        p_slot_position: slotPosition,
-        p_flagged: voteRisk.flagged || false,
-        p_multi_vote_mode: multiVoteEnabled,
+        p_slot_position: Number(slotPosition),
+        p_flagged: Boolean(voteRisk.flagged || false),
+        p_multi_vote_mode: Boolean(multiVoteEnabled),
         p_is_power_vote: false,
       }
     );
