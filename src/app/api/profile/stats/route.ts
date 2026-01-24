@@ -115,67 +115,28 @@ export async function GET(req: NextRequest) {
     const userProfile: UserProfile = userData;
     const userId = userData.id;
 
-    // PERFORMANCE FIX: Use RPC to calculate stats in database (not JS)
-    // This avoids loading all votes into memory - O(1) instead of O(n)
-    const [statsResult, userClipsResult] = await Promise.all([
-      // Get all stats in one efficient RPC call
-      supabase.rpc('get_user_stats', { p_user_id: userId }),
-      // User's uploaded clips
-      supabase
-        .from('tournament_clips')
-        .select('id, slot_position')
-        .eq('user_id', userId),
-    ]);
+    // PERFORMANCE FIX: Read stats directly from users table - O(1)
+    // Stats are updated by trigger on each vote (no calculation needed)
+    const { data: userStatsData } = await supabase
+      .from('users')
+      .select('total_votes_cast, xp, votes_today, current_streak, longest_streak')
+      .eq('id', userId)
+      .single();
 
-    // Fallback values if RPC not available
-    let total_votes = 0;
-    let total_xp = 0;
-    let votes_today = 0;
-    let current_streak = 0;
-    let longest_streak = 0;
+    // Get user's uploaded clips
+    const { data: userClipsData } = await supabase
+      .from('tournament_clips')
+      .select('id, slot_position')
+      .eq('user_id', userId);
 
-    if (statsResult.error?.code === '42883' || statsResult.error?.code === 'PGRST202') {
-      // RPC not available - use simple fallback (less accurate but works)
-      console.warn('[GET /api/profile/stats] get_user_stats RPC not found, using fallback');
+    // Read directly from denormalized columns - instant O(1)
+    const total_votes = userStatsData?.total_votes_cast || 0;
+    const total_xp = userStatsData?.xp || 0;
+    const votes_today = userStatsData?.votes_today || 0;
+    const current_streak = userStatsData?.current_streak || 0;
+    const longest_streak = userStatsData?.longest_streak || 0;
 
-      const today = new Date();
-      today.setUTCHours(0, 0, 0, 0);
-      const todayStr = today.toISOString();
-
-      const [votesCount, todayCount] = await Promise.all([
-        supabase
-          .from('votes')
-          .select('vote_weight', { count: 'exact' })
-          .eq('user_id', userId),
-        supabase
-          .from('votes')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .gte('created_at', todayStr),
-      ]);
-
-      total_votes = votesCount.count || 0;
-      total_xp = total_votes; // Simplified: 1 XP per vote
-      votes_today = todayCount.count || 0;
-      current_streak = votes_today > 0 ? 1 : 0; // Simplified
-      longest_streak = current_streak;
-    } else if (statsResult.error) {
-      console.error('[GET /api/profile/stats] statsError:', statsResult.error);
-      return NextResponse.json(
-        { error: 'Failed to fetch stats' },
-        { status: 500 }
-      );
-    } else if (statsResult.data && statsResult.data.length > 0) {
-      // RPC succeeded - use database-calculated values
-      const stats = statsResult.data[0];
-      total_votes = Number(stats.total_votes) || 0;
-      total_xp = Number(stats.total_xp) || 0;
-      votes_today = Number(stats.votes_today) || 0;
-      current_streak = Number(stats.current_streak) || 0;
-      longest_streak = Number(stats.longest_streak) || 0;
-    }
-
-    const userClips = userClipsResult.data || [];
+    const userClips = userClipsData || [];
 
     // Calculate level from XP
     const level = calculateLevel(total_xp);
