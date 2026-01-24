@@ -126,9 +126,48 @@ export default function CreatorProfilePage() {
     fetchCreatorData();
   }, [creatorId]);
 
-  const handleFollow = () => {
-    setIsFollowing(!isFollowing);
-    if (creator) setCreator({ ...creator, followers: isFollowing ? creator.followers - 1 : creator.followers + 1 });
+  const [followLoading, setFollowLoading] = useState(false);
+
+  const handleFollow = async () => {
+    if (!creator || followLoading) return;
+
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        // Unfollow
+        const res = await fetch(`/api/user/follow?userId=${creator.id}`, {
+          method: 'DELETE',
+        });
+        if (res.ok) {
+          setIsFollowing(false);
+          setCreator({ ...creator, followers: Math.max(0, creator.followers - 1) });
+          toast.success('Unfollowed');
+        } else {
+          const data = await res.json();
+          toast.error(data.error || 'Failed to unfollow');
+        }
+      } else {
+        // Follow
+        const res = await fetch('/api/user/follow', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: creator.id }),
+        });
+        if (res.ok) {
+          setIsFollowing(true);
+          setCreator({ ...creator, followers: creator.followers + 1 });
+          toast.success(`Following @${creator.username}`);
+        } else {
+          const data = await res.json();
+          toast.error(data.error || 'Failed to follow');
+        }
+      }
+    } catch (err) {
+      console.error('Follow error:', err);
+      toast.error('Something went wrong');
+    } finally {
+      setFollowLoading(false);
+    }
   };
 
   const handleShare = async () => {
@@ -216,8 +255,8 @@ export default function CreatorProfilePage() {
             </div>
           </div>
           <div className="flex gap-3 max-w-xs mx-auto">
-            <motion.button whileTap={{ scale: 0.95 }} onClick={handleFollow} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 ${isFollowing ? 'bg-white/10 border border-white/20' : 'bg-gradient-to-r from-cyan-500 to-purple-500'}`}>
-              {isFollowing ? <><CheckCircle className="w-4 h-4" />Following</> : <><User className="w-4 h-4" />Follow</>}
+            <motion.button whileTap={{ scale: 0.95 }} onClick={handleFollow} disabled={followLoading} className={`flex-1 py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 ${isFollowing ? 'bg-white/10 border border-white/20' : 'bg-gradient-to-r from-cyan-500 to-purple-500'}`}>
+              {followLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : isFollowing ? <><CheckCircle className="w-4 h-4" />Following</> : <><User className="w-4 h-4" />Follow</>}
             </motion.button>
             <motion.button whileTap={{ scale: 0.95 }} onClick={handleShare} className="px-6 py-3 rounded-xl font-bold text-sm bg-white/10 border border-white/20"><Share2 className="w-4 h-4" /></motion.button>
           </div>
