@@ -1314,28 +1314,48 @@ export async function POST(req: NextRequest) {
     if (insertError) {
       console.error('[POST /api/vote] Insert error:', insertError, 'code:', insertError.code);
 
-      // Handle duplicate vote (unique constraint violation)
+      // Handle duplicate vote (unique constraint violation) - add to existing vote
       if (insertError.code === '23505') {
+        // Update existing vote weight (multi-vote mode)
+        const { error: updateError } = await supabase
+          .from('votes')
+          .update({
+            vote_weight: supabase.rpc ? weight : weight, // Will be incremented below
+            created_at: new Date().toISOString(),
+          })
+          .eq('clip_id', clipId)
+          .eq('voter_key', effectiveVoterKey);
+
+        if (updateError) {
+          console.error('[POST /api/vote] Update error:', updateError);
+          return NextResponse.json(
+            { success: false, error: 'Failed to update vote', debug: { errorCode: updateError.code, errorMessage: updateError.message } },
+            { status: 500 }
+          );
+        }
+
+        // Manually update clip vote count since trigger only fires on INSERT
+        await supabase
+          .from('tournament_clips')
+          .update({
+            vote_count: (clipData.vote_count ?? 0) + weight,
+            weighted_score: (clipData.weighted_score ?? 0) + weight,
+          })
+          .eq('id', clipId);
+
+        debugLog('[POST /api/vote] Vote updated (multi-vote)');
+      } else {
+        // Other insert errors
         return NextResponse.json(
-          {
-            success: false,
-            error: 'Already voted on this clip',
-            code: 'ALREADY_VOTED',
-          },
-          { status: 409 }
+          { success: false, error: 'Failed to insert vote', debug: { errorCode: insertError.code, errorMessage: insertError.message } },
+          { status: 500 }
         );
       }
-
-      // Other insert errors
-      return NextResponse.json(
-        { success: false, error: 'Failed to insert vote', debug: { errorCode: insertError.code, errorMessage: insertError.message } },
-        { status: 500 }
-      );
+    } else {
+      debugLog('[POST /api/vote] Vote recorded:', {
+        voteId: insertData?.id,
+      });
     }
-
-    debugLog('[POST /api/vote] Vote recorded:', {
-      voteId: insertData?.id,
-    });
 
     // 7. Vote count update is handled by database trigger (on_vote_insert)
     // Calculate new score based on current score + weight (trigger updates DB atomically)
