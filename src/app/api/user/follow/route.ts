@@ -17,7 +17,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
  * Body: { userId: string }
  */
 export async function POST(req: NextRequest) {
-  const rateLimitResponse = await rateLimit(req, 'write');
+  const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
  * Query: ?userId=xxx
  */
 export async function DELETE(req: NextRequest) {
-  const rateLimitResponse = await rateLimit(req, 'write');
+  const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
