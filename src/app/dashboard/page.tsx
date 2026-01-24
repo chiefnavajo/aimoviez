@@ -1720,7 +1720,7 @@ function VotingArena() {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 0.6, y: 0 }}
         transition={{ delay: 1.5, duration: 0.5 }}
-        className="hidden md:block absolute bottom-24 left-8 z-20
+        className="hidden md:block absolute bottom-36 left-8 z-20
                  px-3 py-1.5 rounded-lg bg-black/50 backdrop-blur-sm
                  border border-white/10"
       >
