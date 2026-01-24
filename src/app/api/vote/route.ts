@@ -1329,7 +1329,8 @@ export async function POST(req: NextRequest) {
           {
             success: false,
             error: 'Vote system not configured. Please contact support.',
-            code: 'RPC_NOT_FOUND'
+            code: 'RPC_NOT_FOUND',
+            debug: { errorCode: rpcError.code, errorMessage: rpcError.message }
           },
           { status: 503 }
         );
