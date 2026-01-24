@@ -9,6 +9,7 @@ import { User, Trophy, Film, Heart, Share2, Lock, CheckCircle, BookOpen, Plus, F
 import toast from 'react-hot-toast';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // ============================================================================
 // CREATOR PROFILE PAGE - View other creators
@@ -44,7 +45,8 @@ function formatNumber(num: number): string {
 
 export default function CreatorProfilePage() {
   const params = useParams();
-  const router = useRouter();
+  const _router = useRouter();
+  const { post, delete: del } = useCsrf();
   const creatorId = params.id as string;
 
   const [creator, setCreator] = useState<CreatorProfile | null>(null);
@@ -135,36 +137,21 @@ export default function CreatorProfilePage() {
     try {
       if (isFollowing) {
         // Unfollow
-        const res = await fetch(`/api/user/follow?userId=${creator.id}`, {
-          method: 'DELETE',
-        });
-        if (res.ok) {
-          setIsFollowing(false);
-          setCreator({ ...creator, followers: Math.max(0, creator.followers - 1) });
-          toast.success('Unfollowed');
-        } else {
-          const data = await res.json();
-          toast.error(data.error || 'Failed to unfollow');
-        }
+        await del(`/api/user/follow?userId=${creator.id}`);
+        setIsFollowing(false);
+        setCreator({ ...creator, followers: Math.max(0, creator.followers - 1) });
+        toast.success('Unfollowed');
       } else {
         // Follow
-        const res = await fetch('/api/user/follow', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: creator.id }),
-        });
-        if (res.ok) {
-          setIsFollowing(true);
-          setCreator({ ...creator, followers: creator.followers + 1 });
-          toast.success(`Following @${creator.username}`);
-        } else {
-          const data = await res.json();
-          toast.error(data.error || 'Failed to follow');
-        }
+        await post('/api/user/follow', { userId: creator.id });
+        setIsFollowing(true);
+        setCreator({ ...creator, followers: creator.followers + 1 });
+        toast.success(`Following @${creator.username}`);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Follow error:', err);
-      toast.error('Something went wrong');
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      toast.error(message);
     } finally {
       setFollowLoading(false);
     }
@@ -191,18 +178,17 @@ export default function CreatorProfilePage() {
     setBlocking(true);
     try {
       if (isBlocked) {
-        await fetch(`/api/user/block?userId=${creator.id}`, { method: 'DELETE' });
+        await del(`/api/user/block?userId=${creator.id}`);
         setIsBlocked(false);
+        toast.success('User unblocked');
       } else {
-        await fetch('/api/user/block', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: creator.id }),
-        });
+        await post('/api/user/block', { userId: creator.id });
         setIsBlocked(true);
+        toast.success('User blocked');
       }
     } catch (error) {
       console.error('Block/unblock error:', error);
+      toast.error('Failed to update block status');
     }
     setBlocking(false);
     setShowMoreMenu(false);
