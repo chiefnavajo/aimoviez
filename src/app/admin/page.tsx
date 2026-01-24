@@ -47,6 +47,7 @@ import {
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
+import BottomNavigation from '@/components/BottomNavigation';
 
 // ============================================================================
 // TYPES
@@ -3188,6 +3189,12 @@ export default function AdminDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Bottom Navigation */}
+      <BottomNavigation />
+
+      {/* Spacer for bottom nav */}
+      <div className="h-20 md:hidden" />
     </div>
   );
 }
