@@ -1296,7 +1296,7 @@ export async function POST(req: NextRequest) {
     // This prevents concurrent POST requests from causing duplicate votes
     // The RPC function uses INSERT ... ON CONFLICT and SELECT FOR UPDATE for thread safety
     const { data: insertResult, error: rpcError } = await supabase.rpc(
-      'insert_vote_atomic',
+      'vote_insert_atomic',
       {
         p_clip_id: String(clipId),
         p_voter_key: String(effectiveVoterKey),
@@ -1324,7 +1324,7 @@ export async function POST(req: NextRequest) {
       // 42883 = PostgreSQL "function does not exist"
       // PGRST202 = PostgREST "function not found in schema cache"
       if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
-        console.error('[POST /api/vote] CRITICAL: insert_vote_atomic RPC function not found. Please run the migration: fix-vote-insert-race-condition.sql');
+        console.error('[POST /api/vote] CRITICAL: vote_insert_atomic RPC function not found. Please run the migration: fix-vote-insert-race-condition.sql');
         return NextResponse.json(
           {
             success: false,
