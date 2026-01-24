@@ -2,15 +2,23 @@
 -- FIX VOTE INSERT RACE CONDITION
 -- This migration adds an atomic upsert RPC function for voting
 -- that handles the race condition between check-then-insert
+--
+-- IMPORTANT: Uses TEXT parameters for PostgREST compatibility
+-- (PostgREST has issues with UUID type inference from JS strings)
 -- ============================================================================
 
+-- Drop old function versions first to avoid conflicts
+DROP FUNCTION IF EXISTS insert_vote_atomic(UUID, TEXT, UUID, INTEGER, TEXT, INTEGER, BOOLEAN, BOOLEAN, BOOLEAN);
+DROP FUNCTION IF EXISTS insert_vote_atomic(TEXT, TEXT, TEXT, INTEGER, TEXT, INTEGER, BOOLEAN, BOOLEAN, BOOLEAN);
+DROP FUNCTION IF EXISTS vote_insert_atomic(TEXT, TEXT, TEXT, INTEGER, TEXT, INTEGER, BOOLEAN, BOOLEAN, BOOLEAN);
+
 -- RPC FUNCTION: Atomic vote insert with proper handling
--- Uses INSERT ... ON CONFLICT to atomically handle duplicates
+-- Uses TEXT parameters and casts to UUID internally for PostgREST compatibility
 -- Returns the vote details including whether it was a new vote or existing
 CREATE OR REPLACE FUNCTION insert_vote_atomic(
-  p_clip_id UUID,
+  p_clip_id TEXT,
   p_voter_key TEXT,
-  p_user_id UUID DEFAULT NULL,
+  p_user_id TEXT DEFAULT NULL,
   p_vote_weight INTEGER DEFAULT 1,
   p_vote_type TEXT DEFAULT 'standard',
   p_slot_position INTEGER DEFAULT 1,
@@ -25,8 +33,13 @@ RETURNS TABLE (
   new_vote_count INTEGER,
   new_weighted_score INTEGER,
   error_code TEXT
-) AS $$
+)
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
+  v_clip_uuid UUID := p_clip_id::UUID;
+  v_user_uuid UUID := CASE WHEN p_user_id IS NOT NULL AND p_user_id != '' THEN p_user_id::UUID ELSE NULL END;
   v_vote_id UUID;
   v_existing_weight INTEGER;
   v_new_weight INTEGER;
@@ -39,7 +52,7 @@ BEGIN
     -- Check if vote exists
     SELECT v.id, v.vote_weight INTO v_vote_id, v_existing_weight
     FROM votes v
-    WHERE v.clip_id = p_clip_id AND v.voter_key = p_voter_key
+    WHERE v.clip_id = v_clip_uuid AND v.voter_key = p_voter_key
     FOR UPDATE;  -- Lock the row to prevent concurrent updates
 
     IF v_vote_id IS NOT NULL THEN
@@ -57,19 +70,19 @@ BEGIN
       UPDATE tournament_clips
       SET vote_count = COALESCE(vote_count, 0) + p_vote_weight,
           weighted_score = COALESCE(weighted_score, 0) + p_vote_weight
-      WHERE id = p_clip_id;
+      WHERE id = v_clip_uuid;
 
       -- Get updated stats
       SELECT tc.vote_count, tc.weighted_score
       INTO v_new_vote_count, v_new_weighted_score
-      FROM tournament_clips tc WHERE tc.id = p_clip_id;
+      FROM tournament_clips tc WHERE tc.id = v_clip_uuid;
 
       RETURN QUERY SELECT
         v_vote_id,
         v_was_new,
         v_new_weight,
         COALESCE(v_new_vote_count, 0),
-        COALESCE(v_new_weighted_score, 0),
+        COALESCE(v_new_weighted_score, 0)::INTEGER,
         NULL::TEXT;
       RETURN;
     END IF;
@@ -79,7 +92,7 @@ BEGIN
   -- If unique constraint fails, return error code
   BEGIN
     INSERT INTO votes (clip_id, voter_key, user_id, vote_weight, vote_type, slot_position, flagged, created_at)
-    VALUES (p_clip_id, p_voter_key, p_user_id, p_vote_weight, p_vote_type, p_slot_position, p_flagged, NOW())
+    VALUES (v_clip_uuid, p_voter_key, v_user_uuid, p_vote_weight, p_vote_type, p_slot_position, p_flagged, NOW())
     RETURNING id INTO v_vote_id;
 
     v_was_new := TRUE;
@@ -89,19 +102,19 @@ BEGIN
     -- Get the updated stats
     SELECT tc.vote_count, tc.weighted_score
     INTO v_new_vote_count, v_new_weighted_score
-    FROM tournament_clips tc WHERE tc.id = p_clip_id;
+    FROM tournament_clips tc WHERE tc.id = v_clip_uuid;
 
     RETURN QUERY SELECT
       v_vote_id,
       v_was_new,
       v_new_weight,
       COALESCE(v_new_vote_count, 0),
-      COALESCE(v_new_weighted_score, 0),
+      COALESCE(v_new_weighted_score, 0)::INTEGER,
       NULL::TEXT;
 
   EXCEPTION
     WHEN unique_violation THEN
-      -- Already voted - return error
+      -- Already voted - return error (only happens if multi_vote_mode is FALSE)
       RETURN QUERY SELECT
         NULL::UUID,
         FALSE,
@@ -112,6 +125,10 @@ BEGIN
   END;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION insert_vote_atomic(TEXT, TEXT, TEXT, INTEGER, TEXT, INTEGER, BOOLEAN, BOOLEAN, BOOLEAN) TO authenticated;
+GRANT EXECUTE ON FUNCTION insert_vote_atomic(TEXT, TEXT, TEXT, INTEGER, TEXT, INTEGER, BOOLEAN, BOOLEAN, BOOLEAN) TO anon;
 
 -- ============================================================================
 -- Add unique constraint if not exists
@@ -130,6 +147,9 @@ BEGIN
     UNIQUE (clip_id, voter_key);
   END IF;
 END $$;
+
+-- Reload PostgREST schema cache
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- VERIFICATION

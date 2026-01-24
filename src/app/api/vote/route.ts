@@ -1292,85 +1292,79 @@ export async function POST(req: NextRequest) {
       willMatch: voteCreatedAt >= filterDate,
     });
 
-    // Direct insert with unique constraint handling (bypasses PostgREST RPC issues)
-    // The on_vote_insert trigger automatically updates vote_count and weighted_score
-    const { data: insertData, error: insertError } = await supabase
-      .from('votes')
-      .insert({
-        clip_id: clipId,
-        voter_key: effectiveVoterKey,
-        user_id: loggedInUserId || null,
-        vote_weight: weight,
-        vote_type: 'standard',
-        slot_position: slotPosition,
-        flagged: voteRisk.flagged || false,
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
+    // ATOMIC VOTE INSERT: Use RPC function for race-free voting
+    // The RPC function handles:
+    // - Locking rows with SELECT FOR UPDATE to prevent concurrent updates
+    // - Inserting new votes with unique constraint
+    // - Updating existing votes (multi-vote mode) atomically
+    // - Updating clip vote counts in the same transaction
+    const { data: insertResult, error: rpcError } = await supabase.rpc(
+      'insert_vote_atomic',
+      {
+        p_clip_id: String(clipId),
+        p_voter_key: String(effectiveVoterKey),
+        p_user_id: loggedInUserId ? String(loggedInUserId) : null,
+        p_vote_weight: weight,
+        p_vote_type: 'standard',
+        p_slot_position: slotPosition,
+        p_flagged: voteRisk.flagged || false,
+        p_multi_vote_mode: true, // Always allow multi-vote (up to daily limit)
+        p_is_power_vote: false,
+      }
+    );
 
-    debugLog('[POST /api/vote] Direct insert result:', insertData);
+    debugLog('[POST /api/vote] RPC insert_vote_atomic result:', insertResult);
 
-    if (insertError) {
-      console.error('[POST /api/vote] Insert error:', insertError, 'code:', insertError.code);
+    if (rpcError) {
+      console.error('[POST /api/vote] RPC error:', rpcError, 'code:', rpcError.code, 'message:', rpcError.message);
 
-      // Handle duplicate vote (unique constraint violation) - add to existing vote
-      if (insertError.code === '23505') {
-        // Get current vote weight
-        const { data: existingVote } = await supabase
-          .from('votes')
-          .select('vote_weight')
-          .eq('clip_id', clipId)
-          .eq('voter_key', effectiveVoterKey)
-          .single();
-
-        const currentWeight = existingVote?.vote_weight ?? 0;
-        const newWeight = currentWeight + weight;
-
-        // Update existing vote weight (multi-vote mode)
-        const { error: updateError } = await supabase
-          .from('votes')
-          .update({
-            vote_weight: newWeight,
-            created_at: new Date().toISOString(),
-          })
-          .eq('clip_id', clipId)
-          .eq('voter_key', effectiveVoterKey);
-
-        if (updateError) {
-          console.error('[POST /api/vote] Update error:', updateError);
-          return NextResponse.json(
-            { success: false, error: 'Failed to update vote', debug: { errorCode: updateError.code, errorMessage: updateError.message } },
-            { status: 500 }
-          );
-        }
-
-        // Manually update clip vote count since trigger only fires on INSERT
-        await supabase
-          .from('tournament_clips')
-          .update({
-            vote_count: (clipData.vote_count ?? 0) + weight,
-            weighted_score: (clipData.weighted_score ?? 0) + weight,
-          })
-          .eq('id', clipId);
-
-        debugLog('[POST /api/vote] Vote updated (multi-vote)', { currentWeight, newWeight });
-      } else {
-        // Other insert errors
+      // 42883 = PostgreSQL "function does not exist"
+      // PGRST202 = PostgREST "function not found in schema cache"
+      if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
+        console.error('[POST /api/vote] CRITICAL: insert_vote_atomic RPC function not found. Please run the migration: fix-vote-insert-race-condition.sql');
         return NextResponse.json(
-          { success: false, error: 'Failed to insert vote', debug: { errorCode: insertError.code, errorMessage: insertError.message } },
-          { status: 500 }
+          {
+            success: false,
+            error: 'Vote system not configured. Please contact support.',
+            code: 'RPC_NOT_FOUND',
+            debug: { errorCode: rpcError.code, errorMessage: rpcError.message }
+          },
+          { status: 503 }
         );
       }
-    } else {
-      debugLog('[POST /api/vote] Vote recorded:', {
-        voteId: insertData?.id,
-      });
+
+      // Other RPC errors
+      return NextResponse.json(
+        { success: false, error: 'Failed to insert vote', debug: { errorCode: rpcError.code, errorMessage: rpcError.message } },
+        { status: 500 }
+      );
     }
 
-    // 7. Vote count update is handled by database trigger (on_vote_insert)
-    // Calculate new score based on current score + weight (trigger updates DB atomically)
-    const newWeightedScore = (clipData.weighted_score ?? 0) + weight;
+    // Check RPC result
+    const result = insertResult?.[0];
+
+    if (result?.error_code === 'ALREADY_VOTED') {
+      // This should only happen if multi_vote_mode is false
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Already voted on this clip',
+          code: 'ALREADY_VOTED',
+        },
+        { status: 409 }
+      );
+    }
+
+    debugLog('[POST /api/vote] Vote recorded:', {
+      voteId: result?.vote_id,
+      wasNewVote: result?.was_new_vote,
+      finalWeight: result?.final_vote_weight,
+    });
+
+    // 7. Vote count update is handled by the RPC function atomically
+    // Use the returned score from RPC for accuracy (avoids race conditions)
+    const rpcResult = insertResult?.[0];
+    const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + weight;

@@ -3,6 +3,8 @@
 -- This migration adds:
 -- 1. A trigger for atomic vote count decrement on DELETE
 -- 2. An RPC function for safe vote deletion with verification
+--
+-- IMPORTANT: Uses TEXT parameters for PostgREST compatibility
 -- ============================================================================
 
 -- 1. Create trigger function for vote deletion
@@ -32,13 +34,18 @@ EXECUTE FUNCTION update_clip_vote_count_on_delete();
 
 -- ============================================================================
 -- RPC FUNCTION: Atomic vote deletion with verification
+-- Uses TEXT parameters for PostgREST compatibility
 -- Returns the deleted vote details or null if not found/not owned
 -- This prevents race conditions by doing everything in one transaction
 -- ============================================================================
 
+-- Drop old function versions first
+DROP FUNCTION IF EXISTS delete_vote_atomic(TEXT, UUID);
+DROP FUNCTION IF EXISTS delete_vote_atomic(TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION delete_vote_atomic(
   p_voter_key TEXT,
-  p_clip_id UUID
+  p_clip_id TEXT
 )
 RETURNS TABLE (
   vote_id UUID,
@@ -47,8 +54,12 @@ RETURNS TABLE (
   slot_position INTEGER,
   new_vote_count INTEGER,
   new_weighted_score INTEGER
-) AS $$
+)
+SECURITY DEFINER
+SET search_path = public
+AS $$
 DECLARE
+  v_clip_uuid UUID := p_clip_id::UUID;
   v_vote_id UUID;
   v_vote_type TEXT;
   v_vote_weight INTEGER;
@@ -62,7 +73,7 @@ BEGIN
   INTO v_vote_id, v_vote_type, v_vote_weight, v_slot_position
   FROM votes v
   WHERE v.voter_key = p_voter_key
-    AND v.clip_id = p_clip_id
+    AND v.clip_id = v_clip_uuid
   FOR UPDATE;  -- Lock the row
 
   -- If no vote found, return empty result
@@ -77,7 +88,7 @@ BEGIN
   SELECT tc.vote_count, tc.weighted_score
   INTO v_new_vote_count, v_new_weighted_score
   FROM tournament_clips tc
-  WHERE tc.id = p_clip_id;
+  WHERE tc.id = v_clip_uuid;
 
   -- Return the result
   RETURN QUERY SELECT
@@ -86,9 +97,16 @@ BEGIN
     v_vote_weight,
     v_slot_position,
     COALESCE(v_new_vote_count, 0),
-    COALESCE(v_new_weighted_score, 0);
+    COALESCE(v_new_weighted_score, 0)::INTEGER;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Grant permissions
+GRANT EXECUTE ON FUNCTION delete_vote_atomic(TEXT, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION delete_vote_atomic(TEXT, TEXT) TO anon;
+
+-- Reload PostgREST schema cache
+NOTIFY pgrst, 'reload schema';
 
 -- ============================================================================
 -- VERIFICATION
