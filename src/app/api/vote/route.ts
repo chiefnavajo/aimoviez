@@ -1298,9 +1298,9 @@ export async function POST(req: NextRequest) {
     const { data: insertResult, error: rpcError } = await supabase.rpc(
       'insert_vote_atomic',
       {
-        p_clip_id: clipId,
-        p_voter_key: effectiveVoterKey,
-        p_user_id: loggedInUserId,
+        p_clip_id: String(clipId),
+        p_voter_key: String(effectiveVoterKey),
+        p_user_id: loggedInUserId ? String(loggedInUserId) : null,
         p_vote_weight: weight,
         p_vote_type: 'standard',
         p_slot_position: slotPosition,
