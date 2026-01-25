@@ -55,9 +55,25 @@ Example:
 Update the voting query to show ALL active clips regardless of `slot_position`, not just clips matching the current slot.
 
 ### TODO Tomorrow
+
+#### Task 1: Fix Slot/Clip Assignment
 1. Update vote route to show ALL active clips (ignore `slot_position` filter)
 2. When a clip wins, assign it to the current slot and lock it
 3. Clips keep `slot_position = NULL` until they win
+
+#### Task 2: Multiple Genre Seasons (run simultaneously)
+Goal: Run multiple seasons at once, each with a different genre (Comedy, Action, Horror, etc.)
+
+Database changes:
+- Add `genre` column to `seasons` table (if not exists)
+- Create separate seasons for each genre
+
+Code changes:
+- Update vote route to filter by selected season/genre
+- Update upload flow to assign clip to correct genre season
+- Add genre selector UI (tabs or dropdown) on voting page
+
+Estimated time: ~3-4 hours
 
 ---
 
