@@ -118,68 +118,14 @@ function TourTooltip({
   onSkip,
 }: TooltipProps) {
   const getPosition = useCallback(() => {
-    // Always center on mobile for better UX
-    const isMobile = window.innerWidth < 640;
-
-    if (!targetRect || step.position === 'center' || isMobile) {
-      // Center the tooltip on screen (works well for all devices)
-      return {
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-      };
-    }
-
-    // Desktop positioning - position relative to target
-    const padding = 16;
-    const tooltipWidth = Math.min(320, window.innerWidth - 32);
-    const tooltipHeight = 220;
-
-    switch (step.position) {
-      case 'top':
-        return {
-          top: `${Math.max(padding, targetRect.top - tooltipHeight - padding)}px`,
-          left: `${Math.min(
-            window.innerWidth - tooltipWidth - padding,
-            Math.max(padding, targetRect.left + targetRect.width / 2 - tooltipWidth / 2)
-          )}px`,
-          transform: 'none',
-        };
-      case 'bottom':
-        return {
-          top: `${Math.min(window.innerHeight - tooltipHeight - padding, targetRect.bottom + padding)}px`,
-          left: `${Math.min(
-            window.innerWidth - tooltipWidth - padding,
-            Math.max(padding, targetRect.left + targetRect.width / 2 - tooltipWidth / 2)
-          )}px`,
-          transform: 'none',
-        };
-      case 'left':
-        return {
-          top: `${Math.min(
-            window.innerHeight - tooltipHeight - padding,
-            Math.max(padding, targetRect.top + targetRect.height / 2 - tooltipHeight / 2)
-          )}px`,
-          left: `${Math.max(padding, targetRect.left - tooltipWidth - padding)}px`,
-          transform: 'none',
-        };
-      case 'right':
-        return {
-          top: `${Math.min(
-            window.innerHeight - tooltipHeight - padding,
-            Math.max(padding, targetRect.top + targetRect.height / 2 - tooltipHeight / 2)
-          )}px`,
-          left: `${Math.min(window.innerWidth - tooltipWidth - padding, targetRect.right + padding)}px`,
-          transform: 'none',
-        };
-      default:
-        return {
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-        };
-    }
-  }, [targetRect, step.position]);
+    // Always center the tooltip for consistent mobile experience
+    // This works better across all devices and screen sizes
+    return {
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+    };
+  }, []);
 
   const position = getPosition();
   const progress = ((currentStep + 1) / totalSteps) * 100;
@@ -191,7 +137,7 @@ function TourTooltip({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed z-[102] w-[calc(100vw-32px)] sm:w-80 max-w-sm mx-4 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
+      className="fixed z-[102] w-[85vw] max-w-[320px] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
       style={position}
     >
       {/* Progress Bar */}
