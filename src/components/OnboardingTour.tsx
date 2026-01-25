@@ -94,6 +94,14 @@ const TOUR_STEPS: TourStep[] = [
     emoji: '🎥',
   },
   {
+    id: 'bottom-menu',
+    title: 'Explore the App',
+    description: 'Use the bottom menu: Story (watch the movie), Watch (browse clips), Upload (add yours), Ranks (leaderboards), Profile (your stats).',
+    icon: <BookOpen className="w-8 h-8" />,
+    position: 'center',
+    emoji: '🧭',
+  },
+  {
     id: 'ready',
     title: 'You\'re Ready!',
     description: 'Start voting now! When a slot closes, the clip with the most votes wins and joins the story. Help shape the movie!',

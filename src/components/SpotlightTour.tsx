@@ -73,6 +73,14 @@ const TOUR_STEPS: TourStep[] = [
     position: 'right',
   },
   {
+    id: 'bottom-menu',
+    title: 'Explore the App',
+    description: 'Story: watch the movie so far. Watch: browse clips. Upload: add your own. Ranks: see top voters & creators. Profile: your stats.',
+    target: 'bottom-nav',
+    emoji: '🧭',
+    position: 'top',
+  },
+  {
     id: 'ready',
     title: "You're Ready!",
     description: 'Start voting now! When a slot closes, the clip with the most votes wins and joins the story. Help shape the movie!',
