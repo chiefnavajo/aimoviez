@@ -108,7 +108,6 @@ interface TooltipProps {
 
 function TourTooltip({
   step,
-  targetRect,
   isFirstStep,
   isLastStep,
   currentStep,
@@ -116,30 +115,19 @@ function TourTooltip({
   onNext,
   onPrev,
   onSkip,
-}: TooltipProps) {
-  const getPosition = useCallback(() => {
-    // Always center the tooltip for consistent mobile experience
-    // This works better across all devices and screen sizes
-    return {
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-    };
-  }, []);
-
-  const position = getPosition();
+}: Omit<TooltipProps, 'targetRect'>) {
   const progress = ((currentStep + 1) / totalSteps) * 100;
 
   return (
-    <motion.div
-      key={step.id}
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed z-[102] w-[85vw] max-w-[320px] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
-      style={position}
-    >
+    <div className="fixed inset-0 z-[102] flex items-center justify-center p-4">
+      <motion.div
+        key={step.id}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        className="w-full max-w-[320px] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
+      >
       {/* Progress Bar */}
       <div className="absolute top-0 left-0 right-0 h-1 bg-white/10">
         <motion.div
@@ -259,7 +247,8 @@ function TourTooltip({
           </motion.button>
         )}
       </div>
-    </motion.div>
+      </motion.div>
+    </div>
   );
 }
 
@@ -437,7 +426,6 @@ export default function SpotlightTour({ onComplete, onSkip }: SpotlightTourProps
           {/* Tooltip */}
           <TourTooltip
             step={step}
-            targetRect={targetRect}
             isFirstStep={isFirstStep}
             isLastStep={isLastStep}
             currentStep={currentStep}
