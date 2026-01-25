@@ -2417,15 +2417,17 @@ export default function AdminDashboard() {
                             🎭 {clip.genre}
                           </span>
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            clip.slot_position === slotInfo?.currentSlot
+                            clip.slot_position == null
+                              ? 'bg-white/10'
+                              : clip.slot_position === slotInfo?.currentSlot
                               ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                               : clip.slot_position < (slotInfo?.currentSlot || 0)
                               ? 'bg-green-500/20 text-green-400 border border-green-500/30'
                               : 'bg-white/10'
                           }`}>
-                            📍 Slot {clip.slot_position}
-                            {clip.slot_position === slotInfo?.currentSlot && ' (Voting)'}
-                            {clip.slot_position < (slotInfo?.currentSlot || 0) && ' (Locked)'}
+                            {clip.slot_position == null ? '📍 No slot' : `📍 Slot ${clip.slot_position}`}
+                            {clip.slot_position != null && clip.slot_position === slotInfo?.currentSlot && ' (Voting)'}
+                            {clip.slot_position != null && clip.slot_position < (slotInfo?.currentSlot || 0) && ' (Locked)'}
                           </span>
                           <span className="px-3 py-1 bg-white/10 rounded-full text-xs font-medium">
                             👍 {clip.vote_count} votes
