@@ -1152,8 +1152,20 @@ export async function POST(req: NextRequest) {
     // If the RPC function is not available, we fall back to direct insert which will
     // fail with a unique constraint violation (handled below) if already voted.
 
+    // QUICK WIN #2: Run independent queries in PARALLEL for faster response
+    // Query 1: Get user's votes today (needs effectiveVoterKey)
+    // Query 2: Get clip data (needs clipId)
+    // These are independent and can run simultaneously
+    const [votesTodayResult, clipResult] = await Promise.all([
+      getUserVotesToday(supabase, effectiveVoterKey),
+      supabase
+        .from('tournament_clips')
+        .select('slot_position, season_id, vote_count, weighted_score, status')
+        .eq('id', clipId)
+        .maybeSingle(),
+    ]);
+
     // 3. Check daily vote limit
-    const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
     // SECURITY: If we can't verify daily votes, reject the request
     if (votesTodayResult.error) {
       console.error('[POST /api/vote] Failed to check daily votes:', votesTodayResult.error);
@@ -1185,12 +1197,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Get clip's slot position, season, and status for validation
-    const { data: clipData, error: clipFetchError } = await supabase
-      .from('tournament_clips')
-      .select('slot_position, season_id, vote_count, weighted_score, status')
-      .eq('id', clipId)
-      .maybeSingle();
+    // 4. Validate clip data (from parallel query)
+    const { data: clipData, error: clipFetchError } = clipResult;
 
     if (clipFetchError || !clipData) {
       console.error('[POST /api/vote] clipFetchError:', clipFetchError);
@@ -1216,6 +1224,7 @@ export async function POST(req: NextRequest) {
 
     // 4.5 Validate clip is in the currently active voting slot
     // Get the active slot for the clip's season (voting or waiting_for_clips)
+    // NOTE: This query depends on clipData.season_id, so it runs after the parallel queries
     const { data: activeSlot, error: slotError } = await supabase
       .from('story_slots')
       .select('slot_position, status')

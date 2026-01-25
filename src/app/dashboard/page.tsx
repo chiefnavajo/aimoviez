@@ -800,15 +800,20 @@ function VotingArena() {
       return res.json();
     },
     onMutate: async ({ clipId }): Promise<MutationContext> => {
+      // QUICK WIN #1: Don't show spinner - optimistic update makes it feel instant
+      // setIsVoting only used briefly for preventing double-clicks
       setIsVoting(true);
 
-      // Vibration feedback
+      // Vibration feedback - instant tactile response
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate(50);
       }
 
       await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
       const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+
+      // Calculate new vote count for sound decision
+      const newVotesToday = (previous?.totalVotesToday ?? 0) + 1;
 
       if (previous) {
         queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
@@ -818,13 +823,30 @@ function VotingArena() {
               ? { ...clip, vote_count: clip.vote_count + 1, has_voted: true }
               : clip
           ),
-          totalVotesToday: (previous.totalVotesToday ?? 0) + 1,
+          totalVotesToday: newVotesToday,
         });
       }
+
+      // QUICK WIN #3: Play sound IMMEDIATELY (don't wait for server)
+      // Milestones: 1st vote, 50th, 100th, 200th
+      if (newVotesToday === 1 || newVotesToday === 50 || newVotesToday === 100 || newVotesToday === 200) {
+        sounds.play('milestone');
+        // Fire confetti async - don't block
+        loadConfetti().then(confettiLib => {
+          confettiLib({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        });
+      } else {
+        sounds.play('vote');
+      }
+
+      // QUICK WIN #1: Remove spinner immediately after optimistic update
+      // The has_voted state change shows the checkmark, no spinner needed
+      setTimeout(() => setIsVoting(false), 50);
 
       return { previous };
     },
     onError: (error: Error, _variables, context) => {
+      // On error: play error sound and rollback
       sounds.play('error');
       if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
         navigator.vibrate([100, 50, 100]);
@@ -835,23 +857,10 @@ function VotingArena() {
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: async () => {
-      // Get the UPDATED votesToday from query cache (after optimistic update)
-      const updatedData = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
-      const currentVotesToday = updatedData?.totalVotesToday ?? 0;
-
-      // Sound effects and confetti for milestones
-      if (currentVotesToday === 1 || currentVotesToday === 50 || currentVotesToday === 100 || currentVotesToday === 200) {
-        // Milestone confetti: 1st vote, 50th, 100th, 200th
-        sounds.play('milestone');
-        const confettiLib = await loadConfetti();
-        confettiLib({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
-      } else {
-        sounds.play('vote');
-      }
+    onSuccess: () => {
+      // Server confirmed - nothing to do, optimistic update already handled UI
+      // Sound already played in onMutate
       setIsVoting(false);
-      // Don't invalidate/refetch - optimistic update already handled the UI
-      // This prevents video from changing after voting
     },
   });
 
