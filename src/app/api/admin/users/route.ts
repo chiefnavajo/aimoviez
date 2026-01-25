@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     // Select specific columns instead of * for performance and security
     let query = supabase
       .from('users')
-      .select('id, username, email, avatar_url, level, xp, total_votes_cast, total_votes_received, clips_uploaded, is_verified, is_banned, is_admin, role, created_at, updated_at', { count: 'exact' });
+      .select('id, username, email, avatar_url, level, xp, total_votes_cast, total_votes_received, clips_uploaded, is_verified, is_banned, is_admin, created_at, updated_at', { count: 'exact' });
 
     // Search filter (escape SQL special characters to prevent injection)
     if (search) {
