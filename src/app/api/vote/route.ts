@@ -1314,7 +1314,7 @@ export async function POST(req: NextRequest) {
         p_vote_type: 'standard',
         p_slot_position: slotPosition,
         p_flagged: voteRisk.flagged || false,
-        p_multi_vote_mode: true, // Always allow multi-vote (up to daily limit)
+        p_multi_vote_mode: multiVoteEnabled, // Controlled by feature flag
         p_is_power_vote: false,
       }
     );
@@ -1333,7 +1333,8 @@ export async function POST(req: NextRequest) {
             success: false,
             error: 'Vote system not configured. Please contact support.',
             code: 'RPC_NOT_FOUND',
-            debug: { errorCode: rpcError.code, errorMessage: rpcError.message }
+            // Only include debug info in development to prevent data leakage
+            ...(isDev && { debug: { errorCode: rpcError.code, errorMessage: rpcError.message } })
           },
           { status: 503 }
         );
@@ -1341,7 +1342,12 @@ export async function POST(req: NextRequest) {
 
       // Other RPC errors
       return NextResponse.json(
-        { success: false, error: 'Failed to insert vote', debug: { errorCode: rpcError.code, errorMessage: rpcError.message } },
+        {
+          success: false,
+          error: 'Failed to insert vote',
+          // Only include debug info in development to prevent data leakage
+          ...(isDev && { debug: { errorCode: rpcError.code, errorMessage: rpcError.message } })
+        },
         { status: 500 }
       );
     }
