@@ -107,17 +107,49 @@ export async function GET(req: NextRequest) {
         p_timeframe: timeframe,
       });
 
-      const voters: LeaderboardVoter[] = rpcData.map((row: any, index: number) => ({
-        rank: offset + index + 1,
-        voter_key: row.voter_key,
-        username: `Voter${row.voter_key?.substring(0, 6) || 'Unknown'}`,
-        avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.voter_key}`,
-        total_votes: Number(row.weighted_total) || Number(row.total_votes) || 0,
-        votes_today: Number(row.votes_today) || 0,
-        current_streak: 0, // Streak calculation requires more queries, skip for performance
-        level: calculateLevel(Number(row.weighted_total) || Number(row.total_votes) || 0),
-        is_current_user: row.voter_key === currentVoterKey,
-      }));
+      // Fetch real user info for logged-in voters
+      // voter_key for logged-in users is "user_{user_id}", extract user_ids
+      const userIds = rpcData
+        .map((row: any) => {
+          if (row.voter_key?.startsWith('user_')) {
+            return row.voter_key.replace('user_', '');
+          }
+          return null;
+        })
+        .filter((id: string | null): id is string => id !== null);
+
+      const rpcUserMap = new Map<string, { username: string; avatar_url: string }>();
+      if (userIds.length > 0) {
+        const { data: users } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .in('id', userIds);
+
+        users?.forEach((user) => {
+          rpcUserMap.set(user.id, {
+            username: user.username || 'User',
+            avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+          });
+        });
+      }
+
+      const voters: LeaderboardVoter[] = rpcData.map((row: any, index: number) => {
+        // Check if this is a logged-in user (voter_key starts with "user_")
+        const userId = row.voter_key?.startsWith('user_') ? row.voter_key.replace('user_', '') : null;
+        const userInfo = userId ? rpcUserMap.get(userId) : null;
+
+        return {
+          rank: offset + index + 1,
+          voter_key: row.voter_key,
+          username: userInfo?.username || `Voter${row.voter_key?.substring(0, 6) || 'Unknown'}`,
+          avatar_url: userInfo?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.voter_key}`,
+          total_votes: Number(row.weighted_total) || Number(row.total_votes) || 0,
+          votes_today: Number(row.votes_today) || 0,
+          current_streak: 0, // Streak calculation requires more queries, skip for performance
+          level: calculateLevel(Number(row.weighted_total) || Number(row.total_votes) || 0),
+          is_current_user: row.voter_key === currentVoterKey,
+        };
+      });
 
       return NextResponse.json({
         voters,
@@ -135,8 +167,8 @@ export async function GET(req: NextRequest) {
     }
 
     // FALLBACK: Use optimized query with LIMIT (not loading all votes)
-    // Build query with date filter
-    let query = supabase.from('votes').select('voter_key, vote_weight');
+    // Build query with date filter - include user_id to look up real usernames
+    let query = supabase.from('votes').select('voter_key, vote_weight, user_id');
     if (startDate) {
       query = query.gte('created_at', startDate);
     }
@@ -165,15 +197,27 @@ export async function GET(req: NextRequest) {
     }
 
     // Aggregate by voter_key (in memory, but limited)
-    const voterMap = new Map<string, number>();
+    // Also track user_id for each voter_key
+    const voterMap = new Map<string, { total_votes: number; user_id: string | null }>();
     votes.forEach((vote) => {
-      const current = voterMap.get(vote.voter_key) || 0;
-      voterMap.set(vote.voter_key, current + (vote.vote_weight || 1));
+      const existing = voterMap.get(vote.voter_key);
+      if (existing) {
+        existing.total_votes += (vote.vote_weight || 1);
+        // Keep user_id if we have one
+        if (vote.user_id && !existing.user_id) {
+          existing.user_id = vote.user_id;
+        }
+      } else {
+        voterMap.set(vote.voter_key, {
+          total_votes: vote.vote_weight || 1,
+          user_id: vote.user_id || null,
+        });
+      }
     });
 
     // Convert to sorted array
     const sortedVoters = Array.from(voterMap.entries())
-      .map(([voter_key, total_votes]) => ({ voter_key, total_votes }))
+      .map(([voter_key, data]) => ({ voter_key, total_votes: data.total_votes, user_id: data.user_id }))
       .sort((a, b) => b.total_votes - a.total_votes);
 
     // Find current user's rank
@@ -183,18 +227,41 @@ export async function GET(req: NextRequest) {
     const total_voters = sortedVoters.length;
     const paginatedVoters = sortedVoters.slice(offset, offset + limit);
 
-    // Enrich with additional info
-    const enrichedVoters: LeaderboardVoter[] = paginatedVoters.map((voter, index) => ({
-      rank: offset + index + 1,
-      voter_key: voter.voter_key,
-      username: `Voter${voter.voter_key?.substring(0, 6) || 'Unknown'}`,
-      avatar_url: `https://api.dicebear.com/7.x/avataaars/svg?seed=${voter.voter_key}`,
-      total_votes: voter.total_votes,
-      votes_today: 0, // Skip for performance in fallback
-      current_streak: 0, // Skip for performance in fallback
-      level: calculateLevel(voter.total_votes),
-      is_current_user: voter.voter_key === currentVoterKey,
-    }));
+    // Fetch real user info for logged-in voters
+    const userIds = paginatedVoters
+      .map((v) => v.user_id)
+      .filter((id): id is string => id !== null);
+
+    const userMap = new Map<string, { username: string; avatar_url: string }>();
+    if (userIds.length > 0) {
+      const { data: users } = await supabase
+        .from('users')
+        .select('id, username, avatar_url')
+        .in('id', userIds);
+
+      users?.forEach((user) => {
+        userMap.set(user.id, {
+          username: user.username || 'User',
+          avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+        });
+      });
+    }
+
+    // Enrich with additional info - use real username for logged-in users
+    const enrichedVoters: LeaderboardVoter[] = paginatedVoters.map((voter, index) => {
+      const userInfo = voter.user_id ? userMap.get(voter.user_id) : null;
+      return {
+        rank: offset + index + 1,
+        voter_key: voter.voter_key,
+        username: userInfo?.username || `Voter${voter.voter_key?.substring(0, 6) || 'Unknown'}`,
+        avatar_url: userInfo?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${voter.voter_key}`,
+        total_votes: voter.total_votes,
+        votes_today: 0, // Skip for performance in fallback
+        current_streak: 0, // Skip for performance in fallback
+        level: calculateLevel(voter.total_votes),
+        is_current_user: voter.voter_key === currentVoterKey,
+      };
+    });
 
     return NextResponse.json({
       voters: enrichedVoters,
