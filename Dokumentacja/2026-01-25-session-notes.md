@@ -88,6 +88,18 @@ Code changes:
 
 Estimated time: ~3-4 hours
 
+#### Task 3: Admin Dashboard - Show locked slot winners
+Currently the admin dashboard doesn't show which videos are assigned to locked slots.
+
+Need to add:
+- Display locked slots with their winner clips
+- Show slot 1, slot 2, etc. with the winning video assigned to each
+- Winner clip IDs are stored in `story_slots.winner_tournament_clip_id`
+
+Locked slots:
+- Slot 1: `501d915f-33d8-4ab1-840b-c502b4fe8566`
+- Slot 2: `13abc148-ee31-4c28-9913-9804729f7d71`
+
 ---
 
 ## Current System Capacity
