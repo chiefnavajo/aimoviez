@@ -29,12 +29,19 @@ import { sounds } from '@/lib/sounds';
 import { useInvisibleCaptcha, useCaptchaRequired } from '@/components/CaptchaVerification';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
+import { useSpotlightTour } from '@/components/SpotlightTour';
 import { useRealtimeClips, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 import { InstallPrompt } from '@/components/InstallPrompt';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
+  ssr: false,
+  loading: () => null,
+});
+
+// Lazy load SpotlightTour - new spotlight-based tour
+const SpotlightTour = dynamic(() => import('@/components/SpotlightTour').then(mod => mod.default), {
   ssr: false,
   loading: () => null,
 });
@@ -481,8 +488,16 @@ function VotingArena() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
 
-  // Onboarding tour
-  const { showTour, completeTour, skipTour, resetTour } = useOnboarding();
+  // Feature flag for spotlight tour (new tour style)
+  const { enabled: useSpotlightTourFlag } = useFeature('spotlight_tour');
+
+  // Onboarding tours - modal (old) and spotlight (new)
+  const modalTour = useOnboarding();
+  const spotlightTour = useSpotlightTour();
+
+  // Use the appropriate tour based on feature flag
+  const activeTour = useSpotlightTourFlag ? spotlightTour : modalTour;
+  const { showTour, completeTour, skipTour, resetTour } = activeTour;
 
   // Feature flag for vote button daily progress fill
   const { enabled: showVoteProgress } = useFeature('vote_button_progress');
@@ -1483,14 +1498,18 @@ function VotingArena() {
         )}
       </AnimatePresence>
 
-      {/* Onboarding Tour */}
+      {/* Onboarding Tour - Modal (old) or Spotlight (new) based on feature flag */}
       {showTour && (
-        <OnboardingTour onComplete={completeTour} onSkip={skipTour} />
+        useSpotlightTourFlag ? (
+          <SpotlightTour onComplete={completeTour} onSkip={skipTour} />
+        ) : (
+          <OnboardingTour onComplete={completeTour} onSkip={skipTour} />
+        )
       )}
 
       {/* ============ VIDEO ============ */}
       {/* Desktop: Full screen. Mobile: Full screen with blur background */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" data-tour="video-area">
         <div
           className="relative w-full h-full overflow-hidden"
           onClick={handleVideoTap}
@@ -1611,7 +1630,7 @@ function VotingArena() {
         </Link>
 
         {/* Vote Button */}
-        <div className="flex flex-col items-center gap-1">
+        <div className="flex flex-col items-center gap-1" data-tour="vote-button">
           <PowerVoteButton
             onVote={handleVote}
             isVoting={isVoting}
@@ -1680,7 +1699,7 @@ function VotingArena() {
 
       {/* ============ NAVIGATION ARROWS - LEFT SIDE (hidden in landscape) ============ */}
       {votingData?.clips && votingData.clips.length > 1 && !isLandscape && (
-        <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4 md:gap-6">
+        <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-4 md:gap-6" data-tour="nav-arrows">
           {/* Previous Clip Arrow */}
           <motion.button
             whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
