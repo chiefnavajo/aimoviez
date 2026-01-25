@@ -64,9 +64,22 @@ Update the voting query to show ALL active clips regardless of `slot_position`, 
 #### Task 2: Multiple Genre Seasons (run simultaneously)
 Goal: Run multiple seasons at once, each with a different genre (Comedy, Action, Horror, etc.)
 
+**Concept:**
+- Each genre starts with an **8-second AI-generated movie clip** (slot 1)
+- The **community continues the story** by uploading clips
+- Users vote on which clip best continues the narrative
+- Winner gets locked → becomes the next scene in the story
+
+Flow:
+1. AI clip locked in slot 1 (the opening scene)
+2. Community uploads clips that continue from the AI clip
+3. Voting determines which clip becomes slot 2
+4. Repeat until 75 slots = complete AI movie
+
 Database changes:
 - Add `genre` column to `seasons` table (if not exists)
 - Create separate seasons for each genre
+- Mark slot 1 as "locked" with AI-generated clip
 
 Code changes:
 - Update vote route to filter by selected season/genre
