@@ -36,29 +36,28 @@ Clips in slot 4 don't appear in voting area because:
 2. Slot 3 has a clip but it's "pending" not "active"
 3. Slot 4 clips are "active" but slot 4 is "upcoming"
 
-### Design Question
-**How should clips be assigned to slots?**
+### Intended Design (clarified)
+**Clips should NOT be pre-assigned to future slots.**
 
-#### Option A: Pre-assigned slots (current design)
-- Clips are assigned to specific slots when uploaded
-- Only clips matching the current voting slot are shown
-- Pro: Clear tournament brackets
-- Con: Need to manage slot assignments
+Flow:
+1. All "active" clips compete in the **current voting slot**
+2. When voting ends, the **winner gets locked** into that slot
+3. System moves to the **next slot** for voting
+4. Remaining clips continue competing in the new voting slot
 
-#### Option B: Dynamic assignment
-- All "active" clips are available in ANY voting slot
-- Clips flow into whatever slot is currently voting
-- Only locked slots have specific winner clips
-- Pro: Simpler, always have clips to vote on
-- Con: Less structured tournament feel
+Example:
+- Slot 1: locked (winner assigned)
+- Slot 2: locked (winner assigned)
+- Slot 3: voting ← ALL active clips compete here
+- Slot 4: upcoming (empty until slot 3 finishes)
 
-### Quick Fix (if needed)
-Move slot 4 clips to slot 3:
-```sql
-UPDATE tournament_clips
-SET slot_position = 3
-WHERE slot_position = 4 AND status = 'active';
-```
+### Code Change Needed
+Update the voting query to show ALL active clips regardless of `slot_position`, not just clips matching the current slot.
+
+### TODO Tomorrow
+1. Update vote route to show ALL active clips (ignore `slot_position` filter)
+2. When a clip wins, assign it to the current slot and lock it
+3. Clips keep `slot_position = NULL` until they win
 
 ---
 
