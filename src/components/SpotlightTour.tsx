@@ -118,7 +118,11 @@ function TourTooltip({
   onSkip,
 }: TooltipProps) {
   const getPosition = useCallback(() => {
-    if (!targetRect || step.position === 'center') {
+    // Always center on mobile for better UX
+    const isMobile = window.innerWidth < 640;
+
+    if (!targetRect || step.position === 'center' || isMobile) {
+      // Center the tooltip on screen (works well for all devices)
       return {
         top: '50%',
         left: '50%',
@@ -126,9 +130,10 @@ function TourTooltip({
       };
     }
 
+    // Desktop positioning - position relative to target
     const padding = 16;
-    const tooltipWidth = 320;
-    const tooltipHeight = 200;
+    const tooltipWidth = Math.min(320, window.innerWidth - 32);
+    const tooltipHeight = 220;
 
     switch (step.position) {
       case 'top':
@@ -186,7 +191,7 @@ function TourTooltip({
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
       transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-      className="fixed z-[102] w-80 max-w-[calc(100vw-32px)] bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
+      className="fixed z-[102] w-[calc(100vw-32px)] sm:w-80 max-w-sm mx-4 bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
       style={position}
     >
       {/* Progress Bar */}
@@ -209,16 +214,16 @@ function TourTooltip({
       </button>
 
       {/* Content */}
-      <div className="p-5 pt-6">
+      <div className="p-4 sm:p-5 pt-5 sm:pt-6">
         {/* Emoji Icon */}
         <motion.div
           key={`emoji-${step.id}`}
           initial={{ scale: 0, rotate: -180 }}
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: 'spring', damping: 15, stiffness: 200, delay: 0.1 }}
-          className="w-14 h-14 mx-auto mb-4 rounded-xl bg-gradient-to-br from-cyan-500/20 via-purple-500/20 to-pink-500/20 border border-white/20 flex items-center justify-center"
+          className="w-12 h-12 sm:w-14 sm:h-14 mx-auto mb-3 sm:mb-4 rounded-xl bg-gradient-to-br from-cyan-500/20 via-purple-500/20 to-pink-500/20 border border-white/20 flex items-center justify-center"
         >
-          <span className="text-3xl">{step.emoji}</span>
+          <span className="text-2xl sm:text-3xl">{step.emoji}</span>
         </motion.div>
 
         {/* Title */}
@@ -227,7 +232,7 @@ function TourTooltip({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="text-lg font-bold text-center text-white mb-2"
+          className="text-base sm:text-lg font-bold text-center text-white mb-1.5 sm:mb-2"
         >
           {step.title}
         </motion.h2>
@@ -238,13 +243,13 @@ function TourTooltip({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-white/70 text-center text-sm leading-relaxed mb-5"
+          className="text-white/70 text-center text-xs sm:text-sm leading-relaxed mb-4 sm:mb-5"
         >
           {step.description}
         </motion.p>
 
         {/* Step Indicators */}
-        <div className="flex justify-center gap-1.5 mb-4">
+        <div className="flex justify-center gap-1 sm:gap-1.5 mb-3 sm:mb-4">
           {TOUR_STEPS.map((_, index) => (
             <div
               key={index}
