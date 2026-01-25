@@ -35,15 +35,23 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to AiMoviez!',
-    description: 'Create the world\'s first AI-powered collaborative movie. Swipe through clips and vote for your favorites!',
+    description: 'Help create a collaborative movie, one 8-second clip at a time. Clips compete for slots - the most voted clip wins each round!',
     target: 'video-area',
     emoji: '🎬',
     position: 'center',
   },
   {
+    id: 'how-it-works',
+    title: 'How Seasons Work',
+    description: 'Each season has multiple slots. The winning clips are stitched together to form a 10-minute movie. Vote to decide which clips make the final cut!',
+    target: 'video-area',
+    emoji: '🏆',
+    position: 'center',
+  },
+  {
     id: 'vote-button',
     title: 'Vote for Your Favorites',
-    description: 'Tap the infinity button to vote. You have 200 votes per day - use them wisely!',
+    description: 'Tap the infinity button to vote. You have 200 votes per day - use them to help your favorite clips win their slot!',
     target: 'vote-button',
     emoji: '❤️',
     position: 'left',
@@ -59,7 +67,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'navigation',
     title: 'Swipe to Explore',
-    description: 'Swipe up/down or use the arrows to browse more clips. The winning clip becomes part of the story!',
+    description: 'Swipe up/down or use the arrows to browse competing clips. Compare them and vote for the best one!',
     target: 'nav-arrows',
     emoji: '📱',
     position: 'right',
@@ -67,7 +75,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: 'ready',
     title: "You're Ready!",
-    description: 'Start voting now and help shape the story. Every vote counts!',
+    description: 'Start voting now! When a slot closes, the clip with the most votes wins and joins the story. Help shape the movie!',
     target: 'vote-button',
     emoji: '🚀',
     position: 'left',
