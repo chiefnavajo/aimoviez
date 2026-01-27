@@ -2,12 +2,23 @@
 
 import { SessionProvider } from 'next-auth/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ThemeProvider } from '@/components/ui/ThemeToggle';
 
+// Clean up OAuth callback URL from browser history so back button skips it
+function useCleanOAuthHistory() {
+  useEffect(() => {
+    if (document.referrer.includes('/api/auth/callback')) {
+      window.history.replaceState(null, '', window.location.href);
+    }
+  }, []);
+}
+
 export function Providers({ children }: { children: React.ReactNode }) {
+  useCleanOAuthHistory();
+
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: {
       queries: {
