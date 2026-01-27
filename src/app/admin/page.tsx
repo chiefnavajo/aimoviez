@@ -73,6 +73,7 @@ interface Clip {
 interface Season {
   id: string;
   label: string;
+  description?: string;
   status: 'draft' | 'active' | 'finished' | 'archived';
   total_slots: number;
   created_at: string;
@@ -215,7 +216,13 @@ export default function AdminDashboard() {
   const [showCreateSeason, setShowCreateSeason] = useState(false);
   const [creatingSeason, setCreatingSeason] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState('');
+  const [newSeasonDescription, setNewSeasonDescription] = useState('');
   const [newSeasonSlots, setNewSeasonSlots] = useState(75);
+
+  // Edit season description state
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [editDescriptionText, setEditDescriptionText] = useState('');
+  const [savingDescription, setSavingDescription] = useState(false);
 
   // Archive season state
   const [archivingSeason, setArchivingSeason] = useState(false);
@@ -280,6 +287,7 @@ export default function AdminDashboard() {
         headers: getHeaders(),
         body: JSON.stringify({
           label: newSeasonLabel.trim(),
+          description: newSeasonDescription.trim(),
           total_slots: newSeasonSlots,
           auto_activate: true,
         }),
@@ -291,6 +299,7 @@ export default function AdminDashboard() {
         alert(`${data.message}`);
         setShowCreateSeason(false);
         setNewSeasonLabel('');
+        setNewSeasonDescription('');
         setNewSeasonSlots(75);
         fetchSeasons();
         fetchSlotInfo();
@@ -348,6 +357,46 @@ export default function AdminDashboard() {
       alert(`Network error - failed to ${action} season`);
     } finally {
       setArchivingSeason(false);
+    }
+  };
+
+  // ============================================================================
+  // EDIT SEASON DESCRIPTION
+  // ============================================================================
+
+  const handleEditDescription = (seasonId: string) => {
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+    setEditDescriptionText(season.description || '');
+    setEditingDescription(true);
+  };
+
+  const handleSaveDescription = async () => {
+    if (seasonFilter === 'all') return;
+
+    setSavingDescription(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          season_id: seasonFilter,
+          description: editDescriptionText.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        fetchSeasons();
+        setEditingDescription(false);
+      } else {
+        alert(`Error: ${data.error || 'Failed to update description'}`);
+      }
+    } catch (error) {
+      console.error('Failed to update description:', error);
+      alert('Network error - failed to update description');
+    } finally {
+      setSavingDescription(false);
     }
   };
 
@@ -2173,6 +2222,19 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">Finish</span>
             </motion.button>
           )}
+          {/* Edit Description Button - show when a specific season is selected */}
+          {seasonFilter !== 'all' && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleEditDescription(seasonFilter)}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-purple-500/20 border border-purple-500/40 hover:bg-purple-500/30 text-purple-300 whitespace-nowrap"
+              type="button"
+              title="Edit the story description shown on the Story page"
+            >
+              <Edit className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Description</span>
+            </motion.button>
+          )}
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowBulkCleanup(true)}
@@ -2194,6 +2256,58 @@ export default function AdminDashboard() {
           </motion.button>
         </div>
       </div>
+
+      {/* Inline Description Editor */}
+      <AnimatePresence>
+        {editingDescription && seasonFilter !== 'all' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-7xl mx-auto px-4"
+          >
+            <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-purple-300">Story Description (typewriter intro on Story page)</label>
+                <button
+                  onClick={() => setEditingDescription(false)}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <textarea
+                value={editDescriptionText}
+                onChange={(e) => setEditDescriptionText(e.target.value)}
+                maxLength={200}
+                rows={2}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm
+                         placeholder-white/40 focus:border-purple-400 focus:outline-none transition-colors resize-none"
+                placeholder="e.g., In a world where clips battle for glory..."
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-white/40">{editDescriptionText.length}/200</span>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSaveDescription}
+                  disabled={savingDescription}
+                  className="px-4 py-1.5 rounded-lg bg-purple-500 hover:bg-purple-400 text-white text-sm font-medium
+                           transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  type="button"
+                >
+                  {savingDescription ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Bulk Actions Bar */}
       {filter === 'pending' && filteredClips.length > 0 && (
@@ -3016,6 +3130,23 @@ export default function AdminDashboard() {
                              placeholder-white/40 focus:border-cyan-400 focus:outline-none transition-colors"
                     placeholder="e.g., Season 2, Summer Edition"
                   />
+                </div>
+
+                {/* Story Description */}
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Story Description
+                  </label>
+                  <textarea
+                    value={newSeasonDescription}
+                    onChange={(e) => setNewSeasonDescription(e.target.value)}
+                    maxLength={200}
+                    rows={3}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white
+                             placeholder-white/40 focus:border-cyan-400 focus:outline-none transition-colors resize-none"
+                    placeholder="e.g., In a world where clips battle for glory..."
+                  />
+                  <p className="text-xs text-white/40 mt-1">Typewriter intro shown on Story page (optional)</p>
                 </div>
 
                 {/* Total Slots */}

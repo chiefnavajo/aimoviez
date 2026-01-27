@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const { data: seasons, error } = await supabase
       .from('seasons')
-      .select('id, label, status, total_slots, created_at')
+      .select('id, label, status, total_slots, created_at, description')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
 
     const {
       label,
+      description = '',
       total_slots = 75,
       auto_activate = false,
     } = body;
@@ -137,6 +138,7 @@ export async function POST(req: NextRequest) {
       .from('seasons')
       .insert({
         label,
+        description,
         total_slots,
         status: auto_activate ? 'active' : 'draft',
         created_at: new Date().toISOString(),
@@ -224,7 +226,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
 
-    const { season_id, status, label } = body;
+    const { season_id, status, label, description } = body;
 
     if (!season_id) {
       return NextResponse.json(
@@ -247,6 +249,7 @@ export async function PATCH(req: NextRequest) {
       updates.status = status;
     }
     if (label) updates.label = label;
+    if (description !== undefined) updates.description = description;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(

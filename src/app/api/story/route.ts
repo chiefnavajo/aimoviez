@@ -51,6 +51,7 @@ interface Season {
   id: string;
   number: number;
   name: string;
+  description?: string;
   status: 'completed' | 'active' | 'coming_soon';
   total_slots: number;
   locked_slots: number;
@@ -112,7 +113,7 @@ export async function GET(req: NextRequest) {
     // 1. Get all seasons
     const { data: seasons, error: seasonsError } = await supabase
       .from('seasons')
-      .select('id, status, label, total_slots, created_at')
+      .select('id, status, label, total_slots, created_at, description')
       .in('status', ['active', 'finished'])
       .order('created_at', { ascending: true });
 
@@ -260,6 +261,7 @@ export async function GET(req: NextRequest) {
         id: seasonRow.id,
         number: seasonIndex,
         name: seasonRow.label || `Season ${seasonIndex}`,
+        description: seasonRow.description || undefined,
         status,
         total_slots: seasonRow.total_slots || 75,
         locked_slots: lockedSlots.length,

@@ -80,6 +80,7 @@ interface Season {
   id: string;
   number: number;
   name: string;
+  description?: string;
   status: SeasonStatus;
   total_slots: number;
   locked_slots: number;
@@ -125,6 +126,74 @@ async function fetchSeasons(fresh = false): Promise<Season[]> {
   }
   const data: StoryAPIResponse = await response.json();
   return data.seasons || [];
+}
+
+// ============================================================================
+// TYPEWRITER INTRO OVERLAY
+// ============================================================================
+
+interface TypewriterIntroProps {
+  text: string;
+  seasonNumber: number;
+  onComplete: () => void;
+}
+
+function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProps) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [isDone, setIsDone] = useState(false);
+
+  useEffect(() => {
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index < text.length) {
+        setDisplayedText(text.slice(0, index + 1));
+        index++;
+      } else {
+        clearInterval(interval);
+        setIsDone(true);
+        // Auto-dismiss after 2s pause
+        setTimeout(onComplete, 2000);
+      }
+    }, 50);
+
+    return () => clearInterval(interval);
+  }, [text, onComplete]);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.5 }}
+      className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-8"
+      onClick={onComplete}
+    >
+      <motion.p
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-white/50 text-xs font-medium tracking-widest uppercase mb-4"
+      >
+        Season {seasonNumber}
+      </motion.p>
+      <p className="text-white text-lg md:text-xl font-medium leading-relaxed text-center max-w-md">
+        {displayedText}
+        {!isDone && (
+          <motion.span
+            animate={{ opacity: [1, 0] }}
+            transition={{ duration: 0.5, repeat: Infinity }}
+            className="inline-block w-0.5 h-5 bg-cyan-400 ml-0.5 align-middle"
+          />
+        )}
+      </p>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isDone ? 1 : 0 }}
+        className="text-white/30 text-xs mt-6"
+      >
+        Tap to continue
+      </motion.p>
+    </motion.div>
+  );
 }
 
 // ============================================================================
@@ -1456,6 +1525,9 @@ function StoryPage() {
   const [isDesktop, setIsDesktop] = useState(false);
   // Ref for imperative control of VideoPlayer
   const videoPlayerRef = useRef<VideoPlayerHandle | null>(null);
+  // Typewriter intro state - tracks which seasons have already shown their intro
+  const [shownIntros, setShownIntros] = useState<Set<string>>(new Set());
+  const [showingIntro, setShowingIntro] = useState(false);
 
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
@@ -1576,6 +1648,20 @@ function StoryPage() {
 
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
 
+  // Show typewriter intro when selecting a season with a description (once per session)
+  useEffect(() => {
+    if (selectedSeason?.description && !shownIntros.has(selectedSeason.id)) {
+      setShowingIntro(true);
+    }
+  }, [selectedSeason, shownIntros]);
+
+  const dismissIntro = useCallback(() => {
+    if (selectedSeason) {
+      setShownIntros(prev => new Set(prev).add(selectedSeason.id));
+    }
+    setShowingIntro(false);
+  }, [selectedSeason]);
+
   // Reset segment index when season changes, and pre-compute total segments
   useEffect(() => {
     setCurrentSegmentIndex(0);
@@ -1679,6 +1765,17 @@ function StoryPage() {
 
   return (
     <div className="min-h-screen min-h-[100dvh] bg-black overflow-hidden">
+      {/* Typewriter Story Intro Overlay */}
+      <AnimatePresence>
+        {showingIntro && selectedSeason?.description && (
+          <TypewriterIntro
+            text={selectedSeason.description}
+            seasonNumber={selectedSeason.number}
+            onComplete={dismissIntro}
+          />
+        )}
+      </AnimatePresence>
+
       {/* Desktop Layout - TikTok Style (only render on desktop to prevent double audio) */}
       {isDesktop && (
       <div className="flex h-[100dvh] relative">
