@@ -138,7 +138,7 @@ export const authOptions: NextAuthOptions = {
 
     async redirect({ url, baseUrl }) {
       if (url === baseUrl || url === `${baseUrl}/`) {
-        return `${baseUrl}/dashboard`;
+        return `${baseUrl}/story`;
       }
 
       const finalUrl = url.startsWith(baseUrl) ? url : baseUrl;
