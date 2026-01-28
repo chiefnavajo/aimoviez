@@ -3,6 +3,14 @@
     {
       "path": "/api/cron/auto-advance",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/process-vote-queue",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/sync-vote-counters",
+      "schedule": "* * * * *"
     }
   ]
 }

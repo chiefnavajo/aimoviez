@@ -10,6 +10,9 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { forceSyncCounters } from '@/lib/counter-sync';
+import { clearClips } from '@/lib/crdt-vote-counter';
+import { setSlotState, setVotingFrozen } from '@/lib/vote-validation-redis';
 
 function createSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -94,6 +97,43 @@ export async function GET(req: NextRequest) {
     }
 
     // ========================================================================
+    // CHECK ASYNC VOTING FLAG
+    // ========================================================================
+    const { data: asyncFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'async_voting')
+      .maybeSingle();
+
+    const asyncVotingEnabled = asyncFlag?.enabled === true;
+
+    // ========================================================================
+    // VOTING FREEZE — freeze slots within 120s of expiry (Redis-first only)
+    // ========================================================================
+    if (asyncVotingEnabled) {
+      const freezeWindowMs = 120_000; // 120 seconds
+      const freezeThreshold = new Date(Date.now() + freezeWindowMs).toISOString();
+
+      const { data: soonExpiring } = await supabase
+        .from('story_slots')
+        .select('slot_position, season_id, voting_ends_at')
+        .eq('status', 'voting')
+        .gt('voting_ends_at', new Date().toISOString())
+        .lt('voting_ends_at', freezeThreshold);
+
+      if (soonExpiring && soonExpiring.length > 0) {
+        for (const slot of soonExpiring) {
+          try {
+            await setVotingFrozen(slot.season_id, slot.slot_position);
+            console.log(`[auto-advance] Set voting freeze for season ${slot.season_id} slot ${slot.slot_position}`);
+          } catch (err) {
+            console.warn('[auto-advance] Failed to set voting freeze:', err);
+          }
+        }
+      }
+    }
+
+    // ========================================================================
     // 1. Find expired voting slots
     const { data: expiredSlots, error: findError } = await supabase
       .from('story_slots')
@@ -121,6 +161,29 @@ export async function GET(req: NextRequest) {
     // 2. Process each expired slot
     for (const slot of expiredSlots) {
       try {
+        // --- Redis-first: sync CRDT counters to PostgreSQL before winner selection ---
+        if (asyncVotingEnabled) {
+          const { data: slotClips } = await supabase
+            .from('tournament_clips')
+            .select('id')
+            .eq('slot_position', slot.slot_position)
+            .eq('season_id', slot.season_id)
+            .eq('status', 'active');
+
+          if (slotClips && slotClips.length > 0) {
+            const clipIds = slotClips.map(c => c.id);
+            try {
+              const syncResult = await forceSyncCounters(supabase, clipIds);
+              console.log(`[auto-advance] Pre-winner sync: ${syncResult.synced} clips synced for slot ${slot.slot_position}`);
+              if (syncResult.errors.length > 0) {
+                console.warn('[auto-advance] Sync errors:', syncResult.errors);
+              }
+            } catch (syncErr) {
+              console.error('[auto-advance] Pre-winner sync failed (using existing DB values):', syncErr);
+            }
+          }
+        }
+
         // Get highest voted clip for this slot (filter by season_id for safety)
         const { data: topClip } = await supabase
           .from('tournament_clips')
@@ -196,6 +259,18 @@ export async function GET(req: NextRequest) {
           .select('id');
 
         const clipsMovedCount = movedClips?.length ?? 0;
+
+        // --- Redis-first: clear CRDT keys for the locked slot's clips ---
+        if (asyncVotingEnabled) {
+          try {
+            // Collect all clip IDs that were in this slot (winner + moved clips)
+            const allSlotClipIds = [topClip.id, ...(movedClips?.map(c => c.id) ?? [])];
+            await clearClips(allSlotClipIds);
+            console.log(`[auto-advance] Cleared CRDT keys for ${allSlotClipIds.length} clips in slot ${slot.slot_position}`);
+          } catch (clearErr) {
+            console.warn('[auto-advance] Failed to clear CRDT keys (non-fatal):', clearErr);
+          }
+        }
 
         // Check if this was the last slot
         const totalSlots = slot.seasons?.total_slots || 75;
@@ -275,6 +350,20 @@ export async function GET(req: NextRequest) {
             winner_clip_id: topClip.id
           });
           continue;
+        }
+
+        // --- Redis-first: update slot state cache ---
+        if (asyncVotingEnabled) {
+          try {
+            await setSlotState(slot.season_id, {
+              slotPosition: nextPosition,
+              status: 'voting',
+              votingEndsAt: votingEndsAt.toISOString(),
+            });
+            console.log(`[auto-advance] Updated Redis slot state for season ${slot.season_id} slot ${nextPosition}`);
+          } catch (stateErr) {
+            console.warn('[auto-advance] Failed to set Redis slot state (non-fatal):', stateErr);
+          }
         }
 
         results.push({

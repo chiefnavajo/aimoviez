@@ -20,6 +20,10 @@ import {
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
+import { incrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
+import { validateVoteRedis, recordVote as recordVoteRedis } from '@/lib/vote-validation-redis';
+import { CircuitBreaker } from '@/lib/circuit-breaker';
+import type { VoteQueueEvent } from '@/types/vote-queue';
 // Note: Redis seen-tracking removed for scalability
 // Using view_count + random jitter for fair distribution instead
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
@@ -1049,6 +1053,151 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// ============================================================================
+// REDIS-FIRST VOTE PATH (async_voting feature flag)
+// ============================================================================
+
+// Circuit breaker for Redis-first vote path
+// Falls back to synchronous PostgreSQL if Redis fails repeatedly
+const redisVoteCircuit = new CircuitBreaker({
+  name: 'redis-vote',
+  config: {
+    failureThreshold: 5,
+    resetTimeoutMs: 30000,
+    halfOpenMaxAttempts: 3,
+  },
+  onStateChange: (from, to, name) => {
+    console.warn(`[Vote] Circuit ${name}: ${from} -> ${to}`);
+  },
+});
+
+/**
+ * Handle a vote via the Redis-first path.
+ * Validates in Redis, updates CRDT counters, queues for async DB persistence.
+ * Total latency: ~8ms (vs ~50-100ms synchronous DB path).
+ */
+async function handleVoteRedis(
+  clipId: string,
+  effectiveVoterKey: string,
+  loggedInUserId: string | null,
+  weight: number,
+  voteRisk: { flagged: boolean; riskScore: number; reasons: string[] },
+  supabase: SupabaseClient,
+  req: NextRequest
+): Promise<NextResponse> {
+  // Still need clip data from DB (lightweight query, ~10ms)
+  // Future optimization: cache clip metadata in Redis during slot activation
+  const { data: clipData, error: clipFetchError } = await supabase
+    .from('tournament_clips')
+    .select('slot_position, season_id, vote_count, weighted_score, status')
+    .eq('id', clipId)
+    .maybeSingle();
+
+  if (clipFetchError || !clipData) {
+    return NextResponse.json(
+      { success: false, error: 'Clip not found' },
+      { status: 404 }
+    );
+  }
+
+  if (clipData.status !== 'active') {
+    return NextResponse.json(
+      { success: false, error: 'Cannot vote on this clip', code: 'INVALID_CLIP_STATUS' },
+      { status: 400 }
+    );
+  }
+
+  const seasonId = clipData.season_id;
+  const slotPosition = clipData.slot_position ?? 1;
+
+  // Redis validation: all 4 checks in 1 pipeline (~2ms)
+  const validation = await validateVoteRedis(
+    effectiveVoterKey,
+    clipId,
+    seasonId,
+    slotPosition,
+    DAILY_VOTE_LIMIT
+  );
+
+  if (!validation.valid) {
+    // If slot state is missing from Redis, trigger circuit breaker fallback
+    if (validation.code === 'SLOT_STATE_MISSING') {
+      throw new Error('Redis slot state missing — triggering circuit breaker fallback');
+    }
+
+    const statusMap: Record<string, number> = {
+      'DAILY_LIMIT': 429,
+      'ALREADY_VOTED': 409,
+      'NO_ACTIVE_SLOT': 400,
+      'WRONG_SLOT': 400,
+      'VOTING_FROZEN': 400,
+    };
+    return NextResponse.json(
+      { success: false, error: validation.message, code: validation.code },
+      { status: statusMap[validation.code || ''] || 400 }
+    );
+  }
+
+  // CRDT counter update (~1ms)
+  await incrementVote(clipId, weight);
+
+  // Record vote + queue event (~2ms pipeline)
+  const todayDate = new Date().toISOString().split('T')[0];
+  const voteEvent: VoteQueueEvent = {
+    voteId: _crypto.randomUUID(),
+    clipId,
+    voterKey: effectiveVoterKey,
+    direction: 'up',
+    timestamp: Date.now(),
+    metadata: {
+      userId: loggedInUserId,
+      weight,
+      slotPosition,
+      flagged: voteRisk.flagged,
+      riskScore: voteRisk.riskScore,
+    },
+  };
+
+  await recordVoteRedis(effectiveVoterKey, clipId, voteEvent, todayDate);
+
+  // Read CRDT and respond (~1ms)
+  const counts = await getCountAndScore(clipId);
+  const newWeightedScore = counts?.weightedScore ?? ((clipData.weighted_score ?? 0) + weight);
+  const dailyCount = (validation.dailyCount ?? 0) + weight;
+
+  const response: VoteResponseBody = {
+    success: true,
+    clipId,
+    newScore: newWeightedScore,
+    totalVotesToday: dailyCount,
+    remainingVotes: {
+      standard: Math.max(0, DAILY_VOTE_LIMIT - dailyCount),
+    },
+  };
+
+  // Audit log for flagged votes (fire and forget)
+  if (voteRisk.flagged) {
+    const logger = createRequestLogger('vote', req);
+    logAudit(logger, {
+      action: 'vote_cast',
+      userId: loggedInUserId || undefined,
+      resourceType: 'clip',
+      resourceId: clipId,
+      details: {
+        slotPosition,
+        flagged: true,
+        riskScore: voteRisk.riskScore,
+        totalVotesToday: dailyCount,
+        path: 'redis',
+      },
+      ip: req.headers.get('x-forwarded-for')?.split(',')[0] || undefined,
+      userAgent: req.headers.get('user-agent') || undefined,
+    });
+  }
+
+  return NextResponse.json(response, { status: 200 });
+}
+
 // =========================
 // POST /api/vote
 // =========================
@@ -1146,6 +1295,39 @@ export async function POST(req: NextRequest) {
     // 1. Check multi-vote mode feature flag (from cached feature flags)
     const multiVoteEnabled = featureFlags['multi_vote_mode'] ?? false;
     debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled);
+
+    // ========================================================================
+    // ASYNC VOTING PATH (Redis-first, behind feature flag)
+    // ========================================================================
+    const asyncVotingEnabled = featureFlags['async_voting'] ?? false;
+
+    if (asyncVotingEnabled) {
+      try {
+        // Use circuit breaker: if Redis fails 5 times, fall back to sync path
+        const redisResponse = await redisVoteCircuit.execute(
+          () => handleVoteRedis(
+            clipId,
+            effectiveVoterKey,
+            loggedInUserId,
+            1, // weight is always 1 for standard votes
+            checkVoteRisk(req),
+            supabase,
+            req
+          )
+        );
+        return redisResponse;
+      } catch (error) {
+        // Circuit open or Redis failure: fall through to synchronous path
+        console.warn('[POST /api/vote] Redis-first path failed, falling back to sync:',
+          error instanceof Error ? error.message : 'unknown error'
+        );
+        // Fall through to the existing synchronous path below
+      }
+    }
+
+    // ========================================================================
+    // SYNCHRONOUS DB PATH (existing code, unchanged)
+    // ========================================================================
 
     // NOTE: We removed the check-then-insert pattern here because it has a race condition.
     // Instead, we rely on the database unique constraint and atomic RPC function.
