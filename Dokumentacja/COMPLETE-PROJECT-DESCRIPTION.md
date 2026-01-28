@@ -2563,4 +2563,230 @@ Current State (Free Tier)
 
 The most important architectural decision already made is the **stateless serverless design** — no server-side sessions, no sticky connections, no in-process state that can't be lost. This means scaling from Tier 0 to Tier 4 is entirely an infrastructure upgrade path, not a code rewrite. The application code remains largely unchanged; only configuration and infrastructure services change. The clip distribution algorithm (`view_count + random jitter`) is particularly well-designed for scale because its storage and computation costs are O(clips), not O(users × clips) — adding more users doesn't increase the algorithm's resource consumption.
 
+---
+
+### 21.18 Voting System Concurrent Load Analysis — What Happens at 10K / 100K / 1M Simultaneous Votes?
+
+This section provides a deep, layer-by-layer analysis of the voting system under extreme concurrent load. Rather than general scalability estimates, this examines the exact code path a vote takes and identifies the specific point at which each layer breaks under 10,000, 100,000, and 1,000,000 simultaneous vote requests.
+
+#### The Vote Pipeline (Per Single Vote)
+
+Every vote request traverses this exact path before a vote is recorded:
+
+```
+HTTP Request
+  → Rate limit check (3 Redis commands via Upstash sliding window)
+  → Feature flags check (in-memory cache, 10-min TTL)
+  → 2 parallel DB queries:
+      ├─ getUserVotesToday (SELECT SUM(vote_weight) FROM votes WHERE voter_key = $1 AND created_at >= today)
+      └─ getClipData (SELECT FROM tournament_clips WHERE id = $1)
+  → insert_vote_atomic RPC:
+      ├─ INSERT INTO votes (+ UNIQUE constraint check across 14 indexes)
+      ├─ TRIGGER: UPDATE tournament_clips SET vote_count += 1  ← HOT ROW
+      └─ SELECT updated vote_count, weighted_score
+  → HTTP Response
+```
+
+**Per vote cost:** ~3 Redis commands + 3–4 database queries/operations + 14 index updates on INSERT.
+
+#### Layer 1: Rate Limiting (First Wall)
+
+The rate limiting layer uses Upstash Redis with a sliding window algorithm. Each rate limit check consumes 3 Redis commands: `ZRANGE` (get requests in window), `ZADD` (add current request), and `ZREMRANGEBYSCORE` (expire old requests). The per-IP limit is 30 votes per minute.
+
+| Metric | Free Tier | Pro Tier |
+|--------|-----------|----------|
+| Upstash throughput | 100 commands/sec | 1,000+ commands/sec |
+| Commands per vote check | 3 | 3 |
+| Max vote checks/sec | ~33 | ~333 |
+| Per-IP limit | 30 votes/min | 30 votes/min |
+
+**At 10,000 simultaneous users (distinct IPs):** Each user is individually under the 30/min per-IP limit, so rate limiting doesn't block them. But 10,000 users × 3 Redis commands = 30,000 commands hitting Upstash simultaneously. Free tier (100 cmd/sec) creates a **~300-second queue** — a 5-minute stall at the very first layer. Pro tier (1,000 cmd/sec) clears in ~30 seconds — strained but manageable.
+
+**At 100,000 users:** Free tier is completely overwhelmed. Pro tier backs up to ~300 seconds. Requires Upstash Enterprise (~10K cmd/sec).
+
+**At 1,000,000 users:** Even Enterprise struggles. 3,000,000 commands needed instantly. Requires Redis Cluster with sharding.
+
+**Fallback vulnerability:** When Redis becomes unreachable, the code falls back to an in-memory `Map<string, RateLimitEntry>` (defined in `rate-limit.ts`). This map is **per serverless function instance**. On Vercel's serverless architecture, each concurrent request can spin up a separate instance, each with its own independent counter. The fallback effectively provides **zero rate limiting** under load — a coordinated bot attack during Redis downtime would bypass all rate limits entirely.
+
+#### Layer 2: Database Connections (The Hard Ceiling)
+
+Each vote requires 3–4 database operations. The API creates a new Supabase client per request (`createSupabaseServerClient()` in `vote/route.ts`), and there is no application-level connection pooling configured.
+
+| Tier | Max Concurrent Connections | Effective Parallel Votes |
+|------|---------------------------|--------------------------|
+| Free | 3 | ~1 |
+| Pro | 50 | ~12–16 |
+| Pro + PgBouncer | 200 logical | ~50–65 |
+
+**At 10,000 simultaneous votes:**
+- **Free tier:** 9,997 requests wait or timeout (30s default). Most get `503` or connection refused.
+- **Pro tier:** ~12 votes process in parallel, rest queue. At ~100ms per vote, throughput is ~120 votes/sec. All 10,000 votes take **~83 seconds** if perfectly queued — but the 30-second timeout kills most before they complete. Expected success rate: **~35%**.
+- **Pro + PgBouncer:** ~50 parallel, throughput ~500 votes/sec. Clears in **~20 seconds.** Survivable if votes spread across clips.
+
+**At 100,000 simultaneous votes:** Even with PgBouncer, 100K ÷ 500/sec = **200 seconds**. Most requests timeout at 30 seconds. Expected success rate: **<15%**.
+
+**At 1,000,000 simultaneous votes:** No single Supabase instance can handle this. Requires database sharding or a write-ahead queue.
+
+#### Layer 3: The Hot Row Problem (The Real Killer)
+
+This is the most critical bottleneck and the most subtle. The `on_vote_insert` trigger (defined in `migration-vote-trigger.sql`) executes after every successful vote INSERT:
+
+```sql
+UPDATE tournament_clips
+SET vote_count = COALESCE(vote_count, 0) + COALESCE(NEW.vote_weight, 1),
+    weighted_score = COALESCE(weighted_score, 0) + COALESCE(NEW.vote_weight, 1)
+WHERE id = NEW.clip_id;
+```
+
+This UPDATE acquires a **row-level exclusive lock** on the `tournament_clips` row for that clip. PostgreSQL does not allow two transactions to update the same row simultaneously — every vote for the same clip must wait for the previous vote's trigger to release its lock before proceeding. **This serializes all concurrent votes for the same clip into a single-threaded queue.**
+
+**If 10,000 users vote on the SAME clip simultaneously:**
+- Each trigger UPDATE takes ~1–2ms (fast, single row)
+- But serialized: 10,000 × 1.5ms = **~15 seconds of pure lock contention**
+- During this wait, each blocked transaction holds its database connection open
+- Connection pool exhausts almost immediately, cascading into Layer 2 failures
+
+**If 10,000 users vote on DIFFERENT clips (spread across 50 clips):**
+- 200 votes per clip × 1.5ms = **~300ms per clip** — completely fine
+- 50 different `tournament_clips` rows lock independently, full parallelism
+- **This scenario is ~50x faster than the single-clip scenario**
+
+The real-world distribution follows a power law — most votes concentrate on a few popular clips. Estimated realistic distribution for 10,000 votes across 50 clips:
+
+| Clip Rank | Votes Received | Lock Wait Time | Queue Depth |
+|-----------|---------------|----------------|-------------|
+| #1 (most popular) | ~2,000 | ~3 seconds | 2,000 deep |
+| #2 | ~1,200 | ~1.8 seconds | 1,200 deep |
+| #3 | ~800 | ~1.2 seconds | 800 deep |
+| #4–10 | ~300 each | ~450ms each | manageable |
+| #11–50 | ~50 each | ~75ms each | trivial |
+
+The top clip becomes a global bottleneck: 3 seconds of serialized writes while holding database connections, causing pool exhaustion that blocks votes for all other clips too.
+
+#### Layer 4: The Daily Limit Query (Hidden Amplifier)
+
+Before every vote, the API queries the daily vote count:
+
+```sql
+SELECT COALESCE(SUM(vote_weight), 0)
+FROM votes
+WHERE voter_key = $1 AND created_at >= $2  -- today's midnight UTC
+```
+
+This uses the index `idx_votes_voter_key_date(voter_key, created_at DESC)`. For a user with 50 votes today, it scans 50 index entries — fast individually.
+
+**At scale:** 10,000 concurrent queries all hit the `votes` table simultaneously. The B-tree index handles each query in O(log n + k) time, but **10,000 concurrent index scans compete for PostgreSQL's shared buffer pool pages**. On Supabase Pro (typically ~256MB shared buffers), cache pressure causes page evictions, forcing disk reads. At 100,000 concurrent queries, the buffer pool thrashes badly, and individual query time degrades from ~1ms to ~10–50ms.
+
+#### Layer 5: Index Maintenance on INSERT (The Silent Tax)
+
+The `votes` table has **14 indexes** (including unique constraints and partial indexes). Every `INSERT INTO votes` must update all 14 indexes:
+
+- `votes_clip_voter_unique` (UNIQUE)
+- `idx_votes_voter_key_date`
+- `idx_votes_clip_id`
+- `idx_votes_created_at`
+- `idx_votes_voter_clip`
+- `idx_votes_one_super_per_slot` (partial UNIQUE)
+- `idx_votes_one_mega_per_slot` (partial UNIQUE)
+- `idx_votes_user_id_created` (partial)
+- `idx_votes_user_id` (partial)
+- `idx_votes_voter_weight`
+- `idx_votes_voter_slot`
+- `idx_votes_voter_slot_type`
+- `idx_votes_voter_created`
+- `idx_votes_flagged` (partial)
+
+**Per-insert index cost:** 14 indexes × ~0.1ms each = **~1.4ms of index writes per vote**. Under heavy concurrent inserts, B-tree index pages split more frequently. At 10,000 concurrent inserts, index page contention becomes measurable. At 100,000, autovacuum cannot keep up with dead tuple accumulation from the INSERT/UPDATE churn, causing index bloat that further degrades scan performance.
+
+#### Scenario Analysis
+
+##### 10,000 Users Vote Simultaneously
+
+| Layer | Status | Impact |
+|-------|--------|--------|
+| Rate Limiting (Upstash Free) | **FAILS** | 100 cmd/sec vs 30,000 needed — 5-minute stall |
+| Rate Limiting (Upstash Pro) | Strained | 1,000 cmd/sec, clears in ~30s |
+| DB Connections (Free) | **CRASHES** | 3 connections, 9,997 requests dropped |
+| DB Connections (Pro) | **OVERWHELMED** | 50 connections, ~83s drain, most timeout |
+| DB Connections (Pro + PgBouncer) | Strained | 200 logical, ~20s drain — survivable |
+| Hot Row Locks (same clip) | **BOTTLENECK** | ~15s serialized lock wait, pool exhaustion |
+| Hot Row Locks (spread across clips) | OK | ~300ms per clip, parallel execution |
+| Daily Limit Query | OK | Index-backed, fast per query |
+| Index Maintenance (14 indexes) | Strained | ~1.4ms overhead per insert, page contention |
+
+**Verdict:** With Pro + PgBouncer, the system **survives if votes are distributed across multiple clips**. If votes concentrate on one clip (the realistic scenario for a "trending" clip), the hot row lock is the killer — 15 seconds of serialized writes causes cascading connection pool exhaustion.
+
+##### 100,000 Users Vote Simultaneously
+
+| Layer | Status | Impact |
+|-------|--------|--------|
+| Rate Limiting | **FAILS** on all but Enterprise Redis | 300K Redis commands needed instantly |
+| DB Connections | **FAILS** even with PgBouncer | 200 connections × 100ms = 2K/sec vs 100K needed |
+| Hot Row Locks | **CATASTROPHIC** if concentrated | 150 seconds serialized writes on popular clip |
+| Shared Buffers | **PRESSURED** | 100K concurrent index scans thrash buffer pool |
+| Autovacuum | **FALLING BEHIND** | 100K dead tuples per burst need cleaning |
+
+**Verdict:** The system **cannot handle this**. Most requests timeout. The database enters a lock contention spiral where connection exhaustion compounds row lock waits. Requires: write-ahead queue (batch inserts), read replicas for the daily-limit queries, and distributed rate limiting.
+
+##### 1,000,000 Users Vote Simultaneously
+
+| Layer | Status | Impact |
+|-------|--------|--------|
+| Rate Limiting | Non-functional | No single Redis handles 3M commands/sec |
+| DB Connections | Non-functional | Single PostgreSQL instance cannot process this |
+| Hot Row Locks | Non-functional | 25+ minutes serialized on a popular clip |
+| Index Maintenance | Non-functional | 14M index updates simultaneously |
+| Network | Saturated | ~100KB per request × 1M = 100GB network traffic burst |
+
+**Verdict:** Requires fundamentally different architecture — a vote queue (SQS/BullMQ), batch counter updates, sharded database, CDN-level rate limiting (Cloudflare Workers), and eventually-consistent vote counts displayed to users.
+
+#### The Three Critical Vulnerabilities
+
+**1. Hot Row Serialization (Most Dangerous)**
+
+The trigger-based `vote_count += 1` on `tournament_clips` serializes ALL votes for the same clip. At scale, a single popular clip becomes a global lock that blocks the entire connection pool.
+
+*Potential fix:* Replace per-vote trigger with periodic batch aggregation. Instead of updating `vote_count` on every insert, disable the trigger and run a scheduled job every 5–10 seconds:
+```sql
+UPDATE tournament_clips tc
+SET vote_count = sub.cnt, weighted_score = sub.ws
+FROM (
+  SELECT clip_id, COUNT(*) as cnt, SUM(vote_weight) as ws
+  FROM votes WHERE clip_id IN (
+    SELECT DISTINCT clip_id FROM votes WHERE created_at > NOW() - INTERVAL '10 seconds'
+  ) GROUP BY clip_id
+) sub
+WHERE tc.id = sub.clip_id;
+```
+This decouples write throughput from counter accuracy — votes insert instantly without row locks, and counters update every 5–10 seconds in a single batch. Users see slightly stale counts (acceptable for a voting app).
+
+**2. No Write Queue (Second Most Dangerous)**
+
+Every vote is a synchronous database INSERT. Under burst traffic, the database becomes the bottleneck with no buffer to absorb spikes.
+
+*Potential fix:* Accept votes into a Redis list (LPUSH), return "vote accepted" to the client immediately, and run a background worker that drains the queue in batches of 100–1,000 using a single multi-row INSERT transaction. This transforms the write pattern from 10,000 individual transactions to ~10–100 batch transactions.
+
+**3. Per-Instance Rate Limiting Fallback (Security Risk)**
+
+When Redis is unreachable, the in-memory `Map` fallback is per Vercel function instance. Serverless auto-scaling means each concurrent request gets its own fresh instance with an empty rate limit map. A coordinated bot attack during Redis downtime faces **zero effective rate limiting**.
+
+*Potential fix:* Implement fail-closed behavior — if Redis is unreachable, reject vote requests entirely with a `503 Service Unavailable` response rather than proceeding with non-functional rate limiting. This trades availability for security: better to block all votes temporarily than to allow unlimited bot voting.
+
+#### Capacity Summary
+
+| Concurrent Voters | Infrastructure Required | Expected Success Rate | p99 Latency |
+|-------------------|-----------------------|----------------------|-------------|
+| 100 | Supabase Pro | ~99% | ~500ms |
+| 1,000 | Pro + PgBouncer | ~95% | ~2s |
+| 10,000 | Pro + PgBouncer + Redis Pro | ~60–80% (if distributed across clips) | ~15–20s |
+| 10,000 | + Write queue + batch counters | ~99% | ~1s |
+| 100,000 | Queue + Batch + Read replicas | ~95% with queue | ~2–5s |
+| 1,000,000 | Full redesign (sharding, CDN rate limit, queue, batch counters) | ~90% with full stack | ~5–10s |
+
+#### Assessment
+
+The voting system is well-engineered for correctness at its current scale — atomic RPCs prevent duplicate votes, `SELECT FOR UPDATE` eliminates TOCTOU race conditions, `GREATEST(0, ...)` prevents negative counts, and unique constraints provide database-level guarantees. These are difficult problems solved correctly.
+
+The scalability ceiling is not a code quality issue but an architectural pattern issue: synchronous writes with per-row trigger updates create hard serialization limits. The path from current capacity (~100 concurrent voters) to 10K+ requires decoupling the write path (async queue) from the read path (batch-updated counters) — a common evolution for voting/counter systems at scale.
+
 *This document describes the complete AiMoviez platform as of January 2026. The project is in active beta development.*
