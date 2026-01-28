@@ -25,6 +25,7 @@ import { validateVoteRedis, recordVote as recordVoteRedis } from '@/lib/vote-val
 import { CircuitBreaker } from '@/lib/circuit-breaker';
 import type { VoteQueueEvent } from '@/types/vote-queue';
 import { broadcastVoteUpdate } from '@/lib/realtime-broadcast';
+import { getCachedVoteCounts, setCachedVoteCounts, updateCachedVoteCount, invalidateVoteCount } from '@/lib/vote-count-cache';
 import { updateClipScore, updateVoterScore } from '@/lib/leaderboard-redis';
 // Note: Redis seen-tracking removed for scalability
 // Using view_count + random jitter for fair distribution instead
@@ -615,6 +616,9 @@ export async function GET(req: NextRequest) {
   debugLog('[GET /api/vote] Using voter key type:', effectiveVoterKey.startsWith('user_') ? 'authenticated' : 'device');
 
   try {
+    // Feature flags (cached 10 min, shared with POST handler)
+    const featureFlags = await getFeatureFlags(supabase);
+
     // 1. Get user's votes today
     const { votes: _userVotesToday, count: totalVotesToday } = await getUserVotesToday(
       supabase,
@@ -924,6 +928,37 @@ export async function GET(req: NextRequest) {
     // Clips are already ordered by created_at from the DB query
     const sampledClips = clipPool;  // No additional slicing needed - DB handles pagination
 
+    // 7.5 Vote count cache overlay (Phase 3)
+    const voteCacheEnabled = featureFlags['vote_count_cache'] ?? false;
+    if (voteCacheEnabled && sampledClips.length > 0) {
+      const clipIdsForCache = sampledClips.map(c => c.id);
+      const cachedCounts = await getCachedVoteCounts(clipIdsForCache);
+
+      if (cachedCounts && cachedCounts.size > 0) {
+        // Overlay cached values (may be fresher than DB due to write-through)
+        for (const clip of sampledClips) {
+          const cached = cachedCounts.get(clip.id);
+          if (cached) {
+            clip.vote_count = cached.voteCount;
+            clip.weighted_score = cached.weightedScore;
+          }
+        }
+      }
+
+      // Populate cache for uncached clips (fire-and-forget)
+      const uncachedClips = sampledClips
+        .filter(c => !cachedCounts?.has(c.id))
+        .map(c => ({
+          id: c.id,
+          voteCount: c.vote_count ?? 0,
+          weightedScore: c.weighted_score ?? 0,
+        }));
+
+      if (uncachedClips.length > 0) {
+        setCachedVoteCounts(uncachedClips).catch(() => {});
+      }
+    }
+
     // 8. Record clip views for analytics and view_count increment
     // Note: Redis seen-tracking removed for scalability - using view_count + jitter instead
     const clipIdsToRecord = sampledClips.map(c => c.id);
@@ -1167,10 +1202,11 @@ async function handleVoteRedis(
   const newWeightedScore = counts?.weightedScore ?? ((clipData.weighted_score ?? 0) + weight);
   const dailyCount = (validation.dailyCount ?? 0) + weight;
 
-  // Fire-and-forget: broadcast + leaderboard updates
+  // Fire-and-forget: broadcast + leaderboard + cache updates
   broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore);
   updateClipScore(clipId, slotPosition, newWeightedScore);
   updateVoterScore(effectiveVoterKey, weight);
+  updateCachedVoteCount(clipId, counts?.voteCount ?? 0, newWeightedScore);
 
   const response: VoteResponseBody = {
     success: true,
@@ -1576,10 +1612,11 @@ export async function POST(req: NextRequest) {
     const rpcResult = insertResult?.[0];
     const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
 
-    // Fire-and-forget: broadcast + leaderboard updates (sync path)
+    // Fire-and-forget: broadcast + leaderboard + cache updates (sync path)
     broadcastVoteUpdate(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
     updateClipScore(clipId, slotPosition, newWeightedScore);
     updateVoterScore(effectiveVoterKey, weight);
+    updateCachedVoteCount(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + weight;
@@ -1766,6 +1803,9 @@ export async function DELETE(req: NextRequest) {
 
     const deletedVote = deleteResult[0];
     const newWeightedScore = deletedVote.new_weighted_score;
+
+    // Invalidate vote count cache after deletion
+    invalidateVoteCount(clipId);
 
     // 5. Calculate remaining votes (vote is now restored)
     // Non-critical: if these fail, we still return success with fallback values

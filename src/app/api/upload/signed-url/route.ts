@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { getStorageProvider, getSignedUploadUrl as getProviderSignedUrl } from '@/lib/storage';
 
 // ============================================================================
 // SUPABASE CLIENT (Service Role - can create signed URLs)
@@ -73,6 +74,27 @@ export async function POST(request: NextRequest) {
     const ext = filename.split('.').pop()?.toLowerCase() || 'mp4';
     const uniqueFilename = `clip_${timestamp}_${random}.${ext}`;
     const storagePath = `clips/${uniqueFilename}`;
+
+    // Check R2 storage feature flag
+    const { data: r2Flag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'r2_storage')
+      .maybeSingle();
+
+    const storageProvider = await getStorageProvider(r2Flag?.enabled ?? false);
+
+    if (storageProvider === 'r2') {
+      const r2Result = await getProviderSignedUrl(uniqueFilename, contentType || 'video/mp4', 'r2');
+      return NextResponse.json({
+        success: true,
+        signedUrl: r2Result.signedUrl,
+        storagePath: r2Result.key,
+        bucketName: 'r2',
+        publicUrl: r2Result.publicUrl,
+        expiresIn: 3600,
+      });
+    }
 
     // Try to create signed URL for 'videos' bucket first
     let bucketName = 'videos';
