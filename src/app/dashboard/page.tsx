@@ -31,6 +31,8 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { useOnboarding } from '@/components/OnboardingTour';
 import { useSpotlightTour } from '@/components/SpotlightTour';
 import { useRealtimeClips, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload } from '@/hooks/useRealtimeClips';
+import { useRealtimeVoteBroadcast } from '@/hooks/useRealtimeVotes';
+import type { VoteUpdatePayload } from '@/hooks/useRealtimeVotes';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 import { InstallPrompt } from '@/components/InstallPrompt';
 
@@ -712,6 +714,28 @@ function VotingArena() {
       // Refetch to get the new slot's clips (winner is removed, remaining clips move to next slot)
       setTimeout(() => refetch(), 500);
     }, [refetch]),
+  });
+
+  // Real-time vote broadcast: update vote counts from other users
+  useRealtimeVoteBroadcast({
+    enabled: true,
+    onVoteUpdate: useCallback((payload: VoteUpdatePayload) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+        if (!oldData?.clips) return oldData;
+        return {
+          ...oldData,
+          clips: oldData.clips.map((clip) =>
+            clip.clip_id === payload.clipId
+              ? {
+                  ...clip,
+                  vote_count: payload.voteCount,
+                  weighted_score: payload.weightedScore,
+                }
+              : clip
+          ),
+        };
+      });
+    }, [queryClient]),
   });
 
   // Browser-level prefetch for next video
