@@ -58,15 +58,11 @@ export async function broadcastVoteUpdate(
 
   try {
     const channel = sb.channel(CHANNELS.VOTES);
-    await channel.send({
-      type: 'broadcast',
-      event: 'vote-update',
-      payload: {
-        clipId,
-        voteCount,
-        weightedScore,
-        timestamp: Date.now(),
-      },
+    await channel.httpSend('vote-update', {
+      clipId,
+      voteCount,
+      weightedScore,
+      timestamp: Date.now(),
     });
     sb.removeChannel(channel);
   } catch (err) {
@@ -88,14 +84,10 @@ export async function broadcastCommentEvent(
 
   try {
     const channel = sb.channel(CHANNELS.COMMENTS(clipId));
-    await channel.send({
-      type: 'broadcast',
-      event,
-      payload: {
-        clipId,
-        ...data,
-        timestamp: Date.now(),
-      },
+    await channel.httpSend(event, {
+      clipId,
+      ...data,
+      timestamp: Date.now(),
     });
     sb.removeChannel(channel);
   } catch (err) {
@@ -113,12 +105,8 @@ export async function broadcastLeaderboardUpdate(): Promise<void> {
 
   try {
     const channel = sb.channel(CHANNELS.LEADERBOARD);
-    await channel.send({
-      type: 'broadcast',
-      event: 'refresh',
-      payload: {
-        timestamp: Date.now(),
-      },
+    await channel.httpSend('refresh', {
+      timestamp: Date.now(),
     });
     sb.removeChannel(channel);
   } catch (err) {
