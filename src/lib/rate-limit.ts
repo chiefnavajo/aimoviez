@@ -45,6 +45,17 @@ export const RATE_LIMITS = {
 
 export type RateLimitType = keyof typeof RATE_LIMITS;
 
+/**
+ * Critical rate limit types that must fail-closed when Redis is unavailable.
+ * These endpoints are abuse-sensitive and must REJECT requests rather than
+ * fall back to in-memory limiting (which is per-instance and easily bypassed).
+ */
+const CRITICAL_RATE_LIMIT_TYPES: ReadonlySet<RateLimitType> = new Set([
+  'vote',
+  'comment',
+  'upload',
+]);
+
 // ============================================================================
 // REDIS CLIENT
 // ============================================================================
@@ -244,7 +255,25 @@ export async function checkRateLimit(
     };
   }
 
-  // Fallback to in-memory rate limiting
+  // Redis is unavailable.
+  // For critical endpoints (vote, comment, upload), fail CLOSED:
+  // reject the request rather than allowing unprotected access.
+  if (CRITICAL_RATE_LIMIT_TYPES.has(type)) {
+    console.warn(`[RateLimit] Redis unavailable for critical endpoint: ${type}`);
+    return {
+      success: false,
+      limit: 0,
+      remaining: 0,
+      reset: Date.now() + 60000,
+      headers: {
+        'X-RateLimit-Limit': '0',
+        'X-RateLimit-Remaining': '0',
+        'X-RateLimit-Reset': String(Date.now() + 60000),
+      },
+    };
+  }
+
+  // Non-critical endpoints: fall back to in-memory rate limiting
   const result = checkInMemoryLimit(identifier, type);
 
   return {
