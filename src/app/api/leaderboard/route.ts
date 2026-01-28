@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
+import { getTopClips } from '@/lib/leaderboard-redis';
 
 // ============================================================================
 // In-memory cache with TTL, size limit, and proper LRU eviction
@@ -125,6 +126,78 @@ export async function GET(request: NextRequest) {
         season: null,
         message: 'No active season',
       });
+    }
+
+    // --- Redis-first path (when redis_leaderboards enabled) ---
+    const { data: redisFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'redis_leaderboards')
+      .maybeSingle();
+
+    // Get active slot position (needed for both Redis and DB paths)
+    const { data: activeSlot } = await supabase
+      .from('story_slots')
+      .select('position')
+      .eq('status', 'active')
+      .maybeSingle();
+
+    if (redisFlag?.enabled && activeSlot) {
+      const redisResult = await getTopClips(activeSlot.position, limit, offset);
+      if (redisResult !== null) {
+        // Fetch clip details for enrichment
+        const clipIds = redisResult.entries.map(e => e.member);
+        const { data: clipDetails } = await supabase
+          .from('tournament_clips')
+          .select('id, video_url, thumbnail_url, username, avatar_url, vote_count, genre, title, slot_position')
+          .in('id', clipIds);
+
+        const clipMap = new Map(clipDetails?.map(c => [c.id, c]) || []);
+
+        const pageVotes = redisResult.entries.reduce((sum, e) => sum + e.score, 0);
+
+        const rankedClips = redisResult.entries.map((entry, index) => {
+          const clip = clipMap.get(entry.member);
+          return {
+            id: entry.member,
+            video_url: clip?.video_url || '',
+            thumbnail_url: clip?.thumbnail_url || '',
+            username: clip?.username || 'Creator',
+            avatar_url: clip?.avatar_url || '',
+            vote_count: clip?.vote_count || 0,
+            genre: clip?.genre || 'Unknown',
+            title: clip?.title || '',
+            slot_position: clip?.slot_position || activeSlot.position,
+            rank: offset + index + 1,
+            percentage: pageVotes > 0 ? (entry.score / pageVotes) * 100 : 0,
+            trend: 'same' as const,
+          };
+        });
+
+        const responseData = {
+          success: true,
+          clips: rankedClips,
+          season: activeSeason,
+          totalVotes: pageVotes,
+          totalClips: redisResult.total,
+          pagination: {
+            limit,
+            offset,
+            hasMore: offset + limit < redisResult.total,
+            total: redisResult.total,
+          },
+        };
+
+        setCache(cacheKey, responseData);
+
+        return NextResponse.json(responseData, {
+          headers: {
+            'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+            'X-Source': 'redis',
+          },
+        });
+      }
+      // Redis returned null — fall through to DB
     }
 
     // Get total count of active clips (for pagination info)

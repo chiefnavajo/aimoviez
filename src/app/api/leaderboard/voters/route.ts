@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
 import crypto from 'crypto';
+import { getTopVoters, getVoterRank } from '@/lib/leaderboard-redis';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -70,6 +71,73 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const offset = (page - 1) * limit;
+
+    // --- Redis-first path (when redis_leaderboards enabled) ---
+    const { data: redisFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'redis_leaderboards')
+      .maybeSingle();
+
+    if (redisFlag?.enabled && (timeframe === 'all' || timeframe === 'today')) {
+      const redisResult = await getTopVoters(timeframe, limit, offset);
+      if (redisResult !== null) {
+        const redisRank = await getVoterRank(currentVoterKey, timeframe);
+
+        // Fetch real user info for logged-in voters
+        const userIds = redisResult.entries
+          .map(e => e.member.startsWith('user_') ? e.member.replace('user_', '') : null)
+          .filter((id): id is string => id !== null);
+
+        const redisUserMap = new Map<string, { username: string; avatar_url: string }>();
+        if (userIds.length > 0) {
+          const { data: users } = await supabase
+            .from('users')
+            .select('id, username, avatar_url')
+            .in('id', userIds);
+
+          users?.forEach((user) => {
+            redisUserMap.set(user.id, {
+              username: user.username || 'User',
+              avatar_url: user.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+            });
+          });
+        }
+
+        const voters: LeaderboardVoter[] = redisResult.entries.map((entry, index) => {
+          const userId = entry.member.startsWith('user_') ? entry.member.replace('user_', '') : null;
+          const userInfo = userId ? redisUserMap.get(userId) : null;
+
+          return {
+            rank: offset + index + 1,
+            voter_key: entry.member,
+            username: userInfo?.username || `Voter${entry.member.substring(0, 6)}`,
+            avatar_url: userInfo?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.member}`,
+            total_votes: entry.score,
+            votes_today: 0,
+            current_streak: 0,
+            level: calculateLevel(entry.score),
+            is_current_user: entry.member === currentVoterKey,
+          };
+        });
+
+        return NextResponse.json({
+          voters,
+          timeframe,
+          total_voters: redisResult.total,
+          page,
+          page_size: limit,
+          has_more: redisResult.total > offset + limit,
+          current_user_rank: redisRank || undefined,
+        } satisfies LeaderboardVotersResponse, {
+          headers: {
+            'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+            'X-Source': 'redis',
+          },
+        });
+      }
+      // Redis returned null — fall through to DB
+    }
 
     // Calculate date boundaries
     const today = new Date();

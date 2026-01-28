@@ -100,7 +100,7 @@ export const authOptions: NextAuthOptions = {
 
           const { data, error } = await supabase
             .from("users")
-            .select("id, username")
+            .select("id, username, is_admin")
             .eq("email", token.email)
             .single();
 
@@ -112,6 +112,21 @@ export const authOptions: NextAuthOptions = {
           token.username = data?.username || null;
           token.userId = data?.id || null;
           token._profileCheckedAt = now;
+
+          // Populate Redis session store (fire-and-forget, non-blocking)
+          if (data?.id) {
+            import('@/lib/session-store').then(({ refreshSession }) => {
+              refreshSession(String(data.id), {
+                userId: String(data.id),
+                email: String(token.email),
+                username: data.username || null,
+                hasProfile: true,
+                isAdmin: !!data.is_admin,
+                avatarUrl: null,
+                cachedAt: now,
+              }).catch(() => {});
+            }).catch(() => {});
+          }
         } catch (err) {
           console.error("❌ Could not check user profile:", err);
           token.hasProfile = false;

@@ -24,6 +24,8 @@ import { incrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
 import { validateVoteRedis, recordVote as recordVoteRedis } from '@/lib/vote-validation-redis';
 import { CircuitBreaker } from '@/lib/circuit-breaker';
 import type { VoteQueueEvent } from '@/types/vote-queue';
+import { broadcastVoteUpdate } from '@/lib/realtime-broadcast';
+import { updateClipScore, updateVoterScore } from '@/lib/leaderboard-redis';
 // Note: Redis seen-tracking removed for scalability
 // Using view_count + random jitter for fair distribution instead
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
@@ -1165,6 +1167,11 @@ async function handleVoteRedis(
   const newWeightedScore = counts?.weightedScore ?? ((clipData.weighted_score ?? 0) + weight);
   const dailyCount = (validation.dailyCount ?? 0) + weight;
 
+  // Fire-and-forget: broadcast + leaderboard updates
+  broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore);
+  updateClipScore(clipId, slotPosition, newWeightedScore);
+  updateVoterScore(effectiveVoterKey, weight);
+
   const response: VoteResponseBody = {
     success: true,
     clipId,
@@ -1568,6 +1575,11 @@ export async function POST(req: NextRequest) {
     // Use the returned score from RPC for accuracy (avoids race conditions)
     const rpcResult = insertResult?.[0];
     const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
+
+    // Fire-and-forget: broadcast + leaderboard updates (sync path)
+    broadcastVoteUpdate(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
+    updateClipScore(clipId, slotPosition, newWeightedScore);
+    updateVoterScore(effectiveVoterKey, weight);
 
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + weight;

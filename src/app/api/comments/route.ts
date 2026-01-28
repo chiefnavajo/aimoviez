@@ -15,9 +15,27 @@ import {
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeComment, sanitizeText } from '@/lib/sanitize';
 import { getAvatarUrl, generateAvatarUrl } from '@/lib/utils';
+import { getSessionFast } from '@/lib/session-store';
+import { broadcastCommentEvent } from '@/lib/realtime-broadcast';
+import { pushCommentEvent, type CommentQueueEvent } from '@/lib/comment-event-queue';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+// Feature flag cache (shared across handlers within a single invocation)
+async function getCommentFeatureFlags(supabase: SupabaseClient): Promise<Record<string, boolean>> {
+  try {
+    const { data } = await supabase
+      .from('feature_flags')
+      .select('key, enabled')
+      .in('key', ['redis_session_store', 'async_comments', 'realtime_broadcast']);
+    const flags: Record<string, boolean> = {};
+    data?.forEach((f: { key: string; enabled: boolean }) => { flags[f.key] = f.enabled; });
+    return flags;
+  } catch {
+    return {};
+  }
+}
 
 function getUserKey(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -32,7 +50,11 @@ interface UserData {
   avatar_url: string | null;
 }
 
-async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
+async function getUserInfo(
+  req: NextRequest,
+  supabase: SupabaseClient,
+  redisSessionEnabled: boolean = false
+) {
   const deviceKey = getUserKey(req);
   let username = `User${deviceKey.substring(0, 6)}`;
   let avatar_url = generateAvatarUrl(deviceKey);
@@ -40,25 +62,37 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
   let isAuthenticated = false;
 
   try {
-    const session = await getServerSession(authOptions);
-    if (session?.user?.email) {
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, username, avatar_url')
-        .eq('email', session.user.email)
-        .single<UserData>();
-
-      if (userError && userError.code !== 'PGRST116') {
-        // PGRST116 is "not found" which is expected for users without profiles
-        console.error('[getUserInfo] Error fetching user data:', userError);
-      }
-
-      if (userData) {
-        // Use authenticated user data
-        userId = userData.id;
-        username = userData.username;
-        avatar_url = getAvatarUrl(userData.avatar_url, userData.username);
+    // Redis session store path: single Redis read (~2ms)
+    if (redisSessionEnabled) {
+      const sessionData = await getSessionFast(req, true);
+      if (sessionData) {
+        userId = sessionData.userId;
+        username = sessionData.username || username;
+        avatar_url = sessionData.avatarUrl
+          ? getAvatarUrl(sessionData.avatarUrl, sessionData.username || '')
+          : generateAvatarUrl(sessionData.userId);
         isAuthenticated = true;
+      }
+    } else {
+      // Original path: getServerSession + Supabase query
+      const session = await getServerSession(authOptions);
+      if (session?.user?.email) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, username, avatar_url')
+          .eq('email', session.user.email)
+          .single<UserData>();
+
+        if (userError && userError.code !== 'PGRST116') {
+          console.error('[getUserInfo] Error fetching user data:', userError);
+        }
+
+        if (userData) {
+          userId = userData.id;
+          username = userData.username;
+          avatar_url = getAvatarUrl(userData.avatar_url, userData.username);
+          isAuthenticated = true;
+        }
       }
     }
   } catch (err) {
@@ -66,7 +100,6 @@ async function getUserInfo(req: NextRequest, supabase: SupabaseClient) {
     console.error('[getUserInfo] Error getting session:', err);
   }
 
-  // Use user ID if authenticated, otherwise fall back to device key
   const userKey = userId ? `user_${userId}` : deviceKey;
 
   return {
@@ -144,7 +177,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ count: count || 0 }, { status: 200 });
     }
 
-    const userInfo = await getUserInfo(req, supabase);
+    const flags = await getCommentFeatureFlags(supabase);
+    const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const sort = (searchParams.get('sort') || 'newest') as 'newest' | 'top';
@@ -280,7 +314,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userInfo = await getUserInfo(req, supabase);
+    const flags = await getCommentFeatureFlags(supabase);
+    const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
     const body = await req.json();
 
     // Validate request body with Zod
@@ -303,16 +338,69 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Prepare insert data
+    const now = new Date().toISOString();
+    const sanitizedUsername = sanitizeText(userInfo.username);
+
+    // --- Async comment path: queue for later DB persistence ---
+    if (flags['async_comments']) {
+      const tempId = crypto.randomUUID();
+      const event: CommentQueueEvent = {
+        eventId: tempId,
+        clipId,
+        userKey: userInfo.userKey,
+        action: 'create',
+        timestamp: Date.now(),
+        data: {
+          commentText: sanitizedComment,
+          parentCommentId: parent_comment_id || undefined,
+          username: sanitizedUsername,
+          avatarUrl: userInfo.avatar_url,
+        },
+      };
+
+      await pushCommentEvent(event);
+
+      // Broadcast new comment event
+      if (flags['realtime_broadcast']) {
+        broadcastCommentEvent(clipId, 'new-comment', {
+          id: tempId,
+          username: sanitizedUsername,
+          avatarUrl: userInfo.avatar_url,
+          commentText: sanitizedComment,
+          parentCommentId: parent_comment_id || null,
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        comment: {
+          id: tempId,
+          clip_id: clipId,
+          user_key: userInfo.userKey,
+          username: sanitizedUsername,
+          avatar_url: userInfo.avatar_url,
+          comment_text: sanitizedComment,
+          likes_count: 0,
+          parent_comment_id: parent_comment_id || null,
+          created_at: now,
+          updated_at: now,
+          is_own: true,
+          is_liked: false,
+          replies: [],
+        },
+      }, { status: 201 });
+    }
+
+    // --- Sync path: direct DB insert (existing behavior) ---
     const insertData = {
       clip_id: clipId,
       user_key: userInfo.userKey,
-      username: sanitizeText(userInfo.username), // Sanitize username too
+      username: sanitizedUsername,
       avatar_url: userInfo.avatar_url,
       comment_text: sanitizedComment,
       parent_comment_id: parent_comment_id || null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      created_at: now,
+      updated_at: now,
     };
 
     const { data: comment, error } = await supabase
@@ -322,7 +410,6 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error || !comment) {
-      // SECURITY: Log full error server-side, return generic message to client
       console.error('[POST /api/comments] error:', error);
       return NextResponse.json(
         { error: 'Failed to create comment. Please try again.' },
@@ -330,7 +417,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // TODO: Create notification for clip owner
+    // Broadcast new comment event (sync path)
+    if (flags['realtime_broadcast']) {
+      broadcastCommentEvent(clipId, 'new-comment', {
+        id: comment.id,
+        username: sanitizedUsername,
+        avatarUrl: userInfo.avatar_url,
+        commentText: sanitizedComment,
+        parentCommentId: parent_comment_id || null,
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -366,7 +462,8 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userInfo = await getUserInfo(req, supabase);
+    const flags = await getCommentFeatureFlags(supabase);
+    const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
     const body = await req.json();
 
     // Validate request body with Zod
@@ -412,9 +509,17 @@ export async function PATCH(req: NextRequest) {
     // Get updated comment
     const { data: comment } = await supabase
       .from('comments')
-      .select('likes_count')
+      .select('likes_count, clip_id')
       .eq('id', comment_id)
       .single();
+
+    // Broadcast like/unlike event
+    if (flags['realtime_broadcast'] && comment?.clip_id) {
+      broadcastCommentEvent(comment.clip_id, 'comment-liked', {
+        commentId: comment_id,
+        likesCount: comment?.likes_count || 0,
+      });
+    }
 
     return NextResponse.json({
       success: true,
@@ -446,7 +551,8 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userInfo = await getUserInfo(req, supabase);
+    const flags = await getCommentFeatureFlags(supabase);
+    const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
 
     // SECURITY: Require authentication for comment deletion
     // Double-check both isAuthenticated AND userId to prevent device fingerprint bypass
@@ -486,6 +592,13 @@ export async function DELETE(req: NextRequest) {
         { error: 'Comment not found or you do not have permission to delete it' },
         { status: 404 }
       );
+    }
+
+    // Broadcast comment deletion
+    if (flags['realtime_broadcast'] && comment?.clip_id) {
+      broadcastCommentEvent(comment.clip_id, 'comment-deleted', {
+        commentId: comment_id,
+      });
     }
 
     return NextResponse.json({

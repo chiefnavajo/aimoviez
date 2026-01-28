@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
+import { getTopClips, getTopVoters, getTopCreators } from '@/lib/leaderboard-redis';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -59,6 +60,150 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // --- Redis-first path ---
+    const { data: redisFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'redis_leaderboards')
+      .maybeSingle();
+
+    if (redisFlag?.enabled) {
+      // Get active slot position
+      const { data: activeSlot } = await supabase
+        .from('story_slots')
+        .select('position')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (activeSlot) {
+        // Parallel Redis reads
+        const [redisClips, redisVoters, redisCreators] = await Promise.all([
+          getTopClips(activeSlot.position, 10, 0),
+          getTopVoters('all', 10, 0),
+          getTopCreators(10, 0),
+        ]);
+
+        if (redisClips && redisVoters && redisCreators) {
+          // Enrich clips
+          const clipIds = redisClips.entries.map(e => e.member);
+          const { data: clipDetails } = await supabase
+            .from('tournament_clips')
+            .select('id, thumbnail_url, username, vote_count, slot_position')
+            .in('id', clipIds);
+
+          const clipMap = new Map(clipDetails?.map(c => [c.id, c]) || []);
+
+          const top_clips = redisClips.entries.map((entry, index) => {
+            const clip = clipMap.get(entry.member);
+            return {
+              rank: index + 1,
+              id: entry.member,
+              thumbnail_url: clip?.thumbnail_url || '',
+              username: clip?.username || 'Creator',
+              vote_count: clip?.vote_count || 0,
+              slot_position: clip?.slot_position || activeSlot.position,
+            };
+          });
+
+          // Enrich creators
+          const creatorNames = redisCreators.entries.map(e => e.member);
+          const { data: creatorClips } = await supabase
+            .from('tournament_clips')
+            .select('username, avatar_url, id')
+            .in('username', creatorNames);
+
+          const { data: lockedSlots } = await supabase
+            .from('story_slots')
+            .select('winner_tournament_clip_id')
+            .eq('status', 'locked');
+
+          const winningClipIds = new Set(
+            lockedSlots?.map(s => s.winner_tournament_clip_id).filter(Boolean) || []
+          );
+
+          const creatorMeta = new Map<string, { avatar_url: string; locked_in_clips: number }>();
+          creatorClips?.forEach(clip => {
+            const existing = creatorMeta.get(clip.username);
+            if (!existing) {
+              creatorMeta.set(clip.username, {
+                avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${clip.username}`,
+                locked_in_clips: winningClipIds.has(clip.id) ? 1 : 0,
+              });
+            } else if (winningClipIds.has(clip.id)) {
+              existing.locked_in_clips++;
+            }
+          });
+
+          const top_creators = redisCreators.entries.map((entry, index) => {
+            const meta = creatorMeta.get(entry.member);
+            return {
+              rank: index + 1,
+              username: entry.member,
+              avatar_url: meta?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.member}`,
+              total_votes: entry.score,
+              locked_in_clips: meta?.locked_in_clips || 0,
+            };
+          });
+
+          // Voter entries (minimal enrichment needed)
+          const top_voters = redisVoters.entries.map((entry, index) => ({
+            rank: index + 1,
+            username: entry.member.startsWith('user_')
+              ? `User${entry.member.substring(5, 11)}`
+              : `Voter${entry.member.substring(0, 6)}`,
+            total_votes: entry.score,
+            level: Math.floor(Math.sqrt(entry.score / 100)) + 1,
+          }));
+
+          // Trending + stats still from DB (Redis doesn't track hype_score or today's counts)
+          const { data: trendingClips } = await supabase
+            .from('tournament_clips')
+            .select('id, thumbnail_url, username, vote_count, hype_score')
+            .order('hype_score', { ascending: false })
+            .limit(10);
+
+          const trendingNow = (trendingClips || []).map(clip => ({
+            id: clip.id,
+            thumbnail_url: clip.thumbnail_url,
+            username: clip.username || 'Creator',
+            vote_count: clip.vote_count || 0,
+            votes_last_hour: Math.round((clip.hype_score || 0) / 10),
+            momentum: Math.round(clip.hype_score || 0),
+          }));
+
+          const todayDate = new Date();
+          todayDate.setUTCHours(0, 0, 0, 0);
+
+          const { count: todayVoteCount } = await supabase
+            .from('votes')
+            .select('*', { count: 'exact', head: true })
+            .gte('created_at', todayDate.toISOString());
+
+          const response: LiveLeaderboardResponse = {
+            top_clips,
+            top_creators,
+            top_voters,
+            trending_now: trendingNow,
+            stats: {
+              total_clips: redisClips.total,
+              total_votes: todayVoteCount || 0,
+              active_voters: redisVoters.total,
+              last_updated: new Date().toISOString(),
+            },
+          };
+
+          return NextResponse.json(response, {
+            status: 200,
+            headers: {
+              'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60',
+              'X-Source': 'redis',
+            },
+          });
+        }
+      }
+      // Redis returned null — fall through to DB
+    }
 
     // Fetch top clips
     const { data: topClips } = await supabase

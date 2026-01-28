@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
+import { getTopClips } from '@/lib/leaderboard-redis';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -87,6 +88,83 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // --- Redis-first path (when redis_leaderboards enabled, 'all' timeframe) ---
+    // Redis leaderboards are keyed by slot_position, so we need the active slot
+    // For the clips route we serve all clips (no slot filter), so Redis path
+    // works best when we know the active slot. Fall through to DB for filtered queries.
+    const { data: redisFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'redis_leaderboards')
+      .maybeSingle();
+
+    if (redisFlag?.enabled && timeframe === 'all') {
+      // Get active slot position for Redis lookup
+      const { data: activeSlot } = await supabase
+        .from('story_slots')
+        .select('position')
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (activeSlot) {
+        const redisResult = await getTopClips(activeSlot.position, limit, offset);
+        if (redisResult !== null) {
+          // Fetch clip details from DB for enrichment
+          const clipIds = redisResult.entries.map(e => e.member);
+          const { data: clipDetails } = await supabase
+            .from('tournament_clips')
+            .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at')
+            .in('id', clipIds);
+
+          const clipMap = new Map(clipDetails?.map(c => [c.id, c]) || []);
+
+          const enrichedClips: LeaderboardClip[] = redisResult.entries.map((entry, index) => {
+            const clip = clipMap.get(entry.member);
+            let thumbnailUrl = clip?.thumbnail_url;
+            if (!thumbnailUrl || thumbnailUrl.endsWith('.mp4') || thumbnailUrl.endsWith('.webm') || thumbnailUrl.endsWith('.mov')) {
+              thumbnailUrl = `https://api.dicebear.com/7.x/shapes/svg?seed=${entry.member}`;
+            }
+
+            return {
+              rank: offset + index + 1,
+              id: entry.member,
+              thumbnail_url: thumbnailUrl || `https://api.dicebear.com/7.x/shapes/svg?seed=${entry.member}`,
+              video_url: clip?.video_url || '',
+              username: clip?.username || 'Creator',
+              avatar_url: clip?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.member}`,
+              genre: clip?.genre || 'Unknown',
+              slot_position: clip?.slot_position || activeSlot.position,
+              vote_count: clip?.vote_count || 0,
+              weighted_score: entry.score,
+              hype_score: clip?.hype_score || 0,
+              status: 'competing' as const,
+              created_at: clip?.created_at || new Date().toISOString(),
+            };
+          });
+
+          const response: LeaderboardClipsResponse = {
+            clips: enrichedClips,
+            timeframe,
+            total_clips: redisResult.total,
+            page,
+            page_size: limit,
+            has_more: redisResult.total > offset + limit,
+          };
+
+          setCache(cacheKey, response);
+
+          return NextResponse.json(response, {
+            status: 200,
+            headers: {
+              'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+              'X-Source': 'redis',
+            },
+          });
+        }
+      }
+      // Redis returned null or no active slot — fall through to DB
+    }
 
     // Simple query without JOIN - more reliable across database configurations
     let query = supabase

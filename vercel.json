@@ -11,6 +11,14 @@
     {
       "path": "/api/cron/sync-vote-counters",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/process-comment-queue",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/sync-leaderboards",
+      "schedule": "* * * * *"
     }
   ]
 }

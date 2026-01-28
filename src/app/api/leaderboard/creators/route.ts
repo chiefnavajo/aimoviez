@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
+import { getTopCreators } from '@/lib/leaderboard-redis';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -87,6 +88,100 @@ export async function GET(req: NextRequest) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // --- Redis-first path (when redis_leaderboards enabled) ---
+    const { data: redisFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'redis_leaderboards')
+      .maybeSingle();
+
+    if (redisFlag?.enabled) {
+      const redisResult = await getTopCreators(limit, offset);
+      if (redisResult !== null) {
+        // Fetch creator details from tournament_clips for enrichment
+        const usernames = redisResult.entries.map(e => e.member);
+        const { data: creatorClips } = await supabase
+          .from('tournament_clips')
+          .select('username, avatar_url, id, vote_count')
+          .in('username', usernames);
+
+        // Get locked slots for locked_in count
+        const { data: lockedSlots } = await supabase
+          .from('story_slots')
+          .select('winner_tournament_clip_id')
+          .eq('status', 'locked');
+
+        const winningClipIds = new Set(
+          lockedSlots?.map(s => s.winner_tournament_clip_id).filter(Boolean) || []
+        );
+
+        // Aggregate per creator
+        const creatorInfo = new Map<string, {
+          avatar_url: string;
+          total_clips: number;
+          locked_in_clips: number;
+          best_clip_id: string;
+          best_clip_votes: number;
+        }>();
+
+        creatorClips?.forEach(clip => {
+          const existing = creatorInfo.get(clip.username);
+          if (!existing) {
+            creatorInfo.set(clip.username, {
+              avatar_url: clip.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${clip.username}`,
+              total_clips: 1,
+              locked_in_clips: winningClipIds.has(clip.id) ? 1 : 0,
+              best_clip_id: clip.id,
+              best_clip_votes: clip.vote_count || 0,
+            });
+          } else {
+            existing.total_clips++;
+            if (winningClipIds.has(clip.id)) existing.locked_in_clips++;
+            if ((clip.vote_count || 0) > existing.best_clip_votes) {
+              existing.best_clip_id = clip.id;
+              existing.best_clip_votes = clip.vote_count || 0;
+            }
+          }
+        });
+
+        const creators: LeaderboardCreator[] = redisResult.entries.map((entry, index) => {
+          const info = creatorInfo.get(entry.member);
+          return {
+            rank: offset + index + 1,
+            user_id: entry.member,
+            username: entry.member,
+            avatar_url: info?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.member}`,
+            total_clips: info?.total_clips || 0,
+            total_votes: entry.score,
+            locked_in_clips: info?.locked_in_clips || 0,
+            avg_votes_per_clip: info?.total_clips ? Math.round(entry.score / info.total_clips) : 0,
+            top_genre: 'Various',
+            best_clip_id: info?.best_clip_id || '',
+            best_clip_votes: info?.best_clip_votes || 0,
+          };
+        });
+
+        const responseData = {
+          creators,
+          timeframe,
+          total_creators: redisResult.total,
+          page,
+          page_size: limit,
+          has_more: redisResult.total > offset + limit,
+        } satisfies LeaderboardCreatorsResponse;
+
+        setCache(cacheKey, responseData);
+
+        return NextResponse.json(responseData, {
+          headers: {
+            'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+            'X-Source': 'redis',
+          },
+        });
+      }
+      // Redis returned null — fall through to DB
+    }
 
     // Try to use RPC function first (most efficient)
     const { data: rpcData, error: rpcError } = await supabase.rpc('get_top_creators', {
