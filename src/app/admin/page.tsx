@@ -2683,7 +2683,7 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-6">
               {/* Group by category */}
-              {['growth', 'engagement', 'monetization', 'safety', 'general'].map((category) => {
+              {['growth', 'engagement', 'monetization', 'safety', 'performance', 'realtime', 'general'].map((category) => {
                 const categoryFlags = featureFlags.filter((f) => f.category === category);
                 if (categoryFlags.length === 0) return null;
 
@@ -2692,6 +2692,8 @@ export default function AdminDashboard() {
                   engagement: <Users className="w-5 h-5 text-cyan-400" />,
                   monetization: <DollarSign className="w-5 h-5 text-yellow-400" />,
                   safety: <Shield className="w-5 h-5 text-red-400" />,
+                  performance: <Zap className="w-5 h-5 text-purple-400" />,
+                  realtime: <Zap className="w-5 h-5 text-orange-400" />,
                   general: <Settings className="w-5 h-5 text-white/60" />,
                 };
 
@@ -2700,6 +2702,8 @@ export default function AdminDashboard() {
                   engagement: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/30',
                   monetization: 'from-yellow-500/20 to-orange-500/20 border-yellow-500/30',
                   safety: 'from-red-500/20 to-pink-500/20 border-red-500/30',
+                  performance: 'from-purple-500/20 to-violet-500/20 border-purple-500/30',
+                  realtime: 'from-orange-500/20 to-amber-500/20 border-orange-500/30',
                   general: 'from-white/10 to-white/5 border-white/20',
                 };
 
