@@ -1615,6 +1615,474 @@ Week 5-6: Phase 4 (Horizontal Scale)
 
 ---
 
+## TikTok-Style Voting Architecture (Core Strategy)
+
+This section details how TikTok handles billions of likes and how to apply the exact same patterns to AiMoviez voting. This is the **core architectural change** that enables 1M+ concurrent votes.
+
+### Why TikTok's Approach Works
+
+TikTok processes **billions of likes per day** from **1.6 billion users**. When a celebrity posts, millions of likes arrive within seconds. Their solution:
+
+1. **Never block on database writes** — User gets instant feedback
+2. **Sharded counters** — Distribute writes across 100 shards, not 1 row
+3. **Event-driven** — Every like is an event processed asynchronously
+4. **Eventually consistent** — Show slightly stale counts (acceptable trade-off)
+
+### The 5-Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 1: Edge Validation (Cloudflare)                         │
+│  ├─ Rate limit at CDN (before hitting your servers)            │
+│  └─ Invalid requests blocked globally                          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 2: Redis Validation (3ms)                                │
+│  ├─ Daily limit: GET daily_votes:{voter}:{date}                │
+│  ├─ Duplicate: EXISTS voted:{voter}:{clip}                     │
+│  └─ Reject immediately if invalid                              │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 3: Sharded Counter (2ms)                                 │
+│  ├─ shard = hash(voter_key) % 100                              │
+│  ├─ INCR votes:clip:{id}:shard:{shard}                         │
+│  └─ User sees count update INSTANTLY                           │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 4: Event Queue (1ms)                                     │
+│  └─ LPUSH vote_queue {event_json}                              │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  RETURN TO USER: "Vote counted!" (10-15ms total)               │
+└─────────────────────────────────────────────────────────────────┘
+
+                    ═══ ASYNC BOUNDARY ═══
+
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 5: Background Processing (every 100ms)                   │
+│  ├─ Dequeue 100-500 vote events                                │
+│  ├─ Batch INSERT into PostgreSQL (single transaction)          │
+│  └─ No triggers, no row locks, just fast batch writes          │
+└─────────────────────────────────────────────────────────────────┘
+                              ↓
+┌─────────────────────────────────────────────────────────────────┐
+│  LAYER 6: Counter Sync (every 5-10 seconds)                     │
+│  └─ SUM(all Redis shards) → UPDATE PostgreSQL vote_count       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Component 1: Sharded Counters
+
+**The Problem (Current AiMoviez):**
+```sql
+-- Every vote does this:
+UPDATE tournament_clips SET vote_count = vote_count + 1 WHERE id = 'clip_123';
+-- All votes for same clip SERIALIZE on this single row
+-- 10,000 concurrent votes = 10,000 transactions waiting in line
+```
+
+**TikTok's Solution (Sharded Counters):**
+```
+Instead of 1 counter per clip, use 100 counters (shards):
+
+votes:clip:abc123:shard:0  = 12,345
+votes:clip:abc123:shard:1  = 12,401
+votes:clip:abc123:shard:2  = 12,298
+...
+votes:clip:abc123:shard:99 = 12,156
+
+Total = SUM(all 100 shards) = 1,234,567 votes
+```
+
+**How writes distribute:**
+```
+Vote from user_A → hash("user_A") % 100 = 47 → increment shard:47
+Vote from user_B → hash("user_B") % 100 = 23 → increment shard:23
+Vote from user_C → hash("user_C") % 100 = 91 → increment shard:91
+
+Result: 3 votes hit 3 different shards = PARALLEL writes (no contention)
+```
+
+**Implementation:**
+```typescript
+// src/lib/sharded-vote-counter.ts
+
+const NUM_SHARDS = 100;
+
+// Increment vote (write path)
+async function incrementVote(clipId: string, voterKey: string, weight: number = 1) {
+  const shard = hashToShard(voterKey, NUM_SHARDS);
+
+  await redis.pipeline()
+    .incrby(`votes:${clipId}:shard:${shard}`, 1)
+    .incrby(`weighted:${clipId}:shard:${shard}`, weight)
+    .exec();
+}
+
+// Get total (read path) - cached for 5 seconds
+async function getVoteCount(clipId: string): Promise<number> {
+  // Check cache first
+  const cached = await redis.get(`votes:${clipId}:total`);
+  if (cached) return parseInt(cached);
+
+  // Aggregate all shards
+  const pipeline = redis.pipeline();
+  for (let i = 0; i < NUM_SHARDS; i++) {
+    pipeline.get(`votes:${clipId}:shard:${i}`);
+  }
+  const results = await pipeline.exec();
+
+  const total = results.reduce((sum, r) => sum + (parseInt(r) || 0), 0);
+
+  // Cache for 5 seconds
+  await redis.set(`votes:${clipId}:total`, total, { ex: 5 });
+
+  return total;
+}
+
+function hashToShard(key: string, numShards: number): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = ((hash << 5) - hash) + key.charCodeAt(i);
+    hash = hash & hash;
+  }
+  return Math.abs(hash) % numShards;
+}
+```
+
+**Impact:**
+- 1 million votes → distributed across 100 shards
+- 10,000 writes per shard instead of 1,000,000 writes to one row
+- **100x reduction in write contention**
+
+### Component 2: Redis-First Validation
+
+**The Problem (Current AiMoviez):**
+```typescript
+// Every vote queries PostgreSQL:
+const votesToday = await supabase
+  .from('votes')
+  .select('vote_weight')
+  .eq('voter_key', voterKey)
+  .gte('created_at', today);  // 50ms per query
+```
+
+**TikTok's Solution (Redis-First):**
+```typescript
+// src/lib/vote-validation.ts
+
+// Daily limit check: Redis GET (0.5ms)
+async function canVoteToday(voterKey: string): Promise<boolean> {
+  const today = new Date().toISOString().split('T')[0];
+  const count = await redis.get(`daily:${today}:${voterKey}`);
+  return (parseInt(count) || 0) < 200;
+}
+
+// Duplicate check: Redis EXISTS (0.5ms)
+async function hasVoted(voterKey: string, clipId: string): Promise<boolean> {
+  return await redis.exists(`voted:${voterKey}:${clipId}`) === 1;
+}
+
+// Record vote intent
+async function recordVote(voterKey: string, clipId: string) {
+  const today = new Date().toISOString().split('T')[0];
+  await redis.pipeline()
+    .incr(`daily:${today}:${voterKey}`)
+    .expire(`daily:${today}:${voterKey}`, 90000)  // 25 hours
+    .set(`voted:${voterKey}:${clipId}`, '1', { ex: 604800 })  // 7 days
+    .exec();
+}
+```
+
+**Impact:**
+- Daily limit check: 50ms → 0.5ms (**99% faster**)
+- Duplicate check: 50ms → 0.5ms (**99% faster**)
+- **Zero PostgreSQL queries in the vote hot path**
+
+### Component 3: Event Queue + Batch Processing
+
+**The Problem (Current AiMoviez):**
+```
+User vote → INSERT into votes → TRIGGER fires → UPDATE clip → Return
+                    ↑                              ↑
+              (blocking)                    (blocking, row lock)
+
+Total time: 100-500ms
+Concurrent capacity: ~100
+```
+
+**TikTok's Solution (Event Queue):**
+```
+User vote → Redis LPUSH (1ms) → Return "accepted!"
+                   ↓
+            [Async every 100ms]
+                   ↓
+         Batch INSERT 500 votes (single transaction)
+
+Total time to user: 10-15ms
+Concurrent capacity: Unlimited (queue absorbs burst)
+```
+
+**Implementation:**
+```typescript
+// Vote API (fast path)
+export async function POST(req: NextRequest) {
+  // 1. Validate in Redis (3ms)
+  if (!await canVoteToday(voterKey)) {
+    return Response.json({ error: 'DAILY_LIMIT' }, { status: 429 });
+  }
+  if (await hasVoted(voterKey, clipId)) {
+    return Response.json({ error: 'ALREADY_VOTED' }, { status: 409 });
+  }
+
+  // 2. Update sharded counter (2ms) - instant feedback
+  await incrementVote(clipId, voterKey, 1);
+
+  // 3. Queue for DB persistence (1ms)
+  await redis.lpush('vote_queue', JSON.stringify({
+    clipId, voterKey, weight: 1, timestamp: Date.now()
+  }));
+
+  // 4. Record in Redis for future checks
+  await recordVote(voterKey, clipId);
+
+  // 5. Get updated count from sharded counter
+  const newCount = await getVoteCount(clipId);
+
+  // 6. Return immediately (total: ~10ms)
+  return Response.json({
+    success: true,
+    voteCount: newCount,
+    async: true  // Vote will be persisted asynchronously
+  });
+}
+
+// Background processor (runs every 100ms via QStash)
+export async function processVoteQueue() {
+  const batch: VoteEvent[] = [];
+
+  // Dequeue up to 500 events
+  for (let i = 0; i < 500; i++) {
+    const event = await redis.rpop('vote_queue');
+    if (!event) break;
+    batch.push(JSON.parse(event));
+  }
+
+  if (batch.length === 0) return;
+
+  // Batch insert (single transaction, no triggers)
+  await supabase.rpc('batch_insert_votes', {
+    votes: batch.map(e => ({
+      clip_id: e.clipId,
+      voter_key: e.voterKey,
+      vote_weight: e.weight,
+      created_at: new Date(e.timestamp).toISOString()
+    }))
+  });
+}
+```
+
+**SQL for batch insert (no triggers):**
+```sql
+CREATE OR REPLACE FUNCTION batch_insert_votes(votes JSONB)
+RETURNS INTEGER AS $$
+DECLARE
+  v JSONB;
+  inserted INTEGER := 0;
+BEGIN
+  FOR v IN SELECT * FROM jsonb_array_elements(votes)
+  LOOP
+    BEGIN
+      INSERT INTO votes (clip_id, voter_key, vote_weight, created_at)
+      VALUES (
+        (v->>'clip_id')::UUID,
+        v->>'voter_key',
+        (v->>'vote_weight')::INTEGER,
+        (v->>'created_at')::TIMESTAMPTZ
+      );
+      inserted := inserted + 1;
+    EXCEPTION WHEN unique_violation THEN
+      -- Skip duplicates (already counted in Redis)
+      NULL;
+    END;
+  END LOOP;
+  RETURN inserted;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Component 4: Counter Synchronization
+
+Redis sharded counters are the source of truth for real-time display. PostgreSQL is synchronized periodically for:
+- Persistence (Redis data can be lost)
+- Complex queries (leaderboards, analytics)
+- Backup/recovery
+
+**Sync Process (every 5-10 seconds):**
+```typescript
+// src/app/api/cron/sync-vote-counts/route.ts
+
+export async function GET() {
+  // Get all clips with recent votes
+  const recentClips = await redis.smembers('clips_with_votes_last_minute');
+
+  for (const clipId of recentClips) {
+    // Get total from sharded counters
+    const { voteCount, weightedScore } = await getVoteCount(clipId);
+
+    // Update PostgreSQL
+    await supabase
+      .from('tournament_clips')
+      .update({ vote_count: voteCount, weighted_score: weightedScore })
+      .eq('id', clipId);
+  }
+
+  // Clear tracking set
+  await redis.del('clips_with_votes_last_minute');
+
+  return Response.json({ synced: recentClips.length });
+}
+```
+
+### Component 5: Eventual Consistency (The Trade-off)
+
+**TikTok shows slightly stale counts:**
+- User likes video → sees "1.2M likes"
+- Actual might be 1,200,047
+- Updates every 5 seconds
+
+**Why this is acceptable:**
+- No user counts exact likes
+- "1.2M" vs "1,200,047" — no one notices
+- Scale > precision for social metrics
+
+**AiMoviez can do the same:**
+- Show vote count from Redis shards (instant)
+- Counts may be 1-5 seconds stale
+- Label as "~1,234 votes" if needed
+
+### Complete Data Flow Diagram
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                         VOTE REQUEST                                 │
+└──────────────────────────────────────────────────────────────────────┘
+                                  │
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ EDGE (Cloudflare)                                                    │
+│ ┌─────────────────┐                                                  │
+│ │ Rate Limit (KV) │ ──→ Reject if > 30/min                          │
+│ └─────────────────┘                                                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                  │ (valid requests only)
+                                  ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│ API SERVER                                                           │
+│                                                                      │
+│ ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐   │
+│ │ Redis: Daily    │    │ Redis: Dedup    │    │ Redis: Sharded  │   │
+│ │ Limit Check     │ ──→│ Check           │ ──→│ Counter INCR    │   │
+│ │ (0.5ms)         │    │ (0.5ms)         │    │ (1ms)           │   │
+│ └─────────────────┘    └─────────────────┘    └─────────────────┘   │
+│                                                       │              │
+│                                                       ▼              │
+│                                               ┌─────────────────┐   │
+│                                               │ Redis: Queue    │   │
+│                                               │ LPUSH (1ms)     │   │
+│                                               └─────────────────┘   │
+│                                                       │              │
+│                                                       ▼              │
+│                                               ┌─────────────────┐   │
+│                                               │ RETURN TO USER  │   │
+│                                               │ (10-15ms total) │   │
+│                                               └─────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+
+════════════════════════ ASYNC BOUNDARY ════════════════════════════════
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ BACKGROUND WORKER (every 100ms)                                      │
+│                                                                      │
+│ ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐   │
+│ │ Redis: Dequeue  │    │ Group by        │    │ PostgreSQL:     │   │
+│ │ 500 events      │ ──→│ Clip ID         │ ──→│ Batch INSERT    │   │
+│ │                 │    │                 │    │ (single txn)    │   │
+│ └─────────────────┘    └─────────────────┘    └─────────────────┘   │
+└──────────────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│ COUNTER SYNC (every 5-10 seconds)                                    │
+│                                                                      │
+│ ┌─────────────────┐    ┌─────────────────┐                          │
+│ │ Redis: SUM all  │    │ PostgreSQL:     │                          │
+│ │ shards          │ ──→│ UPDATE counts   │                          │
+│ │                 │    │                 │                          │
+│ └─────────────────┘    └─────────────────┘                          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
+### Performance Comparison
+
+| Metric | Current AiMoviez | TikTok-Style | Improvement |
+|--------|------------------|--------------|-------------|
+| Vote latency | 100-500ms | 10-15ms | **90-97%** |
+| Daily limit check | 50ms (DB) | 0.5ms (Redis) | **99%** |
+| Duplicate check | 50ms (DB) | 0.5ms (Redis) | **99%** |
+| Counter update | 50ms (row lock) | 1ms (sharded) | **98%** |
+| Concurrent votes | ~100 | 1,000,000+ | **10,000x** |
+| DB writes/vote | 2 (insert + trigger) | 0.002 (batched) | **99.9%** |
+
+### Files to Create/Modify
+
+**New files:**
+```
+src/lib/sharded-vote-counter.ts    # Sharded counter implementation
+src/lib/vote-validation.ts         # Redis-based validation
+src/lib/vote-queue.ts              # Event queue management
+src/app/api/cron/process-votes/route.ts    # Queue processor
+src/app/api/cron/sync-counters/route.ts    # Counter sync
+```
+
+**Modified files:**
+```
+src/app/api/vote/route.ts          # Use new TikTok-style flow
+supabase/sql/batch-insert-votes.sql # Batch insert RPC
+```
+
+### Migration Strategy
+
+**Step 1: Deploy Redis infrastructure (Day 1)**
+- Set up sharded counters
+- Initialize from current PostgreSQL counts
+- Run in parallel (old + new)
+
+**Step 2: Switch reads to Redis (Day 2)**
+- Vote counts served from sharded counters
+- PostgreSQL still receives all writes
+- Verify counts match
+
+**Step 3: Switch writes to queue (Day 3)**
+- Vote API uses Redis validation + queue
+- Background processor writes to PostgreSQL
+- Monitor queue depth
+
+**Step 4: Remove synchronous path (Day 4)**
+- Disable vote triggers
+- All writes go through batch processor
+- Full TikTok-style operation
+
+**Rollback at any step:**
+- Re-enable triggers
+- Point reads back to PostgreSQL
+- Run full recount to verify
+
+---
+
 ## Monitoring & Observability
 
 ### Key Metrics to Track
