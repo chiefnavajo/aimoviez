@@ -27,6 +27,7 @@ function getR2Client(): S3Client | null {
     region: 'auto',
     endpoint,
     credentials: { accessKeyId, secretAccessKey },
+    forcePathStyle: true,
     requestChecksumCalculation: 'WHEN_REQUIRED',
     responseChecksumValidation: 'WHEN_REQUIRED',
   });
