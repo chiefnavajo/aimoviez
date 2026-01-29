@@ -10,7 +10,7 @@ compatibility_date = "2024-12-01"
 # Then replace the id below with your actual namespace ID
 [[kv_namespaces]]
 binding = "RATE_LIMITS"
-id = "YOUR_KV_NAMESPACE_ID"
+id = "d08a583ec7c14f27907474884a7ba894"
 
 # Optional: preview namespace for local development
 # Create with: npx wrangler kv:namespace create RATE_LIMITS --preview
