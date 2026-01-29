@@ -92,10 +92,10 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
     // Fonts: self + Google Fonts
     "font-src 'self' https://fonts.gstatic.com",
-    // Connect: API calls to self + Supabase + Google
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com",
-    // Media: self + Supabase storage (videos)
-    "media-src 'self' blob: https://*.supabase.co",
+    // Connect: API calls to self + Supabase + Google + R2 storage
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com https://*.r2.cloudflarestorage.com https://*.r2.dev",
+    // Media: self + Supabase storage (videos) + R2 CDN
+    "media-src 'self' blob: https://*.supabase.co https://*.r2.dev",
     // Frames: none (prevent embedding)
     "frame-ancestors 'none'",
     // Forms: self only

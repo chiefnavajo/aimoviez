@@ -34,12 +34,12 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       // Images: self + Supabase storage + DiceBear avatars + Google profile pics + Sentry
       "img-src 'self' data: blob: https://dxixqdmqomqzhilmdfzg.supabase.co https://api.dicebear.com https://lh3.googleusercontent.com",
-      // Media (videos): self + Supabase storage
-      "media-src 'self' blob: https://dxixqdmqomqzhilmdfzg.supabase.co",
+      // Media (videos): self + Supabase storage + R2 CDN
+      "media-src 'self' blob: https://dxixqdmqomqzhilmdfzg.supabase.co https://*.r2.dev",
       // Fonts: self + Google Fonts
       "font-src 'self' https://fonts.gstatic.com",
-      // Connect: API calls to self + Supabase + Google OAuth + Pusher for real-time + Sentry
-      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com https://*.sentry.io",
+      // Connect: API calls to self + Supabase + Google OAuth + Pusher for real-time + Sentry + R2 storage
+      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com https://*.sentry.io https://*.r2.cloudflarestorage.com https://*.r2.dev",
       // Worker: service worker
       "worker-src 'self'",
       // Frames: Google OAuth popup
