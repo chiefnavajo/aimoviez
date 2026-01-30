@@ -421,7 +421,7 @@ export async function POST(request: NextRequest) {
       slot_position: slotPosition,
       track_id: 'track-main',
       video_url: videoUrl,
-      thumbnail_url: videoUrl, // Use video URL as thumbnail for now
+      thumbnail_url: null, // No thumbnail yet — UI handles missing with poster/gradient fallbacks
       username: uploaderUsername,
       avatar_url: uploaderAvatar,
       genre: genre.toUpperCase(),

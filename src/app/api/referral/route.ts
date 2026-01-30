@@ -198,8 +198,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: 'Referral code processed',
-        // Don't reveal actual reward - use placeholder
-        reward_amount: 0,
       });
     }
 

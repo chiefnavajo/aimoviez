@@ -142,8 +142,14 @@ export async function GET(req: NextRequest) {
     }
 
     if (!expiredSlots || expiredSlots.length === 0) {
-      return NextResponse.json({ 
-        ok: true, 
+      // Release lock early so next cron invocation can run immediately if needed
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'auto-advance');
+
+      return NextResponse.json({
+        ok: true,
         message: 'No expired slots to advance',
         checked_at: new Date().toISOString()
       });

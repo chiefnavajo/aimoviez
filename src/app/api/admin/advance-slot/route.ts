@@ -119,6 +119,8 @@ export async function POST(req: NextRequest) {
       .from('tournament_clips')
       .select('id, slot_position, vote_count, weighted_score')
       .eq('slot_position', storySlot.slot_position)
+      .eq('season_id', seasonRow.id)
+      .eq('status', 'active')
       .order('weighted_score', { ascending: false, nullsFirst: false })
       .order('vote_count', { ascending: false, nullsFirst: false })
       .limit(1)
@@ -248,8 +250,10 @@ export async function POST(req: NextRequest) {
         slot_position: nextPosition,
         vote_count: 0,        // Reset votes for fair competition
         weighted_score: 0,    // Reset weighted score
+        hype_score: 0,        // Reset hype score (match auto-advance behavior)
       })
       .eq('slot_position', storySlot.slot_position)
+      .eq('season_id', seasonRow.id)
       .eq('status', 'active')
       .neq('id', winner.id)   // Don't move the winner
       .select('id');

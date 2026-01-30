@@ -258,6 +258,25 @@ export async function setVotingFrozen(
 }
 
 /**
+ * Check if voting is frozen for a specific slot.
+ * Used by the sync vote path to respect the freeze window.
+ * Returns false if Redis is unavailable (fail-open for sync path).
+ */
+export async function isVotingFrozen(
+  seasonId: string,
+  slotPos: number
+): Promise<boolean> {
+  try {
+    const r = getRedis();
+    const val = await r.get(KEYS.frozen(seasonId, slotPos));
+    return val === '1' || val === 1;
+  } catch {
+    // Redis unavailable — fail open for sync path (votes still validated by DB)
+    return false;
+  }
+}
+
+/**
  * Get the daily vote count for a voter.
  */
 export async function getDailyVoteCount(

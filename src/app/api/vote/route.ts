@@ -21,7 +21,7 @@ import {
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
 import { incrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
-import { validateVoteRedis, recordVote as recordVoteRedis } from '@/lib/vote-validation-redis';
+import { validateVoteRedis, recordVote as recordVoteRedis, isVotingFrozen } from '@/lib/vote-validation-redis';
 import { CircuitBreaker } from '@/lib/circuit-breaker';
 import type { VoteQueueEvent } from '@/types/vote-queue';
 import { broadcastVoteUpdate } from '@/lib/realtime-broadcast';
@@ -987,7 +987,8 @@ export async function GET(req: NextRequest) {
           .select('clip_id')
           .in('clip_id', clipIdsToRecord)
           .eq('is_deleted', false)
-          .is('parent_comment_id', null);
+          .is('parent_comment_id', null)
+          .or('moderation_status.is.null,moderation_status.eq.approved');
 
         // Initialize all clips with 0 count
         clipIdsToRecord.forEach(id => commentCountsMap.set(id, 0));
@@ -1074,7 +1075,7 @@ export async function GET(req: NextRequest) {
       totalVotesToday: 0,
       userRank: 0,
       remainingVotes: {
-        standard: DAILY_VOTE_LIMIT,
+        standard: 0, // Return 0 on error — don't mislead UI into allowing votes
       },
       votedClipIds: [],
       currentSlot: 0,
@@ -1455,7 +1456,7 @@ export async function POST(req: NextRequest) {
     // NOTE: This query depends on clipData.season_id, so it runs after the parallel queries
     const { data: activeSlot, error: slotError } = await supabase
       .from('story_slots')
-      .select('slot_position, status')
+      .select('slot_position, status, voting_ends_at')
       .eq('season_id', clipData.season_id)
       .in('status', ['voting', 'waiting_for_clips'])
       .order('slot_position', { ascending: true })
@@ -1491,6 +1492,35 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // SECURITY: Reject votes after voting period has expired (before cron advances the slot)
+    if (activeSlot.voting_ends_at && new Date() > new Date(activeSlot.voting_ends_at)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Voting period has ended for this slot',
+          code: 'VOTING_EXPIRED',
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Check voting freeze (last 120s before expiry — results being tallied)
+    try {
+      const frozen = await isVotingFrozen(clipData.season_id, activeSlot.slot_position);
+      if (frozen) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Voting is closing, results being tallied',
+            code: 'VOTING_FROZEN',
+          },
+          { status: 400 }
+        );
+      }
+    } catch {
+      // Redis unavailable — continue without freeze check (fail open)
     }
 
     // SECURITY: Verify clip is in the currently voting slot

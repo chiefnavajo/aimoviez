@@ -1045,7 +1045,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                       {segment.winning_clip?.thumbnail_url && !segment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                         <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
                       ) : (
-                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="none" poster={segment.winning_clip?.thumbnail_url || undefined} />
+                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" poster={segment.winning_clip?.thumbnail_url || undefined} />
                       )}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="w-4 h-4 text-white" />
@@ -1273,7 +1273,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
                       className="w-full h-full object-cover"
                       muted
                       playsInline
-                      preload="none"
+                      preload="metadata"
                     />
                   );
                 } else {
@@ -1424,7 +1424,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
               if (isActualImage) {
                 return <Image src={thumbUrl} alt="" fill sizes="64px" className="object-cover" />;
               } else if (videoUrl) {
-                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="none" />;
+                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
               } else {
                 return <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />;
               }
