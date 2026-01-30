@@ -181,32 +181,57 @@ export async function getQueueHealth(): Promise<VoteQueueHealth> {
  */
 export async function recoverOrphans(): Promise<number> {
   const r = getRedis();
+  const ORPHAN_AGE_MS = 5 * 60 * 1000; // 5 minutes — items older than this are considered orphaned
+  const now = Date.now();
 
   // Check if there are any items in the processing queue
   const processingCount = await r.llen(QUEUE_KEYS.processing);
 
   if (processingCount === 0) return 0;
 
-  // Move all processing items back to main queue
+  // Read all processing items
   const items = await r.lrange(QUEUE_KEYS.processing, 0, -1);
 
   if (!items || items.length === 0) return 0;
 
-  const pipeline = r.pipeline();
+  const orphaned: string[] = [];
+  const stillActive: string[] = [];
 
-  // Add items back to main queue (at the head for priority processing)
   for (const item of items) {
     const serialized = typeof item === 'string' ? item : JSON.stringify(item);
-    pipeline.rpush(QUEUE_KEYS.main, serialized);
+    try {
+      const parsed = typeof item === 'string' ? JSON.parse(item) : item;
+      const age = now - (parsed.timestamp || 0);
+      if (age > ORPHAN_AGE_MS) {
+        orphaned.push(serialized);
+      } else {
+        stillActive.push(serialized);
+      }
+    } catch {
+      // Can't parse — treat as orphaned to avoid permanent stuck items
+      orphaned.push(serialized);
+    }
   }
 
-  // Clear the processing queue
+  if (orphaned.length === 0) return 0;
+
+  const pipeline = r.pipeline();
+
+  // Move only orphaned items back to main queue
+  for (const item of orphaned) {
+    pipeline.rpush(QUEUE_KEYS.main, item);
+  }
+
+  // Rebuild the processing queue with only still-active items
   pipeline.del(QUEUE_KEYS.processing);
+  for (const item of stillActive) {
+    pipeline.rpush(QUEUE_KEYS.processing, item);
+  }
 
   await pipeline.exec();
 
-  console.log(`[VoteQueue] Recovered ${items.length} orphaned events`);
-  return items.length;
+  console.log(`[VoteQueue] Recovered ${orphaned.length} orphaned events (${stillActive.length} still active)`);
+  return orphaned.length;
 }
 
 /**

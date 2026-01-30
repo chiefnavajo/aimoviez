@@ -1510,9 +1510,20 @@ export async function POST(req: NextRequest) {
     // 5. Check vote risk (for fraud detection)
     // Note: vote weight was already calculated above (before daily limit check)
     const voteRisk = checkVoteRisk(req);
-    if (voteRisk.riskScore >= 70) {
-      // High risk - log but still allow (could be legitimate user behind VPN/proxy)
-      console.warn('[POST /api/vote] High risk vote detected:', {
+    if (voteRisk.riskScore >= 90) {
+      // Very high risk - block (almost certainly automated/bot traffic)
+      console.warn('[POST /api/vote] Blocked very high risk vote:', {
+        voterKey: effectiveVoterKey.slice(0, 8) + '...',
+        riskScore: voteRisk.riskScore,
+        reasons: voteRisk.reasons,
+      });
+      return NextResponse.json(
+        { success: false, error: 'Vote rejected', code: 'RISK_BLOCKED' },
+        { status: 429 }
+      );
+    } else if (voteRisk.riskScore >= 70) {
+      // Moderate risk - log but allow (could be legitimate user behind VPN/proxy)
+      console.warn('[POST /api/vote] Moderate risk vote detected:', {
         voterKey: effectiveVoterKey.slice(0, 8) + '...',
         riskScore: voteRisk.riskScore,
         reasons: voteRisk.reasons,
@@ -1730,59 +1741,13 @@ export async function DELETE(req: NextRequest) {
     if (rpcError) {
       console.error('[DELETE /api/vote] RPC error:', rpcError);
 
-      // Fallback to traditional method if RPC doesn't exist yet
-      // This allows the app to work before the migration is run
-      // 42883 = PostgreSQL "function does not exist"
-      // PGRST202 = PostgREST "function not found in schema cache"
+      // Reject if atomic RPC function doesn't exist — legacy fallback removed (TOCTOU race condition)
       if (rpcError.code === '42883' || rpcError.code === 'PGRST202') {
-        // Function does not exist - use legacy method with logging
-        console.warn('[DELETE /api/vote] Using legacy delete method - please run fix-vote-delete-race-condition.sql migration');
-
-        // Legacy: Get existing vote
-        const existingVote = await getVoteOnClip(supabase, effectiveVoterKey, clipId);
-        if (!existingVote) {
-          return NextResponse.json(
-            { success: false, error: 'No vote found to revoke', code: 'NOT_VOTED', clipId },
-            { status: 404 }
-          );
-        }
-
-        // Legacy: Delete vote (trigger will update counts if it exists)
-        const { error: deleteError } = await supabase
-          .from('votes')
-          .delete()
-          .eq('id', existingVote.id);
-
-        if (deleteError) {
-          console.error('[DELETE /api/vote] deleteError:', deleteError);
-          return NextResponse.json(
-            { success: false, error: 'Failed to revoke vote' },
-            { status: 500 }
-          );
-        }
-
-        // Get updated clip stats
-        const { data: clipData } = await supabase
-          .from('tournament_clips')
-          .select('weighted_score')
-          .eq('id', clipId)
-          .maybeSingle();
-
-        const newWeightedScore = clipData?.weighted_score ?? 0;
-
-        // Calculate remaining votes
-        const votesTodayResult = await getUserVotesToday(supabase, effectiveVoterKey);
-        const newTotalVotesToday = votesTodayResult.count;
-
-        return NextResponse.json({
-          success: true,
-          clipId,
-          newScore: newWeightedScore,
-          totalVotesToday: newTotalVotesToday,
-          remainingVotes: {
-            standard: Math.max(0, DAILY_VOTE_LIMIT - newTotalVotesToday),
-          },
-        }, { status: 200 });
+        console.error('[DELETE /api/vote] delete_vote_atomic function not found. Run fix-vote-delete-race-condition.sql migration.');
+        return NextResponse.json(
+          { success: false, error: 'Server configuration error: required migration not applied' },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json(

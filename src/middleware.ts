@@ -365,10 +365,14 @@ export async function middleware(request: NextRequest) {
     }
 
     // For API routes, let the route handler do full admin check
-    // For page routes, we do a quick check here
+    // For page routes, reject non-admins early to prevent loading admin UI
     if (pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
-      // The admin page will do its own verification
-      // This is just an early guard
+      if (!token.isAdmin) {
+        const homeUrl = new URL('/', request.url);
+        let response = NextResponse.redirect(homeUrl);
+        response = addSecurityHeaders(response);
+        return response;
+      }
     }
   }
 

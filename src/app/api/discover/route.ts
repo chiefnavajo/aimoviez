@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
     
-    const query = searchParams.get('q') || '';
+    const query = (searchParams.get('q') || '').slice(0, 200);
     const genre = searchParams.get('genre');
     const sort = (searchParams.get('sort') || 'trending') as 'trending' | 'newest' | 'top';
     const type = (searchParams.get('type') || 'all') as 'clips' | 'creators' | 'all';

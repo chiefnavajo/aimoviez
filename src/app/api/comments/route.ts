@@ -185,14 +185,14 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     // Build query for top-level comments (no parent)
-    // Note: moderation_status filter removed - column may not exist in all deployments
-    // If moderation is needed, run the migration-comment-moderation.sql first
+    // Filter by moderation_status if column exists, fall back gracefully if not
     let query = supabase
       .from('comments')
       .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at, is_deleted', { count: 'exact' })
       .eq('clip_id', clipId)
       .is('parent_comment_id', null)
-      .eq('is_deleted', false);
+      .eq('is_deleted', false)
+      .or('moderation_status.is.null,moderation_status.eq.approved');
 
     if (sort === 'newest') {
       query = query.order('created_at', { ascending: false });
@@ -200,8 +200,30 @@ export async function GET(req: NextRequest) {
       query = query.order('likes_count', { ascending: false });
     }
 
-    const { data: topLevelComments, error, count } = await query
+    let { data: topLevelComments, error, count } = await query
       .range(offset, offset + limit - 1);
+
+    // If moderation_status column doesn't exist, retry without the filter
+    if (error && (error.code === 'PGRST204' || error.message?.includes('moderation_status'))) {
+      console.warn('[GET /api/comments] moderation_status column not found, falling back without filter');
+      const fallbackQuery = supabase
+        .from('comments')
+        .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at, is_deleted', { count: 'exact' })
+        .eq('clip_id', clipId)
+        .is('parent_comment_id', null)
+        .eq('is_deleted', false);
+
+      if (sort === 'newest') {
+        fallbackQuery.order('created_at', { ascending: false });
+      } else {
+        fallbackQuery.order('likes_count', { ascending: false });
+      }
+
+      const fallback = await fallbackQuery.range(offset, offset + limit - 1);
+      topLevelComments = fallback.data;
+      error = fallback.error;
+      count = fallback.count;
+    }
 
     if (error) {
       console.error('[GET /api/comments] error:', error);
@@ -464,6 +486,15 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
+
+    // Require authentication for likes to prevent fingerprint-spoofing abuse
+    if (!userInfo.isAuthenticated) {
+      return NextResponse.json(
+        { error: 'Authentication required to like comments' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     // Validate request body with Zod

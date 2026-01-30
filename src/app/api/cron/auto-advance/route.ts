@@ -99,9 +99,11 @@ export async function GET(req: NextRequest) {
     const asyncVotingEnabled = asyncFlag?.enabled === true;
 
     // ========================================================================
-    // VOTING FREEZE — freeze slots within 120s of expiry (Redis-first only)
+    // VOTING FREEZE — freeze slots within 120s of expiry
+    // Applied regardless of async_voting flag to prevent race conditions
+    // during slot transitions on both sync and async vote paths
     // ========================================================================
-    if (asyncVotingEnabled) {
+    {
       const freezeWindowMs = 120_000; // 120 seconds
       const freezeThreshold = new Date(Date.now() + freezeWindowMs).toISOString();
 

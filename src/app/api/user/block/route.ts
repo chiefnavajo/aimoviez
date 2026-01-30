@@ -37,7 +37,28 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    const checkUserId = request.nextUrl.searchParams.get('userId');
 
+    // Single-user check: GET /api/user/block?userId=xxx
+    if (checkUserId) {
+      const { data, error } = await supabase
+        .from('user_blocks')
+        .select('id')
+        .eq('blocker_id', session.user.userId)
+        .eq('blocked_id', checkUserId)
+        .maybeSingle();
+
+      if (error) {
+        if (error.code === '42P01') {
+          return NextResponse.json({ blocked: false });
+        }
+        throw error;
+      }
+
+      return NextResponse.json({ blocked: !!data });
+    }
+
+    // Full list: GET /api/user/block
     const { data: blocks, error } = await supabase
       .from('user_blocks')
       .select(`
@@ -220,7 +241,3 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
-/**
- * Check if a specific user is blocked
- * GET /api/user/block/check?userId=xxx
- */

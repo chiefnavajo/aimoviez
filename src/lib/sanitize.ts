@@ -148,10 +148,17 @@ export function sanitizeComment(input: string | null | undefined): string {
   if (!input) return '';
 
   return input
-    // Remove HTML tags
-    .replace(/<[^>]*>/g, '')
+    // Decode HTML entities that could hide malicious content
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
+    // Remove HTML tags (including unclosed/malformed tags)
+    .replace(/<[^>]*>?/g, '')
+    // Strip javascript: and data: protocol handlers
+    .replace(/(?:javascript|data|vbscript)\s*:/gi, '')
+    // Remove event handler patterns (e.g. onerror=, onclick=)
+    .replace(/\bon\w+\s*=/gi, '')
     // Remove control characters (keep newlines and tabs)
-     
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
     // Limit consecutive newlines
     .replace(/\n{3,}/g, '\n\n')
