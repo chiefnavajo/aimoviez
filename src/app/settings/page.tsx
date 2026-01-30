@@ -22,10 +22,12 @@ import {
   Smartphone,
 } from 'lucide-react';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const { getHeaders } = useCsrf();
 
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -92,7 +94,8 @@ export default function SettingsPage() {
     try {
       const response = await fetch('/api/account/delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ confirmation: deleteConfirmation }),
       });
 

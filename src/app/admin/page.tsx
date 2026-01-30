@@ -335,7 +335,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/seasons', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           season_id: seasonId,
           status: archive ? 'archived' : 'finished',
@@ -438,7 +439,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/seasons', {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           season_id: seasonId,
           confirm: true,
@@ -496,7 +498,8 @@ export default function AdminDashboard() {
     try {
       const response = await fetch('/api/admin/seasons', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           season_id: activeSeason.id,
           status: 'finished',

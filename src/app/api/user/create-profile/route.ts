@@ -107,6 +107,18 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
+      // Handle unique constraint violation (race condition: username taken between check and insert)
+      if (error.code === '23505') {
+        const isUsernameConflict = error.message?.includes('username');
+        const isEmailConflict = error.message?.includes('email');
+        if (isUsernameConflict) {
+          return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 400 });
+        }
+        if (isEmailConflict) {
+          return NextResponse.json({ success: false, error: 'Profile already exists for this account' }, { status: 409 });
+        }
+        return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 400 });
+      }
       console.error('Create profile error:', error);
       return NextResponse.json({ success: false, error: 'Failed to create profile' }, { status: 500 });
     }

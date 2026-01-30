@@ -176,12 +176,11 @@ export async function POST(request: NextRequest) {
 
     if (profileError) {
       console.error('Failed to delete profile:', profileError);
+      console.error('Partial deletion results:', deletionResults);
       console.error('Partial deletion errors:', errors);
       return NextResponse.json(
         {
-          error: 'Failed to delete user profile. Account deletion incomplete.',
-          partialDeletion: deletionResults,
-          deletionErrors: errors,
+          error: 'Failed to delete user profile. Account deletion incomplete. Please contact support.',
         },
         { status: 500 }
       );
@@ -199,7 +198,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Your account and all associated data have been permanently deleted.',
-      deletedItems: deletionResults,
     });
   } catch (error) {
     console.error('Account deletion error:', error);

@@ -373,7 +373,7 @@ export async function POST(request: NextRequest) {
       } else if (uploadError.message?.includes('bucket') || uploadError.message?.includes('not found')) {
         errorMessage = 'Storage bucket not found. Please ensure the "videos" bucket exists in Supabase Storage.';
       } else {
-        errorMessage += uploadError.message || 'Storage error. Please try again.';
+        errorMessage += 'Storage error. Please try again.';
       }
       
       return NextResponse.json({ 
@@ -465,9 +465,9 @@ export async function POST(request: NextRequest) {
         // Cleanup failed, but we still need to return the error
       }
       
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: `Failed to save clip: ${clipError.message || 'Database error'}. Please try again.` 
+        error: 'Failed to save clip. Please try again.'
       }, { status: 500 });
     }
 

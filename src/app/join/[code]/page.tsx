@@ -10,11 +10,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useSession, signIn } from 'next-auth/react';
 import { motion } from 'framer-motion';
 import { Gift, Sparkles, ArrowRight, LogIn } from 'lucide-react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 export default function JoinPage() {
   const params = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
+  const { getHeaders } = useCsrf();
   const [processing, setProcessing] = useState(false);
   const referralCode = params.code as string;
 
@@ -41,7 +43,8 @@ export default function JoinPage() {
       // Try to track the referral
       await fetch('/api/referral', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({
           referral_code: referralCode,
         }),

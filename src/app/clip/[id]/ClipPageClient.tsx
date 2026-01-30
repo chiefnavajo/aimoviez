@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import ReportModal from '@/components/ReportModal';
 import BottomNavigation from '@/components/BottomNavigation';
 import CommentsSection from '@/components/CommentsSection';
+import { useCsrf } from '@/hooks/useCsrf';
 
 // ============================================================================
 // CLIP DETAIL PAGE - Client Component
@@ -69,6 +70,7 @@ interface ClipPageClientProps {
 export default function ClipPageClient({ clipId }: ClipPageClientProps) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { getHeaders } = useCsrf();
 
   const [clip, setClip] = useState<ClipData | null>(null);
   const [stats, setStats] = useState<ClipAPIResponse['stats'] | null>(null);
@@ -144,7 +146,8 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
     try {
       const res = await fetch('/api/vote', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify({ clipId: clip.id }),
       });
 

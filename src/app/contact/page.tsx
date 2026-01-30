@@ -16,6 +16,7 @@ import {
   Loader2,
   ExternalLink,
 } from 'lucide-react';
+import { useCsrf } from '@/hooks/useCsrf';
 
 type ContactReason = 'general' | 'support' | 'bug' | 'feature' | 'report' | 'business';
 
@@ -36,6 +37,7 @@ const CONTACT_REASONS = [
 ];
 
 export default function ContactPage() {
+  const { getHeaders } = useCsrf();
   const [form, setForm] = useState<ContactForm>({
     reason: 'general',
     email: '',
@@ -54,7 +56,8 @@ export default function ContactPage() {
     try {
       const response = await fetch('/api/contact', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(form),
       });
 
