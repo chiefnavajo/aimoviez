@@ -9,6 +9,7 @@ declare module 'next-auth' {
       hasProfile?: boolean;
       username?: string | null;
       userId?: string | null;
+      isAdmin?: boolean;
     };
   }
 }
@@ -18,5 +19,6 @@ declare module 'next-auth/jwt' {
     hasProfile?: boolean;
     username?: string | null;
     userId?: string | null;
+    isAdmin?: boolean;
   }
 }

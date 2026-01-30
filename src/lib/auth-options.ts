@@ -112,6 +112,7 @@ export const authOptions: NextAuthOptions = {
           token.hasProfile = !!data;
           token.username = data?.username || null;
           token.userId = data?.id || null;
+          token.isAdmin = !!data?.is_admin;
           token._profileCheckedAt = now;
 
           // Populate Redis session store (fire-and-forget, non-blocking)
@@ -148,6 +149,7 @@ export const authOptions: NextAuthOptions = {
       session.user.hasProfile = token.hasProfile || false;
       session.user.username = token.username || null;
       session.user.userId = token.userId || null;
+      session.user.isAdmin = token.isAdmin || false;
 
       return session;
     },
