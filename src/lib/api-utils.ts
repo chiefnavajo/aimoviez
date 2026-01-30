@@ -241,6 +241,8 @@ export function parseQueryParams(
   const params: Record<string, any> = { ...defaults };
   
   searchParams.forEach((value, key) => {
+    // Guard against prototype pollution
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') return;
     // Parse numbers
     if (['page', 'limit', 'page_size', 'offset'].includes(key)) {
       const num = parseInt(value, 10);

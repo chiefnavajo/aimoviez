@@ -27,30 +27,21 @@ export function useAdminAuth(): AdminAuthState {
 
   useEffect(() => {
     async function checkAdminStatus() {
-      console.log('[useAdminAuth] Status:', status, 'Session:', session);
-
       // Still loading session
       if (status === 'loading') {
-        console.log('[useAdminAuth] Still loading session...');
         return;
       }
 
       // Not authenticated
       if (!session?.user?.email) {
-        console.log('[useAdminAuth] No email in session:', session?.user);
         setIsAdmin(false);
         setIsLoading(false);
         setError('Not authenticated');
         return;
       }
 
-      console.log('[useAdminAuth] Checking admin status for:', session.user.email);
-
       try {
-        // Call admin API to verify status
-        // Any admin route will work - it will return 403 if not admin
         const response = await fetch('/api/admin/stats');
-        console.log('[useAdminAuth] API response status:', response.status);
 
         if (response.status === 401) {
           setIsAdmin(false);

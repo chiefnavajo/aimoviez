@@ -120,7 +120,7 @@ export async function GET(req: NextRequest) {
     if (seasonsError) {
       console.error('[story] seasons error:', seasonsError);
       return NextResponse.json(
-        { error: 'Failed to load seasons', details: seasonsError.message, seasons: [] },
+        { error: 'Failed to load seasons', seasons: [] },
         { status: 500 }
       );
     }
@@ -140,7 +140,7 @@ export async function GET(req: NextRequest) {
     if (slotsError) {
       console.error('[story] slots error:', slotsError);
       return NextResponse.json(
-        { error: 'Failed to load slots', details: slotsError.message, seasons: [] },
+        { error: 'Failed to load slots', seasons: [] },
         { status: 500 }
       );
     }

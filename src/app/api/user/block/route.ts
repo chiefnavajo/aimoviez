@@ -125,11 +125,12 @@ export async function POST(request: NextRequest) {
       });
 
     if (insertError) {
-      // If table doesn't exist, log and return success
       if (insertError.code === '42P01') {
-        console.log('user_blocks table does not exist, logging to console only');
-        console.log('Block:', { blocker: session.user.userId, blocked: userId });
-        return NextResponse.json({ success: true });
+        console.error('user_blocks table does not exist — block action lost');
+        return NextResponse.json(
+          { error: 'Block feature temporarily unavailable.' },
+          { status: 500 }
+        );
       }
       // Duplicate block
       if (insertError.code === '23505') {
@@ -189,9 +190,12 @@ export async function DELETE(request: NextRequest) {
       .eq('blocked_id', userId);
 
     if (deleteError) {
-      // If table doesn't exist, return success
       if (deleteError.code === '42P01') {
-        return NextResponse.json({ success: true });
+        console.error('user_blocks table does not exist — unblock action lost');
+        return NextResponse.json(
+          { error: 'Block feature temporarily unavailable.' },
+          { status: 500 }
+        );
       }
       throw deleteError;
     }

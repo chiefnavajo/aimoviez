@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
 
   const response = NextResponse.json({
     success: true,
-    token,
   });
 
   // Set the token in a cookie

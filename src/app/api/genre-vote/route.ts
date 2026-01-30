@@ -265,6 +265,9 @@ export async function POST(req: NextRequest) {
  * Remove user's genre vote
  */
 export async function DELETE(req: NextRequest) {
+  const rateLimitResponse = await rateLimit(req, 'vote');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const voterKey = getVoterKey(req);

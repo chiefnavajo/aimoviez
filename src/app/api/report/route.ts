@@ -103,11 +103,12 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       console.error('Report submission error:', insertError);
-      // If table doesn't exist, still return success
       if (insertError.code === '42P01') {
-        console.log('content_reports table does not exist, logging to console only');
-        console.log('Report:', { clipId, userId, commentId, reason, descriptionLength: description?.length || 0, reporter: session.user.userId });
-        return NextResponse.json({ success: true });
+        console.error('content_reports table does not exist — reports are being lost');
+        return NextResponse.json(
+          { error: 'Report system temporarily unavailable. Please try again later.' },
+          { status: 500 }
+        );
       }
       throw insertError;
     }

@@ -48,14 +48,7 @@ export async function checkAdminAuth(): Promise<AdminAuthResult> {
     // Get session with authOptions
     const session = await getServerSession(authOptions);
 
-    console.log('[admin-auth] Session check:', {
-      hasSession: !!session,
-      hasUser: !!session?.user,
-      email: session?.user?.email || 'NO EMAIL',
-    });
-
     if (!session?.user?.email) {
-      console.log('[admin-auth] No session or email found');
       return {
         isAdmin: false,
         userId: null,
@@ -73,13 +66,6 @@ export async function checkAdminAuth(): Promise<AdminAuthResult> {
       .select('id, email, is_admin')
       .eq('email', email)
       .single();
-
-    console.log('[admin-auth] Database check:', {
-      email,
-      found: !!user,
-      is_admin: user?.is_admin,
-      error: error?.message,
-    });
 
     if (error || !user) {
       return {
@@ -118,10 +104,7 @@ export async function requireAdmin(): Promise<NextResponse | null> {
   const auth = await checkAdminAuth();
 
   if (!auth.isAdmin) {
-    console.warn('[admin-auth] Unauthorized admin access attempt:', {
-      email: auth.email,
-      error: auth.error,
-    });
+    console.warn('[admin-auth] Unauthorized admin access attempt');
 
     if (!auth.email) {
       return NextResponse.json(
