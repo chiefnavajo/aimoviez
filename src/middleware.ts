@@ -149,13 +149,9 @@ function addCORSHeaders(response: NextResponse, origin: string | null): NextResp
 // ============================================================================
 
 function addRateLimitHeaders(response: NextResponse, request: NextRequest): NextResponse {
-  // Add client identifier for rate limiting at edge/proxy level
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    || request.headers.get('x-real-ip')
-    || 'unknown';
-
-  response.headers.set('X-Client-IP', ip);
-
+  // Client IP is available server-side via request headers (x-forwarded-for, cf-connecting-ip)
+  // but must NOT be echoed back in response headers (leaks real IP to JavaScript/third-party scripts)
+  void request;
   return response;
 }
 

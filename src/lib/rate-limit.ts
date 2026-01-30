@@ -348,17 +348,30 @@ export function withRateLimit<T extends (...args: any[]) => Promise<NextResponse
   type: RateLimitType = 'api'
 ): T {
   return (async (req: NextRequest, ...args: any[]) => {
-    const rateLimitResponse = await rateLimit(req, type);
-    if (rateLimitResponse) {
-      return rateLimitResponse;
+    // Check rate limit once — store result to avoid consuming a second token
+    const identifier = getIdentifier(req);
+    const result = await checkRateLimit(identifier, type);
+
+    if (!result.success) {
+      const response = NextResponse.json(
+        {
+          error: 'Too many requests',
+          message: 'Rate limit exceeded. Please try again later.',
+          retryAfter: Math.ceil((result.reset - Date.now()) / 1000),
+        },
+        { status: 429 }
+      );
+      Object.entries(result.headers).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
+      response.headers.set('Retry-After', String(Math.ceil((result.reset - Date.now()) / 1000)));
+      return response;
     }
 
     // Call the original handler
     const response = await handler(req, ...args);
 
-    // Optionally add rate limit headers to successful responses too
-    const identifier = getIdentifier(req);
-    const result = await checkRateLimit(identifier, type);
+    // Reuse the same result for headers (no second token consumed)
     return addRateLimitHeaders(response, result);
   }) as T;
 }

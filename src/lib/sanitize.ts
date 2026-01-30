@@ -106,13 +106,24 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
 
     // Block localhost and internal IPs for SSRF protection
     const hostname = url.hostname.toLowerCase();
+    // Check RFC 1918 172.16.0.0/12 range (172.16.* through 172.31.*)
+    let isPrivate172 = false;
+    if (hostname.startsWith('172.')) {
+      const secondOctet = parseInt(hostname.split('.')[1], 10);
+      isPrivate172 = secondOctet >= 16 && secondOctet <= 31;
+    }
     if (hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
+        hostname === '[::1]' ||              // IPv6 loopback
+        hostname === '::1' ||                // IPv6 loopback (no brackets)
         hostname.startsWith('192.168.') ||
         hostname.startsWith('10.') ||
-        hostname.startsWith('172.16.') ||
+        isPrivate172 ||                      // Full 172.16.0.0/12 range
+        hostname.startsWith('169.254.') ||   // Link-local
         hostname.endsWith('.local') ||
-        hostname === '0.0.0.0') {
+        hostname.endsWith('.internal') ||
+        hostname === '0.0.0.0' ||
+        hostname === '[::0]') {
       return null;
     }
 

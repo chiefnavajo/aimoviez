@@ -208,8 +208,10 @@ export function verifyVoteIntegrityToken(
 
   // Regenerate and compare
   const expected = generateVoteIntegrityToken(deviceKey, clipId, timestamp, secret);
-  return crypto.timingSafeEqual(
-    Buffer.from(token),
-    Buffer.from(expected)
-  );
+  const tokenBuf = Buffer.from(token);
+  const expectedBuf = Buffer.from(expected);
+  if (tokenBuf.length !== expectedBuf.length) {
+    return false;
+  }
+  return crypto.timingSafeEqual(tokenBuf, expectedBuf);
 }

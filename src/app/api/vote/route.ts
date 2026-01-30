@@ -1062,8 +1062,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        // CDN cache: 30 seconds fresh, serve stale up to 2 minutes while revalidating
-        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120',
+        // Response contains user-specific data (votedClipIds, totalVotesToday)
+        // Must NOT be publicly cached — use private with short revalidation
+        'Cache-Control': 'private, no-store',
       },
     });
   } catch (error) {
