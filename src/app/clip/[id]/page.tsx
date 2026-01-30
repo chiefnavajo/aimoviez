@@ -81,7 +81,7 @@ export async function generateMetadata({
   const username = clip.user?.username || 'Creator';
   const title = clip.title || `Clip by @${username}`;
   const description = `${title} - ${clip.genre} clip for Slot #${clip.slot_position} by @${username}. ${clip.vote_count} votes on AiMoviez.`;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://aimoviez.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.aimoviez.app';
   const clipUrl = `${siteUrl}/clip/${clip.id}`;
 
   // Use thumbnail or fallback to a frame from video

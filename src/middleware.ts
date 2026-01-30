@@ -31,8 +31,8 @@ const ADMIN_ROUTES = [
 // Allowed origins for CORS
 const ALLOWED_ORIGINS = [
   process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-  'https://aimoviez.com',
-  'https://www.aimoviez.com',
+  'https://aimoviez.app',
+  'https://www.aimoviez.app',
 ].filter(Boolean);
 
 // Session timeout in seconds (30 minutes)
@@ -93,9 +93,9 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Fonts: self + Google Fonts
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: API calls to self + Supabase + Google + R2 storage
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com https://*.r2.cloudflarestorage.com https://*.r2.dev",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com https://*.r2.cloudflarestorage.com https://cdn.aimoviez.app https://*.r2.dev",
     // Media: self + Supabase storage (videos) + R2 CDN
-    "media-src 'self' blob: https://*.supabase.co https://*.r2.dev",
+    "media-src 'self' blob: https://*.supabase.co https://cdn.aimoviez.app https://*.r2.dev",
     // Frames: none (prevent embedding)
     "frame-ancestors 'none'",
     // Forms: self only

@@ -129,7 +129,7 @@ export async function GET() {
     const nextTier = getNextTier(user.referral_count || 0);
 
     // Build referral link
-    const baseUrl = process.env.NEXTAUTH_URL || 'https://aimoviez.com';
+    const baseUrl = process.env.NEXTAUTH_URL || 'https://www.aimoviez.app';
     const referralLink = `${baseUrl}/join/${referralCode}`;
 
     return NextResponse.json({

@@ -12,9 +12,11 @@ compatibility_date = "2024-12-01"
 binding = "RATE_LIMITS"
 id = "d08a583ec7c14f27907474884a7ba894"
 
-# Optional: preview namespace for local development
-# Create with: npx wrangler kv:namespace create RATE_LIMITS --preview
-# [[kv_namespaces]]
-# binding = "RATE_LIMITS"
-# id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
-# preview_id = "YOUR_PREVIEW_KV_NAMESPACE_ID"
+# Routes: intercept API traffic on aimoviez.app for rate limiting
+[[routes]]
+pattern = "aimoviez.app/api/*"
+zone_id = "d3b8e5d85d3df9fab5e729b9f4479514"
+
+[[routes]]
+pattern = "www.aimoviez.app/api/*"
+zone_id = "d3b8e5d85d3df9fab5e729b9f4479514"
