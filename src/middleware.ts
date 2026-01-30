@@ -93,7 +93,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Fonts: self + Google Fonts
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: API calls to self + Supabase + Google + R2 storage
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com https://*.r2.cloudflarestorage.com https://cdn.aimoviez.app https://*.r2.dev",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://accounts.google.com https://www.googleapis.com https://*.sentry.io https://*.ingest.de.sentry.io https://*.r2.cloudflarestorage.com https://cdn.aimoviez.app https://*.r2.dev",
     // Media: self + Supabase storage (videos) + R2 CDN
     "media-src 'self' blob: https://*.supabase.co https://cdn.aimoviez.app https://*.r2.dev",
     // Frames: none (prevent embedding)

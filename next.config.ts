@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
       // Fonts: self + Google Fonts
       "font-src 'self' https://fonts.gstatic.com",
       // Connect: API calls to self + Supabase + Google OAuth + Pusher for real-time + Sentry + R2 storage
-      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com https://*.sentry.io https://*.r2.cloudflarestorage.com https://cdn.aimoviez.app https://*.r2.dev",
+      "connect-src 'self' https://dxixqdmqomqzhilmdfzg.supabase.co wss://dxixqdmqomqzhilmdfzg.supabase.co https://accounts.google.com wss://*.pusher.com https://*.pusher.com https://*.sentry.io https://*.ingest.de.sentry.io https://*.r2.cloudflarestorage.com https://cdn.aimoviez.app https://*.r2.dev",
       // Worker: service worker
       "worker-src 'self'",
       // Frames: Google OAuth popup

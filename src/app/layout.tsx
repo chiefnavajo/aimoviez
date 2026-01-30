@@ -6,6 +6,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 import CookieConsent from '@/components/CookieConsent';
+import { Analytics } from '@vercel/analytics/react';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 const inter = Inter({ 
   subsets: ['latin'],
@@ -90,6 +92,8 @@ export default function RootLayout({
           </ErrorBoundary>
           <ServiceWorkerRegistration />
           <CookieConsent />
+          <Analytics />
+          <SpeedInsights />
         </Providers>
       </body>
     </html>
