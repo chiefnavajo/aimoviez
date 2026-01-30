@@ -262,6 +262,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const tapTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Track expected index to prevent stale onEnded events from causing oscillation
   const expectedIndexRef = useRef(0);
+  // Track last loaded video URL to avoid redundant loads
+  const lastVideoUrlRef = useRef<string | null>(null);
+  // Ref for completedSegments length to use in persistent event handlers
+  const segmentsLengthRef = useRef(0);
   // Swipe tracking for segment navigation
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [touchEndY, setTouchEndY] = useState<number | null>(null);
@@ -270,6 +274,9 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
     () => season.slots.filter(s => s.status === 'locked' && s.winning_clip),
     [season.slots]
   );
+
+  // Keep segment length ref in sync for persistent event handlers
+  segmentsLengthRef.current = completedSegments.length;
 
   // Helper to safely change index - updates both state and ref
   const safeSetIndex = useCallback((newIndex: number, source: string) => {
@@ -340,17 +347,34 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   // Reset when season changes
   useEffect(() => {
     expectedIndexRef.current = 0;
+    lastVideoUrlRef.current = null; // Force reload for new season
     setCurrentIndex(0);
     setIsPlaying(true); // Auto-play when season loads
     setVideoLoaded(false);
   }, [season.id]);
 
 
-  // Reset video state when clip changes
+  // Swap video source when clip changes — persistent element avoids remount/re-download
   useEffect(() => {
     setVideoLoaded(false);
     setCurrentTime(0); // Reset time immediately to prevent progress bar jump
-  }, [currentIndex]);
+
+    const video = videoRef.current;
+    const segment = completedSegments[currentIndex];
+    const newUrl = segment?.winning_clip?.video_url;
+
+    if (!video || !newUrl) return;
+
+    // Only reload if the URL actually changed (avoids redundant network requests)
+    if (lastVideoUrlRef.current !== newUrl) {
+      lastVideoUrlRef.current = newUrl;
+      video.src = newUrl;
+      video.load();
+    } else {
+      // Same URL (navigated back) — rewind and play from cache
+      video.currentTime = 0;
+    }
+  }, [currentIndex, completedSegments]);
 
   // Consolidated video playback control - prevents race conditions
   useEffect(() => {
@@ -576,90 +600,81 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Video/Image */}
+      {/* Blurred background - animated fade on segment change */}
       <AnimatePresence mode="wait">
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-          {currentSegment?.winning_clip?.video_url ? (
-            <>
-              {/* Blurred background - static thumbnail fills empty space around non-matching aspect ratios */}
-              {currentSegment.winning_clip.thumbnail_url &&
-               !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
-                <img
-                  src={currentSegment.winning_clip.thumbnail_url}
-                  className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
-                  aria-hidden="true"
-                  alt=""
-                />
-              ) : (
-                <div
-                  className="absolute inset-0 w-full h-full scale-110 blur-2xl opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
-                  aria-hidden="true"
-                />
-              )}
-              {/* Main video - full video visible, blur background fills empty space */}
-              {/* Key forces remount on index change, preventing stale onEnded events */}
-              <video
-                key={`video-${currentIndex}-${currentSegment.winning_clip.id}`}
-                ref={videoRef}
-                src={currentSegment.winning_clip.video_url}
-                poster={currentSegment.winning_clip.thumbnail_url || undefined}
-                className="absolute inset-0 w-full h-full object-contain"
-                muted={isMuted}
-                playsInline
-                preload="auto"
-                autoPlay={isPlaying}
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={handleLoadedMetadata}
-                onCanPlay={() => {
-                  // Video can start playing - mark as loaded and play if needed
-                  setVideoLoaded(true);
-                  if (isPlaying && videoRef.current) {
-                    videoRef.current.play().catch(() => {});
-                  }
-                }}
-                onEnded={() => {
-                  console.log(`[onEnded] fired, currentIndex=${currentIndex}, expectedRef=${expectedIndexRef.current}`);
-                  // Guard: Only auto-advance if this video's index matches expected
-                  // This prevents stale onEnded events from unmounting videos
-                  if (currentIndex !== expectedIndexRef.current) {
-                    console.log(`[onEnded] BLOCKED - stale event from old video`);
-                    return;
-                  }
-                  // Auto-advance to next segment
-                  if (currentIndex < completedSegments.length - 1) {
-                    safeSetIndex(currentIndex + 1, 'onEnded-advance');
-                  } else {
-                    // End of season - loop back to start
-                    safeSetIndex(0, 'onEnded-loop');
-                  }
-                }}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => {
-                  // Only set to false if we didn't just finish (avoid pause during transition)
-                }}
-              />
-              {/* Loading overlay - show while video first frame loads */}
-              {!videoLoaded && (
-                <div className="absolute inset-0 bg-gradient-to-br from-[#3CF2FF]/20 via-[#A020F0]/20 to-[#FF00C7]/20 flex items-center justify-center">
-                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                </div>
-              )}
-              {/* Play button overlay when paused */}
-              {!isPlaying && videoLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                  <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                    <Play className="w-8 h-8 text-white ml-1" fill="white" />
-                  </div>
-                </div>
-              )}
-            </>
+          {currentSegment?.winning_clip?.thumbnail_url &&
+           !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
+            <img
+              src={currentSegment.winning_clip.thumbnail_url}
+              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
+              aria-hidden="true"
+              alt=""
+            />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20 flex items-center justify-center">
-              <Play className="w-16 h-16 text-white/50" />
-            </div>
+            <div
+              className="absolute inset-0 w-full h-full scale-110 blur-2xl opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
+              aria-hidden="true"
+            />
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Persistent video element — never remounted, src swapped via useEffect */}
+      {/* This avoids re-downloading video data on every segment change */}
+      {currentSegment?.winning_clip?.video_url ? (
+        <>
+          <video
+            ref={videoRef}
+            poster={currentSegment.winning_clip.thumbnail_url || undefined}
+            className="absolute inset-0 w-full h-full object-contain"
+            muted={isMuted}
+            playsInline
+            preload="auto"
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={handleLoadedMetadata}
+            onCanPlay={() => {
+              setVideoLoaded(true);
+              if (isPlaying && videoRef.current) {
+                videoRef.current.play().catch(() => {});
+              }
+            }}
+            onEnded={() => {
+              // Use refs to avoid stale closures — video element is persistent
+              const idx = expectedIndexRef.current;
+              const total = segmentsLengthRef.current;
+              console.log(`[onEnded] fired, expectedRef=${idx}, total=${total}`);
+              if (idx < total - 1) {
+                safeSetIndex(idx + 1, 'onEnded-advance');
+              } else {
+                safeSetIndex(0, 'onEnded-loop');
+              }
+            }}
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => {
+              // Only set to false if we didn't just finish (avoid pause during transition)
+            }}
+          />
+          {/* Loading overlay */}
+          {!videoLoaded && (
+            <div className="absolute inset-0 bg-gradient-to-br from-[#3CF2FF]/20 via-[#A020F0]/20 to-[#FF00C7]/20 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
+          {/* Play button overlay when paused */}
+          {!isPlaying && videoLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                <Play className="w-8 h-8 text-white ml-1" fill="white" />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20 flex items-center justify-center">
+          <Play className="w-16 h-16 text-white/50" />
+        </div>
+      )}
 
       {/* Gradient */}
       <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/50 pointer-events-none" />
