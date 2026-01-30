@@ -225,12 +225,67 @@ export async function DELETE(
     const { id } = await params;
     const supabase = getSupabaseClient();
 
-    // Get clip info before deletion for audit log
+    // Get clip info before deletion for audit log and safety checks
     const { data: clipToDelete } = await supabase
       .from('tournament_clips')
-      .select('title, username, genre, status')
+      .select('id, title, username, genre, status, slot_position, season_id')
       .eq('id', id)
       .single();
+
+    if (!clipToDelete) {
+      return NextResponse.json(
+        { error: 'Clip not found' },
+        { status: 404 }
+      );
+    }
+
+    // SAFETY CHECK 1: Prevent deleting a clip that is the winner of a locked slot
+    const { data: winnerSlot } = await supabase
+      .from('story_slots')
+      .select('id, slot_position, status')
+      .eq('winner_tournament_clip_id', id)
+      .maybeSingle();
+
+    if (winnerSlot) {
+      return NextResponse.json(
+        {
+          error: `Cannot delete: this clip is the winner of Slot ${winnerSlot.slot_position}. Removing it would break the story board.`,
+        },
+        { status: 409 }
+      );
+    }
+
+    // SAFETY CHECK 2: If last active clip in a voting slot, reset slot to waiting_for_clips
+    if (clipToDelete.status === 'active' && clipToDelete.slot_position != null && clipToDelete.season_id) {
+      const { count } = await supabase
+        .from('tournament_clips')
+        .select('id', { count: 'exact', head: true })
+        .eq('slot_position', clipToDelete.slot_position)
+        .eq('season_id', clipToDelete.season_id)
+        .eq('status', 'active')
+        .neq('id', id);
+
+      const { data: currentSlot } = await supabase
+        .from('story_slots')
+        .select('status')
+        .eq('season_id', clipToDelete.season_id)
+        .eq('slot_position', clipToDelete.slot_position)
+        .maybeSingle();
+
+      if (count === 0 && currentSlot?.status === 'voting') {
+        await supabase
+          .from('story_slots')
+          .update({
+            status: 'waiting_for_clips',
+            voting_started_at: null,
+            voting_ends_at: null,
+          })
+          .eq('season_id', clipToDelete.season_id)
+          .eq('slot_position', clipToDelete.slot_position);
+
+        console.log(`[admin/clips] Last active clip in voting Slot ${clipToDelete.slot_position} deleted — reset slot to waiting_for_clips`);
+      }
+    }
 
     const { error } = await supabase
       .from('tournament_clips')
