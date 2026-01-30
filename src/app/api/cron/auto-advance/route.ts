@@ -316,7 +316,40 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        // Activate next slot with new timer (only if there are clips to vote on)
+        // Activate next slot with new timer — but ONLY if clips actually exist
+        // Safeguard: verify clips were actually moved before starting the voting timer
+        const { count: nextSlotClipCount } = await supabase
+          .from('tournament_clips')
+          .select('id', { count: 'exact', head: true })
+          .eq('slot_position', nextPosition)
+          .eq('season_id', slot.season_id)
+          .eq('status', 'active');
+
+        if (!nextSlotClipCount || nextSlotClipCount === 0) {
+          console.warn(`[auto-advance] Safeguard: clipsMovedCount was ${clipsMovedCount} but 0 active clips in slot ${nextPosition} — setting waiting_for_clips`);
+
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('season_id', slot.season_id)
+            .eq('slot_position', nextPosition);
+
+          results.push({
+            slot_position: slot.slot_position,
+            status: 'locked_waiting',
+            winner_clip_id: topClip.id,
+            winner_username: topClip.username,
+            next_slot: nextPosition,
+            next_status: 'waiting_for_clips',
+            message: `Safeguard: no active clips in slot ${nextPosition} despite move. Set to waiting_for_clips.`,
+          });
+          continue;
+        }
+
         const durationHours = slot.voting_duration_hours || 24;
         const now = new Date();
         const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);

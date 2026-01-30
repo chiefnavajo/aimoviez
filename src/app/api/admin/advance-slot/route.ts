@@ -311,7 +311,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 8. Activate next slot with timer (only if there are clips to vote on)
+    // 8. Activate next slot with timer — but ONLY if clips actually exist in next slot
+    // Safeguard: verify clips were actually moved before starting the voting timer
+    const { count: nextSlotClipCount } = await supabase
+      .from('tournament_clips')
+      .select('id', { count: 'exact', head: true })
+      .eq('slot_position', nextPosition)
+      .eq('season_id', seasonRow.id)
+      .eq('status', 'active');
+
+    if (!nextSlotClipCount || nextSlotClipCount === 0) {
+      // Clips moved count said > 0 but no active clips found — set waiting_for_clips
+      console.warn(`[advance-slot] Safeguard: clipsMovedCount was ${clipsMovedCount} but 0 active clips in slot ${nextPosition} — setting waiting_for_clips`);
+
+      await supabase
+        .from('story_slots')
+        .update({
+          status: 'waiting_for_clips',
+          voting_started_at: null,
+          voting_ends_at: null,
+        })
+        .eq('season_id', seasonRow.id)
+        .eq('slot_position', nextPosition);
+
+      return NextResponse.json(
+        {
+          ok: true,
+          finished: false,
+          waitingForClips: true,
+          currentSlotLocked: storySlot.slot_position,
+          winnerClipId: winner.id,
+          message: `Slot ${storySlot.slot_position} locked. Slot ${nextPosition} is waiting for clips.`,
+          nextSlotPosition: nextPosition,
+        },
+        { status: 200 }
+      );
+    }
+
     const durationHours = storySlot.voting_duration_hours || 24;
     const now = new Date();
     const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
