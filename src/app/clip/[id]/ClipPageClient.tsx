@@ -158,6 +158,8 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
         setVoteCount(data.newScore || voteCount + 1);
       } else if (data.code === 'ALREADY_VOTED') {
         setHasVoted(true);
+      } else if (data.code === 'DAILY_LIMIT') {
+        toast.error('All votes used up for today! Come back tomorrow.');
       }
     } catch (err) {
       console.error('Vote failed:', err);

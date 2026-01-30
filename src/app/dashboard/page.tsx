@@ -344,7 +344,11 @@ const PowerVoteButton = memo(function PowerVoteButton({
   const dailyProgressColor = getDailyProgressColor();
 
   const handleClick = () => {
-    if (isVoting || isDisabled) return;
+    if (isVoting) return;
+    if (isDisabled) {
+      toast.error('All votes used up for today! Come back tomorrow.');
+      return;
+    }
     onVote();
   };
 
@@ -353,7 +357,8 @@ const PowerVoteButton = memo(function PowerVoteButton({
       <motion.button
         onClick={handleClick}
         whileTap={{ scale: 0.95 }}
-        disabled={isVoting || isDisabled}
+        disabled={isVoting}
+        aria-disabled={isDisabled}
         aria-label={hasVoted ? 'Remove vote from this clip' : 'Vote for this clip'}
         aria-pressed={hasVoted}
         className="relative w-16 h-16 flex items-center justify-center touch-none select-none"
