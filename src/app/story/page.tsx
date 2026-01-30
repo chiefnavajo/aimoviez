@@ -17,7 +17,7 @@
 // ✅ Clean thumbnail design (no breathing overlay)
 // ============================================================================
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -266,7 +266,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [touchEndY, setTouchEndY] = useState<number | null>(null);
 
-  const completedSegments = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
+  const completedSegments = useMemo(
+    () => season.slots.filter(s => s.status === 'locked' && s.winning_clip),
+    [season.slots]
+  );
 
   // Helper to safely change index - updates both state and ref
   const safeSetIndex = useCallback((newIndex: number, source: string) => {
@@ -578,16 +581,21 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
           {currentSegment?.winning_clip?.video_url ? (
             <>
-              {/* Blurred background video - fills empty space around non-matching aspect ratios */}
-              <video
-                key={`blur-${currentIndex}-${currentSegment.winning_clip.id}`}
-                src={currentSegment.winning_clip.video_url}
-                className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
-                muted
-                playsInline
-                autoPlay={isPlaying}
-                aria-hidden="true"
-              />
+              {/* Blurred background - static thumbnail fills empty space around non-matching aspect ratios */}
+              {currentSegment.winning_clip.thumbnail_url &&
+               !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
+                <img
+                  src={currentSegment.winning_clip.thumbnail_url}
+                  className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
+                  aria-hidden="true"
+                  alt=""
+                />
+              ) : (
+                <div
+                  className="absolute inset-0 w-full h-full scale-110 blur-2xl opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
+                  aria-hidden="true"
+                />
+              )}
               {/* Main video - full video visible, blur background fills empty space */}
               {/* Key forces remount on index change, preventing stale onEnded events */}
               <video
@@ -608,10 +616,6 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                   if (isPlaying && videoRef.current) {
                     videoRef.current.play().catch(() => {});
                   }
-                }}
-                onLoadedData={() => {
-                  // Video first frame is now available
-                  setVideoLoaded(true);
                 }}
                 onEnded={() => {
                   console.log(`[onEnded] fired, currentIndex=${currentIndex}, expectedRef=${expectedIndexRef.current}`);
@@ -1021,7 +1025,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                       {segment.winning_clip?.thumbnail_url && !segment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                         <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
                       ) : (
-                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="none" poster={segment.winning_clip?.thumbnail_url || undefined} />
                       )}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="w-4 h-4 text-white" />
@@ -1249,7 +1253,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
                       className="w-full h-full object-cover"
                       muted
                       playsInline
-                      preload="metadata"
+                      preload="none"
                     />
                   );
                 } else {
@@ -1400,7 +1404,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
               if (isActualImage) {
                 return <Image src={thumbUrl} alt="" fill sizes="64px" className="object-cover" />;
               } else if (videoUrl) {
-                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
+                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="none" />;
               } else {
                 return <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />;
               }

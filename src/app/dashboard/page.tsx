@@ -1561,17 +1561,20 @@ function VotingArena() {
           </div>
         ) : currentClip ? (
           <>
-            {/* Blurred background video - fills empty space around non-matching aspect ratios */}
-            <video
-              key={`blur-${currentClip.clip_id}`}
-              src={currentClip.video_url ?? '/placeholder-video.mp4'}
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60 [&::-webkit-media-controls]:hidden"
-              autoPlay
-              loop
-              muted
-              playsInline
-              aria-hidden="true"
-            />
+            {/* Blurred background - static thumbnail fills empty space around non-matching aspect ratios */}
+            {currentClip.thumbnail_url ? (
+              <img
+                src={currentClip.thumbnail_url}
+                className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
+                aria-hidden="true"
+                alt=""
+              />
+            ) : (
+              <div
+                className="absolute inset-0 w-full h-full scale-110 blur-2xl opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
+                aria-hidden="true"
+              />
+            )}
             {/* Main video - full video visible, blur background fills empty space */}
             <video
               ref={videoRef}
