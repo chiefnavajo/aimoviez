@@ -148,7 +148,7 @@ export default function ClipPageClient({ clipId }: ClipPageClientProps) {
         body: JSON.stringify({ clipId: clip.id }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ success: false, error: 'Failed to vote' }));
 
       if (data.success) {
         setHasVoted(true);

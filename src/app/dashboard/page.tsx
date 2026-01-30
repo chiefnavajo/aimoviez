@@ -833,7 +833,7 @@ function VotingArena() {
         body: JSON.stringify({ clipId, captchaToken }),
       });
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({ error: 'Failed to vote' }));
         throw new Error(errorData.error || 'Failed to vote');
       }
       return res.json();
@@ -918,7 +918,7 @@ function VotingArena() {
         body: JSON.stringify({ clipId }),
       });
       if (!res.ok) {
-        const errorData = await res.json();
+        const errorData = await res.json().catch(() => ({ error: 'Failed to revoke vote' }));
         throw new Error(errorData.error || 'Failed to revoke vote');
       }
       return res.json();
