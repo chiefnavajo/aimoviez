@@ -78,25 +78,29 @@ export async function GET(req: NextRequest) {
   const lockId = `svc_${Date.now()}`;
   const expiresAt = new Date(Date.now() + 60000).toISOString();
 
-  const { data: existingLock } = await supabase
-    .from('cron_locks')
-    .select('lock_id, expires_at')
-    .eq('job_name', 'sync_vote_counters')
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
-
-  if (existingLock) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'Lock held by another instance' }, { status: 202 });
-  }
-
+  // Atomic lock acquisition:
+  // 1. Delete only expired locks for this job
+  // 2. Insert new lock — unique constraint on job_name prevents duplicates
+  // If another instance holds a valid lock, the insert fails (no TOCTOU race)
+  const now = new Date().toISOString();
   await supabase
     .from('cron_locks')
-    .upsert({
+    .delete()
+    .eq('job_name', 'sync_vote_counters')
+    .lt('expires_at', now);
+
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
       job_name: 'sync_vote_counters',
       lock_id: lockId,
-      acquired_at: new Date().toISOString(),
+      acquired_at: now,
       expires_at: expiresAt,
-    }, { onConflict: 'job_name' });
+    });
+
+  if (lockError) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Lock held by another instance' }, { status: 202 });
+  }
 
   try {
     // --- 4. Get active clip IDs from Redis ---

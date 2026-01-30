@@ -61,39 +61,30 @@ export async function GET(req: NextRequest) {
     const lockId = `auto-advance-${Date.now()}`;
     const lockExpiry = new Date(Date.now() + 60 * 1000).toISOString(); // 60 second lock
 
-    // Try to acquire lock - only succeeds if no active lock exists
-    const { data: existingLock } = await supabase
+    // Atomic lock: delete expired, then insert (unique constraint prevents duplicates)
+    const now = new Date().toISOString();
+    await supabase
       .from('cron_locks')
-      .select('id, job_name, expires_at')
+      .delete()
       .eq('job_name', 'auto-advance')
-      .gt('expires_at', new Date().toISOString())
-      .maybeSingle();
+      .lt('expires_at', now);
 
-    if (existingLock) {
+    const { error: lockError } = await supabase
+      .from('cron_locks')
+      .insert({
+        job_name: 'auto-advance',
+        lock_id: lockId,
+        expires_at: lockExpiry,
+        acquired_at: now,
+      });
+
+    if (lockError) {
       console.log('[auto-advance] Another instance is running, skipping');
       return NextResponse.json({
         ok: true,
         skipped: true,
         message: 'Another instance is already running',
-        existing_lock_expires: existingLock.expires_at
       });
-    }
-
-    // Acquire lock (upsert to handle race condition at lock acquisition)
-    const { error: lockError } = await supabase
-      .from('cron_locks')
-      .upsert({
-        job_name: 'auto-advance',
-        lock_id: lockId,
-        expires_at: lockExpiry,
-        acquired_at: new Date().toISOString()
-      }, {
-        onConflict: 'job_name'
-      });
-
-    if (lockError) {
-      console.warn('[auto-advance] Could not acquire lock:', lockError.message);
-      // Continue anyway - lock table might not exist yet
     }
 
     // ========================================================================

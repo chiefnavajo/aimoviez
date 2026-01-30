@@ -59,8 +59,8 @@ export const authOptions: NextAuthOptions = {
         .filter(Boolean);
 
       if (!allowed.length) {
-        console.warn("⚠️ No ALLOWED_EMAILS set – allowing all users");
-        return true;
+        console.error("❌ ALLOWED_EMAILS not configured – denying sign-in");
+        return false;
       }
 
       if (!user?.email) {

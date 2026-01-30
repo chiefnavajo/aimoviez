@@ -68,25 +68,26 @@ export async function GET(req: NextRequest) {
   const lockId = `slb_${Date.now()}`;
   const expiresAt = new Date(Date.now() + 60000).toISOString();
 
-  const { data: existingLock } = await supabase
-    .from('cron_locks')
-    .select('lock_id, expires_at')
-    .eq('job_name', 'sync_leaderboards')
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
-
-  if (existingLock) {
-    return NextResponse.json({ ok: true, skipped: true, reason: 'Lock held by another instance' }, { status: 202 });
-  }
-
+  // Atomic lock: delete expired, then insert (unique constraint prevents duplicates)
+  const now = new Date().toISOString();
   await supabase
     .from('cron_locks')
-    .upsert({
+    .delete()
+    .eq('job_name', 'sync_leaderboards')
+    .lt('expires_at', now);
+
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
       job_name: 'sync_leaderboards',
       lock_id: lockId,
-      acquired_at: new Date().toISOString(),
+      acquired_at: now,
       expires_at: expiresAt,
-    }, { onConflict: 'job_name' });
+    });
+
+  if (lockError) {
+    return NextResponse.json({ ok: true, skipped: true, reason: 'Lock held by another instance' }, { status: 202 });
+  }
 
   const stats = {
     clips: 0,

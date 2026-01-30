@@ -161,6 +161,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Require authentication
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     // Check if feature is enabled
     if (!(await isFeatureEnabled('referral_system'))) {
       return NextResponse.json({

@@ -1203,10 +1203,12 @@ async function handleVoteRedis(
   const dailyCount = (validation.dailyCount ?? 0) + weight;
 
   // Fire-and-forget: broadcast + leaderboard + cache updates
-  broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore);
-  updateClipScore(clipId, slotPosition, newWeightedScore);
-  updateVoterScore(effectiveVoterKey, weight);
-  updateCachedVoteCount(clipId, counts?.voteCount ?? 0, newWeightedScore);
+  Promise.allSettled([
+    broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore),
+    updateClipScore(clipId, slotPosition, newWeightedScore),
+    updateVoterScore(effectiveVoterKey, weight),
+    updateCachedVoteCount(clipId, counts?.voteCount ?? 0, newWeightedScore),
+  ]).catch(() => {});
 
   const response: VoteResponseBody = {
     success: true,
