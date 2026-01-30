@@ -168,6 +168,40 @@ At millions of clips: browsing becomes impossible
 | Real-time updates | Partially disabled | Broadcast works, changes don't |
 | Comment delivery | Polling | No push |
 
+### 1.5 Completed Work (January 2026)
+
+**Security Hardening (4 audit rounds):**
+- CSRF double-submit cookie pattern on all state-changing components (ClipPageClient, settings, contact, join, ReportModal, admin pages)
+- CSP: removed `unsafe-eval` in production, kept for dev HMR
+- Timing-safe CSRF signature comparison (constant-time XOR in Edge Runtime)
+- Input sanitization on create-profile (display_name, bio, avatar_url)
+- Video URL validation (HTTPS only, restricted to supabase.co / r2.dev / cdn.aimoviez.app)
+- Push notification endpoint validation (known push service domains only)
+- Rate limiting on user/block, notifications/subscribe endpoints
+- Crypto-secure filenames (crypto.randomBytes instead of Math.random)
+- UUID validation on clipId in comments
+- Error detail leak fixes across API routes (no internal messages exposed)
+- HSTS preload directive
+- Email masking in auth logs
+- Dev-only console.log guards on realtime hooks
+- Notification action_url sanitization
+- excludeIds capped at 200 in vote API
+- TOCTOU race handling in create-profile (PostgreSQL 23505)
+
+**Slot Advancement Safeguards:**
+- Admin clip deletion: winner clips blocked (HTTP 409), last active clip in voting slot triggers auto-reset to `waiting_for_clips`
+- Manual advance (`/api/admin/advance-slot`): verifies active clips exist in next slot before starting voting timer
+- Auto-advance cron (`/api/cron/auto-advance`): same safeguard — zero clips → `waiting_for_clips`, not `voting`
+
+**UX Fixes:**
+- Daily vote limit toast on dashboard and clip detail page
+- Clip approval auto-starts voting on `waiting_for_clips` slots (approve endpoint)
+
+**Infrastructure:**
+- Video CDN: `cdn.aimoviez.app` (Cloudflare R2)
+- Monitoring: Sentry error tracking
+- Domain: `aimoviez.app` with Cloudflare DNS
+
 ---
 
 ## 2. The Target Architecture
