@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,7 +22,10 @@ function getSupabaseClient() {
  * GET /api/user/block
  * Get list of blocked users
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const rateLimitResponse = await rateLimit(request, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -73,6 +77,9 @@ export async function GET() {
  * Body: { userId: string }
  */
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await rateLimit(request, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
 
@@ -161,6 +168,9 @@ export async function POST(request: NextRequest) {
  * Query: userId
  */
 export async function DELETE(request: NextRequest) {
+  const rateLimitResponse = await rateLimit(request, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const session = await getServerSession(authOptions);
 

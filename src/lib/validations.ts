@@ -37,8 +37,17 @@ export const RegisterClipSchema = z.object({
     .string()
     .url('Invalid video URL')
     .refine(
-      (url) => url.includes('supabase') || url.startsWith('https://'),
-      'Video URL must be a valid HTTPS URL'
+      (url) => {
+        try {
+          const parsed = new URL(url);
+          return parsed.protocol === 'https:' && (
+            parsed.hostname.endsWith('.supabase.co') ||
+            parsed.hostname.endsWith('.r2.dev') ||
+            parsed.hostname === 'cdn.aimoviez.app'
+          );
+        } catch { return false; }
+      },
+      'Video URL must be from an allowed storage provider'
     ),
   genre: z
     .string()
@@ -73,7 +82,7 @@ export type RegisterClipRequest = z.infer<typeof RegisterClipSchema>;
 
 export const CreateCommentSchema = z.object({
   // clipId can be a clip UUID or season UUID (for story page comments)
-  clipId: z.string().min(1, 'Content ID is required'),
+  clipId: z.string().uuid('Invalid content ID format'),
   comment_text: z
     .string()
     .min(1, 'Comment text is required')

@@ -70,7 +70,8 @@ export const authOptions: NextAuthOptions = {
 
       const isAllowed = allowed.includes(user.email.toLowerCase());
       if (!isAllowed) {
-        console.error("❌ User not in allowlist:", user.email);
+        const masked = user.email.replace(/^(.{2})(.*)(@.*)$/, '$1***$3');
+        console.error("❌ User not in allowlist:", masked);
       }
 
       return isAllowed;

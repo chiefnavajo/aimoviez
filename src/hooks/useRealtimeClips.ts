@@ -5,6 +5,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getRealtimeClient } from '@/lib/supabase-client';
 
+const isDev = process.env.NODE_ENV === 'development';
+
 export interface ClipUpdate {
   id: string;
   vote_count?: number;
@@ -78,7 +80,7 @@ export function useRealtimeClips({
           table: 'tournament_clips',
         },
         (payload) => {
-          console.log('[Realtime] Clip UPDATE received:', payload.new);
+          if (isDev) console.log('[Realtime] Clip UPDATE received');
           if (onClipUpdateRef.current && payload.new) {
             onClipUpdateRef.current(payload.new as ClipUpdate);
           }
@@ -112,7 +114,7 @@ export function useRealtimeClips({
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[Realtime] Connected to clips channel');
+          if (isDev) console.log('[Realtime] Connected to clips channel');
           channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
           if (err) {
@@ -123,7 +125,7 @@ export function useRealtimeClips({
           console.error('[Realtime] Clips channel timed out');
           isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
-          console.log('[Realtime] Clips channel closed');
+          if (isDev) console.log('[Realtime] Clips channel closed');
           isSubscribingRef.current = false;
         }
       });
@@ -176,7 +178,7 @@ export function useRealtimeSlots({
           table: 'story_slots',
         },
         (payload) => {
-          console.log('[Realtime] Slot UPDATE received:', payload.new);
+          if (isDev) console.log('[Realtime] Slot UPDATE received');
           if (payload.new && onSlotUpdateRef.current) {
             onSlotUpdateRef.current(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
           }
@@ -184,7 +186,7 @@ export function useRealtimeSlots({
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[Realtime] Connected to slots channel');
+          if (isDev) console.log('[Realtime] Connected to slots channel');
           channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
           if (err) {
@@ -192,7 +194,7 @@ export function useRealtimeSlots({
           }
           isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
-          console.log('[Realtime] Slots channel closed');
+          if (isDev) console.log('[Realtime] Slots channel closed');
           isSubscribingRef.current = false;
         }
       });
@@ -273,10 +275,10 @@ export function useRealtimeVotes({
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[Realtime] Connected to votes channel');
+          if (isDev) console.log('[Realtime] Connected to votes channel');
           channelRef.current = channel;
         } else if (status === 'CLOSED') {
-          console.log('[Realtime] Votes channel closed');
+          if (isDev) console.log('[Realtime] Votes channel closed');
           isSubscribingRef.current = false;
         }
       });
@@ -349,26 +351,26 @@ export function useStoryBroadcast({
     isSubscribingRef.current = true;
     const client = getRealtimeClient();
 
-    console.log('[Broadcast] Attempting to connect to story-updates channel...');
+    if (isDev) console.log('[Broadcast] Attempting to connect to story-updates channel...');
 
     // Subscribe to the broadcast channel
     const channel = client
       .channel('story-updates')
       .on('broadcast', { event: 'winner-selected' }, (payload) => {
-        console.log('[Broadcast] Winner selected event received:', payload);
+        if (isDev) console.log('[Broadcast] Winner selected event received');
         if (onWinnerSelectedRef.current && payload.payload) {
           onWinnerSelectedRef.current(payload.payload as WinnerSelectedPayload);
         }
       })
       .on('broadcast', { event: 'season-reset' }, (payload) => {
-        console.log('[Broadcast] Season reset event received:', payload);
+        if (isDev) console.log('[Broadcast] Season reset event received');
         if (onSeasonResetRef.current && payload.payload) {
           onSeasonResetRef.current(payload.payload as SeasonResetPayload);
         }
       })
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[Broadcast] Connected to story-updates channel');
+          if (isDev) console.log('[Broadcast] Connected to story-updates channel');
           channelRef.current = channel;
           isSubscribingRef.current = false;
           reconnectAttemptsRef.current = 0; // Reset on successful connection
@@ -378,7 +380,7 @@ export function useStoryBroadcast({
           channelRef.current = null;
           scheduleReconnect();
         } else if (status === 'CLOSED') {
-          console.log('[Broadcast] Channel closed');
+          if (isDev) console.log('[Broadcast] Channel closed');
           isSubscribingRef.current = false;
           channelRef.current = null;
           scheduleReconnect();
@@ -411,7 +413,7 @@ export function useStoryBroadcast({
     const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttemptsRef.current);
     reconnectAttemptsRef.current += 1;
 
-    console.log(`[Broadcast] Scheduling reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
+    if (isDev) console.log(`[Broadcast] Scheduling reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
 
     reconnectTimeoutRef.current = setTimeout(() => {
       if (mountedRef.current && enabled) {
@@ -447,7 +449,7 @@ export function useStoryBroadcast({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('[Broadcast] Tab became visible, checking connection...');
+        if (isDev) console.log('[Broadcast] Tab became visible, checking connection...');
         // If not connected, try to reconnect
         if (!channelRef.current && !isSubscribingRef.current) {
           reconnectAttemptsRef.current = 0; // Reset attempts on visibility change

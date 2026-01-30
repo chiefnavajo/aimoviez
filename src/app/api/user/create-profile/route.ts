@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
+import { sanitizeText } from '@/lib/sanitize';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -86,9 +87,11 @@ export async function POST(req: NextRequest) {
       .from('users')
       .insert({
         username,
-        display_name: display_name || username,
-        bio: bio || null,
-        avatar_url: avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+        display_name: sanitizeText(display_name) || username,
+        bio: bio ? sanitizeText(bio) : null,
+        avatar_url: (avatar_url && typeof avatar_url === 'string' && avatar_url.startsWith('https://'))
+          ? avatar_url
+          : `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
         email: email,
         google_id: googleId,
         device_key: userKey,

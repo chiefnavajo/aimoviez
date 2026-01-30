@@ -378,8 +378,9 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('[POST /api/upload] Error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error('[POST /api/upload] Error details:', message);
     return NextResponse.json(
-      { success: false, error: 'Upload failed', details: message },
+      { success: false, error: 'Upload failed. Please try again.' },
       { status: 500 }
     );
   }

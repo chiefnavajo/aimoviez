@@ -70,7 +70,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   if (process.env.NODE_ENV === 'production') {
     response.headers.set(
       'Strict-Transport-Security',
-      'max-age=31536000; includeSubDomains'
+      'max-age=31536000; includeSubDomains; preload'
     );
   }
 
@@ -84,8 +84,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
   // Protects against XSS, clickjacking, and other injection attacks
   const cspDirectives = [
     "default-src 'self'",
-    // Scripts: self + inline (Next.js requires inline scripts)
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    // Scripts: self + inline (Next.js requires inline scripts; unsafe-eval only in dev for HMR)
+    `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV !== 'production' ? " 'unsafe-eval'" : ''}`,
     // Styles: self + inline (Tailwind/Next.js requires inline styles)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + data URIs + external sources (Supabase, DiceBear, Google)
@@ -221,6 +221,21 @@ async function addCsrfToken(response: NextResponse, request: NextRequest): Promi
   return response;
 }
 
+/**
+ * Constant-time string comparison for Edge Runtime (no crypto.timingSafeEqual)
+ */
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let result = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    result |= bufA[i] ^ bufB[i];
+  }
+  return result === 0;
+}
+
 async function validateCsrfToken(request: NextRequest): Promise<{ valid: boolean; error?: string }> {
   // Get token from header
   const headerToken = request.headers.get(CSRF_TOKEN_HEADER);
@@ -267,7 +282,8 @@ async function validateCsrfToken(request: NextRequest): Promise<{ valid: boolean
   const dataToSign = isNewFormat ? timestamp + randomBytes : timestamp;
   const expectedSignature = (await hmacSha256(CSRF_SECRET, dataToSign)).slice(0, 32);
 
-  if (signature !== expectedSignature) {
+  // Constant-time comparison to prevent timing attacks
+  if (!constantTimeEqual(signature, expectedSignature)) {
     return { valid: false, error: 'Invalid CSRF token signature' };
   }
 
@@ -367,6 +383,8 @@ export async function middleware(request: NextRequest) {
     '/api/health',
     '/api/cron/',
     '/api/webhooks/',
+    '/api/notifications/subscribe',
+    '/api/notifications/unsubscribe',
   ];
   const isCsrfExempt = csrfExemptRoutes.some(route => pathname.startsWith(route));
 

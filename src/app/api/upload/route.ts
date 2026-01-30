@@ -42,7 +42,7 @@ function getVoterKey(request: NextRequest): string {
 
 function generateFilename(originalName: string): string {
   const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
+  const random = crypto.randomBytes(8).toString('hex');
   const ext = originalName.split('.').pop()?.toLowerCase() || 'mp4';
   return `clip_${timestamp}_${random}.${ext}`;
 }

@@ -2,6 +2,7 @@
 // Notification helper functions (server-side only)
 
 import { createClient } from '@supabase/supabase-js';
+import { sanitizeUrl } from '@/lib/sanitize';
 
 export type NotificationType =
   | 'clip_approved'
@@ -44,7 +45,7 @@ export async function createNotification(params: {
       type: params.type,
       title: params.title,
       message: params.message,
-      action_url: params.action_url,
+      action_url: params.action_url ? sanitizeUrl(params.action_url) : null,
       metadata: params.metadata || {},
       is_read: false,
       created_at: new Date().toISOString(),

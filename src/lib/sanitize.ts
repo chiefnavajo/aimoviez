@@ -234,13 +234,21 @@ export function sanitizeUuid(input: string | null | undefined): string | null {
 export function sanitizeFilename(input: string | null | undefined): string {
   if (!input) return '';
 
-  return input
-    // Remove path traversal attempts
-    .replace(/\.\./g, '')
+  let result = input
+    // Remove path separators first
     .replace(/[/\\]/g, '')
     // Keep only safe characters
-    .replace(/[^a-zA-Z0-9._-]/g, '_')
+    .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+  // Remove all double-dot sequences (loop until none remain)
+  while (result.includes('..')) {
+    result = result.replace(/\.\./g, '');
+  }
+
+  return result
+    // Strip leading dots (prevents .htaccess, .env, hidden files)
+    .replace(/^\.+/, '')
     // Limit length
     .slice(0, 255)
-    .trim();
+    .trim() || 'unnamed';
 }

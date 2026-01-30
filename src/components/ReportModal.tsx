@@ -4,6 +4,7 @@ import { useState, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Flag, AlertTriangle, Loader2, Check } from 'lucide-react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useCsrf } from '@/hooks/useCsrf';
 
 interface ReportModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const { getHeaders } = useCsrf();
 
   const handleClose = () => {
     setSelectedReason('');
@@ -71,7 +73,8 @@ export default function ReportModal({ isOpen, onClose, type, targetId, targetNam
 
       const response = await fetch('/api/report', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(body),
       });
 

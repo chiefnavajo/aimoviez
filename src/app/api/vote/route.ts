@@ -585,7 +585,7 @@ export async function GET(req: NextRequest) {
 
   // Client can optionally pass excludeIds for immediate deduplication (before server-side check)
   const excludeIdsParam = searchParams.get('excludeIds') || '';
-  const clientExcludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0) : [];
+  const clientExcludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0).slice(0, 200) : [];
 
   // Flag to force showing new clips (skip seen tracking)
   const forceNew = searchParams.get('forceNew') === 'true';

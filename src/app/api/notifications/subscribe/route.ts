@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -16,6 +17,10 @@ function getUserKey(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limit: prevent subscription spam
+  const rateLimitResponse = await rateLimit(req, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);
@@ -26,6 +31,24 @@ export async function POST(req: NextRequest) {
     if (!subscription || !subscription.endpoint) {
       return NextResponse.json(
         { error: 'Invalid subscription data' },
+        { status: 400 }
+      );
+    }
+
+    // Validate endpoint is a known push service domain
+    try {
+      const endpointUrl = new URL(subscription.endpoint);
+      const allowedHosts = ['fcm.googleapis.com', 'updates.push.services.mozilla.com', 'wns.windows.com'];
+      const isAllowed = allowedHosts.some(host => endpointUrl.hostname === host || endpointUrl.hostname.endsWith('.' + host));
+      if (endpointUrl.protocol !== 'https:' || !isAllowed) {
+        return NextResponse.json(
+          { error: 'Invalid push subscription endpoint' },
+          { status: 400 }
+        );
+      }
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid push subscription endpoint' },
         { status: 400 }
       );
     }
