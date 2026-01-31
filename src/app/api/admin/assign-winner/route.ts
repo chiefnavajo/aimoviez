@@ -231,8 +231,10 @@ export async function POST(req: NextRequest) {
             slot_position: nextPosition,
             vote_count: 0,
             weighted_score: 0,
+            hype_score: 0,
           })
           .eq('slot_position', activeSlot.slot_position)
+          .eq('season_id', season.id)
           .eq('status', 'active')
           .neq('id', clipId)
           .select('id');
@@ -243,9 +245,8 @@ export async function POST(req: NextRequest) {
           clipsMovedCount = movedClips?.length ?? 0;
         }
 
-        // Check if season should finish: reached max slots OR no more clips to vote on
-        if (nextPosition > totalSlots || clipsMovedCount === 0) {
-          // Season is finished
+        // Check if season should finish: reached max slots
+        if (nextPosition > totalSlots) {
           const { error: finishError } = await supabase
             .from('seasons')
             .update({ status: 'finished' })
@@ -255,32 +256,56 @@ export async function POST(req: NextRequest) {
             console.error('[assign-winner] finishError:', finishError);
           }
           seasonFinished = true;
-          console.log(`[assign-winner] Season finished: ${nextPosition > totalSlots ? 'reached max slots' : 'no more clips to vote on'}`);
+          console.log(`[assign-winner] Season finished: reached max slots`);
         } else {
-          // Set next slot to voting (only if there are clips to vote on)
-          const now = new Date();
-          const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-
-          const { data: nextSlot, error: nextSlotError } = await supabase
-            .from('story_slots')
-            .update({
-              status: 'voting',
-              voting_started_at: now.toISOString(),
-              voting_ends_at: votingEndsAt.toISOString(),
-              voting_duration_hours: durationHours,
-            })
-            .eq('season_id', season.id)
+          // Safeguard: verify clips actually exist in next slot before activating
+          // (matches auto-advance behavior — prevents empty voting slots)
+          const { count: nextSlotClipCount } = await supabase
+            .from('tournament_clips')
+            .select('id', { count: 'exact', head: true })
             .eq('slot_position', nextPosition)
-            .select('id, slot_position')
-            .maybeSingle();
+            .eq('season_id', season.id)
+            .eq('status', 'active');
 
-          if (nextSlotError) {
-            console.error('[assign-winner] nextSlotError:', nextSlotError);
-          } else if (nextSlot) {
-            nextSlotInfo = {
-              position: nextSlot.slot_position,
-              votingEndsAt: votingEndsAt.toISOString(),
-            };
+          if (!nextSlotClipCount || nextSlotClipCount === 0) {
+            // No clips in next slot — set to waiting_for_clips instead of voting
+            console.log(`[assign-winner] No active clips in slot ${nextPosition} — setting to waiting_for_clips`);
+
+            await supabase
+              .from('story_slots')
+              .update({
+                status: 'waiting_for_clips',
+                voting_started_at: null,
+                voting_ends_at: null,
+              })
+              .eq('season_id', season.id)
+              .eq('slot_position', nextPosition);
+          } else {
+            // Clips exist — activate next slot for voting
+            const now = new Date();
+            const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
+
+            const { data: nextSlot, error: nextSlotError } = await supabase
+              .from('story_slots')
+              .update({
+                status: 'voting',
+                voting_started_at: now.toISOString(),
+                voting_ends_at: votingEndsAt.toISOString(),
+                voting_duration_hours: durationHours,
+              })
+              .eq('season_id', season.id)
+              .eq('slot_position', nextPosition)
+              .select('id, slot_position')
+              .maybeSingle();
+
+            if (nextSlotError) {
+              console.error('[assign-winner] nextSlotError:', nextSlotError);
+            } else if (nextSlot) {
+              nextSlotInfo = {
+                position: nextSlot.slot_position,
+                votingEndsAt: votingEndsAt.toISOString(),
+              };
+            }
           }
         }
       }

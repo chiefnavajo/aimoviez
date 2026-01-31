@@ -61,31 +61,48 @@ BEGIN
 
       v_season_finished := TRUE;
     ELSE
-      -- Set next slot to voting
-      v_voting_ends_at := v_now + (p_voting_duration_hours || ' hours')::INTERVAL;
-
-      UPDATE story_slots
-      SET
-        status = 'voting',
-        voting_started_at = v_now,
-        voting_ends_at = v_voting_ends_at,
-        voting_duration_hours = p_voting_duration_hours
-      WHERE season_id = p_season_id
-        AND slot_position = p_next_slot_position;
-
-      -- Move non-winning clips to next slot with reset votes
+      -- Move non-winning clips to next slot FIRST (before activating)
       WITH moved AS (
         UPDATE tournament_clips
         SET
           slot_position = p_next_slot_position,
           vote_count = 0,
-          weighted_score = 0
+          weighted_score = 0,
+          hype_score = 0
         WHERE slot_position = v_current_slot_position
+          AND season_id = p_season_id
           AND status = 'active'
           AND id != p_clip_id
         RETURNING id
       )
       SELECT COUNT(*) INTO v_clips_moved FROM moved;
+
+      -- Safeguard: verify clips actually exist in next slot before activating
+      IF (SELECT COUNT(*) FROM tournament_clips
+          WHERE slot_position = p_next_slot_position
+            AND season_id = p_season_id
+            AND status = 'active') > 0 THEN
+        -- Clips exist — activate next slot for voting
+        v_voting_ends_at := v_now + (p_voting_duration_hours || ' hours')::INTERVAL;
+
+        UPDATE story_slots
+        SET
+          status = 'voting',
+          voting_started_at = v_now,
+          voting_ends_at = v_voting_ends_at,
+          voting_duration_hours = p_voting_duration_hours
+        WHERE season_id = p_season_id
+          AND slot_position = p_next_slot_position;
+      ELSE
+        -- No clips — set to waiting_for_clips instead of voting
+        UPDATE story_slots
+        SET
+          status = 'waiting_for_clips',
+          voting_started_at = NULL,
+          voting_ends_at = NULL
+        WHERE season_id = p_season_id
+          AND slot_position = p_next_slot_position;
+      END IF;
     END IF;
   END IF;
 
