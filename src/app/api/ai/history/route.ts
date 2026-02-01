@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[GET /api/ai/history] Unexpected error:', err);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }

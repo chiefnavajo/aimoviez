@@ -31,7 +31,7 @@ const GENRES: GenreType[] = [
   { id: 'romance', name: 'Romance', emoji: '❤️', color: 'from-pink-500 to-rose-500' },
   { id: 'animation', name: 'Animation', emoji: '🎨', color: 'from-indigo-500 to-purple-500' },
   { id: 'horror', name: 'Horror', emoji: '👻', color: 'from-gray-600 to-gray-900' },
-  { id: 'other', name: 'Other', emoji: '🎬', color: 'from-cyan-500 to-purple-500' },
+  { id: 'drama', name: 'Drama', emoji: '🎭', color: 'from-emerald-500 to-green-500' },
 ];
 
 const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB - Supabase limit

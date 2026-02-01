@@ -11,6 +11,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { MODELS } from '@/lib/ai-video';
+import { getStorageProvider, deleteFiles } from '@/lib/storage';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -199,14 +200,19 @@ export async function GET(req: NextRequest) {
         .filter((k): k is string => !!k);
 
       if (keysToDelete.length > 0) {
-        const { error: deleteError } = await supabase.storage
-          .from('clips')
-          .remove(keysToDelete);
+        const { data: r2Flag } = await supabase
+          .from('feature_flags')
+          .select('enabled')
+          .eq('key', 'r2_storage')
+          .maybeSingle();
 
-        if (deleteError) {
-          console.error('[ai-timeout] Storage cleanup error:', deleteError);
+        const provider = await getStorageProvider(r2Flag?.enabled ?? false);
+        const result = await deleteFiles(keysToDelete, provider);
+
+        if (result.error) {
+          console.error('[ai-timeout] Storage cleanup error:', result.error);
         } else {
-          storageCleanedCount = keysToDelete.length;
+          storageCleanedCount = result.deleted;
         }
       }
     }

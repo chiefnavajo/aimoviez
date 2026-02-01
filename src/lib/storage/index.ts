@@ -6,7 +6,7 @@
 // ============================================================================
 
 import { createClient } from '@supabase/supabase-js';
-import { isR2Configured, getR2SignedUploadUrl, getR2PublicUrl } from './r2-provider';
+import { isR2Configured, getR2SignedUploadUrl, getR2PublicUrl, deleteFromR2 } from './r2-provider';
 
 // ============================================================================
 // TYPES
@@ -107,4 +107,48 @@ export function getPublicVideoUrl(
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   return `${supabaseUrl}/storage/v1/object/public/clips/${filename}`;
+}
+
+// ============================================================================
+// FILE DELETION
+// ============================================================================
+
+/**
+ * Delete files from the active storage provider.
+ */
+export async function deleteFiles(
+  keys: string[],
+  provider: StorageProvider
+): Promise<{ deleted: number; error?: string }> {
+  if (keys.length === 0) return { deleted: 0 };
+
+  if (provider === 'r2') {
+    let deleted = 0;
+    for (const key of keys) {
+      try {
+        await deleteFromR2(key);
+        deleted++;
+      } catch {
+        // deleteFromR2 already logs warnings internally
+      }
+    }
+    return { deleted };
+  }
+
+  // Supabase storage
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    return { deleted: 0, error: 'Missing Supabase environment variables' };
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const { error } = await supabase.storage.from('clips').remove(keys);
+
+  if (error) {
+    return { deleted: 0, error: error.message };
+  }
+
+  return { deleted: keys.length };
 }

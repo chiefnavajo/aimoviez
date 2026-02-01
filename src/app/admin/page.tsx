@@ -112,7 +112,7 @@ const GENRES = [
   { id: 'romance', name: 'Romance', emoji: '❤️' },
   { id: 'animation', name: 'Animation', emoji: '🎨' },
   { id: 'horror', name: 'Horror', emoji: '👻' },
-  { id: 'other', name: 'Other', emoji: '🎬' },
+  { id: 'drama', name: 'Drama', emoji: '🎭' },
 ];
 
 // ============================================================================
