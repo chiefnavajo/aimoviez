@@ -18,6 +18,7 @@ import {
   Play,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -305,6 +306,24 @@ export default function AIGeneratePanel({
     if (pollRef.current) clearInterval(pollRef.current);
   };
 
+  const handleCancel = async () => {
+    if (!generationId) {
+      handleReset();
+      return;
+    }
+
+    try {
+      await ensureToken();
+      await csrfPost<{ success: boolean; error?: string }>('/api/ai/cancel', {
+        generationId,
+      });
+    } catch {
+      // Cancel is best-effort — reset locally regardless
+    }
+
+    handleReset();
+  };
+
   // ============================================================================
   // RENDER
   // ============================================================================
@@ -346,6 +365,12 @@ export default function AIGeneratePanel({
             transition={{ duration: 2, ease: 'easeInOut' }}
           />
         </div>
+        <button
+          onClick={handleCancel}
+          className="px-5 py-2 bg-white/10 border border-white/10 rounded-xl text-white/60 hover:bg-white/20 transition flex items-center gap-2 mx-auto text-sm"
+        >
+          <X className="w-4 h-4" /> Cancel
+        </button>
       </div>
     );
   }

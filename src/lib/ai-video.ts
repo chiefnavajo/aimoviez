@@ -227,3 +227,24 @@ export async function checkFalStatus(
 
   return { status: data.status || 'UNKNOWN' };
 }
+
+// =============================================================================
+// CANCEL FAL.AI REQUEST
+// =============================================================================
+
+export async function cancelFalRequest(
+  modelKey: string,
+  falRequestId: string
+): Promise<void> {
+  const config = MODELS[modelKey];
+  if (!config) throw new Error(`Unknown model: ${modelKey}`);
+
+  await fetch(
+    `https://queue.fal.run/${config.modelId}/requests/${falRequestId}/cancel`,
+    {
+      method: 'PUT',
+      headers: { Authorization: `Key ${process.env.FAL_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    }
+  );
+}
