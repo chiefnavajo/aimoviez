@@ -195,6 +195,17 @@ export function isValidModel(modelKey: string): boolean {
 }
 
 // =============================================================================
+// QUEUE ENDPOINT HELPER
+// fal.ai queue API uses only {owner}/{alias}, not the full model path.
+// e.g. "fal-ai/kling-video" from "fal-ai/kling-video/v2.6/pro/text-to-video"
+// =============================================================================
+
+function getQueueEndpoint(modelId: string): string {
+  const parts = modelId.split('/');
+  return `${parts[0]}/${parts[1]}`;
+}
+
+// =============================================================================
 // CHECK FAL.AI REQUEST STATUS (server-side polling fallback)
 // =============================================================================
 
@@ -205,7 +216,8 @@ export async function checkFalStatus(
   const config = MODELS[modelKey];
   if (!config) throw new Error(`Unknown model: ${modelKey}`);
 
-  const statusUrl = `https://queue.fal.run/${config.modelId}/requests/${falRequestId}/status`;
+  const queueEndpoint = getQueueEndpoint(config.modelId);
+  const statusUrl = `https://queue.fal.run/${queueEndpoint}/requests/${falRequestId}/status`;
   const res = await fetch(statusUrl, {
     headers: { Authorization: `Key ${process.env.FAL_KEY}` },
     signal: AbortSignal.timeout(5000),
@@ -239,8 +251,9 @@ export async function cancelFalRequest(
   const config = MODELS[modelKey];
   if (!config) throw new Error(`Unknown model: ${modelKey}`);
 
+  const queueEndpoint = getQueueEndpoint(config.modelId);
   await fetch(
-    `https://queue.fal.run/${config.modelId}/requests/${falRequestId}/cancel`,
+    `https://queue.fal.run/${queueEndpoint}/requests/${falRequestId}/cancel`,
     {
       method: 'PUT',
       headers: { Authorization: `Key ${process.env.FAL_KEY}` },
