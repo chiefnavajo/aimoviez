@@ -14,20 +14,27 @@ Add AI-powered video clip generation to Aimoviez. Users type a text prompt and g
 
 **Single-provider approach:** All models via fal.ai. One API key, one SDK, one webhook flow.
 
-| Tier | Model | Provider | Cost/8s clip | Duration | Gen Time | Quality | Audio |
-|------|-------|----------|-------------|----------|----------|---------|-------|
-| **Free (default)** | MiniMax Hailuo 2.3 | fal.ai | ~$0.49 | 6-10s | 2-3 min | High | No |
-| **Standard** | Kling 2.6 | fal.ai | ~$0.40-$0.96 | 5-10s | 1-2 min | Very High | Yes |
-| **Premium** | Google Veo 3 Fast | fal.ai | ~$0.80-$1.20 | 8s | 1-3 min | Very High | Yes |
+| Tier | Model | Provider | Cost/clip | Duration | Gen Time | Quality | Audio |
+|------|-------|----------|----------|----------|----------|---------|-------|
+| **Free (default)** | MiniMax Hailuo 2.3 Pro | fal.ai | ~$0.49 flat | 6s default | 2-3 min | High | No (TTS addon only) |
+| **Standard** | Kling 2.6 Pro | fal.ai | ~$0.35-$1.40 ($0.07/s no audio, $0.14/s with audio) | 5s or 10s | 1-2 min | Very High | Yes (native) |
+| **Premium** | Google Veo 3 Fast | fal.ai | ~$0.80-$1.20 ($0.10/s no audio, $0.15/s with audio) | 8s custom | 1-3 min | Very High | Yes (native) |
 
 **Why single-provider (fal.ai only)?**
 - One API key, one webhook flow, one SDK — minimal integration complexity
-- Kling 2.6 is the most widely adopted model globally, best price-to-quality ratio
+- Kling 2.6 Pro is the most widely adopted model globally, best price-to-quality ratio
 - Veo 3 Fast wins quality benchmarks, has native audio, and is cheaper than Veo 3.1 Standard
 - No OpenAI account/billing to manage ($50 minimum Tier 2 access eliminated)
 - Adding future models (Runway, Wan, Luma) is just a config entry — no new provider code
 
-**8-second strategy:** Hailuo generates 6s or 10s — accept 6-10s range. Kling generates 5-10s. Veo 3 Fast supports custom duration (use `8`).
+**Duration strategy:** Hailuo generates ~6s (fixed, not configurable). Kling generates 5s or 10s (use `"5"` string, no `s` suffix — **restrict to 5s only** since 10s exceeds `MAX_VIDEO_DURATION=8.5`). Veo 3 Fast supports custom duration (use `"8s"` string with `s` suffix). Accept 5-8s range across models.
+
+> **CRITICAL — Parameter differences between models:**
+> - **Hailuo:** Only accepts `prompt` and `prompt_optimizer` (boolean). Does NOT accept `aspect_ratio`, `video_size`, or `duration`. Output is **landscape by default** with no way to request portrait 9:16. This is a significant limitation for a vertical-video app. Resolution is fixed at 1080p.
+> - **Kling:** Duration format is `"5"` or `"10"` (string, no `s` suffix). Supports `aspect_ratio: "9:16"`. Has `generate_audio` param (defaults to `true` — doubles cost if not explicitly disabled). Has `negative_prompt` and `cfg_scale` params.
+> - **Veo 3:** Duration format is `"8s"` (string WITH `s` suffix). Supports `aspect_ratio: "9:16"`. Has `generate_audio` param (defaults to `true` — doubles cost if not explicitly disabled). Has `negative_prompt`, `resolution`, and `seed` params.
+>
+> **Hailuo portrait limitation:** Since Hailuo cannot generate 9:16 video, either: (a) exclude Hailuo from the initial launch and use Kling as the free tier, (b) accept landscape output from Hailuo and display letterboxed, or (c) post-process with ffmpeg to crop/rotate (adds complexity). **Recommendation: start with Kling as default, Veo as premium.**
 
 *Future consideration:* OpenAI Sora 2 can be added later as a fourth option via direct OpenAI API if users request it.
 
@@ -40,19 +47,21 @@ FAL_KEY=fal-xxxxxxxxxxxxxxxx        # fal.ai API key (all models)
 
 ## Architecture
 
+> See "Revised Architecture" section below for the full corrected flow with all security checks. Simplified overview:
+
 ```
-User → Prompt → POST /api/ai/generate → fal.ai (async)
+User → Prompt → POST /api/ai/generate → fal.ai Queue API (async, with webhook)
                      ↓
               ai_generations row (status: pending)
                      ↓
-Frontend polls GET /api/ai/status/[id] every 3s
+fal.ai webhook → POST /api/ai/webhook → updates ai_generations (completed)
                      ↓
-fal.ai completes → video URL available
+Frontend polls GET /api/ai/status/[id] (our DB only)
                      ↓
-User clicks "Submit" → POST /api/ai/complete
-  ↓ Download from fal.ai
-  ↓ Upload to Supabase/R2
-  ↓ Insert tournament_clips (status: pending, is_ai_generated: true)
+User clicks "Submit" → POST /api/ai/complete → returns signed upload URL
+  ↓ Client fetches video from fal.ai CDN
+  ↓ Client PUTs to signed URL (direct to Supabase/R2)
+  ↓ Client calls POST /api/ai/register → inserts tournament_clips
   ↓ Admin approves → active → enters voting
 ```
 
@@ -82,21 +91,38 @@ CREATE TABLE IF NOT EXISTS ai_generations (
   user_id UUID REFERENCES users(id),
   fal_request_id VARCHAR(200) NOT NULL,
   status VARCHAR(20) DEFAULT 'pending',
-  prompt TEXT NOT NULL,
+  prompt VARCHAR(2000) NOT NULL,            -- VARCHAR(2000) not TEXT — defense in depth (Zod validates to 500)
   model VARCHAR(50) NOT NULL,
   style VARCHAR(50),
   genre VARCHAR(20),
   video_url TEXT,
-  clip_id UUID,
+  clip_id UUID REFERENCES tournament_clips(id) ON DELETE SET NULL,  -- allows clip deletion without blocking
   error_message TEXT,
   cost_cents INTEGER,
+  storage_key VARCHAR(500),                 -- storage path for orphan cleanup (set by /complete)
+  complete_initiated_at TIMESTAMPTZ,        -- set by /complete to prevent double-complete race
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),     -- track last status change
   completed_at TIMESTAMPTZ,
-  CONSTRAINT valid_ai_status CHECK (status IN ('pending', 'processing', 'completed', 'failed'))
+  CONSTRAINT valid_ai_status CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'expired'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_ai_gen_user ON ai_generations(user_id);
-CREATE INDEX IF NOT EXISTS idx_ai_gen_fal_id ON ai_generations(fal_request_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_gen_fal_id ON ai_generations(fal_request_id);  -- UNIQUE — prevents duplicate webhook processing
+CREATE INDEX IF NOT EXISTS idx_ai_gen_status ON ai_generations(status) WHERE status IN ('pending', 'processing');  -- speeds up webhook timeout cron
+
+-- Auto-update updated_at on row changes
+CREATE OR REPLACE FUNCTION update_ai_gen_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_ai_gen_updated_at
+  BEFORE UPDATE ON ai_generations
+  FOR EACH ROW EXECUTE FUNCTION update_ai_gen_updated_at();
 
 -- Daily generation limits
 CREATE TABLE IF NOT EXISTS ai_generation_limits (
@@ -110,7 +136,7 @@ CREATE TABLE IF NOT EXISTS ai_generation_limits (
 -- Feature flag
 INSERT INTO feature_flags (key, name, description, category, enabled, config) VALUES
   ('ai_video_generation', 'AI Video Generation', 'Allow AI clip generation via fal.ai', 'creation', FALSE,
-   '{"default_model": "hailuo-2.3", "max_daily_free": 1, "available_models": ["hailuo-2.3", "kling-2.6", "veo3-fast"], "max_prompt_length": 500, "daily_cost_limit_cents": 5000, "monthly_cost_limit_cents": 150000}')
+   '{"default_model": "hailuo-2.3", "max_daily_free": 1, "available_models": ["hailuo-2.3", "kling-2.6", "veo3-fast"], "max_prompt_length": 500, "daily_cost_limit_cents": 5000, "monthly_cost_limit_cents": 150000, "keyword_blocklist": ["nsfw", "nude", "gore", "violence", "blood"]}')
 ON CONFLICT (key) DO NOTHING;
 ```
 
@@ -132,26 +158,33 @@ interface ModelConfig {
 const MODELS: Record<string, ModelConfig> = {
   'hailuo-2.3': {
     modelId: 'fal-ai/minimax/hailuo-2.3/pro/text-to-video',
-    costCents: 49,
-    duration: '6s',
-    resolution: '720p',
-    supportsAudio: false,
+    costCents: 49,             // flat rate per video
+    duration: null,            // NOT configurable — model outputs ~6s fixed
+    resolution: '1080p',       // fixed, not configurable
+    supportsAudio: false,      // no native audio (TTS addon only, not used)
+    supportsPortrait: false,   // CANNOT generate 9:16 — only accepts prompt + prompt_optimizer
   },
   'kling-2.6': {
-    modelId: 'fal-ai/kling-video/v2.6/standard/text-to-video',
-    costCents: 70,
-    duration: '5s',
+    modelId: 'fal-ai/kling-video/v2.6/pro/text-to-video',  // "pro" only — Standard doesn't exist for T2V
+    costCents: 35,             // $0.07/sec * 5s (audio OFF). Default w/ audio ON: $0.14 * 5 = 70
+    duration: '5',             // MUST use "5" not "10" — 10s exceeds MAX_VIDEO_DURATION (8.5s)
     resolution: '720p',
-    supportsAudio: true,
+    supportsAudio: true,       // native audio — BUT generate_audio defaults to true (doubles cost!)
+    supportsPortrait: true,    // aspect_ratio: "9:16"
   },
   'veo3-fast': {
     modelId: 'fal-ai/veo3/fast',
-    costCents: 100,
-    duration: '8',
+    costCents: 80,             // $0.10/sec * 8s (audio OFF). Default w/ audio ON: $0.15 * 8 = 120
+    duration: '8s',            // WITH 's' suffix for Veo
     resolution: '720p',
-    supportsAudio: true,
+    supportsAudio: true,       // native audio — BUT generate_audio defaults to true (doubles cost!)
+    supportsPortrait: true,    // aspect_ratio: "9:16"
   },
 };
+
+// IMPORTANT: generate_audio defaults to TRUE on Kling and Veo.
+// If not explicitly set to false, costs DOUBLE.
+// costCents above assumes generate_audio: false.
 ```
 
 Core functions:
@@ -175,7 +208,10 @@ Core functions:
 
 ### 1D. Rate Limit
 
-**Modify:** `src/lib/rate-limit.ts` — add `ai_generate: { requests: 3, window: '1m' }`
+**Modify:** `src/lib/rate-limit.ts`:
+- Add `ai_generate: { requests: 3, window: '1m' }` to `RATE_LIMITS`
+- Add `ai_status: { requests: 30, window: '1m' }` to `RATE_LIMITS`
+- Add `'ai_generate'` to `CRITICAL_RATE_LIMIT_TYPES` (fail-closed on Redis outage — AI costs real money)
 
 ### 1E. Types
 
@@ -189,49 +225,104 @@ Core functions:
 
 **New file:** `src/app/api/ai/generate/route.ts`
 
-1. Rate limit (`ai_generate`)
-2. Auth required (NextAuth session)
-3. Check `ai_video_generation` feature flag enabled
-4. Validate body with `AIGenerateSchema`
-5. Check daily limit: query `ai_generation_limits` for user + today, compare to config
-6. Sanitize prompt (reuse existing `sanitizeText` from `src/lib/sanitize.ts`)
-7. Call `startGeneration()` → get fal.ai `requestId`
-8. Insert `ai_generations` row (status: `pending`)
-9. Upsert `ai_generation_limits` (increment count)
-10. Return `{ ok: true, generationId, status: 'pending', estimatedSeconds: 120 }`
+1. Rate limit (`ai_generate` — must be in `CRITICAL_RATE_LIMIT_TYPES` for fail-closed on Redis outage)
+2. Auth required (NextAuth session) + CSRF check
+3. **Check user is not banned** (`is_banned` check on users table — not currently in JWT)
+4. Check `ai_video_generation` feature flag enabled (server-side `.maybeSingle()` pattern)
+5. Validate body with `AIGenerateSchema` (Zod `.strict()` to reject extra fields)
+6. Sanitize prompt: `sanitizeText()` + Unicode normalization (NFKD + strip zero-width chars) + keyword blocklist
+7. Atomic daily limit increment via `check_and_reserve_generation()` PG function
+8. Global cost cap check (atomic — `SELECT ... FOR UPDATE` on `ai_generations` to prevent race)
+9. **Insert `ai_generations` row FIRST** (status: `pending`, placeholder `fal_request_id`)
+10. Call `startGeneration()` → get fal.ai `requestId` (10s timeout)
+11. Update `ai_generations` with real `fal_request_id`
+12. If fal.ai call fails (402/429/500/timeout): mark row as `failed`, but do **NOT** decrement daily limit (count represents attempts, prevents gaming)
+13. Return `{ ok: true, generationId, status: 'pending', estimatedSeconds: 120 }`
+
+> **Why insert DB row before fal.ai call (steps 9-11):** If fal.ai succeeds but DB insert fails, the generation runs on fal.ai with no tracking row. The webhook fires but has no `fal_request_id` to match — generation is silently lost, money wasted. Inserting first ensures tracking exists even if fal.ai fails.
+>
+> **Why NOT decrement on fal.ai failure (step 12):** If we decremented on failure, an attacker could intentionally cause failures (e.g., saturate the 2-task concurrent limit) and get unlimited retry attempts. Counting attempts, not successes, prevents this.
 
 ### 2B. `GET /api/ai/status/[id]`
 
 **New file:** `src/app/api/ai/status/[id]/route.ts`
 
-1. Auth required
-2. Look up `ai_generations` by `id`, verify user owns it
-3. If status `pending`/`processing`: call `checkStatus(fal_request_id)`
-4. Update row if status changed
-5. Return `{ status, videoUrl, progress, error }`
+1. Auth required + rate limit (`ai_status`: 30 req/min)
+2. Look up `ai_generations` by `id`, verify user owns it (return 404 for not-found AND not-owned)
+3. Read status from our DB only — **never call fal.ai from this endpoint** (webhook updates DB; cron handles fallback)
+4. Return `{ status, videoUrl, error }` — **never expose `fal_request_id` or `cost_cents`**
 
 ### 2C. `POST /api/ai/complete`
 
 **New file:** `src/app/api/ai/complete/route.ts`
 
-1. Auth + rate limit
-2. Look up generation, verify user owns it, status is `completed`
-3. Download video from fal.ai URL
-4. Upload to Supabase/R2 (reuse `src/lib/storage/` abstraction)
-5. Get active season + voting/waiting slot (same pattern as `src/app/api/upload/register/route.ts` lines 99-132)
-6. Insert `tournament_clips` row:
-   - All standard fields (season_id, slot_position, genre, username, etc.)
-   - `is_ai_generated: true`
-   - `ai_prompt`, `ai_model`, `ai_generation_id`, `ai_style`
-   - `status: 'pending'`
-7. Update `ai_generations` with `clip_id`
-8. Return `{ ok: true, clipId }`
+> Updated to match Revised Architecture (two-step: complete returns URLs, register saves metadata).
 
-### 2D. `GET /api/ai/history`
+1. Auth + CSRF + rate limit
+2. Look up generation, verify user owns it, status is `completed`
+3. Check `completed_at` age — if > 7 days, return 410 "Video expired, please regenerate"
+4. Atomically mark generation as `complete_initiated` (`UPDATE ... SET complete_initiated_at = NOW() WHERE complete_initiated_at IS NULL RETURNING *` — prevents double-complete race)
+5. Check `r2_storage` feature flag (same `.maybeSingle()` pattern as `signed-url/route.ts`)
+6. Generate storage key: `clip_{timestamp}_{random}.mp4` (same pattern as existing signed-url)
+7. Call `getSignedUploadUrl(filename, 'video/mp4', provider)` from `src/lib/storage/`
+8. Store `storage_key` on the `ai_generations` row (for orphan cleanup)
+9. Return `{ falVideoUrl, signedUploadUrl, publicUrl, storageKey }`
+
+> **Client then:** `fetch(falVideoUrl)` → `PUT` to `signedUploadUrl` → calls `/api/ai/register`
+
+### 2D. `POST /api/ai/register`
+
+**New file:** `src/app/api/ai/register/route.ts`
+
+> Mirrors `upload/register/route.ts` logic exactly. Must replicate:
+
+1. Auth + CSRF + rate limit
+2. Validate body: `{ generationId, publicUrl, genre, title }` (title required — see note below)
+3. Check `ai_video_generation` feature flag (server-side)
+4. Check user is not banned (`is_banned` check on users table)
+5. Look up generation, verify user owns it, status is `completed`, `clip_id IS NULL` (double-submit guard)
+6. Get active season: `.limit(1)` + `data?.[0]` (NOT `.single()`)
+7. Re-verify active slot: `.in('status', ['voting', 'waiting_for_clips'])` + `.limit(1)` — **must re-check at register time**, not rely on complete's check
+8. Construct public URL server-side (never accept from client — use the `storage_key` from step 5)
+9. Insert `tournament_clips` row:
+   - `season_id`, `slot_position` from slot lookup
+   - `track_id: 'track-main'` (hardcoded, matches existing register)
+   - `genre: genre.toUpperCase()` (existing register stores genre UPPERCASE)
+   - `title`, `description` (title from request, description = prompt or from request)
+   - `username`, `avatar_url` (from user profile lookup by email)
+   - `uploader_key` (SHA256 device fingerprint, same as `getVoterKey()`)
+   - `status: 'pending'`
+   - `is_ai_generated: true`, `ai_prompt`, `ai_model`, `ai_generation_id`, `ai_style`
+10. Start voting timer if first clip in slot (same logic as `register/route.ts` lines 178-199)
+11. Update `ai_generations.clip_id`
+12. Audit log: `logAdminAction` or new `logUserAction` with action `'ai_register'`
+13. Return `{ ok: true, clipId }`
+
+> **Title/description for AI clips:** Regular uploads require `title` (1-100 chars). AI clips should also provide a title. Options: (a) auto-generate from first 100 chars of prompt, (b) add title input in the "Submit to Tournament" step UI. **Recommendation:** Auto-generate from prompt, allow user to edit before submitting.
+
+### 2E. `POST /api/ai/webhook`
+
+**New file:** `src/app/api/ai/webhook/route.ts`
+
+1. Rate limit: 100 req/min (by IP)
+2. Reject non-POST methods
+3. Verify ED25519 signature (see Webhook Verification section — uses 4 headers + constructed message)
+4. Parse verified body as JSON
+5. Look up generation by `fal_request_id`
+6. **Idempotency guard:** Only update if current status is `pending` or `processing` (reject if `completed`, `failed`, `expired`)
+7. If webhook status is `OK`:
+   - Extract `payload.video.url` — if missing, mark as `failed`
+   - Validate video URL hostname matches `*.fal.media` or `*.fal.ai`
+   - Update generation: `status: 'completed'`, `video_url`, `completed_at`
+8. If webhook status is `ERROR`:
+   - Update generation: `status: 'failed'`, `error_message`
+9. Return 200 always (prevents fal.ai retries — use cron as fallback for DB failures)
+
+### 2F. `GET /api/ai/history`
 
 **New file:** `src/app/api/ai/history/route.ts`
 
-Auth required. Returns user's last 20 generations ordered by `created_at DESC`.
+Auth required. Returns user's last 20 generations ordered by `created_at DESC`. Paginated using `validatePagination()` pattern.
 
 ---
 
@@ -333,37 +424,6 @@ Admin-only endpoint returning:
 
 ---
 
-## Files Summary
-
-### New Files (12)
-
-| File | Purpose |
-|------|---------|
-| `supabase/sql/migration-ai-video-generation.sql` | DB migration |
-| `src/lib/ai-video.ts` | fal.ai integration library |
-| `src/app/api/ai/generate/route.ts` | Start generation |
-| `src/app/api/ai/status/[id]/route.ts` | Poll status |
-| `src/app/api/ai/complete/route.ts` | Download + register clip |
-| `src/app/api/ai/history/route.ts` | User's generation history |
-| `src/app/api/admin/ai-stats/route.ts` | Admin cost tracking |
-| `src/components/AIGeneratePanel.tsx` | Shared generation UI |
-| `src/app/create/page.tsx` | Dedicated create page |
-| `src/hooks/useAIGenerations.ts` | Generation history hook |
-
-### Modified Files (7)
-
-| File | Change |
-|------|--------|
-| `src/lib/validations.ts` | Add AI generation Zod schemas |
-| `src/lib/rate-limit.ts` | Add `ai_generate` rate limit |
-| `src/types/index.ts` | Add AI types |
-| `src/app/upload/page.tsx` | Add AI Generate tab |
-| `src/app/admin/page.tsx` | AI badges + prompt display |
-| `src/app/api/admin/clips/route.ts` | AI fields in query |
-| `src/components/BottomNavigation.tsx` | Add Create nav item |
-
----
-
 ## Dependencies & Parallelization
 
 ```
@@ -393,9 +453,10 @@ Phase 1 (all parallel) ─── Phase 2 (all parallel) ─── Phase 3 (uploa
 ## Env Vars
 
 ```
-FAL_KEY=fal-xxxxxxxxxxxxxxxx        # fal.ai API key (server-only)
-OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx  # OpenAI API key for Sora (server-only)
+FAL_KEY=fal-xxxxxxxxxxxxxxxx        # fal.ai API key (server-only) — single key for all models
 ```
+
+> Note: No OpenAI API key needed — all models run through fal.ai.
 
 ---
 
@@ -491,7 +552,7 @@ Per-user daily limits exist, but total platform spend = `daily_limit * active_us
 21. **No `ON DELETE SET NULL`** on `ai_generations.clip_id` FK — would block clip deletion.
 22. **`ai_style` needs validation**: Define enum, validate with Zod, sanitize.
 
-### ADDITIONAL BUGS (found in re-analysis)
+### ADDITIONAL BUGS — Round 2 (found in first re-analysis)
 
 **23. CRITICAL: Wrong fal.ai webhook signature header**
 Plan originally used `X-Fal-Signature` — the correct header is `X-Fal-Webhook-Signature`. Would silently reject all legitimate webhooks. **FIXED inline above.**
@@ -500,19 +561,144 @@ Plan originally used `X-Fal-Signature` — the correct header is `X-Fal-Webhook-
 Plan originally used `https://queue.fal.run/.well-known/jwks.json` — the correct URL is `https://rest.alpha.fal.ai/.well-known/jwks.json`. Would break all webhook verification. **FIXED inline above.**
 
 **25. HIGH: Sora 2 Pro has different durations than Sora 2**
-Sora 2 supports 4, 8, 12 seconds. Sora 2 Pro supports 10, 15, 25 seconds — NOT the same. Requesting `duration: 8` from Sora 2 Pro would fail with API error. **FIXED inline above** — use 10s for Pro tier.
+Sora 2 supports 4, 8, 12 seconds. Sora 2 Pro supports 10, 15, 25 seconds — NOT the same. Requesting `duration: 8` from Sora 2 Pro would fail with API error. **FIXED inline above** — use 10s for Pro tier. *(Note: Sora removed from plan — kept for reference.)*
 
 **26. HIGH: Sora API does support webhooks**
-Plan originally claimed Sora uses polling only. OpenAI Sora API does support webhooks, though reliability has been reported as inconsistent. **FIXED inline above** — use webhook as primary, polling as fallback.
+Plan originally claimed Sora uses polling only. OpenAI Sora API does support webhooks, though reliability has been reported as inconsistent. **FIXED inline above** — use webhook as primary, polling as fallback. *(Note: Sora removed from plan — kept for reference.)*
 
-**27. MEDIUM: Veo 3.1 cost is variable, not fixed $3.20**
-Pricing: $0.20/sec without audio, $0.40/sec with audio (standard). Fast tier: $0.10-$0.15/sec. For 8 seconds: $1.60 (no audio) to $3.20 (with audio). **FIXED inline above** — show range in provider table.
+**27. MEDIUM: Veo cost is variable, not fixed**
+Pricing: $0.10/sec (no audio) to $0.15/sec (with audio) on Fast tier. For 8 seconds: $0.80 (no audio) to $1.20 (with audio). **FIXED inline above** — show range in provider table and cost projections.
 
 **28. MEDIUM: OpenAI Tier 2 access may require $50, not $10**
-Some sources indicate $50 minimum credit purchase for Tier 2 API access. **FIXED inline above** — budget $50 and verify before purchasing.
+Some sources indicate $50 minimum credit purchase for Tier 2 API access. *(No longer relevant — Sora removed from plan.)*
 
 **29. LOW: NPM dependencies not in package.json**
-Neither `@fal-ai/client` nor `openai` is currently installed. **FIXED inline above** — added explicit install commands.
+`@fal-ai/client` is not currently installed. **FIXED inline above** — added explicit install command.
+
+### ADDITIONAL BUGS — Round 3 (found in deep re-analysis)
+
+**30. CRITICAL: Kling 2.6 Standard text-to-video doesn't exist on fal.ai**
+The model ID `fal-ai/kling-video/v2.6/standard/text-to-video` does NOT exist. Only `fal-ai/kling-video/v2.6/pro/text-to-video` (Pro tier) is available for text-to-video. The Standard tier exists only for image-to-video. Using the wrong model ID would cause every Kling generation to fail with a 404. **FIXED inline above** — changed to Pro tier.
+
+**31. HIGH: Duration format differs between models**
+Each model uses a different duration format:
+- Hailuo: `"6"` (no `s` suffix, or omit entirely for default)
+- Kling: `"5"` or `"10"` (string, no `s` suffix)
+- Veo 3: `"8s"` (string WITH `s` suffix)
+The original ModelConfig used inconsistent formats. Passing `"5s"` to Kling or `"8"` without `s` to Veo would cause API errors. **FIXED inline above** — model-specific `buildInput()` function handles format differences.
+
+**32. HIGH: Hailuo does NOT support `aspect_ratio` parameter**
+Hailuo's API does not accept `aspect_ratio`, `video_size`, or any portrait control. Output is always landscape. **FIXED inline above** — documented as limitation; `buildInput()` sends only `{ prompt, prompt_optimizer }` for Hailuo.
+
+**33. HIGH: Stale OPENAI_API_KEY in Env Vars section**
+The Env Vars section still listed `OPENAI_API_KEY` despite removing Sora from the plan. Would confuse implementers. **FIXED inline above** — removed.
+
+**34. HIGH: No webhook timeout/fallback mechanism**
+If fal.ai webhook fails to deliver (network issue, deployment gap), generations stay stuck in `pending`/`processing` forever with no recovery path. **FIXED inline above** — added cron job `ai-generation-timeout` that polls fal.ai for stuck generations every 5 minutes and auto-fails after 30 minutes.
+
+**35. MEDIUM: Database schema missing UNIQUE on fal_request_id**
+Without UNIQUE constraint, duplicate webhook deliveries could create duplicate rows or update wrong rows. **FIXED inline above** — changed to `CREATE UNIQUE INDEX`.
+
+**36. MEDIUM: Database schema missing updated_at column**
+No way to track when a generation's status last changed, making timeout detection unreliable. **FIXED inline above** — added `updated_at` column with auto-update trigger.
+
+**37. MEDIUM: Database schema missing status index**
+Cron job and webhook queries filter by `status IN ('pending', 'processing')` — without an index, this scans the full table. **FIXED inline above** — added partial index on status.
+
+**38. MEDIUM: clip_id FK missing ON DELETE SET NULL**
+Without `ON DELETE SET NULL`, deleting a tournament clip that was AI-generated would fail with a foreign key violation, blocking admin operations. **FIXED inline above** — added `ON DELETE SET NULL`.
+
+**39. MEDIUM: Hailuo audio capability incorrectly assessed**
+Hailuo 2.3 does NOT have native audio synthesis. It has a separate TTS (text-to-speech) addon that is not integrated into video generation. The provider table correctly showed "No" but the code comments were ambiguous. **CLARIFIED inline above** — explicitly documented that Hailuo has no usable audio for video.
+
+**40. MEDIUM: Global cost cap has race condition**
+The `SUM(cost_cents)` check before allowing generation has the same race condition as the daily limit — two concurrent requests could both pass. **Documented in security gaps section** — use atomic PG function or `SELECT ... FOR UPDATE`.
+
+**41. MEDIUM: Genre mismatch is an integration blocker**
+`validations.ts` uses `'sci-fi'` but upload page uses `'scifi'`. AI generation would store one format while the rest of the app uses another, causing filtering/matching failures. **Documented above** — must align before implementation.
+
+**42. LOW: No per-model daily limits**
+A user could burn all their daily budget on the most expensive model (Veo). **Documented in security gaps** — add `max_daily_per_model` config.
+
+**43. LOW: Consider Veo 3.1 Fast instead of Veo 3 Fast**
+`fal-ai/veo3.1/fast` is a newer model at the same price tier with potentially better quality. **NOTED inline** — consider upgrading model ID.
+
+### ADDITIONAL BUGS — Round 4 (found in deepest re-analysis)
+
+**44. CRITICAL: Hailuo does NOT accept `video_size` parameter**
+The plan's `buildInput()` for Hailuo sent `{ prompt, video_size: { width: 720, height: 1280 } }`. In reality, Hailuo 2.3 Pro ONLY accepts `prompt` and `prompt_optimizer` — no other parameters exist. Sending `video_size` would either error or be silently ignored (landscape output). **FIXED inline above** — `buildInput()` now sends `{ prompt, prompt_optimizer: true }` only.
+
+**45. CRITICAL: Hailuo has NO configurable duration parameter**
+The plan had `duration: '6'` in the ModelConfig. Hailuo 2.3 Pro does not expose a duration parameter at all — the model outputs ~6 seconds at fixed duration. The older Hailuo 02 Standard had `duration` but 2.3 Pro does not. **FIXED inline above** — `duration: null` in config.
+
+**46. CRITICAL: Hailuo CANNOT generate portrait (9:16) video**
+No `aspect_ratio` or `video_size` parameter exists. Output is always landscape. For a vertical-video tournament app, this is a significant limitation. **DOCUMENTED inline** — recommend excluding Hailuo or accepting landscape-only tier.
+
+**47. CRITICAL: Webhook verification code was completely wrong (6 errors)**
+The previous verification code: (1) only checked 1 of 4 required headers, (2) verified signature against raw body instead of constructed message, (3) used base64 instead of hex encoding, (4) had no timestamp validation, (5) did not construct the `requestId\nuserId\ntimestamp\nsha256hex(body)` message, (6) had no replay attack protection. **FIXED inline above** — completely rewritten with correct 4-header + constructed message + hex + timestamp verification using native Node.js crypto.
+
+**48. CRITICAL: 10-second Kling clips fail existing validation**
+`MAX_VIDEO_DURATION` in `validations.ts` is 8.5 seconds. A 10-second Kling clip would be rejected by `RegisterClipSchema`. **FIXED inline above** — restrict Kling to `"5"` duration only.
+
+**49. HIGH: `generate_audio` defaults to `true` on Kling and Veo — doubles cost**
+Both Kling ($0.14/sec) and Veo ($0.15/sec) have `generate_audio` defaulting to `true`. The plan's cost estimates assumed audio OFF ($0.07/sec Kling, $0.10/sec Veo). Without explicitly passing `generate_audio: false`, actual costs double. **FIXED inline above** — `buildInput()` now explicitly passes `generate_audio: enableAudio`.
+
+**50. HIGH: Phase 2C described the OLD flow (server downloads video)**
+Phase 2C still said "Download video from fal.ai URL" and "Upload to Supabase/R2" — contradicting the Revised Architecture where the client handles this. **FIXED inline above** — Phase 2C rewritten to return signed URL only. New Phase 2D (register) and Phase 2E (webhook) added.
+
+**51. HIGH: fal.ai call happened before DB insert (lost generation risk)**
+If fal.ai call succeeds but DB insert fails, the generation runs with no tracking row — webhook has nothing to match. **FIXED inline above** — DB row inserted BEFORE fal.ai call.
+
+**52. HIGH: Late webhook could resurrect failed/expired generations**
+Webhook handler only checked `status != 'completed'`. A late webhook for a failed (30min timeout) or expired (24h cleanup) generation would update it back to `completed`. **FIXED inline above** — webhook only updates if status IN (`pending`, `processing`).
+
+**53. HIGH: No `is_banned` check in AI endpoints**
+Banned users could still generate AI videos until their JWT expired. Neither the existing upload flow nor the AI plan checked `is_banned`. **FIXED inline above** — banned check added to all AI endpoints.
+
+**54. HIGH: `ai_generate` not in `CRITICAL_RATE_LIMIT_TYPES`**
+When Redis is down, non-critical rate limits fall back to per-instance in-memory limiting — easily bypassed on Vercel (new instance = new counter). AI generation costs real money and should fail-closed. **FIXED inline above** — noted in Phase 2A.
+
+**55. HIGH: Missing title/description for AI clips entering tournament**
+Existing `RegisterClipSchema` requires `title` (1-100 chars). AI flow had no mechanism for providing a title. **FIXED inline above** — auto-generate from prompt, allow user to edit.
+
+**56. HIGH: `track_id: 'track-main'` not mentioned in plan**
+Existing `register/route.ts` hardcodes `track_id: 'track-main'` in clip insertion. Omitting this would cause the clip insert to fail or use a NULL track_id. **FIXED inline above** — added to Phase 2D register steps.
+
+**57. HIGH: Genre stored as UPPERCASE in DB**
+Existing `register/route.ts` calls `genre.toUpperCase()` before DB insert. AI register must do the same. **FIXED inline above** — added to Phase 2D.
+
+**58. HIGH: Slot must be re-verified at register time (not complete time)**
+Between `/api/ai/complete` (returns URLs) and `/api/ai/register` (saves clip), the active slot could change — `auto-advance` cron could lock the slot and advance to the next one. **FIXED inline above** — Phase 2D re-verifies slot at register time.
+
+**59. HIGH: fal.ai CDN CORS may block client-side fetch**
+The plan has the client `fetch(falVideoUrl)` from the browser to download the AI video. If `*.fal.media` doesn't serve `Access-Control-Allow-Origin: *`, the fetch will fail due to CORS. **Must verify before implementation.** Fallback: lightweight streaming proxy server-side.
+
+**60. MEDIUM: Triple genre mismatch across codebase (pre-existing, blocks integration)**
+Four different genre lists exist: `types/index.ts` (4 genres), `validations.ts` (8 genres with `sci-fi`), `upload/page.tsx` (8 genres with `scifi` + `other`), `admin/page.tsx` (uses `scifi`). Additionally, `VotingClip.genre` type only has 4 UPPERCASE values. **Must fix before AI implementation.**
+
+**61. MEDIUM: `DbClip` type is severely outdated**
+Missing `season_id`, `slot_position`, `genre`, `title`, `description`, `hype_score`, `uploader_key`, `duration_seconds`. Status enum is wrong (`'approved'` vs actual `'active'`). AI types would compound the drift.
+
+**62. MEDIUM: Audit logging is admin-only (`logAdminAction`)**
+AI actions are user actions, but the logging function is named and designed for admin actions. Either create `logUserAction()` or accept the semantic mismatch. Also needs `'ai_generation'` resource type.
+
+**63. MEDIUM: No distributed lock for timeout cron**
+Existing `auto-advance` cron uses `cron_locks` table for distributed locking. The AI timeout cron does not. Concurrent execution could poll fal.ai for the same stale generations, wasting API calls.
+
+**64. MEDIUM: Auto-expire SQL has no cron job definition**
+The plan provides SQL to expire old generations but says "Run daily" without defining where/how. Should be integrated into the `ai-generation-timeout` cron.
+
+**65. MEDIUM: No `release_generation_reservation` function**
+Bug fix #3 says "If fal.ai fails afterward, decrement." But no `release_generation_reservation()` PG function is defined. (Per bug #49's fix, we now do NOT decrement on failure — count represents attempts.)
+
+**66. MEDIUM: Zod v4 in use (not v3)**
+`package.json` has Zod v4.1.13. `AIGenerateSchema` must follow v4 patterns. Notably, v4 uses `result.error.issues` not `result.error.errors`.
+
+**67. LOW: `requireCsrf()` is never called anywhere in the existing app**
+CSRF double-submit cookie is defined and the client sends the header, but no server-side route validates it. Adding it only to AI endpoints would be inconsistent. Consider adding to all mutation routes.
+
+**68. LOW: `useFeature` hook returns untyped config**
+AI frontend needs typed access to `max_daily_free`, `available_models`, etc. Should define `AIVideoConfig` interface.
 
 ---
 
@@ -520,33 +706,48 @@ Neither `@fal-ai/client` nor `openai` is currently installed. **FIXED inline abo
 
 ```
 User → Prompt → POST /api/ai/generate
-  ↓ CSRF check
+  ↓ Rate limit (CRITICAL — fail-closed if Redis down)
+  ↓ Auth + CSRF check + banned check
   ↓ Feature flag check (server-side)
-  ↓ Atomic daily limit increment
-  ↓ Global cost cap check
-  ↓ Sanitize prompt
-  ↓ Call fal.ai (with webhook_url)
-  ↓ Insert ai_generations (status: pending)
+  ↓ Sanitize prompt (NFKD normalize + strip zero-width + blocklist)
+  ↓ Atomic daily limit increment (PG function)
+  ↓ Global cost cap check (atomic — FOR UPDATE)
+  ↓ Insert ai_generations row FIRST (status: pending)
+  ↓ Call fal.ai (with webhook_url, 10s timeout)
+  ↓ Update row with fal_request_id (or mark failed on error)
   ↓ Return generationId
 
-fal.ai completes → POST /api/ai/webhook (shared secret)
-  ↓ Update ai_generations (status: completed, video_url)
+fal.ai completes → POST /api/ai/webhook (ED25519 verified)
+  ↓ Verify: 4 headers + constructed message + hex signature
+  ↓ Idempotent: only update if status IN (pending, processing)
+  ↓ Update ai_generations (status: completed, video_url, completed_at)
 
 Frontend polls GET /api/ai/status/[id] (our DB only, NOT fal.ai)
-  ↓ Returns { status, videoUrl } from ai_generations table
+  ↓ Returns { status, videoUrl } — never exposes fal_request_id
 
 User clicks "Submit" → POST /api/ai/complete
-  ↓ CSRF check
-  ↓ Verify season + slot exist
+  ↓ Auth + CSRF + banned check
+  ↓ Check completed_at age (reject if > 7 days — fal.ai URL expired)
+  ↓ Atomic complete_initiated_at guard (prevents double-complete)
   ↓ Generate signed upload URL for our storage
+  ↓ Store storage_key on generation row
   ↓ Return { falVideoUrl, signedUploadUrl, publicUrl }
 
 Client: fetch(falVideoUrl) → PUT to signedUploadUrl (direct to storage)
+  ↓ Note: verify fal.ai CDN allows CORS (*.fal.media)
 
-Client: POST /api/ai/register (new — registers clip metadata)
-  ↓ Insert tournament_clips with AI fields
+Client: POST /api/ai/register
+  ↓ Auth + CSRF + banned check + feature flag check
+  ↓ Re-verify active slot (may have changed since /complete)
+  ↓ Insert tournament_clips with AI fields + genre.toUpperCase() + track_id: 'track-main'
   ↓ Start voting timer if first clip in slot
-  ↓ Update ai_generations.clip_id
+  ↓ Update ai_generations.clip_id (atomic — WHERE clip_id IS NULL)
+
+Cron (every 5 min): /api/cron/ai-generation-timeout
+  ↓ Distributed lock (cron_locks pattern)
+  ↓ Poll fal.ai for stuck generations (> 10 min)
+  ↓ Auto-fail anything stuck > 30 min
+  ↓ Expire unclaimed completed generations > 24h
 ```
 
 Key changes from original:
@@ -568,15 +769,21 @@ Key changes from original:
 | Model | fal.ai Model ID | Endpoint |
 |-------|----------------|----------|
 | **Hailuo 2.3 Pro** | `fal-ai/minimax/hailuo-2.3/pro/text-to-video` | `https://queue.fal.run/fal-ai/minimax/hailuo-2.3/pro/text-to-video` |
-| **Kling 2.6 Standard** | `fal-ai/kling-video/v2.6/standard/text-to-video` | `https://queue.fal.run/fal-ai/kling-video/v2.6/standard/text-to-video` |
+| **Kling 2.6 Pro** | `fal-ai/kling-video/v2.6/pro/text-to-video` | `https://queue.fal.run/fal-ai/kling-video/v2.6/pro/text-to-video` |
 | **Google Veo 3 Fast** | `fal-ai/veo3/fast` | `https://queue.fal.run/fal-ai/veo3/fast` |
+
+> **NOTE:** Kling 2.6 **Standard** (`/standard/text-to-video`) does NOT exist on fal.ai for text-to-video. Only **Pro** is available. The Standard tier exists only for image-to-video.
+> **ALTERNATIVE:** Consider using `fal-ai/veo3.1/fast` (Veo 3.1 Fast) instead of `fal-ai/veo3/fast` — newer model, same price, potentially better quality.
 
 ### Queue API Flow
 
 ```
 1. POST https://queue.fal.run/{model_id}
    Headers: { Authorization: "Key $FAL_KEY" }
-   Body: { prompt: "...", aspect_ratio: "9:16", duration: "6s" }
+   Body (varies by model — see examples below):
+     Hailuo:  { prompt: "...", prompt_optimizer: true }  // ONLY these 2 params exist
+     Kling:   { prompt: "...", aspect_ratio: "9:16", duration: "5", generate_audio: false }
+     Veo 3:   { prompt: "...", aspect_ratio: "9:16", duration: "8s", generate_audio: false }
    Response: { request_id: "abc123", status_url: "...", response_url: "..." }
 
 2. Webhook fires → POST /api/ai/webhook
@@ -594,7 +801,7 @@ Pass webhook URL as query parameter when submitting:
 POST https://queue.fal.run/{model_id}?fal_webhook={encoded_webhook_url}
 ```
 
-**Webhook verification:** ED25519 signatures. Fetch public keys from `https://rest.alpha.fal.ai/.well-known/jwks.json`. Verify `X-Fal-Webhook-Signature` header against request body.
+**Webhook verification:** ED25519 signatures. fal.ai sends 4 headers: `X-Fal-Webhook-Request-Id`, `X-Fal-Webhook-User-Id`, `X-Fal-Webhook-Timestamp`, `X-Fal-Webhook-Signature`. The signature is **hex-encoded** and verifies against a **constructed message** (NOT the raw body): `{requestId}\n{userId}\n{timestamp}\n{sha256hex(body)}`. Must also validate timestamp within ±300 seconds. Fetch JWKS from `https://rest.alpha.fal.ai/.well-known/jwks.json` (cache 24h). See "Webhook Verification" section for full implementation.
 
 ### NPM Package
 
@@ -604,9 +811,29 @@ import { fal } from '@fal-ai/client';
 
 fal.config({ credentials: process.env.FAL_KEY });
 
+// Build model-specific input parameters
+function buildInput(model: string, prompt: string, enableAudio: boolean = false) {
+  switch (model) {
+    case 'hailuo-2.3':
+      // Hailuo 2.3 Pro ONLY accepts: prompt, prompt_optimizer
+      // No aspect_ratio, video_size, or duration params exist
+      // Output: landscape ~6s 1080p (portrait NOT possible)
+      return { prompt, prompt_optimizer: true };
+    case 'kling-2.6':
+      // Kling: duration "5" (no 's'). MUST use 5, not 10 (10s > MAX_VIDEO_DURATION 8.5)
+      // generate_audio defaults to true — explicitly set false to halve cost
+      return { prompt, aspect_ratio: '9:16', duration: '5', generate_audio: enableAudio };
+    case 'veo3-fast':
+      // Veo: duration "8s" (WITH 's'). generate_audio defaults to true
+      return { prompt, aspect_ratio: '9:16', duration: '8s', generate_audio: enableAudio };
+    default:
+      throw new Error(`Unknown model: ${model}`);
+  }
+}
+
 // Submit to queue with webhook
 const result = await fal.queue.submit(modelId, {
-  input: { prompt, aspect_ratio: '9:16', duration: '6s' },
+  input: buildInput(modelKey, prompt),
   webhookUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/webhook`,
 });
 ```
@@ -615,24 +842,41 @@ const result = await fal.queue.submit(modelId, {
 
 - **Concurrent tasks:** Standard tier = 2 concurrent tasks per account. Exceeding → queued.
 - **Video URL expiration:** fal.ai video URLs expire after ~7 days. Must download/re-upload to our storage before expiration.
-- **Aspect ratio:** Use `9:16` for vertical (matches existing clip format). Also supports `16:9`, `1:1`.
-- **Duration options:** Hailuo supports `6s` or `10s`. Kling supports `5s` or `10s`. Veo 3 Fast supports custom duration (use `8`).
+- **Portrait mode (9:16):** Kling and Veo use `aspect_ratio: "9:16"`. **Hailuo CANNOT generate portrait** — only accepts `prompt` and `prompt_optimizer` params, no way to control orientation.
+- **Duration options (format differs per model!):**
+  - Hailuo: NOT configurable (~6s fixed output)
+  - Kling: `"5"` or `"10"` (string, NO `s` suffix). **Use "5" only** — 10s clips exceed `MAX_VIDEO_DURATION` (8.5s) in existing `RegisterClipSchema`
+  - Veo 3 Fast: `"4s"`, `"6s"`, or `"8s"` (string, WITH `s` suffix)
+- **Audio:** Hailuo has NO audio. Kling and Veo 3 have native audio — but `generate_audio` **defaults to `true`**, which doubles the per-second cost. Must explicitly set `generate_audio: false` to use the lower pricing.
+- **MAX_VIDEO_DURATION blocker:** Existing `RegisterClipSchema` in `validations.ts` enforces `duration <= 8.5`. A 10-second Kling clip would fail validation. Either: (a) restrict Kling to 5s only, (b) create separate `AIRegisterClipSchema` with higher limit, or (c) omit `duration` field (it's optional).
 
 ### Model-Specific Notes
 
-**Kling 2.6:**
-- Most widely adopted AI video model globally (ByteDance/Kuaishou)
-- Best price-to-quality ratio
+**Hailuo 2.3 Pro:**
+- MiniMax's latest model, high quality at fixed low cost ($0.49/video)
+- Does NOT have native audio synthesis — only a separate TTS addon, not integrated
+- **ONLY accepts 2 parameters:** `prompt` (string) and `prompt_optimizer` (boolean, default true)
+- **CANNOT generate portrait 9:16 video** — no `aspect_ratio`, no `video_size`, no `duration` params
+- Output is always landscape 1080p, ~6 seconds fixed duration
+- Good for stylized content, animations, abstract visuals
+- **Limitation for vertical-video app:** May need to be excluded or accepted as landscape-only tier
+
+**Kling 2.6 Pro:**
+- Most widely adopted AI video model globally (Kuaishou)
+- **Only Pro tier available for text-to-video on fal.ai** — Standard tier exists only for image-to-video
+- Best price-to-quality ratio ($0.07/sec without audio, $0.14/sec with audio)
 - Native audio generation (sound effects, ambient)
 - Supports 720p and 1080p
 - Great for realistic humans, lip-sync, dialogue scenes
+- Duration format: `"5"` or `"10"` (string, no `s` suffix)
 
 **Veo 3 Fast:**
 - Google's fastest video model, cheaper than Veo 3.1 Standard
 - Wins quality benchmarks (MovieGenBench)
 - Native audio (dialogue, sound effects, ambient)
-- Custom duration support (use `8` for 8 seconds)
+- Custom duration support (use `"8s"` — WITH `s` suffix)
 - Commercial use allowed
+- **Consider upgrading to `fal-ai/veo3.1/fast`** — newer model, same price tier
 
 *Future consideration:* OpenAI Sora 2 can be added later via direct OpenAI API (`POST /v1/videos/generations`) if users request it. Would require adding `openai` npm package and a second provider path in `ai-video.ts`.
 
@@ -645,11 +889,15 @@ const result = await fal.queue.submit(modelId, {
 | Scenario | Daily Users | Gens/Day | Model Mix | Avg Cost/Gen | Daily Cost | Monthly Cost |
 |----------|-------------|----------|-----------|-------------|------------|-------------|
 | **Soft launch** | 50 | 1 | 100% Hailuo | $0.49 | $24.50 | **$735** |
-| **MVP (recommended)** | 200 | 1 | 70% Hailuo / 20% Kling / 10% Veo | $0.57 | $114 | **$3,420** |
-| **Growth** | 500 | 1 | 50% Hailuo / 30% Kling / 20% Veo | $0.63 | $315 | **$9,450** |
-| **3 free/day (dangerous)** | 1000 | 3 | Mixed | $0.60 | $1,800 | **$54,000** |
+| **MVP (recommended)** | 200 | 1 | 70% Hailuo / 20% Kling / 10% Veo | $0.53 | $106 | **$3,180** |
+| **Growth** | 500 | 1 | 50% Hailuo / 30% Kling / 20% Veo | $0.57 | $285 | **$8,550** |
+| **3 free/day (dangerous)** | 1000 | 3 | Mixed | $0.55 | $1,650 | **$49,500** |
 
-**Model migration impact:** Kling ($0.70) is cheaper than Sora ($0.80) and Veo 3 Fast ($1.00) is cheaper than Sora 2 Pro ($3.00). Overall cost projections are lower than the previous Sora-based plan.
+> **Pricing notes (updated):**
+> - Hailuo: $0.49 flat per video (regardless of duration)
+> - Kling 2.6 Pro: $0.07/sec (no audio), $0.14/sec (with audio). 5s clip = $0.35 (no audio) to $0.70 (with audio)
+> - Veo 3 Fast: $0.10/sec (no audio), $0.15/sec (with audio). 8s clip = $0.80 (no audio) to $1.20 (with audio)
+> - Projections above assume no-audio for cost estimates. With audio enabled, Kling and Veo costs roughly double.
 
 **Recommendation:** Start with **1 free generation per day** using Hailuo only. Kling and Veo available but count toward user's daily limit. Consider making Veo a paid/premium feature later.
 
@@ -832,28 +1080,91 @@ Progress stages: Submitting → Queued → Generating → Rendering → Ready
 
 ### Webhook Verification
 
+> **Previous code was WRONG.** It verified signature against raw body with base64 encoding. The actual process requires constructing a composite message and uses hex encoding. Corrected below.
+
+fal.ai sends 4 headers with every webhook:
+- `X-Fal-Webhook-Request-Id` — unique request identifier
+- `X-Fal-Webhook-User-Id` — your fal.ai user ID
+- `X-Fal-Webhook-Timestamp` — Unix epoch seconds
+- `X-Fal-Webhook-Signature` — ED25519 signature (**hex-encoded**, NOT base64)
+
+The signed message is NOT the raw body. It is a composite:
+```
+{request_id}\n{user_id}\n{timestamp}\n{sha256_hex_of_body}
+```
+
 ```typescript
 // /api/ai/webhook/route.ts
-import { createPublicKey } from 'crypto';
+import crypto from 'crypto';
 
-async function verifyFalWebhook(req: NextRequest): Promise<boolean> {
+const JWKS_URL = 'https://rest.alpha.fal.ai/.well-known/jwks.json';
+let jwksCache: any[] | null = null;
+let jwksCacheTime = 0;
+const JWKS_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function fetchJwks() {
+  const now = Date.now();
+  if (jwksCache && (now - jwksCacheTime) < JWKS_TTL) return jwksCache;
+  const res = await fetch(JWKS_URL, { signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) throw new Error(`JWKS fetch failed: ${res.status}`);
+  const data = await res.json();
+  jwksCache = data.keys ?? [];
+  jwksCacheTime = now;
+  return jwksCache;
+}
+
+async function verifyFalWebhook(req: NextRequest): Promise<{ valid: boolean; body: string }> {
+  // 1. Extract ALL 4 required headers
+  const requestId = req.headers.get('x-fal-webhook-request-id');
+  const userId    = req.headers.get('x-fal-webhook-user-id');
+  const timestamp = req.headers.get('x-fal-webhook-timestamp');
   const signature = req.headers.get('x-fal-webhook-signature');
-  if (!signature) return false;
 
+  if (!requestId || !userId || !timestamp || !signature) {
+    return { valid: false, body: '' };
+  }
+
+  // 2. Validate timestamp (±300 seconds / 5 minutes) — prevents replay attacks
+  const tsInt = parseInt(timestamp, 10);
+  if (isNaN(tsInt) || Math.abs(Math.floor(Date.now() / 1000) - tsInt) > 300) {
+    return { valid: false, body: '' };
+  }
+
+  // 3. Read raw body
   const body = await req.text();
 
-  // Fetch JWKS from fal.ai (cache for 1 hour)
-  const jwks = await fetchCachedJWKS('https://rest.alpha.fal.ai/.well-known/jwks.json');
+  // 4. Construct the signed message (NOT the raw body!)
+  const bodyHash = crypto.createHash('sha256').update(body).digest('hex');
+  const message = [requestId, userId, timestamp, bodyHash].join('\n');
+  const messageBytes = Buffer.from(message, 'utf-8');
 
-  // Verify ED25519 signature
-  for (const key of jwks.keys) {
-    const publicKey = createPublicKey({ key, format: 'jwk' });
-    const isValid = verify(null, Buffer.from(body), publicKey, Buffer.from(signature, 'base64'));
-    if (isValid) return true;
+  // 5. Decode hex signature (must be exactly 64 bytes for ED25519)
+  let sigBytes: Buffer;
+  try {
+    sigBytes = Buffer.from(signature, 'hex');
+    if (sigBytes.length !== 64) return { valid: false, body };
+  } catch { return { valid: false, body }; }
+
+  // 6. Fetch JWKS and verify with each Ed25519 key
+  const keys = await fetchJwks();
+  for (const jwk of keys) {
+    if (jwk.crv !== 'Ed25519' || jwk.kty !== 'OKP') continue;
+    try {
+      const publicKey = crypto.createPublicKey({
+        key: { kty: jwk.kty, crv: jwk.crv, x: jwk.x },
+        format: 'jwk',
+      });
+      // crypto.verify with null algorithm infers Ed25519 from key type
+      if (crypto.verify(null, messageBytes, publicKey, sigBytes)) {
+        return { valid: true, body };
+      }
+    } catch { continue; }
   }
-  return false;
+  return { valid: false, body };
 }
 ```
+
+**No external crypto dependency needed** — Node.js 18.4+ has native Ed25519 support via `crypto.createPublicKey` (JWK import) and `crypto.verify(null, ...)`. The `@fal-ai/client` SDK does NOT include webhook verification utilities.
 
 ### Security Checklist
 
@@ -864,7 +1175,7 @@ async function verifyFalWebhook(req: NextRequest): Promise<boolean> {
 | **Feature flag bypass** | Server-side flag check | Query `feature_flags` table, not client state |
 | **Video URL spoofing** | Server constructs URL | Never accept video URL from client; server builds public URL from known storage path |
 | **Webhook forgery** | ED25519 verification | Verify `X-Fal-Webhook-Signature` against fal.ai JWKS |
-| **Webhook replay** | Idempotent handler | Check `ai_generations.status` — if already `completed`, ignore |
+| **Webhook replay** | Idempotent handler | Only update if status IN (`pending`, `processing`) — reject `completed`, `failed`, `expired` |
 | **Prompt injection** | Sanitize + blocklist | `sanitizeText()` + keyword filter before sending to fal.ai |
 | **RLS bypass** | Enable RLS on tables | `FOR SELECT USING (user_id = auth.uid())` on `ai_generations`, `ai_generation_limits` |
 | **Race on limits** | Atomic PG function | `check_and_reserve_generation()` — single atomic operation |
@@ -889,37 +1200,178 @@ CREATE POLICY ai_limits_select ON ai_generation_limits
 
 ---
 
+## Deep Dive: Webhook Timeout & Fallback
+
+fal.ai webhooks may fail silently (network issues, deployment gaps, etc.). Without a fallback, generations would be stuck in `pending`/`processing` forever.
+
+### Fallback Cron Job
+
+**New file:** `src/app/api/cron/ai-generation-timeout/route.ts`
+
+Runs every 5 minutes via Vercel Cron. Uses `cron_locks` distributed lock (same pattern as `auto-advance`):
+
+```typescript
+// 0. Auth check: verify CRON_SECRET (same as auto-advance)
+// 0b. Distributed lock: INSERT INTO cron_locks WHERE job_name = 'ai-generation-timeout'
+
+// 1. Find generations stuck in 'pending' or 'processing' for > 10 minutes
+const stale = await supabase
+  .from('ai_generations')
+  .select('id, fal_request_id, model, updated_at')
+  .in('status', ['pending', 'processing'])
+  .lt('updated_at', tenMinutesAgo.toISOString());
+
+// 2. For each stale generation, poll fal.ai directly
+for (const gen of stale.data) {
+  const status = await fal.queue.status(gen.model, { requestId: gen.fal_request_id });
+
+  if (status.status === 'COMPLETED') {
+    // Webhook was lost — update DB from poll result
+    await supabase.from('ai_generations').update({
+      status: 'completed',
+      video_url: status.response?.video?.url,
+      completed_at: new Date().toISOString(),
+    }).eq('id', gen.id);
+  } else if (status.status === 'FAILED') {
+    await supabase.from('ai_generations').update({
+      status: 'failed',
+      error_message: status.error || 'Generation failed on provider',
+    }).eq('id', gen.id);
+  }
+  // If still IN_PROGRESS after 10 min, leave it — check again next cron run
+}
+
+// 3. Auto-fail anything stuck for > 30 minutes (provider likely lost it)
+await supabase.from('ai_generations').update({
+  status: 'failed',
+  error_message: 'Generation timed out after 30 minutes',
+}).in('status', ['pending', 'processing'])
+  .lt('updated_at', thirtyMinutesAgo.toISOString());
+```
+
+Add to `vercel.json`:
+```json
+{
+  "crons": [
+    { "path": "/api/cron/ai-generation-timeout", "schedule": "*/5 * * * *" }
+  ]
+}
+```
+
+### Auto-Expire Unclaimed Generations
+
+Generations that complete but are never submitted to the tournament (user closes browser) should be cleaned up:
+
+```sql
+-- Run daily: expire completed generations older than 24h that were never claimed
+UPDATE ai_generations
+SET status = 'expired'
+WHERE status = 'completed'
+  AND clip_id IS NULL
+  AND completed_at < NOW() - INTERVAL '24 hours';
+```
+
+Add `'expired'` to the status constraint:
+```sql
+CONSTRAINT valid_ai_status CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'expired'))
+```
+
+---
+
+## Deep Dive: Additional Security Gaps
+
+### Webhook Security
+
+| Gap | Risk | Fix |
+|-----|------|-----|
+| **No CORS restriction on webhook** | Any origin can attempt POST | Add explicit `Access-Control-Allow-Origin: none` and reject non-POST methods |
+| **No rate limit on webhook endpoint** | Flood attack could overwhelm DB | Add rate limit: 100 req/min on `/api/ai/webhook` |
+| **No rate limit on status endpoint** | Polling abuse | Add rate limit: 30 req/min on `/api/ai/status/[id]` |
+
+### Cost & Budget
+
+| Gap | Risk | Fix |
+|-----|------|-----|
+| **Global cost cap race condition** | Two concurrent requests both read sum < limit, both proceed | Use `SELECT ... FOR UPDATE` or atomic PG function (same pattern as daily limit) |
+| **Keyword blocklist undefined** | Plan mentions blocklist but never defines words | Add initial blocklist to feature flag config (done above). Load dynamically from config so admin can update without deploy. |
+| **No per-model daily limits** | User burns expensive Veo all day | Add `max_daily_per_model` to feature flag config: `{ "veo3-fast": 1, "kling-2.6": 2 }` |
+
+### Error Handling Gaps (16+ scenarios)
+
+These error scenarios need explicit handling in the API routes:
+
+| Route | Scenario | Current | Fix |
+|-------|----------|---------|-----|
+| `/api/ai/generate` | fal.ai returns 402 (insufficient credits) | Unhandled | Return 503 + "AI service temporarily unavailable" |
+| `/api/ai/generate` | fal.ai returns 429 (rate limited) | Unhandled | Retry once with backoff, then return 503 |
+| `/api/ai/generate` | fal.ai returns 500/502/503 | Unhandled | Return 503 + generic error message |
+| `/api/ai/generate` | Network timeout to fal.ai | Unhandled | 10s timeout, return 503 on timeout |
+| `/api/ai/generate` | Invalid model in request body | Zod validates | OK — covered |
+| `/api/ai/webhook` | Duplicate webhook for same request_id | Potential double-processing | Only update if status IN (`pending`, `processing`) — reject `completed`/`failed`/`expired` |
+| `/api/ai/webhook` | Webhook body missing `video.url` | Unhandled | Mark as `failed` with "No video URL in response" |
+| `/api/ai/webhook` | Webhook reports failure (status != OK) | Unhandled | Mark as `failed`, store error message |
+| `/api/ai/complete` | Generation status is not `completed` | Unhandled | Return 400 "Generation not ready" |
+| `/api/ai/complete` | fal.ai video URL has expired (>7 days old) | Unhandled | Check `completed_at` age, return 410 "Video expired, please regenerate" |
+| `/api/ai/complete` | No active season found | `.single()` crash (bug #2) | Return 400 "No active season" |
+| `/api/ai/complete` | No available slot for genre | Unhandled | Return 400 "No available slot" |
+| `/api/ai/register` | Signed URL expired before upload finished | Unhandled | Return 400 "Upload expired, try again" |
+| `/api/ai/register` | clip_id already set on generation (double submit) | Duplicate clip | Check `clip_id IS NULL` before allowing |
+| `/api/ai/history` | No generations found | Returns empty array | OK — covered |
+| `/api/ai/status/[id]` | Generation doesn't exist | Unhandled | Return 404 |
+
+### Integration Blocker: Genre Mismatch
+
+`src/lib/validations.ts` defines `ALLOWED_GENRES` with `'sci-fi'` (hyphenated), but the upload page and other frontend code uses `'scifi'` (no hyphen). AI video generation must use the same genre values as the rest of the app.
+
+**Fix:** Align all genre references to use the same format. Recommended: use `'sci-fi'` everywhere (matches `validations.ts` source of truth). Update upload page and any hardcoded references.
+
+---
+
 ## Updated Files Summary (incorporating all fixes)
 
-### New Files (14)
+### New Files (13)
 
 | File | Purpose |
 |------|---------|
-| `supabase/sql/migration-ai-video-generation.sql` | DB migration (tables, indexes, RLS, atomic function, feature flag) |
-| `src/lib/ai-video.ts` | fal.ai integration library — Hailuo, Kling, Veo via `@fal-ai/client` |
-| `src/app/api/ai/generate/route.ts` | Start generation (CSRF, flag, atomic limit, global cap) |
-| `src/app/api/ai/status/[id]/route.ts` | Poll status (reads our DB, not fal.ai) |
-| `src/app/api/ai/complete/route.ts` | Prepare signed upload URL + metadata |
-| `src/app/api/ai/register/route.ts` | Register clip after client uploads video |
-| `src/app/api/ai/webhook/route.ts` | fal.ai completion webhook (ED25519 verified) |
+| `supabase/sql/migration-ai-video-generation.sql` | DB migration (tables, indexes, RLS, atomic functions, triggers, feature flag) |
+| `src/lib/ai-video.ts` | fal.ai integration library — model-specific `buildInput()`, Kling/Veo/Hailuo via `@fal-ai/client` |
+| `src/app/api/ai/generate/route.ts` | Start generation (CSRF, banned check, flag, atomic limit, global cap, DB-first insert, fal.ai error handling) |
+| `src/app/api/ai/status/[id]/route.ts` | Poll status (reads our DB only, rate limited 30/min, never exposes `fal_request_id`) |
+| `src/app/api/ai/complete/route.ts` | Prepare signed upload URL (atomic double-complete guard, stores storage_key) |
+| `src/app/api/ai/register/route.ts` | Register clip (mirrors existing upload/register, re-verifies slot, genre.toUpperCase(), track_id, voting timer) |
+| `src/app/api/ai/webhook/route.ts` | fal.ai webhook (4-header ED25519 verification, constructed message, hex signature, idempotent, rate limited) |
 | `src/app/api/ai/history/route.ts` | User's generation history (paginated) |
+| `src/app/api/cron/ai-generation-timeout/route.ts` | Fallback cron: polls fal.ai for stuck gens, auto-fails 30min, expires unclaimed 24h, distributed lock |
 | `src/app/api/admin/ai-stats/route.ts` | Admin cost tracking dashboard data |
-| `src/components/AIGeneratePanel.tsx` | Shared generation UI (prompt → progress → preview) |
-| `src/app/create/page.tsx` | Dedicated create page (full prompt builder) |
+| `src/components/AIGeneratePanel.tsx` | Shared generation UI (prompt → progress → preview → submit) |
+| `src/app/create/page.tsx` | Dedicated create page (full prompt builder, model picker, history) |
 | `src/hooks/useAIGenerations.ts` | React Query hook for generation history |
 
-### Modified Files (8)
+### Modified Files (9)
 
 | File | Change |
 |------|--------|
-| `src/lib/validations.ts` | Add `AIGenerateSchema` with Zod |
-| `src/lib/rate-limit.ts` | Add `ai_generate` rate limit tier |
-| `src/lib/audit-log.ts` | Add `'ai_generate' \| 'ai_complete'` to `AuditAction` |
-| `src/types/index.ts` | Add `AIGeneration`, `AIModel`, `AIStyle` types |
-| `src/app/upload/page.tsx` | Add AI Generate tab toggle |
+| `src/lib/validations.ts` | Add `AIGenerateSchema` (Zod v4, `.strict()`), export `ALLOWED_GENRES` |
+| `src/lib/rate-limit.ts` | Add `ai_generate`, `ai_status` rate limit tiers; add `ai_generate` to `CRITICAL_RATE_LIMIT_TYPES` |
+| `src/lib/audit-log.ts` | Add `'ai_generate' \| 'ai_complete' \| 'ai_register'` to `AuditAction`; add `'ai_generation'` to `ResourceType` |
+| `src/types/index.ts` | Add `AIGeneration`, `AIModel`, `AIStyle` types; fix `GENRES` to match `ALLOWED_GENRES`; fix `VotingClip.genre` |
+| `src/app/upload/page.tsx` | Add AI Generate tab toggle (conditional on feature flag) |
 | `src/app/admin/page.tsx` | AI badges, prompt display, AI-only filter |
 | `src/app/api/admin/clips/route.ts` | Add AI fields to query + `?ai_only` param |
-| `src/components/BottomNavigation.tsx` | Add "Create" nav item (conditional on flag) |
+| `src/components/BottomNavigation.tsx` | Add "Create" nav item with `Sparkles` icon (conditional on `ai_video_generation` flag) |
+| `vercel.json` | Add `ai-generation-timeout` cron entry |
+
+### Pre-Implementation Prerequisites
+
+These issues in the existing codebase must be fixed BEFORE AI implementation:
+
+| Issue | Files | Required Fix |
+|-------|-------|-------------|
+| Genre mismatch (scifi vs sci-fi vs 4 types) | `types/index.ts`, `validations.ts`, `upload/page.tsx`, `admin/page.tsx` | Align all genre lists to single source of truth |
+| `@fal-ai/client` not installed | `package.json` | `npm install @fal-ai/client` (pin exact version) |
+| `VotingClip.genre` only has 4 values | `types/index.ts` | Add all 8 genres in UPPERCASE |
+| `DbClip` type missing many fields | `types/index.ts` | Update to match actual `tournament_clips` columns |
+| Verify fal.ai CDN CORS | n/a | Test `fetch('https://fal.media/...')` from browser — if blocked, need streaming proxy |
 
 ---
 
@@ -939,3 +1391,12 @@ CREATE POLICY ai_limits_select ON ai_generation_limits
 12. Direct API call without CSRF token → rejected with 403
 13. Global daily cost cap exceeded → all users see "service temporarily unavailable"
 14. Generation with `status: completed` receives duplicate webhook → no-op
+15. Banned user calls `/api/ai/generate` → rejected with 403
+16. fal.ai returns 402 (insufficient credits) → generation marked failed, user sees "AI service temporarily unavailable"
+17. Webhook for unknown `fal_request_id` → logged, returns 200 (prevents retries)
+18. Generation stuck 30+ minutes → cron auto-fails, user sees "Generation timed out"
+19. User completes but never registers → generation cleaned up after timeout
+20. Model-specific params: Kling uses `aspect_ratio: "9:16"`, `duration: "5"`, `generate_audio: false`
+21. Slot advances between complete and register → register uses current active slot, not stale one
+22. Feature flag disabled mid-generation → webhook still processes, but register/complete blocked
+23. Hailuo generates landscape video → displayed correctly in UI (letterboxed or excluded from portrait-only app)
