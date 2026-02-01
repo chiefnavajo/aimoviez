@@ -1,11 +1,13 @@
 'use client';
 
-import { Infinity, Play, Upload, Trophy, User, Clapperboard } from 'lucide-react';
+import { Infinity, Play, Upload, Trophy, User, Clapperboard, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useFeature } from '@/hooks/useFeatureFlags';
 
 export default function BottomNavigation() {
   const pathname = usePathname();
+  const { enabled: aiEnabled } = useFeature('ai_video_generation');
 
   // On dashboard, show Story button instead of Home
   const isDashboard = pathname === '/dashboard';
@@ -16,6 +18,7 @@ export default function BottomNavigation() {
       : { href: '/dashboard', icon: Infinity, label: 'Vote' },
     { href: '/watch', icon: Play, label: 'Watch' },
     { href: '/upload', icon: Upload, label: 'Upload' },
+    ...(aiEnabled ? [{ href: '/create', icon: Sparkles, label: 'Create' }] : []),
     { href: '/leaderboard', icon: Trophy, label: 'Ranks' },
     { href: '/profile', icon: User, label: 'Profile' },
   ];

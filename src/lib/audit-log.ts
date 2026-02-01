@@ -32,7 +32,10 @@ export type AuditAction =
   | 'reset_user_votes'
   | 'free_assign_clip'
   | 'god_mode_status_change'
-  | 'god_mode_slot_status_change';
+  | 'god_mode_slot_status_change'
+  | 'ai_generate'
+  | 'ai_complete'
+  | 'ai_register';
 
 export type ResourceType =
   | 'clip'
@@ -41,7 +44,8 @@ export type ResourceType =
   | 'slot'
   | 'feature_flag'
   | 'comment'
-  | 'vote';
+  | 'vote'
+  | 'ai_generation';
 
 export interface AuditLogEntry {
   action: AuditAction;

@@ -69,6 +69,9 @@ interface Clip {
   created_at: string;
   slot_position: number;
   season_id?: string;
+  is_ai_generated?: boolean;
+  ai_prompt?: string;
+  ai_model?: string;
 }
 
 interface Season {
@@ -105,7 +108,7 @@ const GENRES = [
   { id: 'action', name: 'Action', emoji: '💥' },
   { id: 'comedy', name: 'Comedy', emoji: '😂' },
   { id: 'thriller', name: 'Thriller', emoji: '🔪' },
-  { id: 'scifi', name: 'Sci-Fi', emoji: '🚀' },
+  { id: 'sci-fi', name: 'Sci-Fi', emoji: '🚀' },
   { id: 'romance', name: 'Romance', emoji: '❤️' },
   { id: 'animation', name: 'Animation', emoji: '🎨' },
   { id: 'horror', name: 'Horror', emoji: '👻' },
@@ -2726,8 +2729,16 @@ export default function AdminDashboard() {
                     <div className="flex flex-col justify-between min-w-0">
                       <div className="space-y-4">
                         <div>
-                          <h3 className="text-lg sm:text-xl font-bold mb-1 truncate">{clip.title}</h3>
+                          <h3 className="text-lg sm:text-xl font-bold mb-1 truncate">
+                            {clip.is_ai_generated && (
+                              <span className="inline-block mr-2 px-2 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded text-xs font-medium align-middle">AI</span>
+                            )}
+                            {clip.title}
+                          </h3>
                           <p className="text-white/60 text-sm line-clamp-2">{clip.description || 'No description'}</p>
+                          {clip.is_ai_generated && clip.ai_prompt && (
+                            <p className="text-purple-400/60 text-xs mt-1 line-clamp-1">Prompt: {clip.ai_prompt}</p>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-2">

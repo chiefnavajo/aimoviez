@@ -41,6 +41,10 @@ export const RATE_LIMITS = {
 
   // Contact/report endpoints - strict to prevent spam
   contact: { requests: 3, window: '1m' as const },
+
+  // AI generation endpoints
+  ai_generate: { requests: 3, window: '1m' as const },
+  ai_status: { requests: 30, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;
@@ -54,6 +58,7 @@ const CRITICAL_RATE_LIMIT_TYPES: ReadonlySet<RateLimitType> = new Set([
   'vote',
   'comment',
   'upload',
+  'ai_generate',
 ]);
 
 // ============================================================================

@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     // Build query - sort by weighted_score (votes) descending, then by created_at
     let query = supabase
       .from('tournament_clips')
-      .select('id, title, description, video_url, thumbnail_url, username, avatar_url, genre, vote_count, weighted_score, status, slot_position, season_id, created_at, user_id')
+      .select('id, title, description, video_url, thumbnail_url, username, avatar_url, genre, vote_count, weighted_score, status, slot_position, season_id, created_at, user_id, is_ai_generated, ai_prompt, ai_model')
       .order('weighted_score', { ascending: false, nullsFirst: false })
       .order('vote_count', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
@@ -53,6 +53,12 @@ export async function GET(request: NextRequest) {
     // Filter by season if provided
     if (seasonId) {
       query = query.eq('season_id', seasonId);
+    }
+
+    // Filter AI-only clips
+    const aiOnly = searchParams.get('ai_only');
+    if (aiOnly === 'true') {
+      query = query.eq('is_ai_generated', true);
     }
 
     const { data: clips, error } = await query;

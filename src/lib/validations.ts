@@ -18,7 +18,7 @@ export type VoteRequest = z.infer<typeof VoteRequestSchema>;
 // UPLOAD/REGISTER VALIDATION
 // =============================================================================
 
-const ALLOWED_GENRES = [
+export const ALLOWED_GENRES = [
   'thriller',
   'comedy',
   'action',
@@ -186,6 +186,50 @@ export const BatchModerationSchema = z.object({
 });
 
 export type BatchModerationRequest = z.infer<typeof BatchModerationSchema>;
+
+// =============================================================================
+// AI VIDEO GENERATION VALIDATION
+// =============================================================================
+
+export const AI_MODELS = ['kling-2.6', 'veo3-fast', 'hailuo-2.3'] as const;
+export const AI_STYLES = ['cinematic', 'anime', 'realistic', 'abstract', 'noir', 'retro', 'neon'] as const;
+
+export const AIGenerateSchema = z.object({
+  prompt: z
+    .string()
+    .min(10, 'Prompt must be at least 10 characters')
+    .max(500, 'Prompt must be 500 characters or less')
+    .transform((t) => t.trim()),
+  model: z.enum(AI_MODELS).default('kling-2.6'),
+  style: z.enum(AI_STYLES).optional(),
+  genre: z.string().optional(),
+}).strict();
+
+export type AIGenerateRequest = z.infer<typeof AIGenerateSchema>;
+
+export const AIRegisterSchema = z.object({
+  generationId: z.string().uuid('Invalid generation ID'),
+  genre: z
+    .string()
+    .min(1, 'Genre is required')
+    .transform((g) => g.toLowerCase())
+    .refine(
+      (g) => ALLOWED_GENRES.includes(g as any),
+      `Genre must be one of: ${ALLOWED_GENRES.join(', ')}`
+    ),
+  title: z
+    .string()
+    .min(1, 'Title is required')
+    .max(100, 'Title must be 100 characters or less')
+    .transform((t) => t.trim()),
+  description: z
+    .string()
+    .max(500, 'Description must be 500 characters or less')
+    .optional()
+    .transform((d) => d?.trim() || ''),
+}).strict();
+
+export type AIRegisterRequest = z.infer<typeof AIRegisterSchema>;
 
 // =============================================================================
 // HELPER: Parse and validate with friendly error

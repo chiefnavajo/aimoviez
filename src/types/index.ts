@@ -1,6 +1,6 @@
 // Core type definitions for AiMoviez | 8SEC MADNESS
 
-export const GENRES = ['comedy', 'thriller', 'action', 'animation'] as const;
+export const GENRES = ['thriller', 'comedy', 'action', 'sci-fi', 'romance', 'animation', 'horror', 'drama'] as const;
 export type Genre = typeof GENRES[number];
 
 export interface UserMini {
@@ -94,7 +94,7 @@ export interface VotingClip {
     avatar_url: string;
     badge_level?: string;
   };
-  genre: 'COMEDY' | 'THRILLER' | 'ACTION' | 'ANIMATION';
+  genre: 'THRILLER' | 'COMEDY' | 'ACTION' | 'SCI-FI' | 'ROMANCE' | 'ANIMATION' | 'HORROR' | 'DRAMA';
   duration: number;
   round_number: number;
   total_rounds: number;
@@ -238,4 +238,40 @@ export interface LeaderboardClip {
   };
   slotPosition: number;
   genre: string;
+}
+
+// =========================
+// AI VIDEO GENERATION TYPES
+// =========================
+
+export type AIModel = 'kling-2.6' | 'veo3-fast' | 'hailuo-2.3';
+export type AIStyle = 'cinematic' | 'anime' | 'realistic' | 'abstract' | 'noir' | 'retro' | 'neon';
+export type AIGenerationStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
+export type AIStage = 'queued' | 'generating' | 'rendering' | 'ready' | 'failed';
+
+export interface AIGeneration {
+  id: string;
+  user_id: string;
+  status: AIGenerationStatus;
+  stage: AIStage;
+  prompt: string;
+  model: AIModel;
+  style?: AIStyle;
+  genre?: string;
+  video_url?: string;
+  clip_id?: string;
+  error_message?: string;
+  created_at: string;
+  completed_at?: string;
+}
+
+export interface AIVideoConfig {
+  default_model: AIModel;
+  max_daily_free: number;
+  available_models: AIModel[];
+  max_prompt_length: number;
+  daily_cost_limit_cents: number;
+  monthly_cost_limit_cents: number;
+  keyword_blocklist: string[];
+  style_prompt_prefixes: Record<string, string>;
 }

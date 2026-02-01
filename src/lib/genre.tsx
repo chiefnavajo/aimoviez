@@ -12,14 +12,6 @@ export const GENRE_META: Record<Genre, {
   glow: string;
   text: string;
 }> = {
-  comedy: {
-    emoji: '🎭',
-    label: 'Comedy',
-    bg: 'bg-yellow-500/20',
-    border: 'border-yellow-500/40',
-    glow: 'shadow-[0_0_20px_rgba(234,179,8,0.3)]',
-    text: 'text-yellow-300'
-  },
   thriller: {
     emoji: '😱',
     label: 'Thriller',
@@ -27,6 +19,14 @@ export const GENRE_META: Record<Genre, {
     border: 'border-red-500/40',
     glow: 'shadow-[0_0_20px_rgba(239,68,68,0.3)]',
     text: 'text-red-300'
+  },
+  comedy: {
+    emoji: '🎭',
+    label: 'Comedy',
+    bg: 'bg-yellow-500/20',
+    border: 'border-yellow-500/40',
+    glow: 'shadow-[0_0_20px_rgba(234,179,8,0.3)]',
+    text: 'text-yellow-300'
   },
   action: {
     emoji: '💥',
@@ -36,6 +36,22 @@ export const GENRE_META: Record<Genre, {
     glow: 'shadow-[0_0_20px_rgba(249,115,22,0.3)]',
     text: 'text-orange-300'
   },
+  'sci-fi': {
+    emoji: '🚀',
+    label: 'Sci-Fi',
+    bg: 'bg-blue-500/20',
+    border: 'border-blue-500/40',
+    glow: 'shadow-[0_0_20px_rgba(59,130,246,0.3)]',
+    text: 'text-blue-300'
+  },
+  romance: {
+    emoji: '❤️',
+    label: 'Romance',
+    bg: 'bg-pink-500/20',
+    border: 'border-pink-500/40',
+    glow: 'shadow-[0_0_20px_rgba(236,72,153,0.3)]',
+    text: 'text-pink-300'
+  },
   animation: {
     emoji: '🎨',
     label: 'Animation',
@@ -43,7 +59,23 @@ export const GENRE_META: Record<Genre, {
     border: 'border-purple-500/40',
     glow: 'shadow-[0_0_20px_rgba(168,85,247,0.3)]',
     text: 'text-purple-300'
-  }
+  },
+  horror: {
+    emoji: '👻',
+    label: 'Horror',
+    bg: 'bg-gray-500/20',
+    border: 'border-gray-500/40',
+    glow: 'shadow-[0_0_20px_rgba(107,114,128,0.3)]',
+    text: 'text-gray-300'
+  },
+  drama: {
+    emoji: '🎭',
+    label: 'Drama',
+    bg: 'bg-emerald-500/20',
+    border: 'border-emerald-500/40',
+    glow: 'shadow-[0_0_20px_rgba(16,185,129,0.3)]',
+    text: 'text-emerald-300'
+  },
 };
 
 /**
