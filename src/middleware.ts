@@ -387,6 +387,7 @@ export async function middleware(request: NextRequest) {
     '/api/health',
     '/api/cron/',
     '/api/webhooks/',
+    '/api/ai/webhook',
     '/api/notifications/subscribe',
     '/api/notifications/unsubscribe',
   ];
