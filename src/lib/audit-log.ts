@@ -30,7 +30,8 @@ export type AuditAction =
   | 'delete_comment'
   | 'bulk_action'
   | 'reset_user_votes'
-  | 'free_assign_clip';
+  | 'free_assign_clip'
+  | 'god_mode_status_change';
 
 export type ResourceType =
   | 'clip'

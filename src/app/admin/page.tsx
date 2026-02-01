@@ -177,7 +177,7 @@ export default function AdminDashboard() {
     message: string;
   } | null>(null);
 
-  // Free Assign state
+  // God Mode state
   const [showFreeAssign, setShowFreeAssign] = useState(false);
   const [freeAssignClipId, setFreeAssignClipId] = useState<string>('');
   const [freeAssignTargetSlot, setFreeAssignTargetSlot] = useState<number>(1);
@@ -185,6 +185,9 @@ export default function AdminDashboard() {
   const [freeAssignResult, setFreeAssignResult] = useState<{ success: boolean; message: string } | null>(null);
   const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_title?: string; winner_username?: string }[]>([]);
   const [freeAssignSearch, setFreeAssignSearch] = useState('');
+  type GodModeAction = 'assign' | 'change_status';
+  const [godModeAction, setGodModeAction] = useState<GodModeAction>('assign');
+  const [godModeNewStatus, setGodModeNewStatus] = useState<'pending' | 'active' | 'rejected'>('active');
 
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
@@ -1160,6 +1163,8 @@ export default function AdminDashboard() {
     setShowFreeAssign(false);
     setFreeAssignClipId('');
     setFreeAssignResult(null);
+    setGodModeAction('assign');
+    setGodModeNewStatus('active');
   };
 
   const handleFreeAssign = async () => {
@@ -1210,6 +1215,45 @@ export default function AdminDashboard() {
         success: false,
         message: 'Network error - failed to assign clip',
       });
+    }
+
+    setFreeAssigning(false);
+  };
+
+  const handleChangeStatus = async () => {
+    if (!freeAssignClipId || !godModeNewStatus) return;
+
+    setFreeAssigning(true);
+    setFreeAssignResult(null);
+
+    try {
+      const response = await fetch('/api/admin/update-clip-status', {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          clipId: freeAssignClipId,
+          newStatus: godModeNewStatus,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        let msg = data.message || 'Status changed';
+        if (data.slotCleared) {
+          msg += ` | Slot ${data.slotCleared} → ${data.slotNewStatus}`;
+        }
+        setFreeAssignResult({ success: true, message: msg });
+        fetchSlotInfo();
+        fetchClips();
+        setTimeout(() => closeFreeAssignModal(), 2500);
+      } else {
+        setFreeAssignResult({ success: false, message: data.error || 'Failed to change status' });
+      }
+    } catch (error) {
+      console.error('God mode status change failed:', error);
+      setFreeAssignResult({ success: false, message: 'Network error' });
     }
 
     setFreeAssigning(false);
@@ -1934,7 +1978,7 @@ export default function AdminDashboard() {
                 )}
               </motion.button>
 
-              {/* Free Assign Button */}
+              {/* God Mode Button */}
               <motion.button
                 whileTap={{ scale: 0.95 }}
                 onClick={openFreeAssignModal}
@@ -1943,10 +1987,10 @@ export default function AdminDashboard() {
                          hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
                          flex items-center justify-center gap-2 col-span-2 text-sm sm:text-base"
                 type="button"
-                title="Assign any clip to any slot"
+                title="Full clip control: assign to slot or change status"
               >
-                <Crosshair className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Free Assign</span>
+                <Crown className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>God Mode</span>
               </motion.button>
             </div>
           </div>
@@ -3215,14 +3259,14 @@ export default function AdminDashboard() {
               className="bg-gray-900 rounded-2xl border border-purple-500/30 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
             >
               {/* Header */}
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="p-2 rounded-lg bg-purple-500/20">
-                    <Crosshair className="w-6 h-6 text-purple-400" />
+                    <Crown className="w-6 h-6 text-purple-400" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Free Clip Assignment</h3>
-                    <p className="text-xs text-white/50">Assign any clip to any slot</p>
+                    <h3 className="text-lg font-bold text-white">God Mode</h3>
+                    <p className="text-xs text-white/50">Full clip control</p>
                   </div>
                 </div>
                 <button
@@ -3285,72 +3329,150 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Slot Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-white/70 mb-2">Assign to Slot</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={slotInfo?.totalSlots || 75}
-                  value={freeAssignTargetSlot}
-                  onChange={(e) => setFreeAssignTargetSlot(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
-                           focus:outline-none focus:border-purple-500/50"
-                />
-                {/* Show target slot info */}
-                {(() => {
-                  const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
-                  if (targetInfo) {
-                    return (
-                      <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs text-white/60">
-                        Slot {freeAssignTargetSlot}: <span className={
-                          targetInfo.status === 'locked' ? 'text-green-400' :
-                          targetInfo.status === 'voting' ? 'text-blue-400' :
-                          targetInfo.status === 'waiting_for_clips' ? 'text-yellow-400' :
-                          'text-white/40'
-                        }>{targetInfo.status}</span>
-                        {targetInfo.winner_username && (
-                          <> · Winner: @{targetInfo.winner_username}</>
-                        )}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
+              {/* Action Tabs */}
+              <div className="flex gap-1 mb-4 p-1 bg-white/5 rounded-lg">
+                <button
+                  onClick={() => { setGodModeAction('assign'); setFreeAssignResult(null); }}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    godModeAction === 'assign' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Assign to Slot
+                </button>
+                <button
+                  onClick={() => { setGodModeAction('change_status'); setFreeAssignResult(null); }}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    godModeAction === 'change_status' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Change Status
+                </button>
               </div>
 
-              {/* Warnings */}
-              {freeAssignClipId && freeAssignTargetSlot && (() => {
-                const warnings: string[] = [];
-                const selectedClip = clips.find((c) => c.id === freeAssignClipId);
-                const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
-
-                if (targetInfo?.winner_tournament_clip_id && targetInfo.winner_tournament_clip_id !== freeAssignClipId) {
-                  warnings.push(`Slot ${freeAssignTargetSlot} has a winner (${targetInfo.winner_username || 'unknown'}) — will be reverted to active`);
-                }
-                if (selectedClip) {
-                  const sourceSlot = allSlots.find((s) => s.winner_tournament_clip_id === freeAssignClipId && s.slot_position !== freeAssignTargetSlot);
-                  if (sourceSlot) {
-                    warnings.push(`Clip is winner of slot ${sourceSlot.slot_position} — that slot will be cleared`);
-                  }
-                }
-                if (targetInfo?.status === 'voting') {
-                  warnings.push(`Slot ${freeAssignTargetSlot} is currently voting — voting will stop`);
-                }
-
-                if (warnings.length === 0) return null;
-
-                return (
-                  <div className="mb-4 space-y-2">
-                    {warnings.map((w, i) => (
-                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-                        <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
-                        <p className="text-xs text-yellow-300">{w}</p>
-                      </div>
-                    ))}
+              {/* Assign to Slot Panel */}
+              {godModeAction === 'assign' && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-white/70 mb-2">Assign to Slot</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={slotInfo?.totalSlots || 75}
+                      value={freeAssignTargetSlot}
+                      onChange={(e) => setFreeAssignTargetSlot(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
+                               focus:outline-none focus:border-purple-500/50"
+                    />
+                    {(() => {
+                      const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
+                      if (targetInfo) {
+                        return (
+                          <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs text-white/60">
+                            Slot {freeAssignTargetSlot}: <span className={
+                              targetInfo.status === 'locked' ? 'text-green-400' :
+                              targetInfo.status === 'voting' ? 'text-blue-400' :
+                              targetInfo.status === 'waiting_for_clips' ? 'text-yellow-400' :
+                              'text-white/40'
+                            }>{targetInfo.status}</span>
+                            {targetInfo.winner_username && (
+                              <> · Winner: @{targetInfo.winner_username}</>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
-                );
-              })()}
+
+                  {/* Assign Warnings */}
+                  {freeAssignClipId && freeAssignTargetSlot && (() => {
+                    const warnings: string[] = [];
+                    const selectedClip = clips.find((c) => c.id === freeAssignClipId);
+                    const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
+
+                    if (targetInfo?.winner_tournament_clip_id && targetInfo.winner_tournament_clip_id !== freeAssignClipId) {
+                      warnings.push(`Slot ${freeAssignTargetSlot} has a winner (${targetInfo.winner_username || 'unknown'}) — will be reverted to active`);
+                    }
+                    if (selectedClip) {
+                      const sourceSlot = allSlots.find((s) => s.winner_tournament_clip_id === freeAssignClipId && s.slot_position !== freeAssignTargetSlot);
+                      if (sourceSlot) {
+                        warnings.push(`Clip is winner of slot ${sourceSlot.slot_position} — that slot will be cleared`);
+                      }
+                    }
+                    if (targetInfo?.status === 'voting') {
+                      warnings.push(`Slot ${freeAssignTargetSlot} is currently voting — voting will stop`);
+                    }
+
+                    if (warnings.length === 0) return null;
+
+                    return (
+                      <div className="mb-4 space-y-2">
+                        {warnings.map((w, i) => (
+                          <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                            <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-yellow-300">{w}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
+              {/* Change Status Panel */}
+              {godModeAction === 'change_status' && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-white/70 mb-2">New Status</label>
+                    <div className="flex gap-2">
+                      {(['pending', 'active', 'rejected'] as const).map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setGodModeNewStatus(s)}
+                          className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                            godModeNewStatus === s
+                              ? s === 'pending' ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
+                                : s === 'active' ? 'bg-blue-500/20 border-blue-500/50 text-blue-300'
+                                : 'bg-red-500/20 border-red-500/50 text-red-300'
+                              : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {s.charAt(0).toUpperCase() + s.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status Change Warnings */}
+                  {freeAssignClipId && (() => {
+                    const warnings: string[] = [];
+                    const selectedClip = clips.find((c) => c.id === freeAssignClipId);
+
+                    if (selectedClip?.status === godModeNewStatus) {
+                      warnings.push(`Clip is already "${godModeNewStatus}" — no change will occur`);
+                    }
+                    if (selectedClip?.status === 'locked') {
+                      const ownerSlot = allSlots.find((s) => s.winner_tournament_clip_id === freeAssignClipId);
+                      if (ownerSlot) {
+                        warnings.push(`This clip is winner of Slot ${ownerSlot.slot_position} — that slot will lose its winner`);
+                      }
+                    }
+
+                    if (warnings.length === 0) return null;
+
+                    return (
+                      <div className="mb-4 space-y-2">
+                        {warnings.map((w, i) => (
+                          <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                            <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-yellow-300">{w}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
 
               {/* Result Message */}
               <AnimatePresence>
@@ -3378,31 +3500,59 @@ export default function AdminDashboard() {
                 >
                   Cancel
                 </button>
-                <motion.button
-                  whileTap={{ scale: 0.95 }}
-                  onClick={handleFreeAssign}
-                  disabled={!freeAssignClipId || !freeAssignTargetSlot || freeAssigning || freeAssignResult?.success === true}
-                  className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
-                           hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
-                           flex items-center justify-center gap-2"
-                >
-                  {freeAssigning ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      Assigning...
-                    </>
-                  ) : freeAssignResult?.success ? (
-                    <>
-                      <Check className="w-4 h-4" />
-                      Done!
-                    </>
-                  ) : (
-                    <>
-                      <Crosshair className="w-4 h-4" />
-                      Confirm Assignment
-                    </>
-                  )}
-                </motion.button>
+                {godModeAction === 'assign' ? (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleFreeAssign}
+                    disabled={!freeAssignClipId || !freeAssignTargetSlot || freeAssigning || freeAssignResult?.success === true}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
+                             hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
+                             flex items-center justify-center gap-2"
+                  >
+                    {freeAssigning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Assigning...
+                      </>
+                    ) : freeAssignResult?.success ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Done!
+                      </>
+                    ) : (
+                      <>
+                        <Crosshair className="w-4 h-4" />
+                        Assign to Slot
+                      </>
+                    )}
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleChangeStatus}
+                    disabled={!freeAssignClipId || freeAssigning || freeAssignResult?.success === true}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
+                             hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
+                             flex items-center justify-center gap-2"
+                  >
+                    {freeAssigning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Changing...
+                      </>
+                    ) : freeAssignResult?.success ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Done!
+                      </>
+                    ) : (
+                      <>
+                        <Crown className="w-4 h-4" />
+                        Change Status
+                      </>
+                    )}
+                  </motion.button>
+                )}
               </div>
             </motion.div>
           </motion.div>
