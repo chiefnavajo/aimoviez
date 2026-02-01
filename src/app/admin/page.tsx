@@ -43,6 +43,8 @@ import {
   ArchiveRestore,
   Flag,
   Unlock,
+  Crosshair,
+  Search,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -174,6 +176,15 @@ export default function AdminDashboard() {
     success: boolean;
     message: string;
   } | null>(null);
+
+  // Free Assign state
+  const [showFreeAssign, setShowFreeAssign] = useState(false);
+  const [freeAssignClipId, setFreeAssignClipId] = useState<string>('');
+  const [freeAssignTargetSlot, setFreeAssignTargetSlot] = useState<number>(1);
+  const [freeAssigning, setFreeAssigning] = useState(false);
+  const [freeAssignResult, setFreeAssignResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_title?: string; winner_username?: string }[]>([]);
+  const [freeAssignSearch, setFreeAssignSearch] = useState('');
 
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
@@ -1114,6 +1125,97 @@ export default function AdminDashboard() {
   };
 
   // ============================================================================
+  // FREE ASSIGN CLIP TO SLOT
+  // ============================================================================
+
+  const openFreeAssignModal = async () => {
+    setShowFreeAssign(true);
+    setFreeAssignClipId('');
+    setFreeAssignTargetSlot(1);
+    setFreeAssignResult(null);
+    setFreeAssignSearch('');
+
+    // Fetch all slots: first get season_id, then fetch full slot list
+    try {
+      const simpleRes = await fetch('/api/admin/slots');
+      const simpleData = await simpleRes.json();
+      if (simpleData.ok && simpleData.season_id) {
+        const fullRes = await fetch(`/api/admin/slots?season_id=${simpleData.season_id}`);
+        const fullData = await fullRes.json();
+        if (fullData.ok && fullData.slots) {
+          setAllSlots(fullData.slots.map((s: { slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_details?: { username?: string; clip_id?: string } }) => ({
+            slot_position: s.slot_position,
+            status: s.status,
+            winner_tournament_clip_id: s.winner_tournament_clip_id,
+            winner_username: s.winner_details?.username,
+          })));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch slots:', error);
+    }
+  };
+
+  const closeFreeAssignModal = () => {
+    setShowFreeAssign(false);
+    setFreeAssignClipId('');
+    setFreeAssignResult(null);
+  };
+
+  const handleFreeAssign = async () => {
+    if (!freeAssignClipId || !freeAssignTargetSlot) return;
+
+    setFreeAssigning(true);
+    setFreeAssignResult(null);
+
+    try {
+      const response = await fetch('/api/admin/assign-clip-to-slot', {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          clipId: freeAssignClipId,
+          targetSlotPosition: freeAssignTargetSlot,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        let msg = data.message || 'Clip assigned successfully';
+        if (data.sourceSlotCleared) {
+          msg += ` | Source slot ${data.sourceSlotCleared} → ${data.sourceSlotNewStatus}`;
+        }
+        if (data.previousWinnerReverted) {
+          msg += ' | Previous winner reverted to active';
+        }
+        if (data.activeClipsRemaining > 0) {
+          msg += ` | ${data.activeClipsRemaining} active clips remain in slot`;
+        }
+        setFreeAssignResult({ success: true, message: msg });
+        fetchSlotInfo();
+        fetchClips();
+        setTimeout(() => {
+          closeFreeAssignModal();
+        }, 2500);
+      } else {
+        setFreeAssignResult({
+          success: false,
+          message: data.error || 'Failed to assign clip',
+        });
+      }
+    } catch (error) {
+      console.error('Failed to free-assign clip:', error);
+      setFreeAssignResult({
+        success: false,
+        message: 'Network error - failed to assign clip',
+      });
+    }
+
+    setFreeAssigning(false);
+  };
+
+  // ============================================================================
   // ADVANCE SLOT
   // ============================================================================
 
@@ -1830,6 +1932,21 @@ export default function AdminDashboard() {
                     <span>Advance Slot</span>
                   </>
                 )}
+              </motion.button>
+
+              {/* Free Assign Button */}
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={openFreeAssignModal}
+                disabled={!slotInfo || slotInfo.seasonStatus !== 'active'}
+                className="px-3 py-2.5 sm:px-4 sm:py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
+                         hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
+                         flex items-center justify-center gap-2 col-span-2 text-sm sm:text-base"
+                type="button"
+                title="Assign any clip to any slot"
+              >
+                <Crosshair className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>Free Assign</span>
               </motion.button>
             </div>
           </div>
@@ -3071,6 +3188,218 @@ export default function AdminDashboard() {
                     <>
                       <Crown className="w-5 h-5" />
                       Confirm Winner
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Free Assign Modal */}
+      <AnimatePresence>
+        {showFreeAssign && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={closeFreeAssignModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl border border-purple-500/30 p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-purple-500/20">
+                    <Crosshair className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Free Clip Assignment</h3>
+                    <p className="text-xs text-white/50">Assign any clip to any slot</p>
+                  </div>
+                </div>
+                <button
+                  onClick={closeFreeAssignModal}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  <X className="w-5 h-5 text-white/60" />
+                </button>
+              </div>
+
+              {/* Clip Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-white/70 mb-2">Select Clip</label>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                  <input
+                    type="text"
+                    value={freeAssignSearch}
+                    onChange={(e) => setFreeAssignSearch(e.target.value)}
+                    placeholder="Search by title or username..."
+                    className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
+                             placeholder-white/30 focus:outline-none focus:border-purple-500/50"
+                  />
+                </div>
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-white/5">
+                  {clips
+                    .filter((c) => {
+                      const search = freeAssignSearch.toLowerCase();
+                      return !search || c.title.toLowerCase().includes(search) || c.username.toLowerCase().includes(search);
+                    })
+                    .slice(0, 50)
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => setFreeAssignClipId(c.id)}
+                        className={`w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 ${
+                          freeAssignClipId === c.id ? 'bg-purple-500/20 border-l-2 border-l-purple-400' : ''
+                        }`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{c.title}</p>
+                          <p className="text-xs text-white/50">@{c.username} · Slot {c.slot_position} · {c.status}</p>
+                        </div>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          c.status === 'locked' ? 'bg-green-500/20 text-green-400' :
+                          c.status === 'active' ? 'bg-blue-500/20 text-blue-400' :
+                          c.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-red-500/20 text-red-400'
+                        }`}>
+                          {c.status}
+                        </span>
+                      </button>
+                    ))}
+                  {clips.filter((c) => {
+                    const search = freeAssignSearch.toLowerCase();
+                    return !search || c.title.toLowerCase().includes(search) || c.username.toLowerCase().includes(search);
+                  }).length === 0 && (
+                    <p className="text-center text-white/30 text-sm py-4">No clips found</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Slot Selection */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-white/70 mb-2">Assign to Slot</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={slotInfo?.totalSlots || 75}
+                  value={freeAssignTargetSlot}
+                  onChange={(e) => setFreeAssignTargetSlot(Math.max(1, parseInt(e.target.value) || 1))}
+                  className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
+                           focus:outline-none focus:border-purple-500/50"
+                />
+                {/* Show target slot info */}
+                {(() => {
+                  const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
+                  if (targetInfo) {
+                    return (
+                      <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs text-white/60">
+                        Slot {freeAssignTargetSlot}: <span className={
+                          targetInfo.status === 'locked' ? 'text-green-400' :
+                          targetInfo.status === 'voting' ? 'text-blue-400' :
+                          targetInfo.status === 'waiting_for_clips' ? 'text-yellow-400' :
+                          'text-white/40'
+                        }>{targetInfo.status}</span>
+                        {targetInfo.winner_username && (
+                          <> · Winner: @{targetInfo.winner_username}</>
+                        )}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+
+              {/* Warnings */}
+              {freeAssignClipId && freeAssignTargetSlot && (() => {
+                const warnings: string[] = [];
+                const selectedClip = clips.find((c) => c.id === freeAssignClipId);
+                const targetInfo = allSlots.find((s) => s.slot_position === freeAssignTargetSlot);
+
+                if (targetInfo?.winner_tournament_clip_id && targetInfo.winner_tournament_clip_id !== freeAssignClipId) {
+                  warnings.push(`Slot ${freeAssignTargetSlot} has a winner (${targetInfo.winner_username || 'unknown'}) — will be reverted to active`);
+                }
+                if (selectedClip) {
+                  const sourceSlot = allSlots.find((s) => s.winner_tournament_clip_id === freeAssignClipId && s.slot_position !== freeAssignTargetSlot);
+                  if (sourceSlot) {
+                    warnings.push(`Clip is winner of slot ${sourceSlot.slot_position} — that slot will be cleared`);
+                  }
+                }
+                if (targetInfo?.status === 'voting') {
+                  warnings.push(`Slot ${freeAssignTargetSlot} is currently voting — voting will stop`);
+                }
+
+                if (warnings.length === 0) return null;
+
+                return (
+                  <div className="mb-4 space-y-2">
+                    {warnings.map((w, i) => (
+                      <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                        <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-yellow-300">{w}</p>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Result Message */}
+              <AnimatePresence>
+                {freeAssignResult && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    className={`mb-4 p-3 rounded-lg text-sm ${
+                      freeAssignResult.success
+                        ? 'bg-green-500/20 border border-green-500/30 text-green-300'
+                        : 'bg-red-500/20 border border-red-500/30 text-red-300'
+                    }`}
+                  >
+                    {freeAssignResult.message}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Actions */}
+              <div className="flex gap-3">
+                <button
+                  onClick={closeFreeAssignModal}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white/70 font-medium hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleFreeAssign}
+                  disabled={!freeAssignClipId || !freeAssignTargetSlot || freeAssigning || freeAssignResult?.success === true}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
+                           hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
+                           flex items-center justify-center gap-2"
+                >
+                  {freeAssigning ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Assigning...
+                    </>
+                  ) : freeAssignResult?.success ? (
+                    <>
+                      <Check className="w-4 h-4" />
+                      Done!
+                    </>
+                  ) : (
+                    <>
+                      <Crosshair className="w-4 h-4" />
+                      Confirm Assignment
                     </>
                   )}
                 </motion.button>

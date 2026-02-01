@@ -29,7 +29,8 @@ export type AuditAction =
   | 'update_username'
   | 'delete_comment'
   | 'bulk_action'
-  | 'reset_user_votes';
+  | 'reset_user_votes'
+  | 'free_assign_clip';
 
 export type ResourceType =
   | 'clip'
