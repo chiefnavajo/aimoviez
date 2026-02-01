@@ -42,6 +42,7 @@ import {
   Maximize2,
   Minimize2,
   X,
+  Sparkles,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
@@ -1872,10 +1873,22 @@ function StoryPage() {
                 <span className="font-semibold">Story</span>
               </div>
             </Link>
+            <Link href="/watch">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Play className="w-6 h-6" />
+                <span>Watch</span>
+              </div>
+            </Link>
             <Link href="/upload">
               <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
                 <Plus className="w-6 h-6" />
                 <span>Upload</span>
+              </div>
+            </Link>
+            <Link href="/create">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Sparkles className="w-6 h-6" />
+                <span>AI Create</span>
               </div>
             </Link>
             <Link href="/leaderboard">
