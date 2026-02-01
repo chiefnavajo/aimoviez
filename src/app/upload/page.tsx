@@ -4,12 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn, Sparkles } from 'lucide-react';
+import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { useCsrf } from '@/hooks/useCsrf';
-import { useFeature } from '@/hooks/useFeatureFlags';
-import AIGeneratePanel from '@/components/AIGeneratePanel';
 import { signIn } from 'next-auth/react';
 
 // ============================================================================
@@ -56,11 +54,8 @@ function UploadPageContent() {
   const router = useRouter();
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const { post: csrfPost, ensureToken } = useCsrf();
-  const { enabled: aiEnabled } = useFeature('ai_video_generation');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  const [activeTab, setActiveTab] = useState<'upload' | 'ai'>('upload');
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [video, setVideo] = useState<File | null>(null);
   const [genre, setGenre] = useState('');
@@ -399,45 +394,12 @@ function UploadPageContent() {
 
   const renderUploadContent = () => (
     <div className="max-w-2xl mx-auto px-4 md:px-6 pt-14 pb-8 md:py-8">
-      {/* Tab toggle (only shown when AI is enabled and user is authenticated) */}
-      {aiEnabled && isAuthenticated && step === 1 && activeTab !== undefined && (
-        <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-xl">
-          <button
-            onClick={() => setActiveTab('upload')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition ${
-              activeTab === 'upload' ? 'bg-white/10 text-white' : 'text-white/50 hover:text-white/70'
-            }`}
-          >
-            <Upload className="w-4 h-4" /> Upload Video
-          </button>
-          <button
-            onClick={() => setActiveTab('ai')}
-            className={`flex-1 py-2.5 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition ${
-              activeTab === 'ai' ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 text-purple-300 border border-purple-500/30' : 'text-white/50 hover:text-white/70'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" /> AI Generate
-          </button>
-        </div>
-      )}
-
-      {/* AI Generate tab content */}
-      {aiEnabled && isAuthenticated && activeTab === 'ai' && (
-        <div className="space-y-6">
-          <div className="text-center mb-6">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-2">AI Video Generator</h1>
-            <p className="text-sm sm:text-base text-white/60">Describe your scene and let AI create it</p>
-          </div>
-          <AIGeneratePanel preselectedGenre={genre || undefined} compact />
-        </div>
-      )}
-
       <AnimatePresence mode="wait">
         {/* Not authenticated - show login */}
         {!isAuthenticated && renderLoginRequired()}
 
-        {/* STEP 1: Select Video (only when upload tab is active) */}
-        {isAuthenticated && step === 1 && activeTab === 'upload' && (
+        {/* STEP 1: Select Video */}
+        {isAuthenticated && step === 1 && (
           <motion.div key="step1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
             <div className="text-center mb-6 sm:mb-8">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-2">Upload Your 8-Second Clip</h1>
@@ -517,7 +479,7 @@ function UploadPageContent() {
         )}
 
         {/* STEP 2: Select Genre */}
-        {isAuthenticated && step === 2 && activeTab === 'upload' && (
+        {isAuthenticated && step === 2 && (
           <motion.div key="step2" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
             <button onClick={() => setStep(1)} className="text-white/60 hover:text-white flex items-center gap-2">← Back</button>
             <div className="text-center mb-6">
@@ -594,7 +556,7 @@ function UploadPageContent() {
         )}
 
         {/* STEP 3: Success */}
-        {isAuthenticated && step === 3 && activeTab === 'upload' && (
+        {isAuthenticated && step === 3 && (
           <motion.div key="step3" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6">
             <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 10 }} className="w-24 h-24 rounded-full bg-gradient-to-br from-green-400 to-cyan-500 flex items-center justify-center">
               <Check className="w-12 h-12 text-white" />
