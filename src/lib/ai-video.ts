@@ -193,3 +193,37 @@ export function getModelConfig(modelKey: string): ModelConfig | null {
 export function isValidModel(modelKey: string): boolean {
   return modelKey in MODELS;
 }
+
+// =============================================================================
+// CHECK FAL.AI REQUEST STATUS (server-side polling fallback)
+// =============================================================================
+
+export async function checkFalStatus(
+  modelKey: string,
+  falRequestId: string
+): Promise<{ status: string; videoUrl?: string }> {
+  const config = MODELS[modelKey];
+  if (!config) throw new Error(`Unknown model: ${modelKey}`);
+
+  const statusUrl = `https://queue.fal.run/${config.modelId}/requests/${falRequestId}/status`;
+  const res = await fetch(statusUrl, {
+    headers: { Authorization: `Key ${process.env.FAL_KEY}` },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+  const data = await res.json();
+
+  if (data.status === 'COMPLETED' && data.response_url) {
+    const resultRes = await fetch(data.response_url, {
+      headers: { Authorization: `Key ${process.env.FAL_KEY}` },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (resultRes.ok) {
+      const resultData = await resultRes.json();
+      return { status: 'COMPLETED', videoUrl: resultData.video?.url };
+    }
+  }
+
+  return { status: data.status || 'UNKNOWN' };
+}

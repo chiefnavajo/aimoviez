@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { MODELS } from '@/lib/ai-video';
+import { MODELS, checkFalStatus } from '@/lib/ai-video';
 import { getStorageProvider, deleteFiles } from '@/lib/storage';
 
 function getSupabase() {
@@ -95,52 +95,25 @@ export async function GET(req: NextRequest) {
       for (const gen of staleGens) {
         if (gen.fal_request_id.startsWith('placeholder_')) continue;
 
-        // Map model key to fal.ai model ID
-        const modelConfig = MODELS[gen.model];
-        if (!modelConfig) {
+        if (!MODELS[gen.model]) {
           console.warn('[ai-timeout] Unknown model for generation:', gen.id, gen.model);
           continue;
         }
 
         try {
-          const statusUrl = `https://queue.fal.run/${modelConfig.modelId}/requests/${gen.fal_request_id}/status`;
-          const res = await fetch(statusUrl, {
-            headers: { Authorization: `Key ${process.env.FAL_KEY}` },
-            signal: AbortSignal.timeout(5000),
-          });
+          const falResult = await checkFalStatus(gen.model, gen.fal_request_id);
+          polled++;
 
-          if (res.ok) {
-            const data = await res.json();
-            polled++;
-
-            if (data.status === 'COMPLETED' && data.response_url) {
-              // Fetch the completed result
-              try {
-                const resultRes = await fetch(data.response_url, {
-                  headers: { Authorization: `Key ${process.env.FAL_KEY}` },
-                  signal: AbortSignal.timeout(5000),
-                });
-
-                if (resultRes.ok) {
-                  const resultData = await resultRes.json();
-                  const videoUrl = resultData.video?.url;
-
-                  if (videoUrl) {
-                    await supabase
-                      .from('ai_generations')
-                      .update({
-                        status: 'completed',
-                        video_url: videoUrl,
-                        completed_at: new Date().toISOString(),
-                      })
-                      .eq('id', gen.id);
-                    autoCompleted++;
-                  }
-                }
-              } catch {
-                // Ignore fetch errors for individual results
-              }
-            }
+          if (falResult.status === 'COMPLETED' && falResult.videoUrl) {
+            await supabase
+              .from('ai_generations')
+              .update({
+                status: 'completed',
+                video_url: falResult.videoUrl,
+                completed_at: new Date().toISOString(),
+              })
+              .eq('id', gen.id);
+            autoCompleted++;
           }
         } catch {
           // Ignore individual polling errors
