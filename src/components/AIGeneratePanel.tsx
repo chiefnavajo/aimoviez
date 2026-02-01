@@ -138,7 +138,6 @@ export default function AIGeneratePanel({
       if (data.stage === 'ready') {
         setStage('ready');
         setVideoUrl(data.videoUrl);
-        localStorage.removeItem(STORAGE_KEY);
         if (pollRef.current) clearInterval(pollRef.current);
       } else if (data.stage === 'failed') {
         setStage('failed');
