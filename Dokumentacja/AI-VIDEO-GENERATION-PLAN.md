@@ -133,10 +133,35 @@ CREATE TABLE IF NOT EXISTS ai_generation_limits (
   UNIQUE(user_id, date)
 );
 
+-- Atomic global cost cap check (prevents race condition — Bug #40)
+CREATE OR REPLACE FUNCTION check_global_cost_cap(
+  p_daily_limit_cents INTEGER,
+  p_monthly_limit_cents INTEGER,
+  p_new_cost_cents INTEGER
+) RETURNS BOOLEAN AS $$
+DECLARE
+  v_daily_total INTEGER;
+  v_monthly_total INTEGER;
+BEGIN
+  SELECT COALESCE(SUM(cost_cents), 0) INTO v_daily_total
+  FROM ai_generations
+  WHERE created_at >= CURRENT_DATE
+    AND status != 'failed';
+
+  SELECT COALESCE(SUM(cost_cents), 0) INTO v_monthly_total
+  FROM ai_generations
+  WHERE created_at >= date_trunc('month', CURRENT_DATE)
+    AND status != 'failed';
+
+  RETURN (v_daily_total + p_new_cost_cents <= p_daily_limit_cents)
+     AND (v_monthly_total + p_new_cost_cents <= p_monthly_limit_cents);
+END;
+$$ LANGUAGE plpgsql;
+
 -- Feature flag
 INSERT INTO feature_flags (key, name, description, category, enabled, config) VALUES
   ('ai_video_generation', 'AI Video Generation', 'Allow AI clip generation via fal.ai', 'creation', FALSE,
-   '{"default_model": "hailuo-2.3", "max_daily_free": 1, "available_models": ["hailuo-2.3", "kling-2.6", "veo3-fast"], "max_prompt_length": 500, "daily_cost_limit_cents": 5000, "monthly_cost_limit_cents": 150000, "keyword_blocklist": ["nsfw", "nude", "gore", "violence", "blood"]}')
+   '{"default_model": "kling-2.6", "max_daily_free": 1, "available_models": ["kling-2.6", "veo3-fast", "hailuo-2.3"], "max_prompt_length": 500, "daily_cost_limit_cents": 5000, "monthly_cost_limit_cents": 150000, "keyword_blocklist": ["nsfw", "nude", "gore", "violence", "blood"], "style_prompt_prefixes": {"cinematic": "cinematic film style,", "anime": "anime style,", "realistic": "photorealistic,", "abstract": "abstract art style,", "noir": "film noir style, black and white,", "retro": "retro VHS style,", "neon": "neon-lit cyberpunk style,"}}')
 ON CONFLICT (key) DO NOTHING;
 ```
 
@@ -188,8 +213,9 @@ const MODELS: Record<string, ModelConfig> = {
 ```
 
 Core functions:
-- `startGeneration(prompt, model, style, genre)` → calls fal.ai Queue API with webhook, returns `{ requestId }`
-- `checkStatus(requestId)` → reads our DB (webhook updates it), returns `{ status, videoUrl, error }`
+- `startGeneration(prompt, model, style, genre)` → calls `buildInput(model, prompt, style)`, submits to fal.ai Queue API with webhook, returns `{ requestId }`
+- `checkStatus(requestId)` → reads our DB (webhook updates it), returns `{ status, videoUrl, error, stage }`
+- `getModelDuration(model)` → returns `MODEL_DURATION_SECONDS[model]` for `duration_seconds` on clip insert
 
 **fal.ai path:** Queue API at `https://queue.fal.run/{modelId}` with webhook
 
@@ -232,7 +258,7 @@ Core functions:
 5. Validate body with `AIGenerateSchema` (Zod `.strict()` to reject extra fields)
 6. Sanitize prompt: `sanitizeText()` + Unicode normalization (NFKD + strip zero-width chars) + keyword blocklist
 7. Atomic daily limit increment via `check_and_reserve_generation()` PG function
-8. Global cost cap check (atomic — `SELECT ... FOR UPDATE` on `ai_generations` to prevent race)
+8. Global cost cap check (atomic — `check_global_cost_cap()` PG function to prevent race)
 9. **Insert `ai_generations` row FIRST** (status: `pending`, placeholder `fal_request_id`)
 10. Call `startGeneration()` → get fal.ai `requestId` (10s timeout)
 11. Update `ai_generations` with real `fal_request_id`
@@ -250,7 +276,9 @@ Core functions:
 1. Auth required + rate limit (`ai_status`: 30 req/min)
 2. Look up `ai_generations` by `id`, verify user owns it (return 404 for not-found AND not-owned)
 3. Read status from our DB only — **never call fal.ai from this endpoint** (webhook updates DB; cron handles fallback)
-4. Return `{ status, videoUrl, error }` — **never expose `fal_request_id` or `cost_cents`**
+4. Return `{ status, videoUrl, error, stage }` — **never expose `fal_request_id` or `cost_cents`**
+   - `stage` maps to frontend progress indicator: `"queued"` | `"generating"` | `"rendering"` | `"ready"` | `"failed"`
+   - DB `pending` → stage `"queued"`, DB `processing` → stage `"generating"`, DB `completed` → stage `"ready"`
 
 ### 2C. `POST /api/ai/complete`
 
@@ -261,12 +289,15 @@ Core functions:
 1. Auth + CSRF + rate limit
 2. Look up generation, verify user owns it, status is `completed`
 3. Check `completed_at` age — if > 7 days, return 410 "Video expired, please regenerate"
-4. Atomically mark generation as `complete_initiated` (`UPDATE ... SET complete_initiated_at = NOW() WHERE complete_initiated_at IS NULL RETURNING *` — prevents double-complete race)
-5. Check `r2_storage` feature flag (same `.maybeSingle()` pattern as `signed-url/route.ts`)
-6. Generate storage key: `clip_{timestamp}_{random}.mp4` (same pattern as existing signed-url)
-7. Call `getSignedUploadUrl(filename, 'video/mp4', provider)` from `src/lib/storage/`
-8. Store `storage_key` on the `ai_generations` row (for orphan cleanup)
-9. Return `{ falVideoUrl, signedUploadUrl, publicUrl, storageKey }`
+4. **Check active season exists** (`.limit(1)` + `data?.[0]`, NOT `.single()`) — return 400 "No active season" if none
+5. **Check active slot exists** (`.in('status', ['voting', 'waiting_for_clips'])`) — return 400 "No available slot" if none
+6. Atomically mark generation as `complete_initiated` (`UPDATE ... SET complete_initiated_at = NOW() WHERE complete_initiated_at IS NULL RETURNING *` — prevents double-complete race)
+7. Check `r2_storage` feature flag (same `.maybeSingle()` pattern as `signed-url/route.ts`)
+8. Generate storage key: `clip_{timestamp}_{random}.mp4` (same pattern as existing signed-url)
+9. Call `getSignedUploadUrl(filename, 'video/mp4', provider)` from `src/lib/storage/`
+10. **Construct public URL server-side** from storage key (never accept from client)
+11. Store `storage_key` on the `ai_generations` row (for orphan cleanup)
+12. Return `{ falVideoUrl, signedUploadUrl, storageKey }` — **no publicUrl** (constructed server-side at register time)
 
 > **Client then:** `fetch(falVideoUrl)` → `PUT` to `signedUploadUrl` → calls `/api/ai/register`
 
@@ -277,13 +308,13 @@ Core functions:
 > Mirrors `upload/register/route.ts` logic exactly. Must replicate:
 
 1. Auth + CSRF + rate limit
-2. Validate body: `{ generationId, publicUrl, genre, title }` (title required — see note below)
+2. Validate body: `{ generationId, genre, title }` (title required — **no publicUrl from client**)
 3. Check `ai_video_generation` feature flag (server-side)
 4. Check user is not banned (`is_banned` check on users table)
-5. Look up generation, verify user owns it, status is `completed`, `clip_id IS NULL` (double-submit guard)
+5. Look up generation, verify user owns it, status is `completed`, `clip_id IS NULL` (double-submit guard), `storage_key IS NOT NULL` (must have called /complete first)
 6. Get active season: `.limit(1)` + `data?.[0]` (NOT `.single()`)
 7. Re-verify active slot: `.in('status', ['voting', 'waiting_for_clips'])` + `.limit(1)` — **must re-check at register time**, not rely on complete's check
-8. Construct public URL server-side (never accept from client — use the `storage_key` from step 5)
+8. **Construct public URL server-side** from `storage_key` stored on the generation row (same pattern as existing `signed-url/route.ts`)
 9. Insert `tournament_clips` row:
    - `season_id`, `slot_position` from slot lookup
    - `track_id: 'track-main'` (hardcoded, matches existing register)
@@ -291,6 +322,7 @@ Core functions:
    - `title`, `description` (title from request, description = prompt or from request)
    - `username`, `avatar_url` (from user profile lookup by email)
    - `uploader_key` (SHA256 device fingerprint, same as `getVoterKey()`)
+   - `duration_seconds` (model-specific: Hailuo=6, Kling=5, Veo=8 — derive from `MODELS[model].duration` or use fixed lookup)
    - `status: 'pending'`
    - `is_ai_generated: true`, `ai_prompt`, `ai_model`, `ai_generation_id`, `ai_style`
 10. Start voting timer if first clip in slot (same logic as `register/route.ts` lines 178-199)
@@ -355,6 +387,8 @@ UI:
 8. **Regenerate** button — start over with same prompt
 
 Polling: `useEffect` with `setInterval(3000)` checking `/api/ai/status/[id]`.
+- **Auto-resume on page load:** Check `localStorage` for `ai_active_generation_id`. If found and status is `pending`/`processing`, resume polling immediately. Clear on completion/failure/expiry.
+- **Queued stage:** Map `IN_QUEUE` fal.ai status → "Queued" in progress indicator (between Submitting and Generating).
 
 Uses `useCsrf()` for POST requests (existing pattern).
 
@@ -700,6 +734,65 @@ CSRF double-submit cookie is defined and the client sends the header, but no ser
 **68. LOW: `useFeature` hook returns untyped config**
 AI frontend needs typed access to `max_daily_free`, `available_models`, etc. Should define `AIVideoConfig` interface.
 
+### ADDITIONAL BUGS — Round 5 (found in end-to-end flow simulation)
+
+**69. CRITICAL: fal.ai CDN CORS unverified — entire client-upload flow may be broken**
+The plan's client-side upload flow requires `fetch(falVideoUrl)` from the browser. If `*.fal.media` doesn't serve `Access-Control-Allow-Origin: *`, the fetch fails. No alternative flow is defined. **FIXED inline above** — added prerequisite check and streaming proxy fallback.
+
+**70. CRITICAL: `requireCsrf()` is never enforced anywhere in the existing codebase**
+The `csrf.ts` module exports `requireCsrf()` and `useCsrf()` hook sends the header, but NO API route calls `requireCsrf()`. Adding it only to AI endpoints creates inconsistency and false sense of security. Pre-existing vulnerability. **Documented** — consider adding to all mutation routes as part of AI implementation.
+
+**71. HIGH: Feature flag config has `default_model: "hailuo-2.3"` — generates landscape in portrait app**
+Hailuo cannot generate 9:16 video. If a user accepts the default model, they get landscape output that doesn't fit the vertical-video tournament format. **FIXED inline above** — changed default to `kling-2.6`.
+
+**72. HIGH: Cron uses model key (`kling-2.6`) not fal.ai model ID — fallback polling is broken**
+`fal.queue.status()` requires the fal.ai model ID (e.g., `fal-ai/kling-video/v2.6/pro/text-to-video`), not the config key. The cron passes `gen.model` (the key) directly. **FIXED inline above** — added model key → model ID mapping in cron.
+
+**73. HIGH: Style parameter does nothing — no prompt engineering implemented**
+The `style` field was stored but never affected the actual prompt sent to fal.ai. A user selecting "cinematic" or "noir" would get identical output to no style. **FIXED inline above** — added `STYLE_PREFIXES` mapping in `buildInput()` and `style_prompt_prefixes` config in feature flag.
+
+**74. HIGH: No `negative_prompt` for Kling/Veo reduces output quality**
+Both Kling and Veo support `negative_prompt` to reduce common artifacts (blur, watermarks, text). Not using it wastes an easy quality improvement. **FIXED inline above** — added `DEFAULT_NEGATIVE_PROMPTS` in `buildInput()`.
+
+**75. HIGH: No storage cleanup for orphaned files**
+If a user calls `/complete` (gets signed URL, uploads) but never calls `/register`, the file sits in storage forever with no cleanup. **FIXED inline above** — cron step 5 cleans up storage files where `storage_key IS NOT NULL` and status is `failed`/`expired`.
+
+**76. HIGH: No season/slot check in `/complete` endpoint**
+User could call `/complete`, get a signed URL, upload the file, then discover at `/register` time that no active slot exists. Wastes storage space and user effort. **FIXED inline above** — added season/slot check to `/complete` steps 4-5.
+
+**77. HIGH: `publicUrl` accepted from client body in `/register` contradicts server-side URL construction**
+Phase 2D's body validation included `publicUrl` from the client, but bug #6 says to construct URLs server-side. An attacker could register a clip pointing to an arbitrary URL. **FIXED inline above** — removed `publicUrl` from body params; constructed from `storage_key` server-side.
+
+**78. HIGH: `duration_seconds` not set for AI clips**
+Existing `tournament_clips` has `duration_seconds` column. Regular uploads presumably set it from video metadata. AI clips have known fixed durations per model but the plan never set this field, potentially causing NULL in the tournament UI. **FIXED inline above** — added `MODEL_DURATION_SECONDS` lookup and `duration_seconds` to clip insert.
+
+**79. MEDIUM: Auto-expire SQL defined but not wired to cron**
+The plan provided `UPDATE ... SET status = 'expired'` SQL in the "Auto-Expire" section but said "Run daily" without defining how. Not integrated into any cron job. **FIXED inline above** — integrated into `ai-generation-timeout` cron step 4.
+
+**80. MEDIUM: Global cost cap has race condition with no atomic function**
+Bug #40 documented the race but no fix was provided. Two concurrent requests could both pass the `SUM(cost_cents)` check. **FIXED inline above** — added `check_global_cost_cap()` PG function to migration.
+
+**81. MEDIUM: No polling resume on page reload**
+If user navigates away and returns while generation is running, there's no mechanism to resume polling. The generation would appear lost from the user's perspective. **FIXED inline above** — `localStorage` persistence of `ai_active_generation_id` with auto-resume.
+
+**82. MEDIUM: IN_QUEUE status not mapped to frontend stage**
+fal.ai returns `IN_QUEUE` before `IN_PROGRESS`. The plan's progress stages didn't account for this intermediate state — UI would show "Generating" when actually still queued. **FIXED inline above** — added "Queued" stage mapping.
+
+**83. MEDIUM: Cron doesn't distinguish IN_QUEUE from IN_PROGRESS**
+A generation in `IN_QUEUE` for 10 minutes is normal (fal.ai is busy). A generation in `IN_PROGRESS` for 10 minutes may be stuck. The cron treated both the same, potentially auto-failing queued jobs too early. **FIXED inline above** — cron now updates IN_QUEUE to `processing` and continues waiting.
+
+**84. MEDIUM: Status endpoint returns raw DB status, not UI-friendly stage**
+Frontend needs to map `pending`/`processing`/`completed`/`failed` to progress stages. This mapping should be server-side for consistency. **FIXED inline above** — added `stage` field to status response.
+
+**85. MEDIUM: No model-specific duration available at register time**
+Register needs `duration_seconds` but the generation row only stores the model key. **FIXED inline above** — added `MODEL_DURATION_SECONDS` export from `ai-video.ts`.
+
+**86. LOW: `available_models` order in feature flag still lists hailuo first**
+UI typically renders model picker from the `available_models` array. Hailuo first suggests it's the recommended choice. **FIXED inline above** — reordered to `["kling-2.6", "veo3-fast", "hailuo-2.3"]`.
+
+**87. LOW: No streaming proxy fallback defined for CORS failure**
+If fal.ai CDN doesn't support CORS, the plan says "need streaming proxy" but provides no implementation. **DOCUMENTED in prerequisites** — lightweight `/api/ai/proxy-download` that streams without buffering.
+
 ---
 
 ## Revised Architecture (incorporating fixes)
@@ -711,8 +804,9 @@ User → Prompt → POST /api/ai/generate
   ↓ Feature flag check (server-side)
   ↓ Sanitize prompt (NFKD normalize + strip zero-width + blocklist)
   ↓ Atomic daily limit increment (PG function)
-  ↓ Global cost cap check (atomic — FOR UPDATE)
+  ↓ Global cost cap check (atomic — check_global_cost_cap() PG function)
   ↓ Insert ai_generations row FIRST (status: pending)
+  ↓ buildInput(model, prompt, style) — prepends style prefix, adds negative_prompt
   ↓ Call fal.ai (with webhook_url, 10s timeout)
   ↓ Update row with fal_request_id (or mark failed on error)
   ↓ Return generationId
@@ -723,31 +817,37 @@ fal.ai completes → POST /api/ai/webhook (ED25519 verified)
   ↓ Update ai_generations (status: completed, video_url, completed_at)
 
 Frontend polls GET /api/ai/status/[id] (our DB only, NOT fal.ai)
-  ↓ Returns { status, videoUrl } — never exposes fal_request_id
+  ↓ Returns { status, videoUrl, stage } — never exposes fal_request_id
+  ↓ Auto-resumes on page load via localStorage ai_active_generation_id
 
 User clicks "Submit" → POST /api/ai/complete
   ↓ Auth + CSRF + banned check
   ↓ Check completed_at age (reject if > 7 days — fal.ai URL expired)
+  ↓ Check active season + slot exist (early fail before signing URL)
   ↓ Atomic complete_initiated_at guard (prevents double-complete)
   ↓ Generate signed upload URL for our storage
+  ↓ Construct public URL server-side from storage_key
   ↓ Store storage_key on generation row
-  ↓ Return { falVideoUrl, signedUploadUrl, publicUrl }
+  ↓ Return { falVideoUrl, signedUploadUrl, storageKey } — NO publicUrl
 
 Client: fetch(falVideoUrl) → PUT to signedUploadUrl (direct to storage)
-  ↓ Note: verify fal.ai CDN allows CORS (*.fal.media)
+  ↓ Note: verify fal.ai CDN allows CORS (*.fal.media) — PREREQUISITE
 
 Client: POST /api/ai/register
   ↓ Auth + CSRF + banned check + feature flag check
   ↓ Re-verify active slot (may have changed since /complete)
-  ↓ Insert tournament_clips with AI fields + genre.toUpperCase() + track_id: 'track-main'
+  ↓ Construct publicUrl server-side from storage_key (never from client)
+  ↓ Insert tournament_clips with AI fields + genre.toUpperCase() + track_id: 'track-main' + duration_seconds
   ↓ Start voting timer if first clip in slot
   ↓ Update ai_generations.clip_id (atomic — WHERE clip_id IS NULL)
 
 Cron (every 5 min): /api/cron/ai-generation-timeout
   ↓ Distributed lock (cron_locks pattern)
+  ↓ Map model key → fal.ai model ID before polling
   ↓ Poll fal.ai for stuck generations (> 10 min)
   ↓ Auto-fail anything stuck > 30 min
   ↓ Expire unclaimed completed generations > 24h
+  ↓ Clean up orphaned storage files
 ```
 
 Key changes from original:
@@ -811,21 +911,62 @@ import { fal } from '@fal-ai/client';
 
 fal.config({ credentials: process.env.FAL_KEY });
 
+// Style-to-prompt prefix mapping (loaded from feature flag config, with fallback defaults)
+const STYLE_PREFIXES: Record<string, string> = {
+  cinematic: 'cinematic film style,',
+  anime: 'anime style,',
+  realistic: 'photorealistic,',
+  abstract: 'abstract art style,',
+  noir: 'film noir style, black and white,',
+  retro: 'retro VHS style,',
+  neon: 'neon-lit cyberpunk style,',
+};
+
+// Default negative prompts per model (reduces bad outputs)
+const DEFAULT_NEGATIVE_PROMPTS: Record<string, string> = {
+  'kling-2.6': 'blurry, low quality, distorted, watermark, text overlay',
+  'veo3-fast': 'blurry, low quality, distorted, watermark, text overlay',
+};
+
+// Known durations per model (for duration_seconds on tournament_clips)
+const MODEL_DURATION_SECONDS: Record<string, number> = {
+  'hailuo-2.3': 6,
+  'kling-2.6': 5,
+  'veo3-fast': 8,
+};
+
 // Build model-specific input parameters
-function buildInput(model: string, prompt: string, enableAudio: boolean = false) {
+function buildInput(model: string, rawPrompt: string, style?: string, enableAudio: boolean = false) {
+  // Prepend style prefix if style is provided
+  const styledPrompt = style && STYLE_PREFIXES[style]
+    ? `${STYLE_PREFIXES[style]} ${rawPrompt}`
+    : rawPrompt;
+
   switch (model) {
     case 'hailuo-2.3':
       // Hailuo 2.3 Pro ONLY accepts: prompt, prompt_optimizer
       // No aspect_ratio, video_size, or duration params exist
       // Output: landscape ~6s 1080p (portrait NOT possible)
-      return { prompt, prompt_optimizer: true };
+      return { prompt: styledPrompt, prompt_optimizer: true };
     case 'kling-2.6':
       // Kling: duration "5" (no 's'). MUST use 5, not 10 (10s > MAX_VIDEO_DURATION 8.5)
       // generate_audio defaults to true — explicitly set false to halve cost
-      return { prompt, aspect_ratio: '9:16', duration: '5', generate_audio: enableAudio };
+      return {
+        prompt: styledPrompt,
+        negative_prompt: DEFAULT_NEGATIVE_PROMPTS['kling-2.6'],
+        aspect_ratio: '9:16',
+        duration: '5',
+        generate_audio: enableAudio,
+      };
     case 'veo3-fast':
       // Veo: duration "8s" (WITH 's'). generate_audio defaults to true
-      return { prompt, aspect_ratio: '9:16', duration: '8s', generate_audio: enableAudio };
+      return {
+        prompt: styledPrompt,
+        negative_prompt: DEFAULT_NEGATIVE_PROMPTS['veo3-fast'],
+        aspect_ratio: '9:16',
+        duration: '8s',
+        generate_audio: enableAudio,
+      };
     default:
       throw new Error(`Unknown model: ${model}`);
   }
@@ -1008,7 +1149,9 @@ Hidden entirely when `ai_video_generation` feature flag is off.
 └─────────────────────────────────────┘
 ```
 
-Progress stages: Submitting → Queued → Generating → Rendering → Ready
+Progress stages: Submitting → Queued (IN_QUEUE) → Generating (IN_PROGRESS) → Rendering → Ready (COMPLETED)
+- Map fal.ai status to UI stage: `IN_QUEUE` → Queued, `IN_PROGRESS` → Generating, `COMPLETED` → Ready
+- Store `ai_active_generation_id` in localStorage for auto-resume on page reload
 
 **3. Preview (complete)**
 ```
@@ -1222,8 +1365,12 @@ const stale = await supabase
   .lt('updated_at', tenMinutesAgo.toISOString());
 
 // 2. For each stale generation, poll fal.ai directly
+//    IMPORTANT: gen.model is the model KEY (e.g. "kling-2.6"), NOT the fal.ai model ID.
+//    Must map to the fal.ai model ID before polling.
 for (const gen of stale.data) {
-  const status = await fal.queue.status(gen.model, { requestId: gen.fal_request_id });
+  const modelConfig = MODELS[gen.model];
+  if (!modelConfig) { /* mark as failed — unknown model */ continue; }
+  const status = await fal.queue.status(modelConfig.modelId, { requestId: gen.fal_request_id });
 
   if (status.status === 'COMPLETED') {
     // Webhook was lost — update DB from poll result
@@ -1238,6 +1385,7 @@ for (const gen of stale.data) {
       error_message: status.error || 'Generation failed on provider',
     }).eq('id', gen.id);
   }
+  // If still IN_QUEUE after 10 min, update to 'processing' and continue waiting (fal.ai queue is busy)
   // If still IN_PROGRESS after 10 min, leave it — check again next cron run
 }
 
@@ -1247,6 +1395,27 @@ await supabase.from('ai_generations').update({
   error_message: 'Generation timed out after 30 minutes',
 }).in('status', ['pending', 'processing'])
   .lt('updated_at', thirtyMinutesAgo.toISOString());
+
+// 4. Expire unclaimed completed generations older than 24h
+await supabase.from('ai_generations').update({
+  status: 'expired',
+}).eq('status', 'completed')
+  .is('clip_id', null)
+  .lt('completed_at', twentyFourHoursAgo.toISOString());
+
+// 5. Clean up orphaned storage files (storage_key set but clip_id NULL and status is failed/expired)
+const orphans = await supabase
+  .from('ai_generations')
+  .select('id, storage_key')
+  .in('status', ['failed', 'expired'])
+  .is('clip_id', null)
+  .not('storage_key', 'is', null)
+  .limit(50);
+
+for (const orphan of orphans.data ?? []) {
+  await supabase.storage.from('clips').remove([orphan.storage_key]);
+  await supabase.from('ai_generations').update({ storage_key: null }).eq('id', orphan.id);
+}
 ```
 
 Add to `vercel.json`:
@@ -1334,14 +1503,14 @@ These error scenarios need explicit handling in the API routes:
 | File | Purpose |
 |------|---------|
 | `supabase/sql/migration-ai-video-generation.sql` | DB migration (tables, indexes, RLS, atomic functions, triggers, feature flag) |
-| `src/lib/ai-video.ts` | fal.ai integration library — model-specific `buildInput()`, Kling/Veo/Hailuo via `@fal-ai/client` |
+| `src/lib/ai-video.ts` | fal.ai integration library — `buildInput()` with style prefixes + negative prompts, `MODELS` config, `MODEL_DURATION_SECONDS`, `STYLE_PREFIXES`, via `@fal-ai/client` |
 | `src/app/api/ai/generate/route.ts` | Start generation (CSRF, banned check, flag, atomic limit, global cap, DB-first insert, fal.ai error handling) |
 | `src/app/api/ai/status/[id]/route.ts` | Poll status (reads our DB only, rate limited 30/min, never exposes `fal_request_id`) |
-| `src/app/api/ai/complete/route.ts` | Prepare signed upload URL (atomic double-complete guard, stores storage_key) |
-| `src/app/api/ai/register/route.ts` | Register clip (mirrors existing upload/register, re-verifies slot, genre.toUpperCase(), track_id, voting timer) |
+| `src/app/api/ai/complete/route.ts` | Prepare signed upload URL (season/slot check, atomic double-complete guard, server-side URL construction, stores storage_key) |
+| `src/app/api/ai/register/route.ts` | Register clip (mirrors existing upload/register, re-verifies slot, genre.toUpperCase(), track_id, duration_seconds, voting timer, server-side publicUrl) |
 | `src/app/api/ai/webhook/route.ts` | fal.ai webhook (4-header ED25519 verification, constructed message, hex signature, idempotent, rate limited) |
 | `src/app/api/ai/history/route.ts` | User's generation history (paginated) |
-| `src/app/api/cron/ai-generation-timeout/route.ts` | Fallback cron: polls fal.ai for stuck gens, auto-fails 30min, expires unclaimed 24h, distributed lock |
+| `src/app/api/cron/ai-generation-timeout/route.ts` | Fallback cron (5 steps): distributed lock, poll fal.ai for stuck gens (model key→ID mapping), auto-fail 30min, expire unclaimed 24h, clean orphaned storage files |
 | `src/app/api/admin/ai-stats/route.ts` | Admin cost tracking dashboard data |
 | `src/components/AIGeneratePanel.tsx` | Shared generation UI (prompt → progress → preview → submit) |
 | `src/app/create/page.tsx` | Dedicated create page (full prompt builder, model picker, history) |
@@ -1371,7 +1540,7 @@ These issues in the existing codebase must be fixed BEFORE AI implementation:
 | `@fal-ai/client` not installed | `package.json` | `npm install @fal-ai/client` (pin exact version) |
 | `VotingClip.genre` only has 4 values | `types/index.ts` | Add all 8 genres in UPPERCASE |
 | `DbClip` type missing many fields | `types/index.ts` | Update to match actual `tournament_clips` columns |
-| Verify fal.ai CDN CORS | n/a | Test `fetch('https://fal.media/...')` from browser — if blocked, need streaming proxy |
+| Verify fal.ai CDN CORS | n/a | **CRITICAL:** Test `fetch('https://fal.media/...')` from browser origin — if blocked, entire client-upload flow breaks. Fallback: lightweight streaming proxy via `/api/ai/proxy-download?id=xxx` (streams fal.ai → client, avoids OOM by not buffering) |
 
 ---
 
@@ -1400,3 +1569,14 @@ These issues in the existing codebase must be fixed BEFORE AI implementation:
 21. Slot advances between complete and register → register uses current active slot, not stale one
 22. Feature flag disabled mid-generation → webhook still processes, but register/complete blocked
 23. Hailuo generates landscape video → displayed correctly in UI (letterboxed or excluded from portrait-only app)
+24. Default model is `kling-2.6` (not Hailuo) → generates portrait 9:16 by default
+25. Style "cinematic" prepends style prefix to prompt → different output than no style
+26. Cron correctly maps model key to fal.ai model ID → fallback polling works
+27. `/complete` checks season/slot before returning signed URL → no orphaned uploads
+28. `/register` constructs public URL from storage_key → no client-supplied URL
+29. `duration_seconds` set correctly per model (Hailuo=6, Kling=5, Veo=8)
+30. Page reload during generation → auto-resumes polling from localStorage
+31. Global cost cap prevents concurrent race → `check_global_cost_cap()` PG function
+32. Orphaned storage files cleaned up by cron → storage_key nulled after deletion
+33. Negative prompts sent for Kling/Veo → reduced artifacts in output
+34. IN_QUEUE fal.ai status → frontend shows "Queued" stage (not stuck on "Generating")
