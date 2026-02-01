@@ -2,10 +2,11 @@
 
 ## Overview
 
-God Mode is the admin's full control panel for managing clips and slots. It combines two powerful features:
+God Mode is the admin's full control panel for managing clips and slots. It combines three powerful features:
 
 1. **Assign to Slot** — Place any clip into any slot in the story
 2. **Change Status** — Change any clip's status with automatic slot cleanup
+3. **Slot Status** — Change any slot's status with automatic unlock cleanup
 
 ---
 
@@ -19,7 +20,7 @@ God Mode is the admin's full control panel for managing clips and slots. It comb
 
 ## Selecting a Clip
 
-Both actions require selecting a clip first:
+The first two tabs (Assign to Slot, Change Status) require selecting a clip first. The Slot Status tab operates on slots directly — no clip selection needed.
 
 - Use the **search box** to filter clips by title or username
 - The list shows all clips in the current season with their status badge:
@@ -135,6 +136,67 @@ When a locked clip's status is changed:
 
 ---
 
+## Tab 3: Change Slot Status
+
+### What It Does
+
+Changes any slot's status directly. When unlocking a locked slot (one with a winner), automatically reverts the winner clip to `active` and clears the slot.
+
+### How to Use
+
+1. Click the **Slot Status** tab (clip selector is hidden for this tab)
+2. Enter the **slot number** (1 to total slots in season)
+3. The modal shows the current status of that slot, its winner, and approximate clip count
+4. Click one of the three status buttons: **Voting**, **Waiting**, or **Upcoming**
+5. Review any warnings that appear
+6. Click **Change Slot Status**
+
+### Available Statuses
+
+| Status | Color | What It Means |
+|--------|-------|---------------|
+| **Voting** | Blue | Start/restart a 24-hour voting round. Requires active clips in the slot. |
+| **Waiting for Clips** | Yellow | Pause the slot — no voting, waiting for clips to be approved. |
+| **Upcoming** | Gray | Reset the slot to initial state — not yet active. |
+
+**Not available:** `locked` (use "Assign to Slot" to lock with a winner) and `archived` (not used in current system).
+
+### Warnings
+
+| Warning | What It Means |
+|---------|---------------|
+| "Slot X has winner @username — winner will be reverted to active" | The slot is locked with a winner — changing status will unlock it |
+| "Slot Y is also voting — proceed with caution" | Another slot is already in voting state |
+| "Slot is already [status]" | No change needed |
+
+### Status Change Behaviors
+
+| From → To | What Happens |
+|-----------|-------------|
+| **locked → voting** | Winner clip reverted to `active`, slot winner cleared, 24h voting timer set. Requires active clips. |
+| **locked → waiting_for_clips** | Winner clip reverted to `active`, slot winner cleared, timers cleared. |
+| **locked → upcoming** | Winner clip reverted to `active`, slot winner cleared, timers cleared. |
+| **voting → waiting_for_clips** | Voting paused, timers cleared. |
+| **voting → upcoming** | Slot reset, timers cleared. |
+| **waiting_for_clips → voting** | 24h voting timer set. Requires active clips. |
+| **waiting_for_clips → upcoming** | Status change only. |
+| **upcoming → voting** | 24h voting timer set. Requires active clips. |
+| **upcoming → waiting_for_clips** | Status change only. |
+| **Any → same status** | No-op. Returns success without making changes. |
+
+### Unlock Details
+
+When a locked slot's status is changed:
+
+1. If the slot has a winner (`winner_tournament_clip_id`):
+   - Winner clip status reverted to `active` (already approved, so not `pending`)
+   - `winner_tournament_clip_id` cleared to `NULL`
+2. New status applied with appropriate timer changes
+3. Story page updates immediately via realtime broadcast
+4. Audit log records the change with action `god_mode_slot_status_change`
+
+---
+
 ## API Reference
 
 ### `POST /api/admin/assign-clip-to-slot`
@@ -228,6 +290,56 @@ When a locked clip's status is changed:
 
 ---
 
+### `POST /api/admin/update-slot-status`
+
+**Auth:** Admin required. Rate limit: 15 requests/minute.
+
+**Request:**
+```json
+{
+  "slotPosition": 5,
+  "newStatus": "voting"
+}
+```
+
+**Valid statuses:** `voting`, `waiting_for_clips`, `upcoming`
+
+**Success Response (200):**
+```json
+{
+  "ok": true,
+  "message": "Slot 5 changed from locked to voting",
+  "slotPosition": 5,
+  "previousStatus": "locked",
+  "newStatus": "voting",
+  "winnerClipReverted": "uuid-or-null",
+  "activeClipCount": 3,
+  "warning": "Slot 2 is also voting in this season"
+}
+```
+
+**No-op Response (200):**
+```json
+{
+  "ok": true,
+  "message": "Slot 5 is already voting",
+  "noOp": true
+}
+```
+
+**Error Responses:**
+
+| Status | Error | Cause |
+|--------|-------|-------|
+| 400 | "slotPosition must be a positive integer" | Invalid input |
+| 400 | "newStatus must be one of: voting, waiting_for_clips, upcoming" | Invalid status |
+| 400 | "slotPosition X exceeds season total of Y" | Slot number out of range |
+| 400 | "No active clips in slot N — cannot start voting" | No clips to vote on |
+| 404 | "No active season found" | No season is currently active |
+| 404 | "Slot N not found in active season" | Slot doesn't exist |
+
+---
+
 ## Important Notes
 
 - **No cascading side effects.** Assign to Slot does NOT move other clips to the next slot. This is intentional — it prevents cascade bugs.
@@ -236,6 +348,7 @@ When a locked clip's status is changed:
 - **Displaced winners revert to `active`.** When replacing a slot winner, the old winner goes to `active` (not `pending`) since it was already approved.
 - **Audit trail.** Every action is logged in `audit_logs`:
   - Slot assignments: action `free_assign_clip`
-  - Status changes: action `god_mode_status_change`
+  - Clip status changes: action `god_mode_status_change`
+  - Slot status changes: action `god_mode_slot_status_change`
 - **Auto-advance interaction.** If you change status on a slot that has an expiring voting timer, the auto-advance cron might process it simultaneously. If that happens, just re-run the action.
 - **Vote counts preserved.** Changing a clip's status or assigning it to a slot preserves its historical vote count.

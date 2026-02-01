@@ -183,11 +183,13 @@ export default function AdminDashboard() {
   const [freeAssignTargetSlot, setFreeAssignTargetSlot] = useState<number>(1);
   const [freeAssigning, setFreeAssigning] = useState(false);
   const [freeAssignResult, setFreeAssignResult] = useState<{ success: boolean; message: string } | null>(null);
-  const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_title?: string; winner_username?: string }[]>([]);
+  const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_username?: string; clip_count?: number }[]>([]);
   const [freeAssignSearch, setFreeAssignSearch] = useState('');
-  type GodModeAction = 'assign' | 'change_status';
+  type GodModeAction = 'assign' | 'change_status' | 'change_slot_status';
   const [godModeAction, setGodModeAction] = useState<GodModeAction>('assign');
   const [godModeNewStatus, setGodModeNewStatus] = useState<'pending' | 'active' | 'rejected'>('active');
+  const [godModeSlotPosition, setGodModeSlotPosition] = useState<number>(1);
+  const [godModeSlotNewStatus, setGodModeSlotNewStatus] = useState<'voting' | 'waiting_for_clips' | 'upcoming'>('voting');
 
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
@@ -1146,11 +1148,12 @@ export default function AdminDashboard() {
         const fullRes = await fetch(`/api/admin/slots?season_id=${simpleData.season_id}`);
         const fullData = await fullRes.json();
         if (fullData.ok && fullData.slots) {
-          setAllSlots(fullData.slots.map((s: { slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_details?: { username?: string; clip_id?: string } }) => ({
+          setAllSlots(fullData.slots.map((s: { slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_details?: { username?: string; clip_id?: string }; clip_count?: number }) => ({
             slot_position: s.slot_position,
             status: s.status,
             winner_tournament_clip_id: s.winner_tournament_clip_id,
             winner_username: s.winner_details?.username,
+            clip_count: s.clip_count,
           })));
         }
       }
@@ -1165,6 +1168,8 @@ export default function AdminDashboard() {
     setFreeAssignResult(null);
     setGodModeAction('assign');
     setGodModeNewStatus('active');
+    setGodModeSlotPosition(1);
+    setGodModeSlotNewStatus('voting');
   };
 
   const handleFreeAssign = async () => {
@@ -1253,6 +1258,51 @@ export default function AdminDashboard() {
       }
     } catch (error) {
       console.error('God mode status change failed:', error);
+      setFreeAssignResult({ success: false, message: 'Network error' });
+    }
+
+    setFreeAssigning(false);
+  };
+
+  const handleChangeSlotStatus = async () => {
+    if (!godModeSlotPosition) return;
+
+    setFreeAssigning(true);
+    setFreeAssignResult(null);
+
+    try {
+      const response = await fetch('/api/admin/update-slot-status', {
+        method: 'POST',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          slotPosition: godModeSlotPosition,
+          newStatus: godModeSlotNewStatus,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.ok) {
+        let msg = data.message || 'Slot status changed';
+        if (data.winnerClipReverted) {
+          msg += ' | Winner clip reverted to active';
+        }
+        if (data.activeClipCount != null) {
+          msg += ` | ${data.activeClipCount} active clips in slot`;
+        }
+        if (data.warning) {
+          msg += ` | ⚠ ${data.warning}`;
+        }
+        setFreeAssignResult({ success: true, message: msg });
+        fetchSlotInfo();
+        fetchClips();
+        setTimeout(() => closeFreeAssignModal(), 2500);
+      } else {
+        setFreeAssignResult({ success: false, message: data.error || 'Failed to change slot status' });
+      }
+    } catch (error) {
+      console.error('God mode slot status change failed:', error);
       setFreeAssignResult({ success: false, message: 'Network error' });
     }
 
@@ -3266,7 +3316,7 @@ export default function AdminDashboard() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white">God Mode</h3>
-                    <p className="text-xs text-white/50">Full clip control</p>
+                    <p className="text-xs text-white/50">Full clip & slot control</p>
                   </div>
                 </div>
                 <button
@@ -3277,57 +3327,59 @@ export default function AdminDashboard() {
                 </button>
               </div>
 
-              {/* Clip Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-white/70 mb-2">Select Clip</label>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
-                  <input
-                    type="text"
-                    value={freeAssignSearch}
-                    onChange={(e) => setFreeAssignSearch(e.target.value)}
-                    placeholder="Search by title or username..."
-                    className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
-                             placeholder-white/30 focus:outline-none focus:border-purple-500/50"
-                  />
-                </div>
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-white/5">
-                  {clips
-                    .filter((c) => {
+              {/* Clip Selection — hidden for slot status tab */}
+              {godModeAction !== 'change_slot_status' && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-white/70 mb-2">Select Clip</label>
+                  <div className="relative mb-2">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
+                    <input
+                      type="text"
+                      value={freeAssignSearch}
+                      onChange={(e) => setFreeAssignSearch(e.target.value)}
+                      placeholder="Search by title or username..."
+                      className="w-full pl-9 pr-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
+                               placeholder-white/30 focus:outline-none focus:border-purple-500/50"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto rounded-lg border border-white/10 bg-white/5">
+                    {clips
+                      .filter((c) => {
+                        const search = freeAssignSearch.toLowerCase();
+                        return !search || c.title.toLowerCase().includes(search) || c.username.toLowerCase().includes(search);
+                      })
+                      .slice(0, 50)
+                      .map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setFreeAssignClipId(c.id)}
+                          className={`w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 ${
+                            freeAssignClipId === c.id ? 'bg-purple-500/20 border-l-2 border-l-purple-400' : ''
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-white truncate">{c.title}</p>
+                            <p className="text-xs text-white/50">@{c.username} · Slot {c.slot_position} · {c.status}</p>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            c.status === 'locked' ? 'bg-green-500/20 text-green-400' :
+                            c.status === 'active' ? 'bg-blue-500/20 text-blue-400' :
+                            c.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
+                            'bg-red-500/20 text-red-400'
+                          }`}>
+                            {c.status}
+                          </span>
+                        </button>
+                      ))}
+                    {clips.filter((c) => {
                       const search = freeAssignSearch.toLowerCase();
                       return !search || c.title.toLowerCase().includes(search) || c.username.toLowerCase().includes(search);
-                    })
-                    .slice(0, 50)
-                    .map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => setFreeAssignClipId(c.id)}
-                        className={`w-full text-left px-3 py-2 flex items-center gap-3 hover:bg-white/10 transition-colors border-b border-white/5 last:border-b-0 ${
-                          freeAssignClipId === c.id ? 'bg-purple-500/20 border-l-2 border-l-purple-400' : ''
-                        }`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white truncate">{c.title}</p>
-                          <p className="text-xs text-white/50">@{c.username} · Slot {c.slot_position} · {c.status}</p>
-                        </div>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          c.status === 'locked' ? 'bg-green-500/20 text-green-400' :
-                          c.status === 'active' ? 'bg-blue-500/20 text-blue-400' :
-                          c.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' :
-                          'bg-red-500/20 text-red-400'
-                        }`}>
-                          {c.status}
-                        </span>
-                      </button>
-                    ))}
-                  {clips.filter((c) => {
-                    const search = freeAssignSearch.toLowerCase();
-                    return !search || c.title.toLowerCase().includes(search) || c.username.toLowerCase().includes(search);
-                  }).length === 0 && (
-                    <p className="text-center text-white/30 text-sm py-4">No clips found</p>
-                  )}
+                    }).length === 0 && (
+                      <p className="text-center text-white/30 text-sm py-4">No clips found</p>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Action Tabs */}
               <div className="flex gap-1 mb-4 p-1 bg-white/5 rounded-lg">
@@ -3346,6 +3398,14 @@ export default function AdminDashboard() {
                   }`}
                 >
                   Change Status
+                </button>
+                <button
+                  onClick={() => { setGodModeAction('change_slot_status'); setFreeAssignResult(null); }}
+                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    godModeAction === 'change_slot_status' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Slot Status
                 </button>
               </div>
 
@@ -3474,6 +3534,103 @@ export default function AdminDashboard() {
                 </>
               )}
 
+              {/* Change Slot Status Panel */}
+              {godModeAction === 'change_slot_status' && (
+                <>
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-white/70 mb-2">Slot Number</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={slotInfo?.totalSlots || 75}
+                      value={godModeSlotPosition}
+                      onChange={(e) => setGodModeSlotPosition(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
+                               focus:outline-none focus:border-purple-500/50"
+                    />
+                    {(() => {
+                      const targetInfo = allSlots.find((s) => s.slot_position === godModeSlotPosition);
+                      if (targetInfo) {
+                        return (
+                          <div className="mt-2 p-2 rounded-lg bg-white/5 text-xs text-white/60">
+                            Slot {godModeSlotPosition}: <span className={
+                              targetInfo.status === 'locked' ? 'text-green-400' :
+                              targetInfo.status === 'voting' ? 'text-blue-400' :
+                              targetInfo.status === 'waiting_for_clips' ? 'text-yellow-400' :
+                              'text-white/40'
+                            }>{targetInfo.status}</span>
+                            {targetInfo.winner_username && (
+                              <> · Winner: @{targetInfo.winner_username}</>
+                            )}
+                            {targetInfo.clip_count !== undefined && (
+                              <> · ~{targetInfo.clip_count} clips</>
+                            )}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-white/70 mb-2">New Status</label>
+                    <div className="flex gap-2">
+                      {([
+                        { value: 'voting', label: 'Voting', activeClass: 'bg-blue-500/20 border-blue-500/50 text-blue-300' },
+                        { value: 'waiting_for_clips', label: 'Waiting', activeClass: 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300' },
+                        { value: 'upcoming', label: 'Upcoming', activeClass: 'bg-white/10 border-white/30 text-white/70' },
+                      ] as const).map((s) => (
+                        <button
+                          key={s.value}
+                          onClick={() => setGodModeSlotNewStatus(s.value as 'voting' | 'waiting_for_clips' | 'upcoming')}
+                          className={`flex-1 px-3 py-2.5 rounded-lg text-sm font-medium transition-all border ${
+                            godModeSlotNewStatus === s.value
+                              ? s.activeClass
+                              : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/10'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Slot Status Warnings */}
+                  {(() => {
+                    const warnings: string[] = [];
+                    const targetInfo = allSlots.find((s) => s.slot_position === godModeSlotPosition);
+
+                    if (targetInfo) {
+                      if (targetInfo.status === godModeSlotNewStatus) {
+                        warnings.push(`Slot is already "${godModeSlotNewStatus}" — no change will occur`);
+                      }
+                      if (targetInfo.status === 'locked' && targetInfo.winner_username) {
+                        warnings.push(`Slot ${godModeSlotPosition} has winner @${targetInfo.winner_username} — winner will be reverted to active`);
+                      }
+                      if (godModeSlotNewStatus === 'voting') {
+                        const otherVoting = allSlots.find((s) => s.status === 'voting' && s.slot_position !== godModeSlotPosition);
+                        if (otherVoting) {
+                          warnings.push(`Slot ${otherVoting.slot_position} is also voting — proceed with caution`);
+                        }
+                      }
+                    }
+
+                    if (warnings.length === 0) return null;
+
+                    return (
+                      <div className="mb-4 space-y-2">
+                        {warnings.map((w, i) => (
+                          <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                            <AlertCircle className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />
+                            <p className="text-xs text-yellow-300">{w}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+
               {/* Result Message */}
               <AnimatePresence>
                 {freeAssignResult && (
@@ -3526,7 +3683,7 @@ export default function AdminDashboard() {
                       </>
                     )}
                   </motion.button>
-                ) : (
+                ) : godModeAction === 'change_status' ? (
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={handleChangeStatus}
@@ -3549,6 +3706,32 @@ export default function AdminDashboard() {
                       <>
                         <Crown className="w-4 h-4" />
                         Change Status
+                      </>
+                    )}
+                  </motion.button>
+                ) : (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleChangeSlotStatus}
+                    disabled={!godModeSlotPosition || freeAssigning || freeAssignResult?.success === true}
+                    className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 font-bold
+                             hover:shadow-lg hover:shadow-purple-500/20 transition-all disabled:opacity-50
+                             flex items-center justify-center gap-2"
+                  >
+                    {freeAssigning ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        Changing...
+                      </>
+                    ) : freeAssignResult?.success ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Done!
+                      </>
+                    ) : (
+                      <>
+                        <Layers className="w-4 h-4" />
+                        Change Slot Status
                       </>
                     )}
                   </motion.button>

@@ -251,6 +251,46 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 6b. If clip is currently active and being deactivated — check if slot needs updating
+    if (clip.status === 'active' && (newStatus === 'pending' || newStatus === 'rejected')) {
+      const { data: clipSlot } = await supabase
+        .from('story_slots')
+        .select('id, slot_position, status')
+        .eq('season_id', season.id)
+        .eq('slot_position', clip.slot_position)
+        .in('status', ['voting'])
+        .maybeSingle();
+
+      if (clipSlot) {
+        // Count remaining active clips in that slot (exclude this clip)
+        const { count: remainingActive } = await supabase
+          .from('tournament_clips')
+          .select('id', { count: 'exact', head: true })
+          .eq('slot_position', clipSlot.slot_position)
+          .eq('season_id', season.id)
+          .eq('status', 'active')
+          .neq('id', clipId);
+
+        if (!remainingActive || remainingActive === 0) {
+          // No active clips left — transition slot to waiting_for_clips
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+              voting_duration_hours: null,
+            })
+            .eq('id', clipSlot.id);
+
+          slotCleared = clipSlot.slot_position;
+          slotNewStatus = 'waiting_for_clips';
+
+          console.log(`[update-clip-status] Slot ${clipSlot.slot_position} had last active clip removed → waiting_for_clips`);
+        }
+      }
+    }
+
     // 7. Update clip status
     const { error: updateError } = await supabase
       .from('tournament_clips')

@@ -31,7 +31,8 @@ export type AuditAction =
   | 'bulk_action'
   | 'reset_user_votes'
   | 'free_assign_clip'
-  | 'god_mode_status_change';
+  | 'god_mode_status_change'
+  | 'god_mode_slot_status_change';
 
 export type ResourceType =
   | 'clip'
