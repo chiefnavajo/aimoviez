@@ -180,7 +180,7 @@ export default function AdminDashboard() {
   // God Mode state
   const [showFreeAssign, setShowFreeAssign] = useState(false);
   const [freeAssignClipId, setFreeAssignClipId] = useState<string>('');
-  const [freeAssignTargetSlot, setFreeAssignTargetSlot] = useState<number>(1);
+  const [freeAssignTargetSlot, setFreeAssignTargetSlot] = useState<number | ''>(1);
   const [freeAssigning, setFreeAssigning] = useState(false);
   const [freeAssignResult, setFreeAssignResult] = useState<{ success: boolean; message: string } | null>(null);
   const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_username?: string; clip_count?: number }[]>([]);
@@ -188,7 +188,7 @@ export default function AdminDashboard() {
   type GodModeAction = 'assign' | 'change_status' | 'change_slot_status';
   const [godModeAction, setGodModeAction] = useState<GodModeAction>('assign');
   const [godModeNewStatus, setGodModeNewStatus] = useState<'pending' | 'active' | 'rejected'>('active');
-  const [godModeSlotPosition, setGodModeSlotPosition] = useState<number>(1);
+  const [godModeSlotPosition, setGodModeSlotPosition] = useState<number | ''>(1);
   const [godModeSlotNewStatus, setGodModeSlotNewStatus] = useState<'voting' | 'waiting_for_clips' | 'upcoming'>('waiting_for_clips');
 
   // Tab and feature flags state
@@ -3419,7 +3419,16 @@ export default function AdminDashboard() {
                       min={1}
                       max={slotInfo?.totalSlots || 75}
                       value={freeAssignTargetSlot}
-                      onChange={(e) => setFreeAssignTargetSlot(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setFreeAssignTargetSlot('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) setFreeAssignTargetSlot(Math.max(1, Math.min(slotInfo?.totalSlots || 75, num)));
+                        }
+                      }}
+                      onBlur={() => { if (freeAssignTargetSlot === '') setFreeAssignTargetSlot(1); }}
                       className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
                                focus:outline-none focus:border-purple-500/50"
                     />
@@ -3544,7 +3553,16 @@ export default function AdminDashboard() {
                       min={1}
                       max={slotInfo?.totalSlots || 75}
                       value={godModeSlotPosition}
-                      onChange={(e) => setGodModeSlotPosition(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setGodModeSlotPosition('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) setGodModeSlotPosition(Math.max(1, Math.min(slotInfo?.totalSlots || 75, num)));
+                        }
+                      }}
+                      onBlur={() => { if (godModeSlotPosition === '') setGodModeSlotPosition(1); }}
                       className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-white text-sm
                                focus:outline-none focus:border-purple-500/50"
                     />
