@@ -189,7 +189,7 @@ export default function AdminDashboard() {
   const [godModeAction, setGodModeAction] = useState<GodModeAction>('assign');
   const [godModeNewStatus, setGodModeNewStatus] = useState<'pending' | 'active' | 'rejected'>('active');
   const [godModeSlotPosition, setGodModeSlotPosition] = useState<number>(1);
-  const [godModeSlotNewStatus, setGodModeSlotNewStatus] = useState<'voting' | 'waiting_for_clips' | 'upcoming'>('voting');
+  const [godModeSlotNewStatus, setGodModeSlotNewStatus] = useState<'voting' | 'waiting_for_clips' | 'upcoming'>('waiting_for_clips');
 
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
