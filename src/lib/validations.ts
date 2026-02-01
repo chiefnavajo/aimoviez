@@ -191,7 +191,7 @@ export type BatchModerationRequest = z.infer<typeof BatchModerationSchema>;
 // AI VIDEO GENERATION VALIDATION
 // =============================================================================
 
-export const AI_MODELS = ['kling-2.6', 'veo3-fast', 'hailuo-2.3'] as const;
+export const AI_MODELS = ['kling-2.6', 'veo3-fast', 'hailuo-2.3', 'sora-2'] as const;
 export const AI_STYLES = ['cinematic', 'anime', 'realistic', 'abstract', 'noir', 'retro', 'neon'] as const;
 
 export const AIGenerateSchema = z.object({

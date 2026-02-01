@@ -244,7 +244,7 @@ export interface LeaderboardClip {
 // AI VIDEO GENERATION TYPES
 // =========================
 
-export type AIModel = 'kling-2.6' | 'veo3-fast' | 'hailuo-2.3';
+export type AIModel = 'kling-2.6' | 'veo3-fast' | 'hailuo-2.3' | 'sora-2';
 export type AIStyle = 'cinematic' | 'anime' | 'realistic' | 'abstract' | 'noir' | 'retro' | 'neon';
 export type AIGenerationStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'expired';
 export type AIStage = 'queued' | 'generating' | 'ready' | 'failed';

@@ -44,12 +44,21 @@ export const MODELS: Record<string, ModelConfig> = {
     supportsAudio: true,
     supportsPortrait: true,
   },
+  'sora-2': {
+    modelId: 'fal-ai/sora-2/text-to-video',
+    costCents: 80,
+    duration: '8',
+    resolution: '720p',
+    supportsAudio: false,
+    supportsPortrait: true,
+  },
 };
 
 export const MODEL_DURATION_SECONDS: Record<string, number> = {
   'hailuo-2.3': 6,
   'kling-2.6': 5,
   'veo3-fast': 8,
+  'sora-2': 8,
 };
 
 // =============================================================================
@@ -108,6 +117,14 @@ export function buildInput(
         aspect_ratio: '9:16',
         duration: '8s',
         generate_audio: enableAudio,
+      };
+
+    case 'sora-2':
+      // Duration is integer seconds (4, 8, or 12). No negative_prompt or audio.
+      return {
+        prompt: styledPrompt,
+        duration: 8,
+        aspect_ratio: '9:16',
       };
 
     default:

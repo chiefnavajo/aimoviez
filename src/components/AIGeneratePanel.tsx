@@ -48,6 +48,7 @@ const MODELS = [
   { id: 'kling-2.6', label: 'Kling 2.6', desc: '5s, 720p, portrait' },
   { id: 'veo3-fast', label: 'Veo3 Fast', desc: '8s, 720p, portrait' },
   { id: 'hailuo-2.3', label: 'Hailuo 2.3', desc: '6s, 1080p, landscape' },
+  { id: 'sora-2', label: 'Sora 2', desc: '8s, 720p, portrait' },
 ];
 
 const GENRES = [
