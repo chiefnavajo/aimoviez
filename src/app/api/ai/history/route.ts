@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     // Auth check
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -58,10 +58,10 @@ export async function GET(req: NextRequest) {
       .from('users')
       .select('id')
       .eq('email', session.user.email)
-      .single();
+      .maybeSingle();
 
     if (userError || !user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
     // Parse pagination params
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     if (error) {
       console.error('[GET /api/ai/history] query error:', error);
       return NextResponse.json(
-        { error: 'Failed to fetch generation history' },
+        { success: false, error: 'Failed to fetch generation history' },
         { status: 500 }
       );
     }

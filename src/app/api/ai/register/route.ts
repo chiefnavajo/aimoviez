@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       .from('users')
       .select('id, username, avatar_url, is_banned')
       .eq('email', userEmail)
-      .single();
+      .maybeSingle();
 
     if (!userProfile) {
       return NextResponse.json(
