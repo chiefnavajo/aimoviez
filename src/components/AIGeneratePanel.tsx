@@ -542,7 +542,7 @@ export default function AIGeneratePanel({
       {!compact && (
         <div>
           <p className="text-sm text-white/60 mb-2">Model:</p>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {MODELS.map((m) => (
               <button
                 key={m.id}

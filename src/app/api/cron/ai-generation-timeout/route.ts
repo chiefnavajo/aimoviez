@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
     let autoCompleted = 0;
     if (staleGens && staleGens.length > 0) {
       for (const gen of staleGens) {
-        if (gen.fal_request_id === 'pending') continue;
+        if (gen.fal_request_id.startsWith('placeholder_')) continue;
 
         // Map model key to fal.ai model ID
         const modelConfig = MODELS[gen.model];

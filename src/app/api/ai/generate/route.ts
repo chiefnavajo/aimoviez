@@ -11,6 +11,7 @@ import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
 import { AIGenerateSchema, parseBody } from '@/lib/validations';
+import crypto from 'crypto';
 import { sanitizePrompt, getModelConfig, startGeneration } from '@/lib/ai-video';
 
 // =============================================================================
@@ -207,7 +208,7 @@ export async function POST(request: NextRequest) {
       .from('ai_generations')
       .insert({
         user_id: userId,
-        fal_request_id: 'pending',
+        fal_request_id: 'placeholder_' + crypto.randomUUID(),
         status: 'pending',
         prompt: sanitizedPrompt,
         model: validated.model,
