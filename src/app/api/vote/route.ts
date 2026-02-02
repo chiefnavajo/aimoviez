@@ -226,7 +226,7 @@ interface ClientClip {
     avatar_url: string;
     badge_level?: string;
   };
-  genre: 'COMEDY' | 'THRILLER' | 'ACTION' | 'ANIMATION';
+  genre: 'COMEDY' | 'THRILLER' | 'ACTION' | 'ANIMATION' | 'SCI-FI' | 'ROMANCE' | 'HORROR' | 'DRAMA';
   duration: number;
   round_number: number;
   total_rounds: number;
@@ -420,9 +420,8 @@ function fallbackAvatar(seed: string) {
 function normalizeGenre(genre: string | null | undefined): ClientClip['genre'] {
   if (!genre) return 'COMEDY';
   const upper = genre.toUpperCase();
-  if (upper === 'THRILLER') return 'THRILLER';
-  if (upper === 'ACTION') return 'ACTION';
-  if (upper === 'ANIMATION') return 'ANIMATION';
+  const valid: ClientClip['genre'][] = ['COMEDY', 'THRILLER', 'ACTION', 'ANIMATION', 'SCI-FI', 'ROMANCE', 'HORROR', 'DRAMA'];
+  if (valid.includes(upper as ClientClip['genre'])) return upper as ClientClip['genre'];
   return 'COMEDY';
 }
 

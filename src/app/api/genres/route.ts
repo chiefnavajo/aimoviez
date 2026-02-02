@@ -41,6 +41,10 @@ const GENRE_OPTIONS = [
   { code: 'THRILLER', label: 'Thriller' },
   { code: 'ACTION', label: 'Action' },
   { code: 'ANIMATION', label: 'Animation' },
+  { code: 'SCI-FI', label: 'Sci-Fi' },
+  { code: 'ROMANCE', label: 'Romance' },
+  { code: 'HORROR', label: 'Horror' },
+  { code: 'DRAMA', label: 'Drama' },
 ] as const;
 
 type GenreCode = (typeof GENRE_OPTIONS)[number]['code'];
