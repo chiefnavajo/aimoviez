@@ -232,6 +232,14 @@ export const AIRegisterSchema = z.object({
 
 export type AIRegisterRequest = z.infer<typeof AIRegisterSchema>;
 
+export const AINarrateSchema = z.object({
+  generationId: z.string().uuid('Invalid generation ID'),
+  text: z.string().min(1, 'Narration text is required').max(300, 'Narration text must be 300 characters or less').transform(t => t.trim()),
+  voiceId: z.string().min(1, 'Voice selection is required').max(100),
+}).strict();
+
+export type AINarrateRequest = z.infer<typeof AINarrateSchema>;
+
 // =============================================================================
 // HELPER: Parse and validate with friendly error
 // =============================================================================

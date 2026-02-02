@@ -1,7 +1,7 @@
 // POST /api/ai/complete
 // Prepares a completed AI generation for tournament submission.
-// Returns a signed upload URL so the client can transfer the video
-// from fal.ai to our permanent storage before registering it.
+// Without narration: returns a signed upload URL so the client can transfer the video.
+// With narration: server-side downloads, merges audio, uploads, and returns public URL.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -9,9 +9,18 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
-import { getStorageProvider, getSignedUploadUrl as getProviderSignedUrl } from '@/lib/storage';
+import { getStorageProvider, getSignedUploadUrl as getProviderSignedUrl, getPublicVideoUrl } from '@/lib/storage';
+import { MODELS } from '@/lib/ai-video';
+import { execFile } from 'child_process';
+import { writeFile, readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 // =============================================================================
 // SUPABASE CLIENT
@@ -58,13 +67,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { generationId } = body;
+    const { generationId, narrationAudioBase64 } = body;
     if (!generationId || typeof generationId !== 'string') {
       return NextResponse.json(
         { success: false, error: 'generationId is required' },
         { status: 400 }
       );
     }
+
+    const hasNarration = typeof narrationAudioBase64 === 'string' && narrationAudioBase64.length > 0;
 
     const supabase = getSupabase();
 
@@ -82,10 +93,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Look up generation (verify ownership)
+    // 5. Look up generation (verify ownership, include model for audio merge)
     const { data: gen, error: genError } = await supabase
       .from('ai_generations')
-      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at, clip_id')
+      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at, clip_id, model')
       .eq('id', generationId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -218,6 +229,122 @@ export async function POST(request: NextRequest) {
         { status: 500 }
       );
     }
+
+    // =========================================================================
+    // NARRATION MERGE PATH
+    // When narrationAudioBase64 is provided, the server downloads the video,
+    // merges the audio track, uploads the result, and returns the public URL.
+    // =========================================================================
+
+    if (hasNarration) {
+      const inputPath = path.join(tmpdir(), `merge_video_${gen.id}.mp4`);
+      const audioPath = path.join(tmpdir(), `merge_audio_${gen.id}.mp3`);
+      const outputPath = path.join(tmpdir(), `merge_output_${gen.id}.mp4`);
+
+      try {
+        // 15a. Download video from fal.ai
+        console.info('[AI_COMPLETE] Downloading video for narration merge:', gen.id);
+        const videoRes = await fetch(gen.video_url, {
+          signal: AbortSignal.timeout(30_000),
+        });
+
+        if (!videoRes.ok) {
+          return NextResponse.json(
+            { success: false, error: `Failed to download video: ${videoRes.status}` },
+            { status: 502 }
+          );
+        }
+
+        const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+        await writeFile(inputPath, videoBuffer);
+
+        // 15b. Decode narration audio from base64
+        const audioBuffer = Buffer.from(narrationAudioBase64 as string, 'base64');
+        await writeFile(audioPath, audioBuffer);
+
+        // 15c. Merge with ffmpeg-static
+        const ffmpegPath = (await import('ffmpeg-static')).default;
+        if (!ffmpegPath) {
+          return NextResponse.json(
+            { success: false, error: 'ffmpeg binary not found' },
+            { status: 500 }
+          );
+        }
+
+        const modelConfig = MODELS[gen.model];
+        const videoHasAudio = modelConfig?.supportsAudio ?? false;
+
+        if (videoHasAudio) {
+          // Mix existing video audio with narration
+          await execFileAsync(ffmpegPath, [
+            '-i', inputPath,
+            '-i', audioPath,
+            '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=shortest',
+            '-c:v', 'copy',
+            '-map', '0:v:0',
+            '-shortest',
+            '-y',
+            outputPath,
+          ]);
+        } else {
+          // No existing audio — add narration as the only audio track
+          await execFileAsync(ffmpegPath, [
+            '-i', inputPath,
+            '-i', audioPath,
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-map', '0:v:0',
+            '-map', '1:a:0',
+            '-shortest',
+            '-y',
+            outputPath,
+          ]);
+        }
+
+        // 15d. Read merged file and upload to storage via signed URL
+        const mergedBuffer = await readFile(outputPath);
+        console.info(`[AI_COMPLETE] Merged video: ${(mergedBuffer.length / 1024 / 1024).toFixed(1)}MB`);
+
+        const uploadRes = await fetch(result.signedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'video/mp4' },
+          body: mergedBuffer,
+          signal: AbortSignal.timeout(30_000),
+        });
+
+        if (!uploadRes.ok) {
+          console.error('[AI_COMPLETE] Merged upload failed:', uploadRes.status);
+          return NextResponse.json(
+            { success: false, error: 'Failed to upload merged video' },
+            { status: 502 }
+          );
+        }
+
+        const publicUrl = getPublicVideoUrl(uniqueFilename, storageProvider);
+        console.info('[AI_COMPLETE] Narration merge complete for generation:', gen.id);
+
+        return NextResponse.json({
+          success: true,
+          storageKey: uniqueFilename,
+          publicUrl,
+        });
+      } catch (mergeError) {
+        console.error('[AI_COMPLETE] Narration merge error:', mergeError);
+        return NextResponse.json(
+          { success: false, error: 'Audio merge failed. Please try again without narration.' },
+          { status: 500 }
+        );
+      } finally {
+        // Cleanup temp files
+        await unlink(inputPath).catch(() => {});
+        await unlink(audioPath).catch(() => {});
+        await unlink(outputPath).catch(() => {});
+      }
+    }
+
+    // =========================================================================
+    // STANDARD PATH (no narration) — return signed URL for client upload
+    // =========================================================================
 
     console.info('[AI_COMPLETE] Signed URL generated for generation:', gen.id);
 

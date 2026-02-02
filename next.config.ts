@@ -114,6 +114,7 @@ const nextConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/api/internal/extract-frame': ['./node_modules/ffmpeg-static/**/*'],
     '/api/cron/extract-missing-frames': ['./node_modules/ffmpeg-static/**/*'],
+    '/api/ai/complete': ['./node_modules/ffmpeg-static/**/*'],
   },
 };
 

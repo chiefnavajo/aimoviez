@@ -2,8 +2,9 @@
 
 // ============================================================================
 // AI GENERATE PANEL
-// Prompt-to-video generation flow with polling and submission.
+// Prompt-to-video generation flow with polling, optional narration, and submission.
 // All gated behind ai_video_generation feature flag.
+// Narration gated behind elevenlabs_narration feature flag.
 // ============================================================================
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -20,6 +21,10 @@ import {
   X,
   Film,
   Zap,
+  Mic,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -35,6 +40,21 @@ interface AIGeneratePanelProps {
   onComplete?: () => void;
   compact?: boolean;
   lastFrameUrl?: string | null;
+}
+
+interface VoiceOption {
+  id: string;
+  name: string;
+  accent: string;
+  gender: string;
+  style: string;
+}
+
+interface NarrationConfig {
+  max_chars: number;
+  cost_per_generation_cents: number;
+  daily_limit: number;
+  voices: VoiceOption[];
 }
 
 // Models that support image-to-video on fal.ai
@@ -92,6 +112,9 @@ export default function AIGeneratePanel({
   const router = useRouter();
   const { post: csrfPost, ensureToken } = useCsrf();
   const { enabled: aiEnabled, isLoading: flagLoading } = useFeature('ai_video_generation');
+  const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
+
+  const narrationConfig = narrationConfigRaw as NarrationConfig | null;
 
   // Continuation mode
   const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
@@ -110,8 +133,18 @@ export default function AIGeneratePanel({
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
 
+  // Narration state
+  const [narrationOpen, setNarrationOpen] = useState(false);
+  const [narrationText, setNarrationText] = useState('');
+  const [narrationVoiceId, setNarrationVoiceId] = useState<string | null>(null);
+  const [narrationAudioUrl, setNarrationAudioUrl] = useState<string | null>(null);
+  const [narrationAudioBase64, setNarrationAudioBase64] = useState<string | null>(null);
+  const [isNarrating, setIsNarrating] = useState(false);
+  const [narrationError, setNarrationError] = useState<string | null>(null);
+
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const completeResultRef = useRef<{
     generationId: string;
     falVideoUrl: string;
@@ -186,11 +219,41 @@ export default function AIGeneratePanel({
     }
   }, [generationId, stage, pollStatus]);
 
+  // Sync narration audio with video playback
+  useEffect(() => {
+    const video = videoRef.current;
+    const audio = audioRef.current;
+    if (!video || !audio || !narrationAudioUrl) return;
+
+    const onPlay = () => { audio.currentTime = video.currentTime; audio.play().catch(() => {}); };
+    const onPause = () => audio.pause();
+    const onSeeked = () => { audio.currentTime = video.currentTime; };
+
+    video.addEventListener('play', onPlay);
+    video.addEventListener('pause', onPause);
+    video.addEventListener('seeked', onSeeked);
+
+    // Start playing if video is already playing
+    if (!video.paused) {
+      audio.currentTime = video.currentTime;
+      audio.play().catch(() => {});
+    }
+
+    return () => {
+      video.removeEventListener('play', onPlay);
+      video.removeEventListener('pause', onPause);
+      video.removeEventListener('seeked', onSeeked);
+    };
+  }, [narrationAudioUrl]);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      // Revoke blob URLs
+      if (narrationAudioUrl) URL.revokeObjectURL(narrationAudioUrl);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ============================================================================
@@ -235,6 +298,67 @@ export default function AIGeneratePanel({
     }
   };
 
+  const handleGenerateNarration = async () => {
+    if (!generationId || !narrationText.trim() || !narrationVoiceId) {
+      setNarrationError('Please enter text and select a voice');
+      return;
+    }
+
+    setNarrationError(null);
+    setIsNarrating(true);
+
+    try {
+      await ensureToken();
+
+      const result = await csrfPost<{
+        success: boolean;
+        audioBase64?: string;
+        contentType?: string;
+        error?: string;
+      }>('/api/ai/narrate', {
+        generationId,
+        text: narrationText.trim(),
+        voiceId: narrationVoiceId,
+      });
+
+      if (!result.success || !result.audioBase64) {
+        throw new Error(result.error || 'Narration failed');
+      }
+
+      // Store base64 for submission
+      setNarrationAudioBase64(result.audioBase64);
+
+      // Create blob URL for preview
+      const binaryString = atob(result.audioBase64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      const blob = new Blob([bytes], { type: result.contentType || 'audio/mpeg' });
+
+      // Revoke previous blob URL if exists
+      if (narrationAudioUrl) URL.revokeObjectURL(narrationAudioUrl);
+
+      const blobUrl = URL.createObjectURL(blob);
+      setNarrationAudioUrl(blobUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Narration failed';
+      setNarrationError(message);
+    } finally {
+      setIsNarrating(false);
+    }
+  };
+
+  const handleRemoveNarration = () => {
+    if (narrationAudioUrl) URL.revokeObjectURL(narrationAudioUrl);
+    setNarrationText('');
+    setNarrationVoiceId(null);
+    setNarrationAudioUrl(null);
+    setNarrationAudioBase64(null);
+    setNarrationError(null);
+    if (audioRef.current) audioRef.current.pause();
+  };
+
   const handleSubmit = async () => {
     if (!generationId || !genre || !title.trim()) {
       setError('Please fill in genre and title');
@@ -247,59 +371,93 @@ export default function AIGeneratePanel({
     try {
       await ensureToken();
 
-      // Step 1: Get signed upload URL (reuse cached result on retry)
-      let falVideoUrl: string;
-      let signedUploadUrl: string;
-
-      if (completeResultRef.current && completeResultRef.current.generationId === generationId) {
-        falVideoUrl = completeResultRef.current.falVideoUrl;
-        signedUploadUrl = completeResultRef.current.signedUploadUrl;
-      } else {
+      // Step 1: Complete — with or without narration
+      if (narrationAudioBase64) {
+        // Narration path: server merges audio and uploads
         const completeResult = await csrfPost<{
           success: boolean;
-          falVideoUrl?: string;
-          signedUploadUrl?: string;
           storageKey?: string;
+          publicUrl?: string;
           error?: string;
-        }>('/api/ai/complete', { generationId });
+        }>('/api/ai/complete', {
+          generationId,
+          narrationAudioBase64,
+        });
 
-        if (!completeResult.success || !completeResult.falVideoUrl || !completeResult.signedUploadUrl) {
+        if (!completeResult.success || !completeResult.publicUrl) {
           throw new Error(completeResult.error || 'Failed to prepare submission');
         }
 
-        falVideoUrl = completeResult.falVideoUrl;
-        signedUploadUrl = completeResult.signedUploadUrl;
-        completeResultRef.current = { generationId, falVideoUrl, signedUploadUrl };
-      }
+        // Server already uploaded — go straight to register
+        const registerResult = await csrfPost<{
+          success: boolean;
+          clip?: { id: string };
+          error?: string;
+        }>('/api/ai/register', {
+          generationId,
+          genre,
+          title: title.trim(),
+          description: prompt.trim().slice(0, 500),
+        });
 
-      // Step 2: Fetch video from fal.ai
-      const videoRes = await fetch(falVideoUrl);
-      if (!videoRes.ok) throw new Error('Failed to download video');
-      const videoBlob = await videoRes.blob();
+        if (!registerResult.success) {
+          throw new Error(registerResult.error || 'Failed to register clip');
+        }
+      } else {
+        // Standard path: get signed URL, client downloads and uploads
+        let falVideoUrl: string;
+        let signedUploadUrl: string;
 
-      // Step 3: Upload to our storage via signed URL
-      const uploadRes = await fetch(signedUploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'video/mp4' },
-        body: videoBlob,
-      });
+        if (completeResultRef.current && completeResultRef.current.generationId === generationId) {
+          falVideoUrl = completeResultRef.current.falVideoUrl;
+          signedUploadUrl = completeResultRef.current.signedUploadUrl;
+        } else {
+          const completeResult = await csrfPost<{
+            success: boolean;
+            falVideoUrl?: string;
+            signedUploadUrl?: string;
+            storageKey?: string;
+            error?: string;
+          }>('/api/ai/complete', { generationId });
 
-      if (!uploadRes.ok) throw new Error('Failed to upload video to storage');
+          if (!completeResult.success || !completeResult.falVideoUrl || !completeResult.signedUploadUrl) {
+            throw new Error(completeResult.error || 'Failed to prepare submission');
+          }
 
-      // Step 4: Register as tournament clip
-      const registerResult = await csrfPost<{
-        success: boolean;
-        clip?: { id: string };
-        error?: string;
-      }>('/api/ai/register', {
-        generationId,
-        genre,
-        title: title.trim(),
-        description: prompt.trim().slice(0, 500),
-      });
+          falVideoUrl = completeResult.falVideoUrl;
+          signedUploadUrl = completeResult.signedUploadUrl;
+          completeResultRef.current = { generationId, falVideoUrl, signedUploadUrl };
+        }
 
-      if (!registerResult.success) {
-        throw new Error(registerResult.error || 'Failed to register clip');
+        // Step 2: Fetch video from fal.ai
+        const videoRes = await fetch(falVideoUrl);
+        if (!videoRes.ok) throw new Error('Failed to download video');
+        const videoBlob = await videoRes.blob();
+
+        // Step 3: Upload to our storage via signed URL
+        const uploadRes = await fetch(signedUploadUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'video/mp4' },
+          body: videoBlob,
+        });
+
+        if (!uploadRes.ok) throw new Error('Failed to upload video to storage');
+
+        // Step 4: Register as tournament clip
+        const registerResult = await csrfPost<{
+          success: boolean;
+          clip?: { id: string };
+          error?: string;
+        }>('/api/ai/register', {
+          generationId,
+          genre,
+          title: title.trim(),
+          description: prompt.trim().slice(0, 500),
+        });
+
+        if (!registerResult.success) {
+          throw new Error(registerResult.error || 'Failed to register clip');
+        }
       }
 
       setStage('done');
@@ -328,6 +486,9 @@ export default function AIGeneratePanel({
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
     if (pollRef.current) clearInterval(pollRef.current);
+    // Clear narration state
+    handleRemoveNarration();
+    setNarrationOpen(false);
   };
 
   const handleCancel = async () => {
@@ -368,6 +529,9 @@ export default function AIGeneratePanel({
 
   if (!aiEnabled) return null;
 
+  const maxNarrationChars = narrationConfig?.max_chars || 200;
+  const voices = narrationConfig?.voices || [];
+
   // Generating / polling states
   if (stage === 'queued' || stage === 'generating') {
     return (
@@ -405,7 +569,7 @@ export default function AIGeneratePanel({
     );
   }
 
-  // Ready — video preview + submit form
+  // Ready — video preview + narration + submit form
   if (stage === 'ready' && videoUrl) {
     return (
       <div className="space-y-6">
@@ -426,7 +590,129 @@ export default function AIGeneratePanel({
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
           </button>
+          {/* Narration badge on video */}
+          {narrationAudioBase64 && (
+            <div className="absolute top-3 left-3 px-2 py-1 rounded-full bg-green-500/80 text-xs font-medium flex items-center gap-1">
+              <Mic className="w-3 h-3" /> Narration added
+            </div>
+          )}
         </div>
+
+        {/* Hidden audio element for narration preview */}
+        {narrationAudioUrl && (
+          <audio ref={audioRef} src={narrationAudioUrl} loop />
+        )}
+
+        {/* Narration section (feature-flagged) */}
+        {narrationEnabled && voices.length > 0 && (
+          <div className="border border-white/10 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setNarrationOpen(!narrationOpen)}
+              className="w-full px-4 py-3 flex items-center justify-between text-sm hover:bg-white/5 transition"
+            >
+              <span className="flex items-center gap-2">
+                <Mic className="w-4 h-4 text-purple-400" />
+                <span className="font-medium">
+                  {narrationAudioBase64 ? 'Narration Added' : 'Add Narration'}
+                </span>
+                {narrationAudioBase64 && (
+                  <span className="text-green-400 text-xs">(voice-over will play with video)</span>
+                )}
+              </span>
+              {narrationOpen ? <ChevronUp className="w-4 h-4 text-white/40" /> : <ChevronDown className="w-4 h-4 text-white/40" />}
+            </button>
+
+            {narrationOpen && (
+              <div className="px-4 pb-4 space-y-4 border-t border-white/10 pt-3">
+                {/* Success state */}
+                {narrationAudioBase64 && (
+                  <div className="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl">
+                    <Check className="w-5 h-5 text-green-400 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-green-300">Narration ready</p>
+                      <p className="text-xs text-white/50 truncate">&quot;{narrationText}&quot;</p>
+                    </div>
+                    <button
+                      onClick={handleRemoveNarration}
+                      className="p-1.5 text-white/40 hover:text-red-400 transition"
+                      title="Remove narration"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Input form (hidden if narration already generated) */}
+                {!narrationAudioBase64 && (
+                  <>
+                    {/* Narration text */}
+                    <div>
+                      <textarea
+                        value={narrationText}
+                        onChange={(e) => setNarrationText(e.target.value.slice(0, maxNarrationChars))}
+                        placeholder="Type what the narrator should say..."
+                        rows={2}
+                        className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"
+                      />
+                      <p className="text-xs text-white/40 mt-1 text-right">
+                        {narrationText.length}/{maxNarrationChars}
+                      </p>
+                    </div>
+
+                    {/* Voice picker */}
+                    <div>
+                      <p className="text-xs text-white/50 mb-2">Select voice:</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {voices.map((v) => (
+                          <button
+                            key={v.id}
+                            onClick={() => setNarrationVoiceId(v.id)}
+                            className={`px-3 py-2 rounded-lg text-left text-sm transition-all ${
+                              narrationVoiceId === v.id
+                                ? 'bg-purple-500/20 border border-purple-500'
+                                : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                            }`}
+                          >
+                            <p className="font-medium text-xs">{v.name}</p>
+                            <p className="text-[10px] text-white/40">{v.gender} &middot; {v.style}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Narration error */}
+                    {narrationError && (
+                      <div className="p-2 bg-red-500/20 border border-red-500/40 rounded-lg text-red-400 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-3 h-3 shrink-0" /> {narrationError}
+                      </div>
+                    )}
+
+                    {/* Generate narration button */}
+                    <button
+                      onClick={handleGenerateNarration}
+                      disabled={!narrationText.trim() || !narrationVoiceId || isNarrating}
+                      className={`w-full py-2.5 rounded-lg font-medium text-sm flex items-center justify-center gap-2 transition ${
+                        narrationText.trim() && narrationVoiceId && !isNarrating
+                          ? 'bg-purple-500/30 border border-purple-500 text-purple-300 hover:bg-purple-500/40'
+                          : 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed'
+                      }`}
+                    >
+                      {isNarrating ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" /> Generating...
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="w-4 h-4" /> Generate Narration
+                        </>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Title input */}
         <input
@@ -496,7 +782,11 @@ export default function AIGeneratePanel({
         <Loader2 className="w-12 h-12 animate-spin text-purple-400 mx-auto" />
         <div>
           <h3 className="text-xl font-bold mb-1">Submitting...</h3>
-          <p className="text-white/60 text-sm">Transferring video and registering your clip</p>
+          <p className="text-white/60 text-sm">
+            {narrationAudioBase64
+              ? 'Merging narration and uploading your clip'
+              : 'Transferring video and registering your clip'}
+          </p>
         </div>
       </div>
     );

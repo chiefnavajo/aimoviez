@@ -37,14 +37,14 @@ export async function GET(request: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', todayStart);
 
-    // Cost today
+    // Cost today (video + narration)
     const { data: todayCostData } = await supabase
       .from('ai_generations')
-      .select('cost_cents')
+      .select('cost_cents, narration_cost_cents')
       .gte('created_at', todayStart)
       .in('status', ['completed', 'pending', 'processing']);
 
-    const todayCostCents = (todayCostData || []).reduce((s, r) => s + (r.cost_cents || 0), 0);
+    const todayCostCents = (todayCostData || []).reduce((s, r) => s + (r.cost_cents || 0) + (r.narration_cost_cents || 0), 0);
 
     // Count this week
     const { count: weekCount } = await supabase
@@ -52,14 +52,14 @@ export async function GET(request: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', weekStart);
 
-    // Cost this week
+    // Cost this week (video + narration)
     const { data: weekCostData } = await supabase
       .from('ai_generations')
-      .select('cost_cents')
+      .select('cost_cents, narration_cost_cents')
       .gte('created_at', weekStart)
       .in('status', ['completed', 'pending', 'processing']);
 
-    const weekCostCents = (weekCostData || []).reduce((s, r) => s + (r.cost_cents || 0), 0);
+    const weekCostCents = (weekCostData || []).reduce((s, r) => s + (r.cost_cents || 0) + (r.narration_cost_cents || 0), 0);
 
     // Count this month
     const { count: monthCount } = await supabase
@@ -67,14 +67,14 @@ export async function GET(request: NextRequest) {
       .select('id', { count: 'exact', head: true })
       .gte('created_at', monthStart);
 
-    // Cost this month
+    // Cost this month (video + narration)
     const { data: monthCostData } = await supabase
       .from('ai_generations')
-      .select('cost_cents')
+      .select('cost_cents, narration_cost_cents')
       .gte('created_at', monthStart)
       .in('status', ['completed', 'pending', 'processing']);
 
-    const monthCostCents = (monthCostData || []).reduce((s, r) => s + (r.cost_cents || 0), 0);
+    const monthCostCents = (monthCostData || []).reduce((s, r) => s + (r.cost_cents || 0) + (r.narration_cost_cents || 0), 0);
 
     // Success ratio (all time)
     const { count: totalCompleted } = await supabase
@@ -90,10 +90,10 @@ export async function GET(request: NextRequest) {
     const total = (totalCompleted || 0) + (totalFailed || 0);
     const successRatio = total > 0 ? (totalCompleted || 0) / total : 0;
 
-    // Cost by model (this month)
+    // Cost by model (this month, includes narration)
     const { data: modelCosts } = await supabase
       .from('ai_generations')
-      .select('model, cost_cents')
+      .select('model, cost_cents, narration_cost_cents')
       .gte('created_at', monthStart)
       .in('status', ['completed', 'pending', 'processing']);
 
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
         costByModel[row.model] = { count: 0, costCents: 0 };
       }
       costByModel[row.model].count++;
-      costByModel[row.model].costCents += row.cost_cents || 0;
+      costByModel[row.model].costCents += (row.cost_cents || 0) + (row.narration_cost_cents || 0);
     }
 
     // Top users this month (by generation count)

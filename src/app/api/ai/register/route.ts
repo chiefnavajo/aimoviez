@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     // 6. Look up generation (user owns, completed, no clip_id, has storage_key)
     const { data: gen, error: genError } = await supabase
       .from('ai_generations')
-      .select('id, status, model, prompt, style, storage_key, clip_id')
+      .select('id, status, model, prompt, style, storage_key, clip_id, narration_text')
       .eq('id', generationId)
       .eq('user_id', userId)
       .maybeSingle();
@@ -251,6 +251,7 @@ export async function POST(request: NextRequest) {
         ai_model: gen.model,
         ai_generation_id: gen.id,
         ai_style: gen.style || null,
+        has_narration: !!gen.narration_text,
       })
       .select()
       .single();

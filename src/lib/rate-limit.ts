@@ -45,6 +45,7 @@ export const RATE_LIMITS = {
   // AI generation endpoints
   ai_generate: { requests: 3, window: '1m' as const },
   ai_status: { requests: 30, window: '1m' as const },
+  ai_narrate: { requests: 5, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;
@@ -59,6 +60,7 @@ const CRITICAL_RATE_LIMIT_TYPES: ReadonlySet<RateLimitType> = new Set([
   'comment',
   'upload',
   'ai_generate',
+  'ai_narrate',
 ]);
 
 // ============================================================================
