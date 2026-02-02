@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // Keep ffmpeg-static as external so the binary isn't transformed by webpack
+  serverExternalPackages: ['ffmpeg-static'],
   images: {
     remotePatterns: [
       {
