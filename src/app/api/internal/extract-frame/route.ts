@@ -1,17 +1,24 @@
 // app/api/internal/extract-frame/route.ts
 // ============================================================================
-// FRAME EXTRACTION — Server-side last-frame extraction using ffmpeg-wasm.
+// FRAME EXTRACTION — Server-side last-frame extraction using ffmpeg-static.
 // Called fire-and-forget from winner selection paths.
 // Auth: CRON_SECRET bearer token (not user-facing).
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Vercel Pro — ffmpeg-wasm needs time
+export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getStorageProvider } from '@/lib/storage';
 import { uploadFrame } from '@/lib/storage/frame-upload';
+import { execFile } from 'child_process';
+import { writeFile, readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,6 +54,10 @@ export async function POST(req: NextRequest) {
 
   const supabase = getSupabase();
 
+  // Temp file paths for this extraction
+  const inputPath = path.join(tmpdir(), `extract_input_${clipId}.mp4`);
+  const outputPath = path.join(tmpdir(), `extract_output_${clipId}.jpg`);
+
   try {
     // 1. Look up the clip
     const { data: clip, error: clipError } = await supabase
@@ -71,7 +82,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Clip has no video_url' }, { status: 400 });
     }
 
-    // 2. Download video into memory
+    // 2. Download video to temp file
     console.log(`[extract-frame] Downloading video for clip ${clipId}...`);
     const videoRes = await fetch(clip.video_url, {
       signal: AbortSignal.timeout(30_000),
@@ -84,49 +95,46 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const videoBuffer = new Uint8Array(await videoRes.arrayBuffer());
+    const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
     console.log(`[extract-frame] Video downloaded: ${(videoBuffer.length / 1024 / 1024).toFixed(1)}MB`);
 
-    // 3. Extract last frame using ffmpeg-wasm
-    const { FFmpeg } = await import('@ffmpeg/ffmpeg');
-    const ffmpeg = new FFmpeg();
-    await ffmpeg.load();
+    await writeFile(inputPath, videoBuffer);
 
-    await ffmpeg.writeFile('input.mp4', videoBuffer);
+    // 3. Extract last frame using ffmpeg-static
+    const ffmpegPath = (await import('ffmpeg-static')).default;
+    if (!ffmpegPath) {
+      return NextResponse.json({ error: 'ffmpeg binary not found' }, { status: 500 });
+    }
 
-    // Seek to 0.1s before end, extract 1 frame as high-quality JPEG
-    await ffmpeg.exec([
-      '-sseof', '-0.1',
-      '-i', 'input.mp4',
-      '-frames:v', '1',
-      '-q:v', '2',
-      'output.jpg',
-    ]);
-
-    const frameData = await ffmpeg.readFile('output.jpg');
-
-    let finalFrameData: Uint8Array;
-
-    if (!(frameData instanceof Uint8Array) || frameData.length === 0) {
-      // Fallback: try extracting from the very end without -sseof
-      await ffmpeg.exec([
-        '-i', 'input.mp4',
+    try {
+      // Try extracting the last frame (-sseof -0.1 = 0.1s before end)
+      await execFileAsync(ffmpegPath, [
+        '-sseof', '-0.1',
+        '-i', inputPath,
         '-frames:v', '1',
         '-q:v', '2',
-        '-update', '1',
-        'fallback.jpg',
+        '-y',
+        outputPath,
       ]);
-
-      const fallbackData = await ffmpeg.readFile('fallback.jpg');
-      if (!(fallbackData instanceof Uint8Array) || fallbackData.length === 0) {
-        return NextResponse.json({ error: 'Frame extraction produced empty output' }, { status: 500 });
-      }
-
+    } catch {
+      // Fallback: extract first frame
       console.warn(`[extract-frame] -sseof failed, using first frame as fallback for clip ${clipId}`);
-      finalFrameData = fallbackData;
-    } else {
-      finalFrameData = frameData;
+      await execFileAsync(ffmpegPath, [
+        '-i', inputPath,
+        '-frames:v', '1',
+        '-q:v', '2',
+        '-y',
+        outputPath,
+      ]);
     }
+
+    const finalFrameData = new Uint8Array(await readFile(outputPath));
+
+    if (finalFrameData.length === 0) {
+      return NextResponse.json({ error: 'Frame extraction produced empty output' }, { status: 500 });
+    }
+
+    console.log(`[extract-frame] Frame extracted: ${(finalFrameData.length / 1024).toFixed(0)}KB`);
 
     // 4. Determine storage provider
     const { data: r2Flag } = await supabase
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
     const provider = await getStorageProvider((r2Flag as { enabled?: boolean } | null)?.enabled ?? false);
 
     // 5. Upload frame
-    console.log(`[extract-frame] Uploading frame (${(finalFrameData.length / 1024).toFixed(0)}KB) to ${provider}...`);
+    console.log(`[extract-frame] Uploading frame to ${provider}...`);
     const frameUrl = await uploadFrame(clipId, finalFrameData, provider);
 
     // 6. Update clip row with the frame URL
@@ -160,5 +168,9 @@ export async function POST(req: NextRequest) {
       { error: 'Frame extraction failed' },
       { status: 500 }
     );
+  } finally {
+    // Cleanup temp files
+    await unlink(inputPath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
   }
 }
