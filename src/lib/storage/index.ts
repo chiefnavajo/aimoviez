@@ -110,6 +110,47 @@ export function getPublicVideoUrl(
 }
 
 // ============================================================================
+// KEY EXTRACTION
+// ============================================================================
+
+/**
+ * Extract the storage key from a full video URL.
+ * Handles both Supabase and R2 URL formats.
+ * Returns { key, provider } where key is the path expected by deleteFiles().
+ */
+export function extractStorageKey(
+  videoUrl: string
+): { key: string; provider: StorageProvider } | null {
+  if (!videoUrl) return null;
+
+  try {
+    const url = new URL(videoUrl);
+    const pathname = url.pathname;
+
+    // Supabase URL: /storage/v1/object/public/clips/{filename}
+    const supabaseMatch = pathname.match(/\/storage\/v1\/object\/public\/clips\/(.+)/);
+    if (supabaseMatch) {
+      return { key: supabaseMatch[1], provider: 'supabase' };
+    }
+
+    // R2 or other CDN: /clips/{filename}
+    const cdnMatch = pathname.match(/\/clips\/(.+)/);
+    if (cdnMatch) {
+      return { key: cdnMatch[1], provider: 'r2' };
+    }
+
+    // Fallback: try the last segment
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length > 0) {
+      return { key: segments[segments.length - 1], provider: 'supabase' };
+    }
+  } catch {
+    // Invalid URL
+  }
+  return null;
+}
+
+// ============================================================================
 // FILE DELETION
 // ============================================================================
 

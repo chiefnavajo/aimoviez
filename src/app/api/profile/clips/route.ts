@@ -23,6 +23,11 @@ interface UserClip {
   status: 'pending' | 'approved' | 'competing' | 'locked_in' | 'eliminated';
   slot_status: 'upcoming' | 'voting' | 'locked' | 'archived';
   is_winner: boolean;
+  is_pinned: boolean;
+  eliminated_at: string | null;
+  elimination_reason: string | null;
+  video_deleted_at: string | null;
+  days_until_deletion: number | null;
 }
 
 interface ProfileClipsResponse {
@@ -82,7 +87,7 @@ export async function GET(req: NextRequest) {
     // Get user's clips from tournament_clips using user_id (UUID)
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
-      .select('id, video_url, thumbnail_url, username, genre, vote_count, weighted_score, rank_in_track, status, slot_position, created_at')
+      .select('id, video_url, thumbnail_url, username, genre, vote_count, weighted_score, rank_in_track, status, slot_position, created_at, is_pinned, eliminated_at, elimination_reason, video_deleted_at')
       .eq('user_id', userId)
       .order('created_at', { ascending: false })
       .limit(MAX_CLIPS);
@@ -118,23 +123,42 @@ export async function GET(req: NextRequest) {
       slots?.map((s) => [s.slot_position, s]) || []
     );
 
+    // Read grace period from feature flags
+    const { data: elimFlag } = await supabase
+      .from('feature_flags')
+      .select('config')
+      .eq('key', 'clip_elimination')
+      .maybeSingle();
+    const gracePeriodDays = (elimFlag?.config as Record<string, number>)?.grace_period_days ?? 14;
+
     // Enrich clips with status information
     const enrichedClips: UserClip[] = clips.map((clip) => {
       const slot = slotMap.get(clip.slot_position);
       const slot_status = slot?.status || 'upcoming';
       const is_winner = slot?.winner_tournament_clip_id === clip.id;
 
-      // Determine clip status based on slot status and winner
+      // Determine clip status — use DB status directly for eliminated clips
       let status: UserClip['status'] = 'approved';
 
-      if (is_winner) {
+      if (clip.status === 'eliminated') {
+        status = 'eliminated';
+      } else if (is_winner || clip.status === 'locked') {
         status = 'locked_in';
       } else if (slot_status === 'voting') {
         status = 'competing';
       } else if (slot_status === 'locked' && !is_winner) {
         status = 'eliminated';
       } else if (slot_status === 'upcoming') {
-        status = 'approved'; // Waiting for slot to open
+        status = 'approved';
+      }
+
+      // Calculate days until video deletion for eliminated clips
+      let days_until_deletion: number | null = null;
+      if (status === 'eliminated' && clip.eliminated_at && !clip.video_deleted_at && !clip.is_pinned) {
+        const eliminatedDate = new Date(clip.eliminated_at);
+        const deleteDate = new Date(eliminatedDate.getTime() + gracePeriodDays * 24 * 60 * 60 * 1000);
+        const daysLeft = Math.ceil((deleteDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+        days_until_deletion = Math.max(0, daysLeft);
       }
 
       return {
@@ -150,6 +174,11 @@ export async function GET(req: NextRequest) {
         status,
         slot_status,
         is_winner,
+        is_pinned: clip.is_pinned ?? false,
+        eliminated_at: clip.eliminated_at ?? null,
+        elimination_reason: clip.elimination_reason ?? null,
+        video_deleted_at: clip.video_deleted_at ?? null,
+        days_until_deletion,
       };
     });
 

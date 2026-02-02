@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { extractStorageKey, deleteFiles } from '@/lib/storage';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -107,6 +108,32 @@ export async function POST(request: NextRequest) {
       .from('tournament_clips')
       .select('id, video_url')
       .eq('user_id', userId);
+
+    // 3b. Delete video files from storage
+    if (userClips && userClips.length > 0) {
+      const supabaseKeys: string[] = [];
+      const r2Keys: string[] = [];
+
+      for (const clip of userClips) {
+        if (clip.video_url) {
+          const parsed = extractStorageKey(clip.video_url);
+          if (parsed) {
+            if (parsed.provider === 'r2') r2Keys.push(parsed.key);
+            else supabaseKeys.push(parsed.key);
+          }
+        }
+      }
+
+      if (supabaseKeys.length > 0) {
+        const { error: delError } = await deleteFiles(supabaseKeys, 'supabase');
+        if (delError) errors.push(`storage_supabase: ${delError}`);
+      }
+      if (r2Keys.length > 0) {
+        const { error: delError } = await deleteFiles(r2Keys, 'r2');
+        if (delError) errors.push(`storage_r2: ${delError}`);
+      }
+      deletionResults.video_files = supabaseKeys.length + r2Keys.length;
+    }
 
     // 4. Remove clip references from story_slots (set winner to null if it's this user's clip)
     if (userClips && userClips.length > 0) {

@@ -2,6 +2,7 @@
 -- ATOMIC ADMIN WINNER ASSIGNMENT
 -- This RPC function performs all winner assignment operations in a single transaction
 -- Prevents inconsistent state if any step fails
+-- Updated: Eliminates losing clips instead of carrying them forward
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION assign_winner_atomic(
@@ -24,7 +25,7 @@ RETURNS TABLE (
 DECLARE
   v_current_slot_position INTEGER;
   v_total_slots INTEGER;
-  v_clips_moved INTEGER := 0;
+  v_clips_eliminated INTEGER := 0;
   v_season_finished BOOLEAN := FALSE;
   v_now TIMESTAMP := NOW();
   v_voting_ends_at TIMESTAMP;
@@ -53,31 +54,39 @@ BEGIN
 
   -- 3. Handle slot advancement
   IF p_advance_slot THEN
+    -- Eliminate losing clips — they don't carry forward
+    WITH eliminated AS (
+      UPDATE tournament_clips
+      SET
+        status = 'eliminated',
+        eliminated_at = v_now,
+        elimination_reason = 'lost'
+      WHERE slot_position = v_current_slot_position
+        AND season_id = p_season_id
+        AND status = 'active'
+        AND id != p_clip_id
+      RETURNING id
+    )
+    SELECT COUNT(*) INTO v_clips_eliminated FROM eliminated;
+
     IF p_next_slot_position > COALESCE(v_total_slots, 75) THEN
       -- Season is finished
       UPDATE seasons
       SET status = 'finished'
       WHERE id = p_season_id;
 
+      -- Eliminate any remaining active clips in the season (safety net)
+      UPDATE tournament_clips
+      SET
+        status = 'eliminated',
+        eliminated_at = v_now,
+        elimination_reason = 'season_ended'
+      WHERE season_id = p_season_id
+        AND status = 'active';
+
       v_season_finished := TRUE;
     ELSE
-      -- Move non-winning clips to next slot FIRST (before activating)
-      WITH moved AS (
-        UPDATE tournament_clips
-        SET
-          slot_position = p_next_slot_position,
-          vote_count = 0,
-          weighted_score = 0,
-          hype_score = 0
-        WHERE slot_position = v_current_slot_position
-          AND season_id = p_season_id
-          AND status = 'active'
-          AND id != p_clip_id
-        RETURNING id
-      )
-      SELECT COUNT(*) INTO v_clips_moved FROM moved;
-
-      -- Safeguard: verify clips actually exist in next slot before activating
+      -- Check if next slot already has clips (from new uploads)
       IF (SELECT COUNT(*) FROM tournament_clips
           WHERE slot_position = p_next_slot_position
             AND season_id = p_season_id
@@ -94,7 +103,7 @@ BEGIN
         WHERE season_id = p_season_id
           AND slot_position = p_next_slot_position;
       ELSE
-        -- No clips — set to waiting_for_clips instead of voting
+        -- No clips — set to waiting_for_clips
         UPDATE story_slots
         SET
           status = 'waiting_for_clips',
@@ -106,14 +115,14 @@ BEGIN
     END IF;
   END IF;
 
-  -- Return result
+  -- Return result (clips_moved field now represents clips_eliminated for backward compat)
   RETURN QUERY SELECT
     TRUE,
     'Winner assigned successfully'::TEXT,
     p_clip_id,
     v_current_slot_position,
     CASE WHEN v_season_finished THEN NULL ELSE p_next_slot_position END,
-    v_clips_moved,
+    v_clips_eliminated,
     v_season_finished;
 
 EXCEPTION WHEN OTHERS THEN

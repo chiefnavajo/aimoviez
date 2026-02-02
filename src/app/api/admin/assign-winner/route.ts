@@ -224,25 +224,52 @@ export async function POST(req: NextRequest) {
       if (advanceSlot) {
         const totalSlots = season.total_slots ?? 75;
 
-        // First, move non-winning clips to next slot (to know how many will be there)
-        const { data: movedClips, error: moveError } = await supabase
+        // Eliminate losing clips — they don't carry forward
+        const { data: eliminatedClips, error: eliminateError } = await supabase
           .from('tournament_clips')
           .update({
-            slot_position: nextPosition,
-            vote_count: 0,
-            weighted_score: 0,
-            hype_score: 0,
+            status: 'eliminated',
+            eliminated_at: new Date().toISOString(),
+            elimination_reason: 'lost',
           })
           .eq('slot_position', activeSlot.slot_position)
           .eq('season_id', season.id)
           .eq('status', 'active')
           .neq('id', clipId)
-          .select('id');
+          .select('id, user_id, title');
 
-        if (moveError) {
-          console.error('[assign-winner] moveError:', moveError);
-        } else {
-          clipsMovedCount = movedClips?.length ?? 0;
+        if (eliminateError) {
+          console.error('[assign-winner] eliminateError:', eliminateError);
+        }
+        clipsMovedCount = eliminatedClips?.length ?? 0;
+
+        // Notify eliminated clip owners (fire-and-forget)
+        if (eliminatedClips && eliminatedClips.length > 0) {
+          (async () => {
+            try {
+              const { createNotification } = await import('@/lib/notifications');
+              const { data: flag } = await supabase
+                .from('feature_flags')
+                .select('config')
+                .eq('key', 'clip_elimination')
+                .maybeSingle();
+              const graceDays = (flag?.config as Record<string, number>)?.grace_period_days ?? 14;
+
+              for (const elClip of eliminatedClips) {
+                if (!elClip.user_id) continue;
+                await createNotification({
+                  user_key: `user_${elClip.user_id}`,
+                  type: 'clip_rejected',
+                  title: 'Your clip was eliminated',
+                  message: `"${elClip.title || 'Untitled'}" didn't win Slot ${activeSlot.slot_position}. Download or pin it within ${graceDays} days to keep the video.`,
+                  action_url: '/profile',
+                  metadata: { clipId: elClip.id, graceDays, slotPosition: activeSlot.slot_position },
+                });
+              }
+            } catch (e) {
+              console.error('[assign-winner] Elimination notification error (non-fatal):', e);
+            }
+          })();
         }
 
         // Check if season should finish: reached max slots
@@ -255,11 +282,22 @@ export async function POST(req: NextRequest) {
           if (finishError) {
             console.error('[assign-winner] finishError:', finishError);
           }
+
+          // Eliminate any remaining active clips in the season (safety net)
+          await supabase
+            .from('tournament_clips')
+            .update({
+              status: 'eliminated',
+              eliminated_at: new Date().toISOString(),
+              elimination_reason: 'season_ended',
+            })
+            .eq('season_id', season.id)
+            .eq('status', 'active');
+
           seasonFinished = true;
           console.log(`[assign-winner] Season finished: reached max slots`);
         } else {
-          // Safeguard: verify clips actually exist in next slot before activating
-          // (matches auto-advance behavior — prevents empty voting slots)
+          // Check if next slot already has clips (from new uploads)
           const { count: nextSlotClipCount } = await supabase
             .from('tournament_clips')
             .select('id', { count: 'exact', head: true })
@@ -268,7 +306,7 @@ export async function POST(req: NextRequest) {
             .eq('status', 'active');
 
           if (!nextSlotClipCount || nextSlotClipCount === 0) {
-            // No clips in next slot — set to waiting_for_clips instead of voting
+            // No clips in next slot — set to waiting_for_clips
             console.log(`[assign-winner] No active clips in slot ${nextPosition} — setting to waiting_for_clips`);
 
             await supabase

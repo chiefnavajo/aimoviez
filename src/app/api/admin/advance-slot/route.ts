@@ -217,6 +217,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // Eliminate any remaining active clips in the season
+      await supabase
+        .from('tournament_clips')
+        .update({
+          status: 'eliminated',
+          eliminated_at: new Date().toISOString(),
+          elimination_reason: 'season_ended',
+        })
+        .eq('season_id', seasonRow.id)
+        .eq('status', 'active');
+
       // Audit log season finish
       await logAdminAction(req, {
         action: 'advance_slot',
@@ -242,39 +253,74 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 7. FIRST: Move non-winning active clips to next slot (to know how many will be there)
-    // This keeps the competition going with same clips
-    const { data: movedClips, error: moveClipsError } = await supabase
+    // 7. Eliminate losing clips — they don't carry forward to next slot
+    const { data: eliminatedClips, error: eliminateError } = await supabase
       .from('tournament_clips')
       .update({
-        slot_position: nextPosition,
-        vote_count: 0,        // Reset votes for fair competition
-        weighted_score: 0,    // Reset weighted score
-        hype_score: 0,        // Reset hype score (match auto-advance behavior)
+        status: 'eliminated',
+        eliminated_at: new Date().toISOString(),
+        elimination_reason: 'lost',
       })
       .eq('slot_position', storySlot.slot_position)
       .eq('season_id', seasonRow.id)
       .eq('status', 'active')
-      .neq('id', winner.id)   // Don't move the winner
-      .select('id');
+      .neq('id', winner.id)
+      .select('id, user_id, title');
 
-    if (moveClipsError) {
-      console.error('[advance-slot] moveClipsError:', moveClipsError);
-      // Non-fatal - log but continue
+    if (eliminateError) {
+      console.error('[advance-slot] eliminateError:', eliminateError);
     }
 
-    const clipsMovedCount = movedClips?.length ?? 0;
-    console.log(`[advance-slot] Moved ${clipsMovedCount} clips to slot ${nextPosition}`);
+    const clipsEliminatedCount = eliminatedClips?.length ?? 0;
+    console.log(`[advance-slot] Eliminated ${clipsEliminatedCount} losing clips from slot ${storySlot.slot_position}`);
 
-    // 7b. If no clips moved, set next slot to 'waiting_for_clips' status
-    if (clipsMovedCount === 0) {
-      console.log('[advance-slot] No active clips moved to next slot - setting waiting_for_clips');
+    // Notify eliminated clip owners (fire-and-forget)
+    if (eliminatedClips && eliminatedClips.length > 0) {
+      (async () => {
+        try {
+          const { createNotification } = await import('@/lib/notifications');
+          const { data: flag } = await supabase
+            .from('feature_flags')
+            .select('config')
+            .eq('key', 'clip_elimination')
+            .maybeSingle();
+          const graceDays = (flag?.config as Record<string, number>)?.grace_period_days ?? 14;
 
-      // Set the next slot to waiting_for_clips status
+          for (const elClip of eliminatedClips) {
+            if (!elClip.user_id) continue;
+            await createNotification({
+              user_key: `user_${elClip.user_id}`,
+              type: 'clip_rejected',
+              title: 'Your clip was eliminated',
+              message: `"${elClip.title || 'Untitled'}" didn't win Slot ${storySlot.slot_position}. Download or pin it within ${graceDays} days to keep the video.`,
+              action_url: '/profile',
+              metadata: { clipId: elClip.id, graceDays, slotPosition: storySlot.slot_position },
+            });
+          }
+        } catch (e) {
+          console.error('[advance-slot] Elimination notification error (non-fatal):', e);
+        }
+      })();
+    }
+
+    // 7b. Check if next slot already has clips (from new uploads)
+    const { count: nextSlotClipCount } = await supabase
+      .from('tournament_clips')
+      .select('id', { count: 'exact', head: true })
+      .eq('slot_position', nextPosition)
+      .eq('season_id', seasonRow.id)
+      .eq('status', 'active');
+
+    if (!nextSlotClipCount || nextSlotClipCount === 0) {
+      // No clips in next slot — set to waiting_for_clips
+      console.log(`[advance-slot] No clips for slot ${nextPosition} - setting to waiting_for_clips`);
+
       const { data: waitingSlot, error: waitingSlotError } = await supabase
         .from('story_slots')
         .update({
           status: 'waiting_for_clips',
+          voting_started_at: null,
+          voting_ends_at: null,
         })
         .eq('season_id', seasonRow.id)
         .eq('slot_position', nextPosition)
@@ -285,7 +331,6 @@ export async function POST(req: NextRequest) {
         console.error('[advance-slot] waitingSlotError:', waitingSlotError);
       }
 
-      // Audit log the waiting status
       await logAdminAction(req, {
         action: 'advance_slot',
         resourceType: 'slot',
@@ -298,6 +343,7 @@ export async function POST(req: NextRequest) {
           seasonFinished: false,
           nextSlotStatus: 'waiting_for_clips',
           nextSlotId: waitingSlot?.id,
+          clipsEliminated: clipsEliminatedCount,
         },
       });
 
@@ -308,49 +354,15 @@ export async function POST(req: NextRequest) {
           waitingForClips: true,
           currentSlotLocked: storySlot.slot_position,
           winnerClipId: winner.id,
-          message: `Slot ${storySlot.slot_position} locked. Slot ${nextPosition} is now waiting for clips. Voting will resume when clips are uploaded or approved.`,
+          clipsEliminated: clipsEliminatedCount,
+          message: `Slot ${storySlot.slot_position} locked. Slot ${nextPosition} waiting for clips.`,
           nextSlotPosition: nextPosition,
         },
         { status: 200 }
       );
     }
 
-    // 8. Activate next slot with timer — but ONLY if clips actually exist in next slot
-    // Safeguard: verify clips were actually moved before starting the voting timer
-    const { count: nextSlotClipCount } = await supabase
-      .from('tournament_clips')
-      .select('id', { count: 'exact', head: true })
-      .eq('slot_position', nextPosition)
-      .eq('season_id', seasonRow.id)
-      .eq('status', 'active');
-
-    if (!nextSlotClipCount || nextSlotClipCount === 0) {
-      // Clips moved count said > 0 but no active clips found — set waiting_for_clips
-      console.warn(`[advance-slot] Safeguard: clipsMovedCount was ${clipsMovedCount} but 0 active clips in slot ${nextPosition} — setting waiting_for_clips`);
-
-      await supabase
-        .from('story_slots')
-        .update({
-          status: 'waiting_for_clips',
-          voting_started_at: null,
-          voting_ends_at: null,
-        })
-        .eq('season_id', seasonRow.id)
-        .eq('slot_position', nextPosition);
-
-      return NextResponse.json(
-        {
-          ok: true,
-          finished: false,
-          waitingForClips: true,
-          currentSlotLocked: storySlot.slot_position,
-          winnerClipId: winner.id,
-          message: `Slot ${storySlot.slot_position} locked. Slot ${nextPosition} is waiting for clips.`,
-          nextSlotPosition: nextPosition,
-        },
-        { status: 200 }
-      );
-    }
+    // 8. Clips exist in next slot — activate voting
 
     const durationHours = storySlot.voting_duration_hours || 24;
     const now = new Date();
@@ -399,7 +411,7 @@ export async function POST(req: NextRequest) {
         slotLocked: storySlot.slot_position,
         winnerClipId: winner.id,
         nextSlotPosition: nextPosition,
-        clipsMovedCount,
+        clipsEliminated: clipsEliminatedCount,
       },
     });
 
@@ -411,7 +423,7 @@ export async function POST(req: NextRequest) {
         winnerClipId: winner.id,
         nextSlotPosition: nextPosition,
         votingEndsAt: votingEndsAt.toISOString(),
-        clipsMovedToNextSlot: clipsMovedCount,
+        clipsEliminated: clipsEliminatedCount,
       },
       { status: 200 }
     );

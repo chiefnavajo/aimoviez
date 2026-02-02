@@ -9,7 +9,8 @@ import {
   User, Trophy, Flame, Film, Settings as SettingsIcon,
   TrendingUp, Calendar, Award, Lock, PlayCircle,
   Clock, Bell, LogOut, Heart,
-  ChevronRight, BookOpen, Plus, ShieldCheck, Play, Sparkles
+  ChevronRight, BookOpen, Plus, ShieldCheck, Play, Sparkles,
+  Download, Pin, PinOff, AlertTriangle
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReferralSection from '@/components/ReferralSection';
@@ -42,6 +43,11 @@ interface UserClip {
   genre: string;
   season_number: number;
   created_at: string;
+  is_pinned: boolean;
+  eliminated_at: string | null;
+  elimination_reason: string | null;
+  video_deleted_at: string | null;
+  days_until_deletion: number | null;
 }
 
 interface VotingHistoryItem {
@@ -97,6 +103,7 @@ function ProfilePageContent() {
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [settings, setSettings] = useState({ notifications: true, autoplay: true });
+  const [pinLoading, setPinLoading] = useState<string | null>(null);
   const [username, setUsername] = useState('User');
   const [avatarUrl, setAvatarUrl] = useState(`https://api.dicebear.com/7.x/avataaars/svg?seed=User`);
 
@@ -172,7 +179,7 @@ function ProfilePageContent() {
             let displayStatus: UserClip['status'] = 'approved';
             if (clip.status === 'locked_in') displayStatus = 'locked';
             else if (clip.status === 'competing') displayStatus = 'voting';
-            else if (clip.status === 'eliminated') displayStatus = 'rejected';
+            else if (clip.status === 'eliminated') displayStatus = 'eliminated';
             else if (clip.status === 'pending') displayStatus = 'pending';
 
             return {
@@ -185,6 +192,11 @@ function ProfilePageContent() {
               genre: clip.genre || 'Unknown',
               season_number: 1,
               created_at: clip.created_at,
+              is_pinned: clip.is_pinned ?? false,
+              eliminated_at: clip.eliminated_at ?? null,
+              elimination_reason: clip.elimination_reason ?? null,
+              video_deleted_at: clip.video_deleted_at ?? null,
+              days_until_deletion: clip.days_until_deletion ?? null,
             };
           });
           setClips(mappedClips);
@@ -218,6 +230,31 @@ function ProfilePageContent() {
   const handleRetry = () => {
     setError(null);
     setRetryCount(prev => prev + 1);
+  };
+
+  // Pin toggle handler
+  const handlePinToggle = async (clipId: string) => {
+    if (pinLoading) return;
+    setPinLoading(clipId);
+    try {
+      const res = await fetch('/api/profile/clips/pin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clipId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setClips(prev => prev.map(c =>
+          c.id === clipId ? { ...c, is_pinned: data.is_pinned, days_until_deletion: data.is_pinned ? null : c.days_until_deletion } : c
+        ));
+      } else {
+        alert(data.error || 'Failed to update pin');
+      }
+    } catch {
+      alert('Failed to update pin');
+    } finally {
+      setPinLoading(null);
+    }
   };
 
   const levelProgress = stats ? (stats.xp / stats.nextLevelXp) * 100 : 0;
@@ -358,7 +395,7 @@ function ProfilePageContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {clips.map((clip) => <ClipCard key={clip.id} clip={clip} />)}
+              {clips.map((clip) => <ClipCard key={clip.id} clip={clip} onPinToggle={handlePinToggle} />)}
             </div>
           )}
         </div>
@@ -692,14 +729,17 @@ function StatBox({ icon: Icon, label, value, subValue, index = 0, iconColor = 't
   );
 }
 
-function ClipCard({ clip }: { clip: UserClip }) {
+function ClipCard({ clip, onPinToggle }: { clip: UserClip; onPinToggle?: (clipId: string) => void }) {
+  const isVideoDeleted = !!clip.video_deleted_at;
+  const isEliminated = clip.status === 'eliminated';
+
   const statusConfig: Record<UserClip['status'], { color: string; bg: string; label: string; glow?: string }> = {
     pending: { color: 'text-yellow-500', bg: 'bg-yellow-500/20', label: 'Pending' },
     approved: { color: 'text-green-500', bg: 'bg-green-500/20', label: 'Approved' },
     voting: { color: 'text-orange-500', bg: 'bg-orange-500/20', label: 'LIVE', glow: 'animate-soft-pulse' },
     locked: { color: 'text-cyan-500', bg: 'bg-cyan-500/20', label: 'Winner', glow: 'glow-cyan' },
     rejected: { color: 'text-red-500', bg: 'bg-red-500/20', label: 'Eliminated' },
-    eliminated: { color: 'text-gray-500', bg: 'bg-gray-500/20', label: 'Eliminated' },
+    eliminated: { color: 'text-gray-500', bg: 'bg-gray-500/20', label: clip.elimination_reason === 'season_ended' ? 'Season Ended' : `Lost Slot #${clip.slot_position}` },
   };
   const config = statusConfig[clip.status] || statusConfig.approved;
 
@@ -709,42 +749,88 @@ function ClipCard({ clip }: { clip: UserClip }) {
     clip.thumbnail_url !== clip.video_url;
 
   return (
-    <Link href={`/clip/${clip.id}`}>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ scale: 1.01, y: -2 }}
-        className={`flex gap-4 p-4 glass-card glass-card-hover cursor-pointer ${config.glow || ''}`}
-      >
-        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
-          {isActualImage ? (
-            <Image src={clip.thumbnail_url!} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
-          ) : (
-            <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-          )}
-          {/* Play icon overlay */}
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      whileHover={{ scale: 1.01, y: -2 }}
+      className={`flex gap-4 p-4 glass-card glass-card-hover ${config.glow || ''}`}
+    >
+      <Link href={`/clip/${clip.id}`} className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
+        {isVideoDeleted ? (
+          <div className="w-full h-full flex items-center justify-center bg-white/5">
+            <AlertTriangle className="w-8 h-8 text-white/30" />
+          </div>
+        ) : isActualImage ? (
+          <Image src={clip.thumbnail_url!} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
+        ) : (
+          <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+        )}
+        {!isVideoDeleted && (
           <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
             <PlayCircle className="w-8 h-8 text-white/80" />
           </div>
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2 mb-2">
-            <div className="min-w-0">
-              <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
-              <div className="font-bold">{clip.genre}</div>
-            </div>
-            <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color} ${clip.status === 'voting' ? 'animate-pulse' : ''}`}>
-              {config.label}
-            </div>
+        )}
+        {clip.is_pinned && (
+          <div className="absolute top-1 left-1 w-5 h-5 bg-cyan-500 rounded-full flex items-center justify-center">
+            <Pin className="w-3 h-3 text-white" />
           </div>
-          <div className="flex items-center gap-2 text-sm">
-            <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
-            <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
+        )}
+      </Link>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <Link href={`/clip/${clip.id}`} className="min-w-0">
+            <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
+            <div className="font-bold">{clip.genre}</div>
+          </Link>
+          <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color} ${clip.status === 'voting' ? 'animate-pulse' : ''}`}>
+            {config.label}
           </div>
-          <div className="text-xs text-white/60 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
         </div>
-      </motion.div>
-    </Link>
+        <div className="flex items-center gap-2 text-sm">
+          <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
+          <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
+        </div>
+        <div className="text-xs text-white/60 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
+
+        {/* Elimination actions: download, pin, countdown */}
+        {isEliminated && !isVideoDeleted && (
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <a
+              href={clip.video_url}
+              download
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 px-2.5 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-xs font-medium transition-colors"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onPinToggle?.(clip.id);
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                clip.is_pinned
+                  ? 'bg-cyan-500/20 text-cyan-400 hover:bg-cyan-500/30'
+                  : 'bg-white/10 hover:bg-white/20'
+              }`}
+            >
+              {clip.is_pinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+              {clip.is_pinned ? 'Unpin' : 'Pin'}
+            </button>
+            {!clip.is_pinned && clip.days_until_deletion !== null && (
+              <span className={`text-xs font-medium ${clip.days_until_deletion <= 3 ? 'text-red-400' : 'text-white/50'}`}>
+                {clip.days_until_deletion} day{clip.days_until_deletion !== 1 ? 's' : ''} left
+              </span>
+            )}
+          </div>
+        )}
+        {isVideoDeleted && (
+          <div className="text-xs text-white/40 mt-2">Video deleted</div>
+        )}
+      </div>
+    </motion.div>
   );
 }
 

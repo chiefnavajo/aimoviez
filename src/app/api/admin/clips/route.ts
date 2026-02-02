@@ -33,14 +33,15 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || 'all';
     const seasonId = searchParams.get('season_id');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
 
     const supabase = getSupabaseClient();
 
-    // PERFORMANCE FIX: Select only needed columns instead of SELECT *
-    // Build query - sort by weighted_score (votes) descending, then by created_at
+    // Build query with pagination
     let query = supabase
       .from('tournament_clips')
-      .select('id, title, description, video_url, thumbnail_url, username, avatar_url, genre, vote_count, weighted_score, status, slot_position, season_id, created_at, user_id, is_ai_generated, ai_prompt, ai_model')
+      .select('id, title, description, video_url, thumbnail_url, username, avatar_url, genre, vote_count, weighted_score, status, slot_position, season_id, created_at, user_id, is_ai_generated, ai_prompt, ai_model', { count: 'exact' })
       .order('weighted_score', { ascending: false, nullsFirst: false })
       .order('vote_count', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
@@ -61,7 +62,12 @@ export async function GET(request: NextRequest) {
       query = query.eq('is_ai_generated', true);
     }
 
-    const { data: clips, error } = await query;
+    // Apply pagination
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+    query = query.range(from, to);
+
+    const { data: clips, error, count } = await query;
 
     if (error) {
       console.error('Database error:', error);
@@ -71,10 +77,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const totalCount = count ?? 0;
+    const totalPages = Math.ceil(totalCount / limit);
+
     return NextResponse.json({
       success: true,
       clips: clips || [],
       count: clips?.length || 0,
+      total: totalCount,
+      page,
+      limit,
+      totalPages,
     });
   } catch (error) {
     console.error('GET /api/admin/clips error:', error);

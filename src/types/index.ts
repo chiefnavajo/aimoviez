@@ -167,9 +167,13 @@ export interface DbClip {
   video_url: string;
   thumbnail_url: string;
   duration: number;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'active' | 'locked' | 'eliminated' | 'rejected';
   vote_count: number;
   weighted_score: number;
+  is_pinned?: boolean;
+  eliminated_at?: string | null;
+  elimination_reason?: string | null;
+  video_deleted_at?: string | null;
   created_at: string;
 }
 
