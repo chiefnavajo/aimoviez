@@ -101,10 +101,10 @@ export function InstallPrompt({ variant = 'banner' }: InstallPromptProps) {
             {/* Dismiss button */}
             <button
               onClick={dismissPrompt}
-              className="p-1.5 rounded-full hover:bg-white/10 transition-colors flex-shrink-0"
+              className="p-2 rounded-full hover:bg-white/20 active:bg-white/30 transition-colors flex-shrink-0"
               aria-label="Dismiss"
             >
-              <X className="w-4 h-4 text-white/60" />
+              <X className="w-5 h-5 text-white" />
             </button>
           </div>
         </div>
