@@ -386,6 +386,7 @@ export async function middleware(request: NextRequest) {
     '/api/csrf',
     '/api/health',
     '/api/cron/',
+    '/api/internal/',
     '/api/webhooks/',
     '/api/ai/webhook',
     '/api/notifications/subscribe',
