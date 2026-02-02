@@ -242,6 +242,13 @@ export async function GET(req: NextRequest) {
           .update({ status: 'locked' })
           .eq('id', topClip.id);
 
+        // Fire-and-forget: extract last frame for story continuity
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/extract-frame`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          body: JSON.stringify({ clipId: topClip.id }),
+        }).catch(e => console.warn('[auto-advance] Frame extraction failed (non-fatal):', e));
+
         // Eliminate losing clips — they don't carry forward to next slot
         const nextSlotPosition = slot.slot_position + 1;
         const { data: eliminatedClips } = await supabase

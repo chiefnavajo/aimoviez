@@ -6,7 +6,7 @@
 // Redirects to /upload if ai_video_generation flag is disabled.
 // ============================================================================
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, BookOpen, Heart, Trophy, User, Plus, Play } from 'lucide-react';
@@ -18,6 +18,7 @@ import AIGeneratePanel from '@/components/AIGeneratePanel';
 function CreatePageContent() {
   const router = useRouter();
   const { enabled: aiEnabled, isLoading } = useFeature('ai_video_generation');
+  const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
 
   // Redirect if AI is not enabled
   useEffect(() => {
@@ -25,6 +26,22 @@ function CreatePageContent() {
       router.replace('/upload');
     }
   }, [isLoading, aiEnabled, router]);
+
+  // Fetch last frame for story continuity
+  useEffect(() => {
+    async function fetchLastFrame() {
+      try {
+        const res = await fetch('/api/story/last-frame');
+        const data = await res.json();
+        if (data.lastFrameUrl) {
+          setLastFrameUrl(data.lastFrameUrl);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    fetchLastFrame();
+  }, []);
 
   if (isLoading) {
     return (
@@ -67,7 +84,7 @@ function CreatePageContent() {
               <h1 className="text-3xl font-black mb-2">Create with AI</h1>
               <p className="text-white/60">Describe your scene and let AI generate an 8-second video clip</p>
             </div>
-            <AIGeneratePanel compact={false} />
+            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} />
           </div>
         </div>
       </div>
@@ -83,7 +100,7 @@ function CreatePageContent() {
             <h1 className="text-2xl font-black mb-1">Create with AI</h1>
             <p className="text-sm text-white/60">Describe your scene and let AI create it</p>
           </div>
-          <AIGeneratePanel compact={false} />
+          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} />
         </div>
         <BottomNavigation />
       </div>

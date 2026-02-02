@@ -156,6 +156,111 @@ export async function startGeneration(
 }
 
 // =============================================================================
+// IMAGE-TO-VIDEO MODELS
+// =============================================================================
+
+export const IMAGE_TO_VIDEO_MODELS: Record<string, { modelId: string; costCents: number }> = {
+  'kling-2.6': {
+    modelId: 'fal-ai/kling-video/v2.6/pro/image-to-video',
+    costCents: 35,
+  },
+  'hailuo-2.3': {
+    modelId: 'fal-ai/minimax/hailuo-2.3/pro/image-to-video',
+    costCents: 49,
+  },
+  'sora-2': {
+    modelId: 'fal-ai/sora-2/image-to-video',
+    costCents: 80,
+  },
+  // veo3-fast excluded — no confirmed image-to-video variant
+};
+
+export function supportsImageToVideo(modelKey: string): boolean {
+  return modelKey in IMAGE_TO_VIDEO_MODELS;
+}
+
+// =============================================================================
+// BUILD IMAGE-TO-VIDEO INPUT (model-specific)
+// =============================================================================
+
+export function buildImageToVideoInput(
+  model: string,
+  rawPrompt: string,
+  imageUrl: string,
+  style?: string,
+  enableAudio: boolean = false
+): Record<string, unknown> {
+  const styledPrompt = style && STYLE_PREFIXES[style]
+    ? `${STYLE_PREFIXES[style]} ${rawPrompt}`
+    : rawPrompt;
+
+  switch (model) {
+    case 'hailuo-2.3':
+      return {
+        prompt: styledPrompt,
+        image_url: imageUrl,
+        prompt_optimizer: true,
+      };
+
+    case 'kling-2.6':
+      return {
+        prompt: styledPrompt,
+        image_url: imageUrl,
+        negative_prompt: DEFAULT_NEGATIVE_PROMPTS['kling-2.6'],
+        aspect_ratio: '9:16',
+        duration: '5',
+        generate_audio: enableAudio,
+      };
+
+    case 'sora-2':
+      return {
+        prompt: styledPrompt,
+        image_url: imageUrl,
+        duration: 8,
+        aspect_ratio: '9:16',
+      };
+
+    default:
+      throw new Error(`Image-to-video not supported for model: ${model}`);
+  }
+}
+
+// =============================================================================
+// START IMAGE-TO-VIDEO GENERATION
+// =============================================================================
+
+export async function startImageToVideoGeneration(
+  modelKey: string,
+  prompt: string,
+  imageUrl: string,
+  style: string | undefined,
+  webhookUrl: string
+): Promise<{ requestId: string }> {
+  const i2vConfig = IMAGE_TO_VIDEO_MODELS[modelKey];
+  if (!i2vConfig) throw new Error(`Image-to-video not supported for model: ${modelKey}`);
+
+  const t2vConfig = MODELS[modelKey];
+  if (!t2vConfig) throw new Error(`Unknown model: ${modelKey}`);
+
+  const input = buildImageToVideoInput(modelKey, prompt, imageUrl, style, t2vConfig.supportsAudio);
+
+  const result = await fal.queue.submit(i2vConfig.modelId, {
+    input,
+    webhookUrl,
+  });
+
+  return { requestId: result.request_id };
+}
+
+// =============================================================================
+// IMAGE-TO-VIDEO MODEL CONFIG HELPER
+// =============================================================================
+
+export function getImageToVideoModelConfig(modelKey: string): { modelId: string; costCents: number } | null {
+  return IMAGE_TO_VIDEO_MODELS[modelKey] ?? null;
+}
+
+// =============================================================================
 // PROMPT SANITIZATION
 // =============================================================================
 

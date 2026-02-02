@@ -203,6 +203,7 @@ export const AIGenerateSchema = z.object({
   model: z.enum(AI_MODELS).default('kling-2.6'),
   style: z.enum(AI_STYLES).optional(),
   genre: z.string().optional(),
+  image_url: z.string().url().optional(),
 }).strict();
 
 export type AIGenerateRequest = z.infer<typeof AIGenerateSchema>;

@@ -177,6 +177,13 @@ export async function POST(req: NextRequest) {
       clipsMovedCount = result.clips_moved || 0;
       seasonFinished = result.season_finished || false;
 
+      // Fire-and-forget: extract last frame for story continuity
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/extract-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        body: JSON.stringify({ clipId }),
+      }).catch(e => console.warn('[assign-winner] Frame extraction failed (non-fatal):', e));
+
       if (!seasonFinished && result.next_slot_position) {
         const now = new Date();
         const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
@@ -219,6 +226,13 @@ export async function POST(req: NextRequest) {
       if (lockClipError) {
         console.error('[assign-winner] lockClipError:', lockClipError);
       }
+
+      // Fire-and-forget: extract last frame for story continuity (legacy path)
+      fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/extract-frame`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
+        body: JSON.stringify({ clipId }),
+      }).catch(e => console.warn('[assign-winner] Frame extraction failed (non-fatal):', e));
 
       // Legacy: If advanceSlot is true, set up the next slot
       if (advanceSlot) {

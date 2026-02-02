@@ -192,6 +192,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Fire-and-forget: extract last frame for story continuity
+    fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/extract-frame`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.CRON_SECRET}` },
+      body: JSON.stringify({ clipId: winner.id }),
+    }).catch(e => console.warn('[advance-slot] Frame extraction failed (non-fatal):', e));
+
     // 6. Przygotuj następny slot
     const nextPosition = storySlot.slot_position + 1;
 

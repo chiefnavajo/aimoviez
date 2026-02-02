@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn, Play, Sparkles } from 'lucide-react';
+import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn, Play, Sparkles, Film, Zap } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -74,7 +74,11 @@ function UploadPageContent() {
   const [seasonStatus, setSeasonStatus] = useState<'loading' | 'active' | 'ended' | 'none'>('loading');
   const [finishedSeasonName, setFinishedSeasonName] = useState<string | null>(null);
 
-  // Check season status on mount
+  // Continuation mode
+  const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
+  const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
+
+  // Check season status + last frame on mount
   useEffect(() => {
     async function checkSeasonStatus() {
       try {
@@ -90,11 +94,24 @@ function UploadPageContent() {
           setSeasonStatus('none');
         }
       } catch {
-        // If check fails, allow upload attempt (backend will validate)
         setSeasonStatus('active');
       }
     }
+
+    async function fetchLastFrame() {
+      try {
+        const res = await fetch('/api/story/last-frame');
+        const data = await res.json();
+        if (data.lastFrameUrl) {
+          setLastFrameUrl(data.lastFrameUrl);
+        }
+      } catch {
+        // Non-critical — just skip continuation option
+      }
+    }
+
     checkSeasonStatus();
+    fetchLastFrame();
   }, []);
 
   // Cleanup interval on unmount
@@ -398,8 +415,45 @@ function UploadPageContent() {
         {/* Not authenticated - show login */}
         {!isAuthenticated && renderLoginRequired()}
 
+        {/* CONTINUATION CHOICE (before step 1) */}
+        {isAuthenticated && step === 1 && lastFrameUrl && continuationMode === null && (
+          <motion.div key="continuation" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
+            <div className="text-center mb-4">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-2">Continue the Story?</h1>
+              <p className="text-sm sm:text-base text-white/60">The previous scene ended with this frame</p>
+            </div>
+
+            <div className="relative aspect-video max-w-sm mx-auto rounded-xl overflow-hidden border border-white/20">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={lastFrameUrl} alt="Last frame from previous clip" className="w-full h-full object-cover" />
+              <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-white/80">
+                Previous scene
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setContinuationMode('continue')}
+                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+              >
+                <Film className="w-5 h-5" />
+                Continue from last scene
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setContinuationMode('fresh')}
+                className="w-full py-4 bg-white/10 border border-white/20 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+              >
+                <Zap className="w-5 h-5" />
+                Start fresh
+              </motion.button>
+            </div>
+          </motion.div>
+        )}
+
         {/* STEP 1: Select Video */}
-        {isAuthenticated && step === 1 && (
+        {isAuthenticated && step === 1 && (!lastFrameUrl || continuationMode !== null) && (
           <motion.div key="step1" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6">
             <div className="text-center mb-6 sm:mb-8">
               <h1 className="text-xl sm:text-2xl md:text-3xl font-black mb-2">Upload Your 8-Second Clip</h1>
@@ -459,6 +513,21 @@ function UploadPageContent() {
               )}
               <input ref={fileInputRef} type="file" accept="video/*" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
             </div>
+
+            {/* Reference frame when continuing */}
+            {continuationMode === 'continue' && lastFrameUrl && (
+              <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={lastFrameUrl} alt="Reference frame" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white/80">Reference frame</p>
+                  <p className="text-xs text-white/50">Match this scene for story continuity</p>
+                </div>
+                <button onClick={() => setContinuationMode('fresh')} className="text-xs text-white/40 hover:text-white/60 flex-shrink-0">
+                  Skip
+                </button>
+              </div>
+            )}
 
             {/* Errors */}
             {errors.length > 0 && (

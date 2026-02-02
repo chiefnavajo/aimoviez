@@ -89,7 +89,7 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     // Styles: self + inline (Tailwind/Next.js requires inline styles)
     "style-src 'self' 'unsafe-inline'",
     // Images: self + data URIs + external sources (Supabase, DiceBear, Google)
-    "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
+    "img-src 'self' data: blob: https://*.supabase.co https://api.dicebear.com https://*.googleusercontent.com https://lh3.googleusercontent.com https://cdn.aimoviez.app",
     // Fonts: self + Google Fonts
     "font-src 'self' https://fonts.gstatic.com",
     // Connect: API calls to self + Supabase + Google + R2 storage + fal.ai (video download during submit)

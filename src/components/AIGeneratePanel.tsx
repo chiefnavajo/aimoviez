@@ -8,17 +8,18 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Sparkles,
   Loader2,
   AlertCircle,
   Check,
   RefreshCw,
-  Play,
   Volume2,
   VolumeX,
   X,
+  Film,
+  Zap,
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -33,7 +34,11 @@ interface AIGeneratePanelProps {
   preselectedGenre?: string;
   onComplete?: () => void;
   compact?: boolean;
+  lastFrameUrl?: string | null;
 }
+
+// Models that support image-to-video on fal.ai
+const I2V_SUPPORTED_MODELS = new Set(['kling-2.6', 'hailuo-2.3', 'sora-2']);
 
 const STYLES = [
   { id: 'cinematic', label: 'Cinematic', emoji: '🎬' },
@@ -82,10 +87,14 @@ export default function AIGeneratePanel({
   preselectedGenre,
   onComplete,
   compact = false,
+  lastFrameUrl,
 }: AIGeneratePanelProps) {
   const router = useRouter();
-  const { post: csrfPost, ensureToken, fetch: secureFetch } = useCsrf();
+  const { post: csrfPost, ensureToken } = useCsrf();
   const { enabled: aiEnabled, isLoading: flagLoading } = useFeature('ai_video_generation');
+
+  // Continuation mode
+  const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
 
   // Form state
   const [prompt, setPrompt] = useState('');
@@ -209,6 +218,7 @@ export default function AIGeneratePanel({
         model,
         style: style || undefined,
         genre: genre || undefined,
+        ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
       });
 
       if (!result.success || !result.generationId) {
@@ -533,9 +543,61 @@ export default function AIGeneratePanel({
     );
   }
 
+  // Idle — continuation choice (if lastFrameUrl available)
+  if (lastFrameUrl && continuationMode === null && stage === 'idle') {
+    return (
+      <div className="space-y-5">
+        <div className="text-center">
+          <p className="text-sm text-white/60 mb-3">The previous scene ended with this frame</p>
+        </div>
+        <div className="relative aspect-video max-w-sm mx-auto rounded-xl overflow-hidden border border-white/20">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lastFrameUrl} alt="Last frame from previous clip" className="w-full h-full object-cover" />
+          <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-white/80">
+            Previous scene
+          </div>
+        </div>
+        <div className="flex flex-col gap-3">
+          <button
+            onClick={() => {
+              setContinuationMode('continue');
+              if (!I2V_SUPPORTED_MODELS.has(model)) setModel('kling-2.6');
+            }}
+            className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+          >
+            <Film className="w-5 h-5" />
+            Continue from last scene
+          </button>
+          <button
+            onClick={() => setContinuationMode('fresh')}
+            className="w-full py-4 bg-white/10 border border-white/20 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
+          >
+            <Zap className="w-5 h-5" />
+            Start fresh
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // Idle — prompt form
   return (
     <div className="space-y-5">
+      {/* Reference frame banner when continuing */}
+      {continuationMode === 'continue' && lastFrameUrl && (
+        <div className="flex items-center gap-3 p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lastFrameUrl} alt="Reference frame" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-purple-300">Continuing from last scene</p>
+            <p className="text-xs text-white/50">AI will generate video starting from this frame</p>
+          </div>
+          <button onClick={() => setContinuationMode('fresh')} className="text-xs text-white/40 hover:text-white/60 flex-shrink-0">
+            Switch
+          </button>
+        </div>
+      )}
+
       {/* Prompt input */}
       <div>
         <textarea
@@ -586,9 +648,9 @@ export default function AIGeneratePanel({
       {/* Model picker (non-compact) */}
       {!compact && (
         <div>
-          <p className="text-sm text-white/60 mb-2">Model:</p>
+          <p className="text-sm text-white/60 mb-2">Model:{continuationMode === 'continue' ? ' (image-to-video compatible)' : ''}</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {MODELS.map((m) => (
+            {MODELS.filter(m => continuationMode !== 'continue' || I2V_SUPPORTED_MODELS.has(m.id)).map((m) => (
               <button
                 key={m.id}
                 onClick={() => setModel(m.id)}

@@ -12,7 +12,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
 import { AIGenerateSchema, parseBody } from '@/lib/validations';
 import crypto from 'crypto';
-import { sanitizePrompt, getModelConfig, startGeneration } from '@/lib/ai-video';
+import { sanitizePrompt, getModelConfig, startGeneration, supportsImageToVideo, startImageToVideoGeneration, getImageToVideoModelConfig } from '@/lib/ai-video';
 
 // =============================================================================
 // SUPABASE CLIENT
@@ -180,12 +180,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 10b. Image-to-video validation (if image_url provided)
+    const isImageToVideo = !!validated.image_url;
+    if (isImageToVideo) {
+      // Validate the image URL points to our own storage (prevent abuse)
+      try {
+        const imgHost = new URL(validated.image_url!).hostname;
+        const supabaseHost = new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').hostname;
+        const r2Host = process.env.CLOUDFLARE_R2_PUBLIC_URL
+          ? new URL(process.env.CLOUDFLARE_R2_PUBLIC_URL).hostname
+          : null;
+
+        if (imgHost !== supabaseHost && imgHost !== r2Host) {
+          return NextResponse.json(
+            { success: false, error: 'Image URL must point to our storage' },
+            { status: 400 }
+          );
+        }
+      } catch {
+        return NextResponse.json(
+          { success: false, error: 'Invalid image URL' },
+          { status: 400 }
+        );
+      }
+
+      if (!supportsImageToVideo(validated.model)) {
+        return NextResponse.json(
+          { success: false, error: `Image-to-video is not supported for ${validated.model}. Try kling-2.6, hailuo-2.3, or sora-2.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Use i2v cost if available (may differ from t2v in the future)
+    const effectiveCostCents = isImageToVideo
+      ? (getImageToVideoModelConfig(validated.model)?.costCents ?? modelConfig.costCents)
+      : modelConfig.costCents;
+
     // 11. Global cost cap check
     const { data: costCapOk, error: costCapError } = await supabase
       .rpc('check_global_cost_cap', {
         p_daily_limit_cents: dailyCostLimitCents,
         p_monthly_limit_cents: monthlyCostLimitCents,
-        p_new_cost_cents: modelConfig.costCents,
+        p_new_cost_cents: effectiveCostCents,
       });
 
     if (costCapError) {
@@ -214,7 +251,8 @@ export async function POST(request: NextRequest) {
         model: validated.model,
         style: validated.style || null,
         genre: validated.genre || null,
-        cost_cents: modelConfig.costCents,
+        cost_cents: effectiveCostCents,
+        image_url: validated.image_url || null,
       })
       .select('id')
       .single();
@@ -227,16 +265,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 13. Submit to fal.ai
+    // 13. Submit to fal.ai (text-to-video or image-to-video)
     const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/webhook`;
 
     try {
-      const { requestId } = await startGeneration(
-        validated.model,
-        sanitizedPrompt,
-        validated.style,
-        webhookUrl
-      );
+      const { requestId } = isImageToVideo
+        ? await startImageToVideoGeneration(
+            validated.model,
+            sanitizedPrompt,
+            validated.image_url!,
+            validated.style,
+            webhookUrl
+          )
+        : await startGeneration(
+            validated.model,
+            sanitizedPrompt,
+            validated.style,
+            webhookUrl
+          );
 
       // 14. Update row with real fal_request_id
       const { error: updateError } = await supabase
