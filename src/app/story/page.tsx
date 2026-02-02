@@ -1866,36 +1866,38 @@ function StoryPage() {
               </div>
             </Link>
 
-            {/* Segment Navigation Arrows */}
+            {/* Segment Navigation Arrows - aligned under Profile icon */}
             {totalSegments > 1 && (
-              <div className="flex flex-col items-center gap-2 px-3 pt-4 mt-2">
-                <motion.button
-                  whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => videoPlayerRef.current?.goPrev()}
-                  className={`w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
-                    currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
-                  }`}
-                  disabled={currentSegmentIndex === 0}
-                >
-                  <ChevronDown className="w-5 h-5 text-white rotate-180" />
-                </motion.button>
+              <div className="flex flex-col items-start gap-2 px-3 pt-4 mt-2">
+                <div className="flex flex-col items-center gap-2 w-6">
+                  <motion.button
+                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => videoPlayerRef.current?.goPrev()}
+                    className={`w-10 h-10 -ml-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                      currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
+                    }`}
+                    disabled={currentSegmentIndex === 0}
+                  >
+                    <ChevronDown className="w-5 h-5 text-white rotate-180" />
+                  </motion.button>
 
-                <span className="text-white/80 text-sm font-medium drop-shadow-lg">
-                  {currentSegmentIndex + 1}/{totalSegments}
-                </span>
+                  <span className="text-white/80 text-sm font-medium drop-shadow-lg">
+                    {currentSegmentIndex + 1}/{totalSegments}
+                  </span>
 
-                <motion.button
-                  whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => videoPlayerRef.current?.goNext()}
-                  className={`w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
-                    currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
-                  }`}
-                  disabled={currentSegmentIndex >= totalSegments - 1}
-                >
-                  <ChevronDown className="w-5 h-5 text-white" />
-                </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => videoPlayerRef.current?.goNext()}
+                    className={`w-10 h-10 -ml-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                      currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
+                    }`}
+                    disabled={currentSegmentIndex >= totalSegments - 1}
+                  >
+                    <ChevronDown className="w-5 h-5 text-white" />
+                  </motion.button>
+                </div>
               </div>
             )}
           </nav>
