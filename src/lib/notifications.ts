@@ -13,6 +13,7 @@ export type NotificationType =
   | 'daily_goal_reached'
   | 'new_follower'
   | 'comment_received'
+  | 'vote_received'
   | 'system_announcement';
 
 /**

@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Get current clip status for validation and audit log
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('status, username, slot_position, season_id')
+      .select('status, username, slot_position, season_id, user_id')
       .eq('id', clipId)
       .single();
 
@@ -140,6 +140,22 @@ export async function POST(request: NextRequest) {
         reason: reason || null,
       },
     });
+
+    // Fire-and-forget: Notify clip owner about rejection
+    if (currentClip?.user_id) {
+      import('@/lib/notifications').then(({ createNotification }) => {
+        createNotification({
+          user_key: `user_${currentClip.user_id}`,
+          type: 'clip_rejected',
+          title: 'Clip not approved',
+          message: reason
+            ? `Your clip was not approved: ${reason}`
+            : 'Your clip was not approved. Check guidelines for details.',
+          action_url: '/profile',
+          metadata: { clipId, reason: reason || null },
+        }).catch(e => console.error('[reject] Notification error (non-fatal):', e));
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

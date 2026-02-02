@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'react-hot-toast';
@@ -11,6 +11,9 @@ import {
   Reply, Smile
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
+import { useRealtimeComments } from '@/hooks/useRealtimeComments';
+import type { NewCommentPayload, CommentLikedPayload, CommentDeletedPayload } from '@/hooks/useRealtimeComments';
+import ReportModal from '@/components/ReportModal';
 
 // ============================================================================
 // COMMENTS SECTION COMPONENT
@@ -38,6 +41,7 @@ interface Comment {
   is_own: boolean;
   is_liked: boolean;
   replies?: Comment[];
+  total_replies?: number;
 }
 
 interface CommentsSectionProps {
@@ -82,12 +86,15 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   const [total, setTotal] = useState(0);
   const [showEmojis, setShowEmojis] = useState(false);
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
+  const [reportComment, setReportComment] = useState<Comment | null>(null);
+  const [loadingReplies, setLoadingReplies] = useState<Set<string>>(new Set());
 
   // Use ref for synchronous race condition prevention (state is async)
   const likingCommentsRef = useRef<Set<string>>(new Set());
 
   const inputRef = useRef<HTMLInputElement>(null);
   const commentsContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -98,6 +105,70 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
 
   // CSRF protection for API calls
   const { getHeaders } = useCsrf();
+
+  // Real-time comments via Supabase Broadcast
+  const handleRealtimeNewComment = useCallback((payload: NewCommentPayload) => {
+    const incomingComment: Comment = {
+      id: payload.id,
+      clip_id: payload.clipId,
+      user_key: '',
+      username: payload.username,
+      avatar_url: payload.avatarUrl,
+      comment_text: payload.commentText,
+      likes_count: 0,
+      parent_comment_id: payload.parentCommentId,
+      created_at: new Date(payload.timestamp).toISOString(),
+      is_own: false,
+      is_liked: false,
+      replies: [],
+    };
+
+    if (payload.parentCommentId) {
+      setComments(prev => prev.map(c => {
+        if (c.id === payload.parentCommentId) {
+          if (c.replies?.some(r => r.id === payload.id)) return c;
+          return { ...c, replies: [...(c.replies || []), incomingComment] };
+        }
+        return c;
+      }));
+    } else {
+      setComments(prev => {
+        if (prev.some(c => c.id === payload.id)) return prev;
+        return [incomingComment, ...prev];
+      });
+      setTotal(prev => prev + 1);
+    }
+  }, []);
+
+  const handleRealtimeCommentLiked = useCallback((payload: CommentLikedPayload) => {
+    const updateLikes = (c: Comment): Comment => {
+      if (c.id === payload.commentId) {
+        return { ...c, likes_count: payload.likesCount };
+      }
+      if (c.replies) {
+        return { ...c, replies: c.replies.map(updateLikes) };
+      }
+      return c;
+    };
+    setComments(prev => prev.map(updateLikes));
+  }, []);
+
+  const handleRealtimeCommentDeleted = useCallback((payload: CommentDeletedPayload) => {
+    setComments(prev => prev
+      .filter(c => c.id !== payload.commentId)
+      .map(c => ({
+        ...c,
+        replies: c.replies?.filter(r => r.id !== payload.commentId),
+      }))
+    );
+  }, []);
+
+  useRealtimeComments(clipId, {
+    enabled: isOpen,
+    onNewComment: handleRealtimeNewComment,
+    onCommentLiked: handleRealtimeCommentLiked,
+    onCommentDeleted: handleRealtimeCommentDeleted,
+  });
 
   // Focus trap and keyboard handling
   useEffect(() => {
@@ -428,6 +499,71 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
     }
   };
 
+  // Fetch more replies for a parent comment beyond the initial 5
+  const fetchMoreReplies = async (parentCommentId: string) => {
+    if (loadingReplies.has(parentCommentId)) return;
+
+    setLoadingReplies(prev => new Set([...prev, parentCommentId]));
+    try {
+      const currentReplies = comments.find(c => c.id === parentCommentId)?.replies || [];
+      const offset = currentReplies.length;
+
+      const res = await fetch(
+        `/api/comments?clipId=${clipId}&parentId=${parentCommentId}&offset=${offset}&limit=50`
+      );
+
+      if (!res.ok) {
+        toast.error('Failed to load more replies');
+        return;
+      }
+
+      const data = await res.json();
+      if (data.replies && data.replies.length > 0) {
+        setComments(prev => prev.map(c => {
+          if (c.id === parentCommentId) {
+            // Dedupe by id
+            const existingIds = new Set((c.replies || []).map(r => r.id));
+            const newReplies = data.replies.filter((r: Comment) => !existingIds.has(r.id));
+            return {
+              ...c,
+              replies: [...(c.replies || []), ...newReplies],
+            };
+          }
+          return c;
+        }));
+      }
+    } catch (err) {
+      console.error('Failed to fetch more replies:', err);
+      toast.error('Failed to load more replies');
+    } finally {
+      setLoadingReplies(prev => {
+        const next = new Set(prev);
+        next.delete(parentCommentId);
+        return next;
+      });
+    }
+  };
+
+  // Infinite scroll: observe sentinel at bottom of comments list
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const container = commentsContainerRef.current;
+    if (!sentinel || !container) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting && hasMore && !loading) {
+          loadMore();
+        }
+      },
+      { root: container, rootMargin: '200px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loading, page]);
+
   // Use portal to render outside of any z-index stacking context
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -435,6 +571,7 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   }, []);
 
   const content = (
+    <>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -504,36 +641,36 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
                       onLike={() => handleLike(comment)}
                       onReply={() => handleReply(comment)}
                       onDelete={() => handleDelete(comment)}
+                      onReport={() => setReportComment(comment)}
                       isExpanded={expandedReplies.has(comment.id)}
                       onToggleReplies={() => toggleReplies(comment.id)}
                       onLikeReply={(reply) => handleLike(reply)}
                       onReplyToReply={(reply) => handleReply(reply)}
                       onDeleteReply={(reply) => handleDelete(reply)}
+                      onReportReply={(reply) => setReportComment(reply)}
+                      onLoadMoreReplies={() => fetchMoreReplies(comment.id)}
+                      isLoadingMoreReplies={loadingReplies.has(comment.id)}
                     />
                   ))}
 
-                  {/* Load More */}
-                  {hasMore && (
-                    <motion.button
-                      whileTap={{ scale: 0.98 }}
+                  {/* Infinite scroll sentinel */}
+                  {hasMore && <div ref={sentinelRef} className="h-1" aria-hidden="true" />}
+
+                  {/* Loading indicator for infinite scroll */}
+                  {hasMore && loading && (
+                    <div className="flex items-center justify-center py-4">
+                      <Loader2 className="w-5 h-5 animate-spin text-white/60" />
+                    </div>
+                  )}
+
+                  {/* Manual load more (screen reader fallback) */}
+                  {hasMore && !loading && (
+                    <button
                       onClick={loadMore}
-                      disabled={loading}
-                      className="w-full py-3 mt-2 text-sm font-medium text-cyan-400 hover:text-cyan-300
-                               bg-white/5 hover:bg-white/10 rounded-xl border border-white/10
-                               disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                      className="sr-only focus:not-sr-only w-full py-3 mt-2 text-sm font-medium text-cyan-400"
                     >
-                      {loading ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Loading...
-                        </>
-                      ) : (
-                        <>
-                          <ChevronDown className="w-4 h-4" />
-                          Load more comments ({total - comments.length} remaining)
-                        </>
-                      )}
-                    </motion.button>
+                      Load more comments ({total - comments.length} remaining)
+                    </button>
                   )}
                 </>
               )}
@@ -632,6 +769,18 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
         </>
       )}
     </AnimatePresence>
+
+    {/* Report Modal - z-[200] wrapper to appear above comments panel (z-[100]) */}
+    <div className="relative z-[200]">
+      <ReportModal
+        isOpen={!!reportComment}
+        onClose={() => setReportComment(null)}
+        type="comment"
+        targetId={reportComment?.id || ''}
+        targetName={reportComment?.comment_text?.slice(0, 50)}
+      />
+    </div>
+    </>
   );
 
   // Render via portal to escape any z-index stacking context
@@ -652,11 +801,15 @@ interface CommentItemProps {
   onLike: () => void;
   onReply: () => void;
   onDelete: () => void;
+  onReport: () => void;
   isExpanded: boolean;
   onToggleReplies: () => void;
   onLikeReply: (reply: Comment) => void;
   onReplyToReply: (reply: Comment) => void;
   onDeleteReply: (reply: Comment) => void;
+  onReportReply: (reply: Comment) => void;
+  onLoadMoreReplies?: () => void;
+  isLoadingMoreReplies?: boolean;
   isReply?: boolean;
 }
 
@@ -665,11 +818,15 @@ function CommentItem({
   onLike,
   onReply,
   onDelete,
+  onReport,
   isExpanded,
   onToggleReplies,
   onLikeReply,
   onReplyToReply,
   onDeleteReply,
+  onReportReply,
+  onLoadMoreReplies,
+  isLoadingMoreReplies,
   isReply = false,
 }: CommentItemProps) {
   const [showMenu, setShowMenu] = useState(false);
@@ -732,7 +889,7 @@ function CommentItem({
                       </button>
                     ) : (
                       <button
-                        onClick={() => setShowMenu(false)}
+                        onClick={() => { onReport(); setShowMenu(false); }}
                         className="w-full px-4 py-2 text-left text-sm text-white/70 hover:bg-white/10 flex items-center gap-2"
                       >
                         <Flag className="w-4 h-4" />
@@ -786,7 +943,7 @@ function CommentItem({
               className="flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 mt-2"
             >
               {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              {isExpanded ? 'Hide' : 'View'} {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+              {isExpanded ? 'Hide' : 'View'} {comment.total_replies || replies.length} {(comment.total_replies || replies.length) === 1 ? 'reply' : 'replies'}
             </button>
           )}
 
@@ -807,14 +964,37 @@ function CommentItem({
                     onLike={() => onLikeReply(reply)}
                     onReply={() => onReplyToReply(reply)}
                     onDelete={() => onDeleteReply(reply)}
+                    onReport={() => onReportReply(reply)}
                     isExpanded={false}
                     onToggleReplies={() => {}}
                     onLikeReply={() => {}}
                     onReplyToReply={() => {}}
                     onDeleteReply={() => {}}
+                    onReportReply={() => {}}
                     isReply
                   />
                 ))}
+
+                {/* Load more replies */}
+                {(comment.total_replies || 0) > replies.length && (
+                  <button
+                    onClick={onLoadMoreReplies}
+                    disabled={isLoadingMoreReplies}
+                    className="ml-10 mt-2 flex items-center gap-1 text-xs text-cyan-400 hover:text-cyan-300 disabled:opacity-50"
+                  >
+                    {isLoadingMoreReplies ? (
+                      <>
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="w-3 h-3" />
+                        View {(comment.total_replies || 0) - replies.length} more {(comment.total_replies || 0) - replies.length === 1 ? 'reply' : 'replies'}
+                      </>
+                    )}
+                  </button>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

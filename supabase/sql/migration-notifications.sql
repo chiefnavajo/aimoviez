@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     'daily_goal_reached',
     'new_follower',
     'comment_received',
+    'vote_received',
     'system_announcement'
   )),
   title TEXT NOT NULL,
@@ -22,14 +23,14 @@ CREATE TABLE IF NOT EXISTS notifications (
   metadata JSONB DEFAULT '{}'::jsonb,
   is_read BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  read_at TIMESTAMP WITH TIME ZONE,
-  
-  -- Indexes for fast queries
-  INDEX idx_notifications_user_key (user_key),
-  INDEX idx_notifications_created_at (created_at DESC),
-  INDEX idx_notifications_is_read (is_read),
-  INDEX idx_notifications_type (type)
+  read_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Indexes for fast queries
+CREATE INDEX IF NOT EXISTS idx_notifications_user_key ON notifications (user_key);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications (is_read);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications (type);
 
 -- Add comments
 COMMENT ON TABLE notifications IS 'Stores user notifications for all events';
@@ -55,16 +56,3 @@ $$ LANGUAGE plpgsql;
 -- Create a scheduled job to run cleanup daily (requires pg_cron extension)
 -- Uncomment if pg_cron is available:
 -- SELECT cron.schedule('cleanup-notifications', '0 2 * * *', 'SELECT cleanup_old_notifications()');
-
--- Grant permissions (adjust as needed)
--- ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
-
--- Example RLS policy: Users can only see their own notifications
--- CREATE POLICY "Users can view own notifications" ON notifications
---   FOR SELECT
---   USING (user_key = current_setting('request.jwt.claim.user_key', true));
-
--- Example RLS policy: Allow insert for system (service role)
--- CREATE POLICY "System can insert notifications" ON notifications
---   FOR INSERT
---   WITH CHECK (true);

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     // Get current user
     const { data: currentUser } = await supabase
       .from('users')
-      .select('id')
+      .select('id, username')
       .eq('email', session.user.email)
       .single();
 
@@ -119,6 +119,18 @@ export async function POST(req: NextRequest) {
     }
 
     // The trigger will update followers_count automatically
+
+    // Fire-and-forget: Notify target user about new follower
+    import('@/lib/notifications').then(({ createNotification }) => {
+      createNotification({
+        user_key: `user_${targetUserId}`,
+        type: 'new_follower',
+        title: 'New follower',
+        message: `@${currentUser.username} started following you`,
+        action_url: `/profile/${currentUser.id}`,
+        metadata: { followerId: currentUser.id },
+      }).catch(e => console.error('[follow] Notification error (non-fatal):', e));
+    }).catch(() => {});
 
     return NextResponse.json({
       success: true,

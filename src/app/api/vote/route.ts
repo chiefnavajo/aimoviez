@@ -1661,6 +1661,37 @@ export async function POST(req: NextRequest) {
     updateVoterScore(effectiveVoterKey, weight);
     updateCachedVoteCount(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
 
+    // Fire-and-forget: Notify clip owner at vote milestones
+    const newVoteCount = rpcResult?.new_vote_count ?? 0;
+    if ([1, 10, 50, 100, 500, 1000].includes(newVoteCount)) {
+      (async () => {
+        try {
+          const { createNotification } = await import('@/lib/notifications');
+          const { data: clipOwner } = await supabase
+            .from('tournament_clips')
+            .select('user_id, title')
+            .eq('id', clipId)
+            .maybeSingle();
+
+          if (clipOwner?.user_id) {
+            // Don't notify if voter is the clip owner
+            if (loggedInUserId && clipOwner.user_id === loggedInUserId) return;
+
+            await createNotification({
+              user_key: `user_${clipOwner.user_id}`,
+              type: 'vote_received',
+              title: `${newVoteCount} vote${newVoteCount > 1 ? 's' : ''}!`,
+              message: `Your clip "${clipOwner.title}" reached ${newVoteCount} votes`,
+              action_url: `/clip/${clipId}`,
+              metadata: { clipId, voteCount: newVoteCount },
+            });
+          }
+        } catch (e) {
+          console.error('[vote] Notification error (non-fatal):', e);
+        }
+      })();
+    }
+
     // M5: Seed Redis daily counter from DB count so circuit breaker path switches stay in sync
     seedDailyVoteCount(effectiveVoterKey, todayDateStr, totalVotesToday + weight);
 

@@ -179,6 +179,54 @@ export async function GET(req: NextRequest) {
 
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
+
+    // Fetch paginated replies for a specific parent comment
+    const parentId = searchParams.get('parentId');
+    if (parentId) {
+      const replyOffset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
+      const replyLimit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '50', 10), 100));
+
+      const { data: replies, error: replyError, count: replyCount } = await supabase
+        .from('comments')
+        .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at', { count: 'exact' })
+        .eq('parent_comment_id', parentId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true })
+        .range(replyOffset, replyOffset + replyLimit - 1);
+
+      if (replyError) {
+        console.error('[GET /api/comments] reply fetch error:', replyError);
+        return NextResponse.json({ error: 'Failed to fetch replies' }, { status: 500 });
+      }
+
+      const { data: userLikes } = await supabase
+        .from('comment_likes')
+        .select('comment_id')
+        .eq('user_key', userInfo.userKey);
+      const likedIds = new Set(userLikes?.map((l) => l.comment_id) || []);
+
+      const enrichedReplies = (replies || []).map((reply) => ({
+        id: reply.id,
+        clip_id: reply.clip_id,
+        user_key: reply.user_key || '',
+        username: reply.username,
+        avatar_url: reply.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${reply.username}`,
+        comment_text: reply.comment_text,
+        likes_count: reply.likes_count || 0,
+        parent_comment_id: reply.parent_comment_id,
+        created_at: reply.created_at,
+        updated_at: reply.updated_at,
+        is_own: reply.user_key === userInfo.userKey,
+        is_liked: likedIds.has(reply.id),
+      }));
+
+      return NextResponse.json({
+        replies: enrichedReplies,
+        total: replyCount || 0,
+        has_more: (replyCount || 0) > replyOffset + replyLimit,
+      }, { status: 200 });
+    }
+
     const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const sort = (searchParams.get('sort') || 'newest') as 'newest' | 'top';
@@ -252,15 +300,17 @@ export async function GET(req: NextRequest) {
       .eq('is_deleted', false)
       .order('created_at', { ascending: true });
 
-    // Group replies by parent comment ID
+    // Group replies by parent comment ID and track totals
     const repliesByParent = new Map<string, typeof allReplies>();
+    const totalRepliesByParent = new Map<string, number>();
     (allReplies || []).forEach((reply) => {
-      const parentId = reply.parent_comment_id;
-      if (!repliesByParent.has(parentId)) {
-        repliesByParent.set(parentId, []);
+      const pid = reply.parent_comment_id;
+      totalRepliesByParent.set(pid, (totalRepliesByParent.get(pid) || 0) + 1);
+      if (!repliesByParent.has(pid)) {
+        repliesByParent.set(pid, []);
       }
-      const parentReplies = repliesByParent.get(parentId)!;
-      // Limit to 5 replies per comment (same as before)
+      const parentReplies = repliesByParent.get(pid)!;
+      // Initially return up to 5 replies per comment
       if (parentReplies.length < 5) {
         parentReplies.push(reply);
       }
@@ -298,6 +348,7 @@ export async function GET(req: NextRequest) {
         is_own: comment.user_key === userInfo.userKey,
         is_liked: likedCommentIds.has(comment.id),
         replies: enrichedReplies,
+        total_replies: totalRepliesByParent.get(comment.id) || 0,
       };
     });
 
@@ -393,6 +444,33 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Fire-and-forget: Notify parent comment author about the reply (async path)
+      if (parent_comment_id) {
+        (async () => {
+          try {
+            const { createNotification } = await import('@/lib/notifications');
+            const { data: parentComment } = await supabase
+              .from('comments')
+              .select('user_key, username')
+              .eq('id', parent_comment_id)
+              .maybeSingle();
+
+            if (parentComment && parentComment.user_key !== userInfo.userKey) {
+              await createNotification({
+                user_key: parentComment.user_key,
+                type: 'comment_received',
+                title: 'New reply',
+                message: `@${sanitizedUsername} replied to your comment`,
+                action_url: `/clip/${clipId}`,
+                metadata: { clipId, commentId: tempId, parentCommentId: parent_comment_id },
+              });
+            }
+          } catch (e) {
+            console.error('[comments] Reply notification error (non-fatal):', e);
+          }
+        })();
+      }
+
       return NextResponse.json({
         success: true,
         comment: {
@@ -448,6 +526,33 @@ export async function POST(req: NextRequest) {
         commentText: sanitizedComment,
         parentCommentId: parent_comment_id || null,
       });
+    }
+
+    // Fire-and-forget: Notify parent comment author about the reply
+    if (parent_comment_id) {
+      (async () => {
+        try {
+          const { createNotification } = await import('@/lib/notifications');
+          const { data: parentComment } = await supabase
+            .from('comments')
+            .select('user_key, username')
+            .eq('id', parent_comment_id)
+            .maybeSingle();
+
+          if (parentComment && parentComment.user_key !== userInfo.userKey) {
+            await createNotification({
+              user_key: parentComment.user_key,
+              type: 'comment_received',
+              title: 'New reply',
+              message: `@${sanitizedUsername} replied to your comment`,
+              action_url: `/clip/${clipId}`,
+              metadata: { clipId, commentId: comment.id, parentCommentId: parent_comment_id },
+            });
+          }
+        } catch (e) {
+          console.error('[comments] Reply notification error (non-fatal):', e);
+        }
+      })();
     }
 
     return NextResponse.json({

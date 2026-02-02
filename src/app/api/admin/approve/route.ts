@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Get current clip status for audit log (before approval)
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('status, username, season_id')
+      .select('status, username, season_id, user_id')
       .eq('id', clipId)
       .single();
 
@@ -173,6 +173,22 @@ export async function POST(request: NextRequest) {
         resumedVoting,
       },
     });
+
+    // Fire-and-forget: Notify clip owner about approval
+    if (currentClip?.user_id) {
+      import('@/lib/notifications').then(({ createNotification }) => {
+        createNotification({
+          user_key: `user_${currentClip.user_id}`,
+          type: 'clip_approved',
+          title: 'Clip approved!',
+          message: assignedSlot
+            ? `Your clip has been approved and assigned to slot ${assignedSlot}`
+            : 'Your clip has been approved',
+          action_url: '/dashboard',
+          metadata: { clipId, assignedSlot },
+        }).catch(e => console.error('[approve] Notification error (non-fatal):', e));
+      }).catch(() => {});
+    }
 
     // Build response message
     let message = 'Clip approved';
