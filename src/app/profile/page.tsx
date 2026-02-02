@@ -709,40 +709,42 @@ function ClipCard({ clip }: { clip: UserClip }) {
     clip.thumbnail_url !== clip.video_url;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      whileHover={{ scale: 1.01, y: -2 }}
-      className={`flex gap-4 p-4 glass-card glass-card-hover ${config.glow || ''}`}
-    >
-      <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
-        {isActualImage ? (
-          <Image src={clip.thumbnail_url!} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
-        ) : (
-          <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
-        )}
-        {/* Play icon overlay */}
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <PlayCircle className="w-8 h-8 text-white/80" />
-        </div>
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div className="min-w-0">
-            <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
-            <div className="font-bold">{clip.genre}</div>
-          </div>
-          <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color} ${clip.status === 'voting' ? 'animate-pulse' : ''}`}>
-            {config.label}
+    <Link href={`/clip/${clip.id}`}>
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ scale: 1.01, y: -2 }}
+        className={`flex gap-4 p-4 glass-card glass-card-hover cursor-pointer ${config.glow || ''}`}
+      >
+        <div className="w-20 h-28 rounded-lg overflow-hidden bg-white/10 flex-shrink-0 relative group">
+          {isActualImage ? (
+            <Image src={clip.thumbnail_url!} alt="Clip thumbnail" fill sizes="80px" className="object-cover" />
+          ) : (
+            <video src={clip.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+          )}
+          {/* Play icon overlay */}
+          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <PlayCircle className="w-8 h-8 text-white/80" />
           </div>
         </div>
-        <div className="flex items-center gap-2 text-sm">
-          <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
-          <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="min-w-0">
+              <div className="text-sm text-white/60 truncate">Slot #{clip.slot_position}</div>
+              <div className="font-bold">{clip.genre}</div>
+            </div>
+            <div className={`flex-shrink-0 px-2.5 py-1 rounded-full text-xs font-bold ${config.bg} ${config.color} ${clip.status === 'voting' ? 'animate-pulse' : ''}`}>
+              {config.label}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Heart className="w-4 h-4 text-pink-500" fill="#ec4899" />
+            <span className="font-bold">{formatNumber(clip.vote_count)} votes</span>
+          </div>
+          <div className="text-xs text-white/60 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
         </div>
-        <div className="text-xs text-white/60 mt-1">{new Date(clip.created_at).toLocaleDateString()}</div>
-      </div>
-    </motion.div>
+      </motion.div>
+    </Link>
   );
 }
 
