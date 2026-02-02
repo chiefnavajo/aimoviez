@@ -133,7 +133,6 @@ export async function POST(request: NextRequest) {
 
     const slotPosition = votingSlot.slot_position;
     const isWaitingForClips = votingSlot.status === 'waiting_for_clips';
-    const isFirstClipInSlot = !votingSlot.voting_started_at || isWaitingForClips;
 
     // Sanitize user-provided text to prevent XSS
     const sanitizedTitle = sanitizeText(title) || `Clip ${Date.now()}`;
@@ -168,35 +167,31 @@ export async function POST(request: NextRequest) {
     if (clipError) {
       // SECURITY: Log full error server-side, return generic message to client
       console.error('[REGISTER] Database insert error:', clipError);
+
+      // M7: Clean up orphaned storage file on DB insert failure
+      try {
+        const urlObj = new URL(videoUrl);
+        const pathParts = urlObj.pathname.split('/');
+        const storagePath = pathParts.slice(-2).join('/'); // e.g. "clips/clip_xxx.mp4"
+        if (storagePath && storagePath.includes('/')) {
+          const bucket = storagePath.split('/')[0] === 'clips' ? 'clips' : 'videos';
+          await supabase.storage.from(bucket).remove([storagePath]);
+          console.info('[REGISTER] Cleaned up orphaned storage file:', storagePath);
+        }
+      } catch (cleanupErr) {
+        console.warn('[REGISTER] Storage cleanup failed (non-fatal):', cleanupErr);
+      }
+
       return NextResponse.json({
         success: false,
         error: 'Failed to save clip. Please try again.'
       }, { status: 500 });
     }
 
-    // If this is the first clip in the slot, start the voting timer
-    let timerStarted = false;
-    if (isFirstClipInSlot) {
-      const durationHours = votingSlot.voting_duration_hours || 24;
-      const now = new Date();
-      const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-
-      const { error: timerError } = await supabase
-        .from('story_slots')
-        .update({
-          voting_started_at: now.toISOString(),
-          voting_ends_at: votingEndsAt.toISOString(),
-        })
-        .eq('id', votingSlot.id);
-
-      if (timerError) {
-        console.error('[REGISTER] Failed to start voting timer:', timerError);
-        // Non-fatal - clip is still registered
-      } else {
-        timerStarted = true;
-        console.log(`[REGISTER] First clip uploaded - voting timer started (ends: ${votingEndsAt.toISOString()})`);
-      }
-    }
+    // H10: Do NOT start the voting timer here — clips are created as 'pending'.
+    // The timer should only start when the clip is approved (in the approve endpoint),
+    // not when a pending clip is uploaded.
+    const timerStarted = false;
 
     // Success response
     let message = 'Clip registered successfully! Pending admin approval.';

@@ -165,6 +165,19 @@ export async function validateVoteRedis(
     };
   }
 
+  // H12: Check voting_ends_at — reject votes after the voting period has expired
+  if (slotState.votingEndsAt) {
+    const endsAt = new Date(slotState.votingEndsAt).getTime();
+    if (Date.now() > endsAt) {
+      return {
+        valid: false,
+        code: 'VOTING_EXPIRED',
+        message: 'Voting period has ended',
+        dailyCount,
+      };
+    }
+  }
+
   // Check voting freeze
   if (isFrozen === 1) {
     return {
@@ -286,6 +299,25 @@ export async function getDailyVoteCount(
   const r = getRedis();
   const count = await r.get(KEYS.daily(date, voterKey));
   return parseInt(String(count ?? '0'), 10) || 0;
+}
+
+/**
+ * Seed the Redis daily vote counter from the DB count.
+ * Called after sync DB path votes to keep Redis in sync
+ * when circuit breaker switches between paths (M5 fix).
+ */
+export async function seedDailyVoteCount(
+  voterKey: string,
+  date: string,
+  dbCount: number
+): Promise<void> {
+  try {
+    const r = getRedis();
+    const dailyKey = KEYS.daily(date, voterKey);
+    await r.set(dailyKey, dbCount, { ex: DAILY_COUNTER_TTL });
+  } catch {
+    // Non-fatal: Redis seeding failure doesn't affect the vote
+  }
 }
 
 // ============================================================================

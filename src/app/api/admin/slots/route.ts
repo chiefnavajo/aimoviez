@@ -103,6 +103,7 @@ export async function GET(req: NextRequest) {
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
       .eq('slot_position', currentSlot)
+      .eq('season_id', targetSeasonId)
       .eq('status', 'active');
 
     // If simple mode, return just the summary
@@ -146,6 +147,7 @@ export async function GET(req: NextRequest) {
           .from('tournament_clips')
           .select('id, vote_count, username, thumbnail_url')
           .eq('slot_position', slot.slot_position)
+          .eq('season_id', targetSeasonId)
           .order('vote_count', { ascending: false })
           .limit(5);
 
@@ -355,16 +357,17 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      // Optionally revert the winning clip to pending status
+      // H5: Always revert the winning clip — default to 'active', or 'pending' if requested
       let clipReverted = false;
-      if (revert_clip_to_pending && previousWinnerId) {
+      if (previousWinnerId) {
+        const revertStatus = revert_clip_to_pending ? 'pending' : 'active';
         const { error: clipError } = await supabase
           .from('tournament_clips')
-          .update({ status: 'pending' })
+          .update({ status: revertStatus, updated_at: new Date().toISOString() })
           .eq('id', previousWinnerId);
 
         if (clipError) {
-          console.warn('[PATCH /api/admin/slots] Failed to revert clip to pending:', clipError);
+          console.warn('[PATCH /api/admin/slots] Failed to revert clip status:', clipError);
         } else {
           clipReverted = true;
         }
@@ -513,6 +516,14 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // H4: If a winning_clip_id was set (slot auto-locked), also lock the clip
+    if (winning_clip_id && updates.status === 'locked') {
+      await supabase
+        .from('tournament_clips')
+        .update({ status: 'locked', updated_at: new Date().toISOString() })
+        .eq('id', winning_clip_id);
+    }
+
     return NextResponse.json({
       success: true,
       slot,
@@ -590,11 +601,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get highest voted clip for this slot
+    // Get highest voted ACTIVE clip for this slot in the current season
     const { data: topClip } = await supabase
       .from('tournament_clips')
       .select('id, username, vote_count')
       .eq('slot_position', slot_position)
+      .eq('season_id', activeSeason.id)
+      .eq('status', 'active')
       .order('vote_count', { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -624,6 +637,12 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // H3: Also lock the winning clip's status to 'locked'
+    await supabase
+      .from('tournament_clips')
+      .update({ status: 'locked', updated_at: new Date().toISOString() })
+      .eq('id', topClip.id);
 
     return NextResponse.json({
       success: true,

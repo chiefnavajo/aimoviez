@@ -98,7 +98,12 @@ BEGIN
     v_was_new := TRUE;
     v_new_weight := p_vote_weight;
 
-    -- The on_vote_insert trigger will update the clip counts
+    -- H13: Always update clip counts directly (do not rely on triggers which may be disabled)
+    UPDATE tournament_clips
+    SET vote_count = COALESCE(vote_count, 0) + p_vote_weight,
+        weighted_score = COALESCE(weighted_score, 0) + p_vote_weight
+    WHERE id = v_clip_uuid;
+
     -- Get the updated stats
     SELECT tc.vote_count, tc.weighted_score
     INTO v_new_vote_count, v_new_weighted_score

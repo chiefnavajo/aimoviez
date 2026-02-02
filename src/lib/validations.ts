@@ -68,10 +68,9 @@ export const RegisterClipSchema = z.object({
     .optional()
     .transform((d) => d?.trim() || ''),
   duration: z
-    .number()
-    .min(0.1, 'Video duration is required')
-    .max(MAX_VIDEO_DURATION, `Video must be ${MAX_VIDEO_DURATION} seconds or less`)
-    .optional(),
+    .number({ error: 'Video duration is required' })
+    .min(0.1, 'Video duration must be positive')
+    .max(MAX_VIDEO_DURATION, `Video must be ${MAX_VIDEO_DURATION} seconds or less`),
 });
 
 export type RegisterClipRequest = z.infer<typeof RegisterClipSchema>;
@@ -119,6 +118,7 @@ const VOTABLE_GENRES = [
   'Romance',
   'Animation',
   'Horror',
+  'Drama',
 ] as const;
 
 export const GenreVoteSchema = z.object({
@@ -156,7 +156,7 @@ export const UpdateClipSchema = z.object({
   genre: z
     .string()
     .min(1, 'Genre is required')
-    .transform((g) => g.toLowerCase()),
+    .transform((g) => g.toUpperCase()),
   status: z.enum(['pending', 'active', 'rejected']),
 });
 

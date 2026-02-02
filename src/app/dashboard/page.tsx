@@ -287,11 +287,12 @@ function formatNumber(num: number): string {
 const GENRE_LABELS: Record<string, string> = {
   COMEDY: 'Comedy',
   ACTION: 'Action',
-  SCIFI: 'Sci-Fi',
+  'SCI-FI': 'Sci-Fi',
   THRILLER: 'Thriller',
   ROMANCE: 'Romance',
   ANIMATION: 'Animation',
   HORROR: 'Horror',
+  DRAMA: 'Drama',
 };
 
 // ============================================================================

@@ -145,7 +145,7 @@ export async function startGeneration(
   const config = MODELS[modelKey];
   if (!config) throw new Error(`Unknown model: ${modelKey}`);
 
-  const input = buildInput(modelKey, prompt, style);
+  const input = buildInput(modelKey, prompt, style, config.supportsAudio);
 
   const result = await fal.queue.submit(config.modelId, {
     input,

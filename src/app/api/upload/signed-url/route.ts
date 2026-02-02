@@ -57,9 +57,15 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Validate content type
+    // H11: Validate content type (required to prevent file-type bypass)
     const validTypes = ['video/mp4', 'video/quicktime', 'video/webm'];
-    if (contentType && !validTypes.includes(contentType)) {
+    if (!contentType) {
+      return NextResponse.json({
+        success: false,
+        error: 'contentType is required'
+      }, { status: 400 });
+    }
+    if (!validTypes.includes(contentType)) {
       return NextResponse.json({
         success: false,
         error: 'Invalid video format. Use MP4, MOV, or WebM'

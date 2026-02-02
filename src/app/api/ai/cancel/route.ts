@@ -96,6 +96,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 6. Must be pending or processing
+    // M6: If generation already completed (race with webhook), inform client instead of error
+    if (gen.status === 'completed') {
+      return NextResponse.json(
+        { success: false, error: 'Generation already completed', alreadyCompleted: true },
+        { status: 409 }
+      );
+    }
+
     if (gen.status !== 'pending' && gen.status !== 'processing') {
       return NextResponse.json(
         { success: false, error: 'Generation cannot be cancelled in its current state' },

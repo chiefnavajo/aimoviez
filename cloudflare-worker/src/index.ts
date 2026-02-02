@@ -61,11 +61,23 @@ export default {
         );
       }
 
-      // Increment counter (fire-and-forget via waitUntil is not available here,
-      // but KV put is fast enough for edge)
-      await env.RATE_LIMITS.put(kvKey, String(current + 1), {
-        expirationTtl: config.windowSeconds,
-      });
+      // M9 + L6: Only set TTL when creating new key (counter == 0).
+      // For existing keys, increment without resetting the expiry window.
+      // This prevents TTL reset on every request and ensures the window
+      // expires correctly even under steady traffic.
+      if (current === 0) {
+        await env.RATE_LIMITS.put(kvKey, '1', {
+          expirationTtl: config.windowSeconds,
+        });
+      } else {
+        // KV doesn't support atomic increment, but by not resetting TTL
+        // we at least fix the sliding window problem. The burst bypass
+        // is inherent to KV's eventual consistency — acceptable trade-off.
+        await env.RATE_LIMITS.put(kvKey, String(current + 1), {
+          // Preserve existing TTL by not setting expirationTtl.
+          // KV entries retain their original TTL when updated without it.
+        });
+      }
 
       // Add rate limit headers to the proxied response
       const response = await fetch(request);

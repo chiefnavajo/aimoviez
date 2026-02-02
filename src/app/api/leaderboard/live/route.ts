@@ -72,14 +72,14 @@ export async function GET(req: NextRequest) {
       // Get active slot position
       const { data: activeSlot } = await supabase
         .from('story_slots')
-        .select('position')
-        .eq('status', 'active')
+        .select('slot_position')
+        .eq('status', 'voting')
         .maybeSingle();
 
       if (activeSlot) {
         // Parallel Redis reads
         const [redisClips, redisVoters, redisCreators] = await Promise.all([
-          getTopClips(activeSlot.position, 10, 0),
+          getTopClips(activeSlot.slot_position, 10, 0),
           getTopVoters('all', 10, 0),
           getTopCreators(10, 0),
         ]);
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
               thumbnail_url: clip?.thumbnail_url || '',
               username: clip?.username || 'Creator',
               vote_count: clip?.vote_count || 0,
-              slot_position: clip?.slot_position || activeSlot.position,
+              slot_position: clip?.slot_position || activeSlot.slot_position,
             };
           });
 

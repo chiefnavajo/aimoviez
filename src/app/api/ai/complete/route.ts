@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     // 5. Look up generation (verify ownership)
     const { data: gen, error: genError } = await supabase
       .from('ai_generations')
-      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at')
+      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at, clip_id')
       .eq('id', generationId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -157,6 +157,22 @@ export async function POST(request: NextRequest) {
     }
 
     // 10. Atomic double-complete guard
+    // H14: If complete_initiated_at was set more than 10 minutes ago but no storage_key exists,
+    // the previous attempt failed — reset so the user can retry
+    if (gen.complete_initiated_at && !gen.storage_key) {
+      const initiatedAt = new Date(gen.complete_initiated_at).getTime();
+      const tenMinutesMs = 10 * 60 * 1000;
+      if (Date.now() - initiatedAt > tenMinutesMs) {
+        await supabase
+          .from('ai_generations')
+          .update({ complete_initiated_at: null })
+          .eq('id', gen.id);
+        console.info('[AI_COMPLETE] Reset stale complete_initiated_at for retry:', gen.id);
+        // Re-read to get fresh state
+        gen.complete_initiated_at = null;
+      }
+    }
+
     const { data: guardRows, error: guardError } = await supabase
       .from('ai_generations')
       .update({ complete_initiated_at: new Date().toISOString() })

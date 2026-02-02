@@ -21,7 +21,7 @@ import {
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
 import { incrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
-import { validateVoteRedis, recordVote as recordVoteRedis, isVotingFrozen } from '@/lib/vote-validation-redis';
+import { validateVoteRedis, recordVote as recordVoteRedis, removeVoteRecord, isVotingFrozen, seedDailyVoteCount } from '@/lib/vote-validation-redis';
 import { CircuitBreaker } from '@/lib/circuit-breaker';
 import type { VoteQueueEvent } from '@/types/vote-queue';
 import { broadcastVoteUpdate } from '@/lib/realtime-broadcast';
@@ -1662,6 +1662,9 @@ export async function POST(req: NextRequest) {
     updateVoterScore(effectiveVoterKey, weight);
     updateCachedVoteCount(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
 
+    // M5: Seed Redis daily counter from DB count so circuit breaker path switches stay in sync
+    seedDailyVoteCount(effectiveVoterKey, todayDateStr, totalVotesToday + weight);
+
     // 8. Calculate remaining votes
     const newTotalVotesToday = totalVotesToday + weight;
 
@@ -1804,6 +1807,15 @@ export async function DELETE(req: NextRequest) {
 
     // Invalidate vote count cache after deletion
     invalidateVoteCount(clipId);
+
+    // M3: Clean up Redis dedup marker and daily counter so user can re-vote
+    try {
+      const todayDateStr = getTodayDateString();
+      await removeVoteRecord(effectiveVoterKey, clipId, todayDateStr);
+    } catch (redisErr) {
+      // Non-fatal: Redis cleanup failure doesn't affect the DB deletion
+      console.warn('[DELETE /api/vote] Redis cleanup failed (non-fatal):', redisErr);
+    }
 
     // 5. Calculate remaining votes (vote is now restored)
     // Non-critical: if these fail, we still return success with fallback values

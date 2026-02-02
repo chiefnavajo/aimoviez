@@ -120,9 +120,17 @@ export async function PUT(
     // Get current clip for audit log
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('title, genre, status, username, season_id')
+      .select('title, genre, status, username, season_id, slot_position')
       .eq('id', id)
       .single();
+
+    // H6: Guard against editing a locked/winner clip's status
+    if (currentClip?.status === 'locked') {
+      return NextResponse.json(
+        { error: 'Cannot edit a locked clip (story winner). Unlock the slot first.' },
+        { status: 409 }
+      );
+    }
 
     // Build update object
     const updateData: {
@@ -135,7 +143,7 @@ export async function PUT(
     } = {
       title: title.trim(),
       description: description?.trim() || '',
-      genre: genre.toLowerCase().trim(),
+      genre: genre.toUpperCase().trim(),
       status,
       updated_at: new Date().toISOString(),
     };
@@ -185,7 +193,7 @@ export async function PUT(
         previousGenre: currentClip?.genre,
         previousStatus: currentClip?.status,
         newTitle: title.trim(),
-        newGenre: genre.toLowerCase().trim(),
+        newGenre: genre.toUpperCase().trim(),
         newStatus: status,
         clipOwner: currentClip?.username,
       },

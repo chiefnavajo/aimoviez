@@ -529,9 +529,18 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    // Require authentication to check clip status
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const clipId = searchParams.get('clipId');
-    
+
     if (!clipId) {
       return NextResponse.json(
         { error: 'Clip ID required' },

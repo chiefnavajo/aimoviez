@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -16,6 +17,10 @@ function getUserKey(req: NextRequest): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Rate limiting
+  const rateLimitResponse = await rateLimit(req, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const userKey = getUserKey(req);

@@ -138,12 +138,12 @@ export async function GET(request: NextRequest) {
     // Get active slot position (needed for both Redis and DB paths)
     const { data: activeSlot } = await supabase
       .from('story_slots')
-      .select('position')
-      .eq('status', 'active')
+      .select('slot_position')
+      .eq('status', 'voting')
       .maybeSingle();
 
     if (redisFlag?.enabled && activeSlot) {
-      const redisResult = await getTopClips(activeSlot.position, limit, offset);
+      const redisResult = await getTopClips(activeSlot.slot_position, limit, offset);
       if (redisResult !== null) {
         // Fetch clip details for enrichment
         const clipIds = redisResult.entries.map(e => e.member);
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
             vote_count: clip?.vote_count || 0,
             genre: clip?.genre || 'Unknown',
             title: clip?.title || '',
-            slot_position: clip?.slot_position || activeSlot.position,
+            slot_position: clip?.slot_position || activeSlot.slot_position,
             rank: offset + index + 1,
             percentage: pageVotes > 0 ? (entry.score / pageVotes) * 100 : 0,
             trend: 'same' as const,

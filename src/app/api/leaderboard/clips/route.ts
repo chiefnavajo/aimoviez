@@ -103,12 +103,12 @@ export async function GET(req: NextRequest) {
       // Get active slot position for Redis lookup
       const { data: activeSlot } = await supabase
         .from('story_slots')
-        .select('position')
-        .eq('status', 'active')
+        .select('slot_position')
+        .eq('status', 'voting')
         .maybeSingle();
 
       if (activeSlot) {
-        const redisResult = await getTopClips(activeSlot.position, limit, offset);
+        const redisResult = await getTopClips(activeSlot.slot_position, limit, offset);
         if (redisResult !== null) {
           // Fetch clip details from DB for enrichment
           const clipIds = redisResult.entries.map(e => e.member);
@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
               username: clip?.username || 'Creator',
               avatar_url: clip?.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.member}`,
               genre: clip?.genre || 'Unknown',
-              slot_position: clip?.slot_position || activeSlot.position,
+              slot_position: clip?.slot_position || activeSlot.slot_position,
               vote_count: clip?.vote_count || 0,
               weighted_score: entry.score,
               hype_score: clip?.hype_score || 0,

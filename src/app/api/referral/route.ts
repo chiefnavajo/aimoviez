@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -73,7 +74,10 @@ function getNextTier(referralCount: number) {
 // GET - Get user's referral info
 // ============================================================================
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const rateLimitResponse = await rateLimit(request, 'read');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Check if feature is enabled
     if (!(await isFeatureEnabled('referral_system'))) {
@@ -160,6 +164,9 @@ export async function GET() {
 // ============================================================================
 
 export async function POST(request: NextRequest) {
+  const rateLimitResponse = await rateLimit(request, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   try {
     // Require authentication
     const session = await getServerSession(authOptions);

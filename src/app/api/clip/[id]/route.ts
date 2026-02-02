@@ -124,12 +124,25 @@ export async function GET(
       userVote = voteData;
     }
 
-    // 3. Get slot info
-    const { data: slot } = await supabase
+    // 3. Get slot info (filter by active season to avoid cross-season collisions)
+    const { data: activeSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const slotQuery = supabase
       .from('story_slots')
       .select('id, slot_position, status, voting_ends_at, winner_tournament_clip_id, season_id')
-      .eq('slot_position', clip.slot_position)
-      .maybeSingle();
+      .eq('slot_position', clip.slot_position);
+
+    if (activeSeason) {
+      slotQuery.eq('season_id', activeSeason.id);
+    }
+
+    const { data: slot } = await slotQuery.maybeSingle();
 
     // 4. Get season info if we have a slot
     let season = null;

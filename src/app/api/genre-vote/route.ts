@@ -18,6 +18,7 @@ const GENRES = [
   'Romance',
   'Animation',
   'Horror',
+  'Drama',
 ] as const;
 
 type Genre = (typeof GENRES)[number];

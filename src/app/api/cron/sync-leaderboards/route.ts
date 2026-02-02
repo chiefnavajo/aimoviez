@@ -100,20 +100,20 @@ export async function GET(req: NextRequest) {
     // --- 4. Sync clip scores for active slot ---
     const { data: activeSlot } = await supabase
       .from('story_slots')
-      .select('position')
-      .eq('status', 'active')
+      .select('slot_position')
+      .eq('status', 'voting')
       .maybeSingle();
 
     if (activeSlot) {
       const { data: activeClips } = await supabase
         .from('tournament_clips')
         .select('id, weighted_score')
-        .eq('slot_position', activeSlot.position)
+        .eq('slot_position', activeSlot.slot_position)
         .eq('status', 'active');
 
       if (activeClips && activeClips.length > 0) {
         await batchUpdateClipScores(
-          activeSlot.position,
+          activeSlot.slot_position,
           activeClips.map(c => ({
             clipId: c.id,
             weightedScore: c.weighted_score || 0,

@@ -72,6 +72,7 @@ const SUGGESTION_CHIPS = [
 ];
 
 const STORAGE_KEY = 'ai_active_generation_id';
+const STORAGE_TIMESTAMP_KEY = 'ai_active_generation_ts';
 
 // ============================================================================
 // COMPONENT
@@ -112,6 +113,15 @@ export default function AIGeneratePanel({
   useEffect(() => {
     const savedId = localStorage.getItem(STORAGE_KEY);
     if (savedId) {
+      // L3: Check if saved generation is older than 7 days (fal.ai URL TTL)
+      const savedTs = localStorage.getItem(STORAGE_TIMESTAMP_KEY);
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      if (savedTs && Date.now() - parseInt(savedTs, 10) > sevenDaysMs) {
+        // Expired — clean up stale state
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
+        return;
+      }
       setGenerationId(savedId);
       setStage('queued');
     }
@@ -126,6 +136,7 @@ export default function AIGeneratePanel({
       if (!res.ok) {
         if (res.status === 404) {
           localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
           setStage('idle');
           setGenerationId(null);
           return;
@@ -143,6 +154,7 @@ export default function AIGeneratePanel({
         setStage('failed');
         setError(data.error || 'Generation failed');
         localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
         if (pollRef.current) clearInterval(pollRef.current);
       } else if (data.stage === 'generating') {
         setStage('generating');
@@ -205,6 +217,7 @@ export default function AIGeneratePanel({
 
       setGenerationId(result.generationId);
       localStorage.setItem(STORAGE_KEY, result.generationId);
+      localStorage.setItem(STORAGE_TIMESTAMP_KEY, String(Date.now()));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
       setError(message);
@@ -281,6 +294,7 @@ export default function AIGeneratePanel({
 
       setStage('done');
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
       onComplete?.();
 
       // Redirect after success
@@ -302,6 +316,7 @@ export default function AIGeneratePanel({
     setTitle('');
     completeResultRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
     if (pollRef.current) clearInterval(pollRef.current);
   };
 
@@ -313,9 +328,15 @@ export default function AIGeneratePanel({
 
     try {
       await ensureToken();
-      await csrfPost<{ success: boolean; error?: string }>('/api/ai/cancel', {
+      const result = await csrfPost<{ success: boolean; error?: string; alreadyCompleted?: boolean }>('/api/ai/cancel', {
         generationId,
       });
+
+      // M6: If generation completed during cancel, don't discard it — poll for result
+      if (result.alreadyCompleted) {
+        setStage('queued');
+        return;
+      }
     } catch {
       // Cancel is best-effort — reset locally regardless
     }

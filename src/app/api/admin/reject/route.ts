@@ -46,17 +46,38 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Get current clip status for audit log
+    // Get current clip status for validation and audit log
     const { data: currentClip } = await supabase
       .from('tournament_clips')
-      .select('status, username')
+      .select('status, username, slot_position, season_id')
       .eq('id', clipId)
       .single();
+
+    // H7: Validate clip state before rejecting
+    if (currentClip?.status === 'locked') {
+      return NextResponse.json(
+        { error: 'Cannot reject a locked clip (story winner). Unlock the slot first.' },
+        { status: 409 }
+      );
+    }
+
+    if (currentClip?.status === 'rejected') {
+      return NextResponse.json({
+        success: true,
+        message: 'Clip is already rejected',
+        clip: currentClip,
+      });
+    }
+
+    // Track if we need slot cleanup (rejecting an active clip in a voting slot)
+    const wasActive = currentClip?.status === 'active';
+    const hadSlot = currentClip?.slot_position != null;
+    const hadSeason = currentClip?.season_id != null;
 
     // Update clip status to 'rejected'
     const { data, error } = await supabase
       .from('tournament_clips')
-      .update({ 
+      .update({
         status: 'rejected',
         updated_at: new Date().toISOString()
       })
@@ -70,6 +91,39 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to reject clip' },
         { status: 500 }
       );
+    }
+
+    // H7: Slot cleanup — if this was the last active clip in a voting slot, reset to waiting_for_clips
+    if (wasActive && hadSlot && hadSeason) {
+      const { count } = await supabase
+        .from('tournament_clips')
+        .select('id', { count: 'exact', head: true })
+        .eq('slot_position', currentClip!.slot_position)
+        .eq('season_id', currentClip!.season_id)
+        .eq('status', 'active');
+
+      if (count === 0) {
+        const { data: currentSlot } = await supabase
+          .from('story_slots')
+          .select('status')
+          .eq('season_id', currentClip!.season_id)
+          .eq('slot_position', currentClip!.slot_position)
+          .maybeSingle();
+
+        if (currentSlot?.status === 'voting') {
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('season_id', currentClip!.season_id)
+            .eq('slot_position', currentClip!.slot_position);
+
+          console.log(`[admin/reject] Last active clip in voting Slot ${currentClip!.slot_position} rejected — reset slot to waiting_for_clips`);
+        }
+      }
     }
 
     // Audit log the action

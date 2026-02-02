@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { requireAdmin } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -26,20 +27,6 @@ interface ModerationQueueComment {
 }
 
 /**
- * Check if user is admin
- */
-async function isAdmin(email: string): Promise<boolean> {
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data } = await supabase
-    .from('users')
-    .select('role')
-    .eq('email', email)
-    .single();
-
-  return data?.role === 'admin';
-}
-
-/**
  * GET /api/admin/comments
  * Get comment moderation queue
  *
@@ -52,15 +39,10 @@ export async function GET(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'read');
   if (rateLimitResponse) return rateLimitResponse;
 
-  try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
 
-    if (!(await isAdmin(session.user.email))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+  try {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const { searchParams } = new URL(req.url);
@@ -162,16 +144,14 @@ export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'admin');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-
-    if (!(await isAdmin(session.user.email))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const body = await req.json();
     const { commentId, action, reason } = body;
 
@@ -256,16 +236,14 @@ export async function DELETE(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'admin');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-
-    if (!(await isAdmin(session.user.email))) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const body = await req.json();
     const { commentIds } = body;
 

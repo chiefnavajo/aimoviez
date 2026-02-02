@@ -67,9 +67,43 @@ export async function POST(request: NextRequest) {
     let hasErrors = false;
 
     if (action === 'approve') {
+      // H8: Look up the current active slot so we can assign slot_position
+      // First get any clip to determine its season_id
+      const { data: sampleClip } = await supabase
+        .from('tournament_clips')
+        .select('season_id')
+        .in('id', clipIds)
+        .eq('status', 'pending')
+        .limit(1)
+        .maybeSingle();
+
+      let slotPosition: number | undefined;
+      if (sampleClip?.season_id) {
+        const { data: activeSlot } = await supabase
+          .from('story_slots')
+          .select('slot_position')
+          .eq('season_id', sampleClip.season_id)
+          .in('status', ['voting', 'waiting_for_clips'])
+          .order('slot_position', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        if (activeSlot?.slot_position != null) {
+          slotPosition = activeSlot.slot_position;
+        }
+      }
+
+      const updateData: Record<string, unknown> = {
+        status: 'active',
+        updated_at: new Date().toISOString(),
+      };
+      if (slotPosition != null) {
+        updateData.slot_position = slotPosition;
+      }
+
       const { data, error } = await supabase
         .from('tournament_clips')
-        .update({ status: 'active' })
+        .update(updateData)
         .in('id', clipIds)
         .eq('status', 'pending')
         .select('id');
@@ -95,10 +129,17 @@ export async function POST(request: NextRequest) {
         updatedCount = data?.length || 0;
       }
     } else if (action === 'reset_to_pending') {
+      // M1: Before resetting, get affected clips' slot info for cleanup
+      const { data: affectedClips } = await supabase
+        .from('tournament_clips')
+        .select('id, slot_position, season_id')
+        .in('id', clipIds)
+        .eq('status', 'active');
+
       // Reset active clips to pending status
       const { data, error } = await supabase
         .from('tournament_clips')
-        .update({ status: 'pending' })
+        .update({ status: 'pending', updated_at: new Date().toISOString() })
         .in('id', clipIds)
         .eq('status', 'active')
         .select('id');
@@ -109,31 +150,121 @@ export async function POST(request: NextRequest) {
       } else {
         updatedCount = data?.length || 0;
       }
-    } else if (action === 'delete') {
-      // First get clip info for logging
-      const { data: _clips } = await supabase
-        .from('tournament_clips')
-        .select('id, title')
-        .in('id', clipIds);
 
-      // Remove from story_slots winners
-      await supabase
+      // M1: Check if any voting slots now have zero active clips
+      if (affectedClips && affectedClips.length > 0) {
+        const slotsToCheck = new Map<string, { slotPosition: number; seasonId: string }>();
+        for (const clip of affectedClips) {
+          if (clip.slot_position != null && clip.season_id) {
+            const key = `${clip.season_id}_${clip.slot_position}`;
+            slotsToCheck.set(key, { slotPosition: clip.slot_position, seasonId: clip.season_id });
+          }
+        }
+
+        for (const { slotPosition, seasonId } of slotsToCheck.values()) {
+          const { count } = await supabase
+            .from('tournament_clips')
+            .select('id', { count: 'exact', head: true })
+            .eq('slot_position', slotPosition)
+            .eq('season_id', seasonId)
+            .eq('status', 'active');
+
+          if (count === 0) {
+            await supabase
+              .from('story_slots')
+              .update({
+                status: 'waiting_for_clips',
+                voting_started_at: null,
+                voting_ends_at: null,
+              })
+              .eq('season_id', seasonId)
+              .eq('slot_position', slotPosition)
+              .eq('status', 'voting');
+
+            console.log(`[BULK] Reset all active clips in Slot ${slotPosition} — reset slot to waiting_for_clips`);
+          }
+        }
+      }
+    } else if (action === 'delete') {
+      // H9: Check for winner clips that cannot be deleted
+      const { data: winnerSlots } = await supabase
         .from('story_slots')
-        .update({ winner_tournament_clip_id: null })
+        .select('slot_position, winner_tournament_clip_id')
         .in('winner_tournament_clip_id', clipIds);
 
-      // Delete the clips
-      const { data, error } = await supabase
-        .from('tournament_clips')
-        .delete()
-        .in('id', clipIds)
-        .select('id');
+      const winnerClipIds = new Set(winnerSlots?.map(s => s.winner_tournament_clip_id).filter(Boolean) || []);
+      const deletableIds = clipIds.filter((id: string) => !winnerClipIds.has(id));
 
-      if (error) {
-        console.error('[BULK] Delete error:', error);
-        hasErrors = true;
+      if (winnerClipIds.size > 0 && deletableIds.length === 0) {
+        return NextResponse.json({
+          success: false,
+          error: `Cannot delete: ${winnerClipIds.size} clip(s) are winners of locked slots. Remove them as winners first.`,
+          winnerClipIds: Array.from(winnerClipIds),
+        }, { status: 409 });
+      }
+
+      if (deletableIds.length > 0) {
+        // H9: Check for last-active-clip-in-slot before deleting
+        const { data: activeClipsToDelete } = await supabase
+          .from('tournament_clips')
+          .select('id, slot_position, season_id')
+          .in('id', deletableIds)
+          .eq('status', 'active');
+
+        // Delete the clips
+        const { data, error } = await supabase
+          .from('tournament_clips')
+          .delete()
+          .in('id', deletableIds)
+          .select('id');
+
+        if (error) {
+          console.error('[BULK] Delete error:', error);
+          hasErrors = true;
+        } else {
+          updatedCount = data?.length || 0;
+        }
+
+        // Check if any voting slots now have zero active clips
+        if (activeClipsToDelete && activeClipsToDelete.length > 0) {
+          const slotsToCheck = new Map<string, { slotPosition: number; seasonId: string }>();
+          for (const clip of activeClipsToDelete) {
+            if (clip.slot_position != null && clip.season_id) {
+              const key = `${clip.season_id}_${clip.slot_position}`;
+              slotsToCheck.set(key, { slotPosition: clip.slot_position, seasonId: clip.season_id });
+            }
+          }
+
+          for (const { slotPosition, seasonId } of slotsToCheck.values()) {
+            const { count } = await supabase
+              .from('tournament_clips')
+              .select('id', { count: 'exact', head: true })
+              .eq('slot_position', slotPosition)
+              .eq('season_id', seasonId)
+              .eq('status', 'active');
+
+            if (count === 0) {
+              await supabase
+                .from('story_slots')
+                .update({
+                  status: 'waiting_for_clips',
+                  voting_started_at: null,
+                  voting_ends_at: null,
+                })
+                .eq('season_id', seasonId)
+                .eq('slot_position', slotPosition)
+                .eq('status', 'voting');
+
+              console.log(`[BULK] Deleted all active clips in Slot ${slotPosition} — reset slot to waiting_for_clips`);
+            }
+          }
+        }
       } else {
-        updatedCount = data?.length || 0;
+        updatedCount = 0;
+      }
+
+      if (winnerClipIds.size > 0) {
+        hasErrors = true; // Partial failure — some clips couldn't be deleted
       }
     }
 
