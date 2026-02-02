@@ -85,10 +85,10 @@ BEGIN
     END IF;
   END IF;
 
-  -- Update the clip
+  -- Update the clip (preserve existing slot_position if no active slot found)
   UPDATE tournament_clips
   SET status = 'active',
-      slot_position = v_assigned_slot,
+      slot_position = COALESCE(v_assigned_slot, slot_position),
       updated_at = NOW()
   WHERE id = p_clip_id;
 

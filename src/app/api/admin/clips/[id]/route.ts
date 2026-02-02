@@ -140,13 +140,13 @@ export async function PUT(
       updated_at: new Date().toISOString(),
     };
 
-    // If changing status to 'active', also set slot_position to the current voting slot
+    // If changing status to 'active', also set slot_position to the current voting/waiting slot
     if (status === 'active' && currentClip?.status !== 'active' && currentClip?.season_id) {
       const { data: activeSlot } = await supabase
         .from('story_slots')
         .select('slot_position')
         .eq('season_id', currentClip.season_id)
-        .eq('status', 'voting')
+        .in('status', ['voting', 'waiting_for_clips'])
         .order('slot_position', { ascending: true })
         .limit(1)
         .maybeSingle();
