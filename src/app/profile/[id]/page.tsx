@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
-import { User, Trophy, Film, Heart, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2 } from 'lucide-react';
+import { User, Trophy, Film, Heart, Share2, Lock, CheckCircle, BookOpen, Plus, Flag, Ban, MoreVertical, Loader2, Play, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import BottomNavigation from '@/components/BottomNavigation';
 import ReportModal from '@/components/ReportModal';
@@ -297,10 +297,12 @@ export default function CreatorProfilePage() {
       <div className="hidden md:flex h-screen">
         <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
           <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4"><span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span></Link>
-          <Link href="/dashboard" className="mb-4"><motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg"><Heart className="w-5 h-5" fill="white" /><span>Vote Now</span></motion.div></Link>
           <nav className="flex-1 space-y-1">
+            <Link href="/dashboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Heart className="w-6 h-6" /><span>Vote Now</span></div></Link>
             <Link href="/story"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><BookOpen className="w-6 h-6" /><span>Story</span></div></Link>
+            <Link href="/watch"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Play className="w-6 h-6" /><span>Watch</span></div></Link>
             <Link href="/upload"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Plus className="w-6 h-6" /><span>Upload</span></div></Link>
+            <Link href="/create"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Sparkles className="w-6 h-6" /><span>AI Create</span></div></Link>
             <Link href="/leaderboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Trophy className="w-6 h-6" /><span>Leaderboard</span></div></Link>
             <Link href="/profile"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><User className="w-6 h-6" /><span>Profile</span></div></Link>
           </nav>

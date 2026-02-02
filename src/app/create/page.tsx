@@ -9,7 +9,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Sparkles, BookOpen, Heart, Trophy, User, Plus } from 'lucide-react';
+import { Sparkles, BookOpen, Heart, Trophy, User, Plus, Play } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -45,13 +45,10 @@ function CreatePageContent() {
           <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span>
           </Link>
-          <Link href="/dashboard" className="mb-4">
-            <div className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] text-white font-bold shadow-lg">
-              <Heart className="w-5 h-5" fill="white" /><span>Vote Now</span>
-            </div>
-          </Link>
           <nav className="flex-1 space-y-1">
+            <Link href="/dashboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Heart className="w-6 h-6" /><span>Vote Now</span></div></Link>
             <Link href="/story"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><BookOpen className="w-6 h-6" /><span>Story</span></div></Link>
+            <Link href="/watch"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Play className="w-6 h-6" /><span>Watch</span></div></Link>
             <Link href="/upload"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Plus className="w-6 h-6" /><span>Upload</span></div></Link>
             <Link href="/create"><div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-purple-500/10 text-purple-300 border border-purple-500/20"><Sparkles className="w-6 h-6" /><span className="font-semibold">AI Create</span></div></Link>
             <Link href="/leaderboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Trophy className="w-6 h-6" /><span>Leaderboard</span></div></Link>
