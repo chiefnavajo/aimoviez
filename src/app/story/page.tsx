@@ -1868,7 +1868,7 @@ function StoryPage() {
 
             {/* Segment Navigation Arrows */}
             {totalSegments > 1 && (
-              <div className="flex items-center gap-3 px-3 pt-4 mt-2">
+              <div className="flex flex-col items-center gap-2 px-3 pt-4 mt-2">
                 <motion.button
                   whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
                   whileTap={{ scale: 0.9 }}
