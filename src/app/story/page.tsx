@@ -1819,44 +1819,6 @@ function StoryPage() {
           />
         </div>
 
-        {/* Desktop Navigation Arrows - Outside VideoPlayer for proper z-index */}
-        {totalSegments > 1 && (
-          <div className="absolute left-[232px] top-[60%] -translate-y-1/2 z-40 flex flex-col items-center gap-4">
-            {/* Previous Segment */}
-            <motion.button
-              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => videoPlayerRef.current?.goPrev()}
-              className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
-                currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
-              }`}
-              disabled={currentSegmentIndex === 0}
-            >
-              <ChevronDown className="w-7 h-7 text-white rotate-180" />
-            </motion.button>
-
-            {/* Counter */}
-            <div className="text-center">
-              <span className="text-white/80 text-sm font-medium drop-shadow-lg">
-                {currentSegmentIndex + 1}/{totalSegments}
-              </span>
-            </div>
-
-            {/* Next Segment */}
-            <motion.button
-              whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-              whileTap={{ scale: 0.9 }}
-              onClick={() => videoPlayerRef.current?.goNext()}
-              className={`w-14 h-14 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all shadow-lg ${
-                currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
-              }`}
-              disabled={currentSegmentIndex >= totalSegments - 1}
-            >
-              <ChevronDown className="w-7 h-7 text-white" />
-            </motion.button>
-          </div>
-        )}
-
         {/* Left Sidebar - Navigation (Fully Transparent) */}
         <div className="w-56 h-full flex flex-col py-4 px-3 relative z-30" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
           {/* Navigation Items */}
@@ -1903,6 +1865,39 @@ function StoryPage() {
                 <span>Profile</span>
               </div>
             </Link>
+
+            {/* Segment Navigation Arrows */}
+            {totalSegments > 1 && (
+              <div className="flex items-center gap-3 px-3 pt-4 mt-2">
+                <motion.button
+                  whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => videoPlayerRef.current?.goPrev()}
+                  className={`w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                    currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
+                  }`}
+                  disabled={currentSegmentIndex === 0}
+                >
+                  <ChevronDown className="w-5 h-5 text-white rotate-180" />
+                </motion.button>
+
+                <span className="text-white/80 text-sm font-medium drop-shadow-lg">
+                  {currentSegmentIndex + 1}/{totalSegments}
+                </span>
+
+                <motion.button
+                  whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => videoPlayerRef.current?.goNext()}
+                  className={`w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                    currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
+                  }`}
+                  disabled={currentSegmentIndex >= totalSegments - 1}
+                >
+                  <ChevronDown className="w-5 h-5 text-white" />
+                </motion.button>
+              </div>
+            )}
           </nav>
 
           {/* Season List at Bottom */}
