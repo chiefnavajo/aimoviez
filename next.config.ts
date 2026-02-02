@@ -108,6 +108,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Ensure ffmpeg-static binary is included in serverless function bundles
+  outputFileTracingIncludes: {
+    '/api/internal/extract-frame': ['./node_modules/ffmpeg-static/**/*'],
+    '/api/cron/extract-missing-frames': ['./node_modules/ffmpeg-static/**/*'],
+  },
 };
 
 // Sentry configuration options
