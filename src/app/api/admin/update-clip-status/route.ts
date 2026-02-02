@@ -307,6 +307,35 @@ export async function POST(req: NextRequest) {
 
     console.log(`[update-clip-status] Clip "${clip.title}" changed from ${previousStatus} to ${newStatus}`);
 
+    // 7b. If clip was activated — check if its slot needs to transition from waiting_for_clips to voting
+    if (newStatus === 'active' && clip.slot_position != null) {
+      const { data: clipSlot } = await supabase
+        .from('story_slots')
+        .select('id, slot_position, status')
+        .eq('season_id', season.id)
+        .eq('slot_position', clip.slot_position)
+        .eq('status', 'waiting_for_clips')
+        .maybeSingle();
+
+      if (clipSlot) {
+        const now = new Date();
+        const votingEndsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+        await supabase
+          .from('story_slots')
+          .update({
+            status: 'voting',
+            voting_started_at: now.toISOString(),
+            voting_ends_at: votingEndsAt.toISOString(),
+            voting_duration_hours: 24,
+          })
+          .eq('id', clipSlot.id);
+
+        slotNewStatus = 'voting';
+        console.log(`[update-clip-status] Slot ${clipSlot.slot_position} transitioned waiting_for_clips → voting`);
+      }
+    }
+
     // 8. Audit log
     await logAdminAction(req, {
       action: 'god_mode_status_change',

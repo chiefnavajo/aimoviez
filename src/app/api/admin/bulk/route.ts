@@ -114,6 +114,34 @@ export async function POST(request: NextRequest) {
       } else {
         updatedCount = data?.length || 0;
       }
+
+      // If clips were approved into a waiting_for_clips slot, transition it to voting
+      if (updatedCount > 0 && slotPosition != null && sampleClip?.season_id) {
+        const { data: waitingSlot } = await supabase
+          .from('story_slots')
+          .select('id, slot_position')
+          .eq('season_id', sampleClip.season_id)
+          .eq('slot_position', slotPosition)
+          .eq('status', 'waiting_for_clips')
+          .maybeSingle();
+
+        if (waitingSlot) {
+          const now = new Date();
+          const votingEndsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'voting',
+              voting_started_at: now.toISOString(),
+              voting_ends_at: votingEndsAt.toISOString(),
+              voting_duration_hours: 24,
+            })
+            .eq('id', waitingSlot.id);
+
+          console.log(`[BULK] Slot ${waitingSlot.slot_position} transitioned waiting_for_clips → voting`);
+        }
+      }
     } else if (action === 'reject') {
       const { data, error } = await supabase
         .from('tournament_clips')
