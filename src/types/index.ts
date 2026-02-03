@@ -279,3 +279,84 @@ export interface AIVideoConfig {
   keyword_blocklist: string[];
   style_prompt_prefixes: Record<string, string>;
 }
+
+// =========================
+// DREAM TEAMS TYPES
+// =========================
+
+export type TeamRole = 'leader' | 'officer' | 'member';
+
+export interface TeamMember {
+  id: string;
+  role: TeamRole;
+  contribution_xp: number;
+  contribution_votes: number;
+  last_active_date: string | null;
+  joined_at: string;
+  user: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+    level: number;
+    xp: number;
+  };
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  description: string | null;
+  logo_url: string | null;
+  leader_id: string;
+  level: number;
+  total_xp: number;
+  current_streak: number;
+  longest_streak: number;
+  last_active_date: string | null;
+  member_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamWithStats extends Team {
+  combined_votes: number;
+  combined_wins: number;
+  rank?: number;
+  members?: TeamMember[];
+  leader_username?: string;
+  leader_avatar_url?: string | null;
+}
+
+export interface TeamInvite {
+  id: string;
+  code: string;
+  max_uses: number | null;
+  uses: number;
+  expires_at: string | null;
+  created_at: string;
+  created_by: string;
+  share_link?: string;
+}
+
+export interface TeamMessage {
+  id: string;
+  message: string;
+  created_at: string;
+  user_id: string;
+  username: string;
+  avatar_url: string | null;
+}
+
+export interface TeamLeaderboardEntry {
+  rank: number;
+  id: string;
+  name: string;
+  logo_url: string | null;
+  level: number;
+  total_xp: number;
+  current_streak: number;
+  member_count: number;
+  combined_votes: number;
+  combined_wins: number;
+  leader_username: string;
+}

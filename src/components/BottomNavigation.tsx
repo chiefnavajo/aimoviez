@@ -1,6 +1,6 @@
 'use client';
 
-import { Infinity, Play, Upload, Trophy, User, Clapperboard, Sparkles } from 'lucide-react';
+import { Infinity, Play, Upload, Trophy, User, Clapperboard, Sparkles, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -20,6 +20,7 @@ export default function BottomNavigation() {
     { href: '/upload', icon: Upload, label: 'Upload' },
     ...(aiEnabled ? [{ href: '/create', icon: Sparkles, label: 'Create' }] : []),
     { href: '/leaderboard', icon: Trophy, label: 'Ranks' },
+    { href: '/team', icon: Users, label: 'Team' },
     { href: '/profile', icon: User, label: 'Profile' },
   ];
 
