@@ -188,11 +188,23 @@ export default function AdminDashboard() {
   const [freeAssignResult, setFreeAssignResult] = useState<{ success: boolean; message: string } | null>(null);
   const [allSlots, setAllSlots] = useState<{ slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_username?: string; clip_count?: number }[]>([]);
   const [freeAssignSearch, setFreeAssignSearch] = useState('');
-  type GodModeAction = 'assign' | 'change_status' | 'change_slot_status';
+  type GodModeAction = 'assign' | 'change_status' | 'change_slot_status' | 'reorganize';
   const [godModeAction, setGodModeAction] = useState<GodModeAction>('assign');
   const [godModeNewStatus, setGodModeNewStatus] = useState<'pending' | 'active' | 'rejected'>('active');
   const [godModeSlotPosition, setGodModeSlotPosition] = useState<number | ''>(1);
   const [godModeSlotNewStatus, setGodModeSlotNewStatus] = useState<'voting' | 'waiting_for_clips' | 'upcoming'>('waiting_for_clips');
+
+  // Slot reorganization state
+  const [reorgSelectedSlots, setReorgSelectedSlots] = useState<Set<number>>(new Set());
+  const [reorgProcessing, setReorgProcessing] = useState(false);
+  const [reorgResult, setReorgResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [reorgMode, setReorgMode] = useState<'delete' | 'swap'>('delete');
+  const [reorgShowConfirm, setReorgShowConfirm] = useState(false);
+  const [reorgPreview, setReorgPreview] = useState<{
+    slotsToDelete: Array<{ slot_position: number; status: string }>;
+    clipsToDelete: Array<{ id: string; title: string; username: string; slot_position: number }>;
+    shiftAmount: number;
+  } | null>(null);
 
   // Tab and feature flags state
   const [activeTab, setActiveTab] = useState<AdminTab>('clips');
@@ -1173,6 +1185,12 @@ export default function AdminDashboard() {
     setGodModeNewStatus('active');
     setGodModeSlotPosition(1);
     setGodModeSlotNewStatus('voting');
+    // Reset reorganization state
+    setReorgSelectedSlots(new Set());
+    setReorgResult(null);
+    setReorgMode('delete');
+    setReorgPreview(null);
+    setReorgShowConfirm(false);
   };
 
   const handleFreeAssign = async () => {
@@ -3339,7 +3357,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* Clip Selection — hidden for slot status tab */}
-              {godModeAction !== 'change_slot_status' && (
+              {godModeAction !== 'change_slot_status' && godModeAction !== 'reorganize' && (
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-white/70 mb-2">Select Clip</label>
                   <div className="relative mb-2">
@@ -3396,27 +3414,35 @@ export default function AdminDashboard() {
               <div className="flex gap-1 mb-4 p-1 bg-white/5 rounded-lg">
                 <button
                   onClick={() => { setGodModeAction('assign'); setFreeAssignResult(null); }}
-                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 px-2 py-2 rounded-md text-xs font-medium transition-colors ${
                     godModeAction === 'assign' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
                   }`}
                 >
-                  Assign to Slot
+                  Assign
                 </button>
                 <button
                   onClick={() => { setGodModeAction('change_status'); setFreeAssignResult(null); }}
-                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 px-2 py-2 rounded-md text-xs font-medium transition-colors ${
                     godModeAction === 'change_status' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
                   }`}
                 >
-                  Change Status
+                  Status
                 </button>
                 <button
                   onClick={() => { setGodModeAction('change_slot_status'); setFreeAssignResult(null); }}
-                  className={`flex-1 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  className={`flex-1 px-2 py-2 rounded-md text-xs font-medium transition-colors ${
                     godModeAction === 'change_slot_status' ? 'bg-purple-500/30 text-purple-300' : 'text-white/50 hover:text-white/70'
                   }`}
                 >
-                  Slot Status
+                  Slot
+                </button>
+                <button
+                  onClick={() => { setGodModeAction('reorganize'); setFreeAssignResult(null); setReorgResult(null); }}
+                  className={`flex-1 px-2 py-2 rounded-md text-xs font-medium transition-colors ${
+                    godModeAction === 'reorganize' ? 'bg-red-500/30 text-red-300' : 'text-white/50 hover:text-white/70'
+                  }`}
+                >
+                  Reorg
                 </button>
               </div>
 
@@ -3660,9 +3686,157 @@ export default function AdminDashboard() {
                 </>
               )}
 
+              {/* Reorganize Slots Panel */}
+              {godModeAction === 'reorganize' && (
+                <>
+                  {/* Mode Toggle */}
+                  <div className="flex gap-2 mb-4">
+                    <button
+                      onClick={() => { setReorgMode('delete'); setReorgSelectedSlots(new Set()); setReorgResult(null); }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        reorgMode === 'delete' ? 'bg-red-500/30 text-red-300 border border-red-500/50' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      Delete & Shift
+                    </button>
+                    <button
+                      onClick={() => { setReorgMode('swap'); setReorgSelectedSlots(new Set()); setReorgResult(null); }}
+                      className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        reorgMode === 'swap' ? 'bg-blue-500/30 text-blue-300 border border-blue-500/50' : 'bg-white/5 text-white/50 hover:bg-white/10'
+                      }`}
+                    >
+                      Swap Slots
+                    </button>
+                  </div>
+
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-white/70 mb-2">
+                      {reorgMode === 'delete' ? 'Select Slots to Delete' : 'Select 2 Slots to Swap'}
+                    </label>
+                    <p className="text-xs text-white/40 mb-3">
+                      {reorgMode === 'delete'
+                        ? 'Click slots to select. Remaining slots will shift down to fill gaps.'
+                        : 'Click exactly 2 slots to swap their positions.'}
+                    </p>
+
+                    {/* Slot Grid - All slots (scrollable) */}
+                    <div className="max-h-48 overflow-y-auto border border-white/10 rounded-lg p-2 mb-3">
+                      <div className="grid grid-cols-10 gap-1">
+                        {Array.from({ length: slotInfo?.totalSlots || 75 }, (_, i) => i + 1).map((pos) => {
+                          const slotData = allSlots.find(s => s.slot_position === pos);
+                          const isSelected = reorgSelectedSlots.has(pos);
+                          const isLocked = slotData?.status === 'locked';
+                          const isVoting = slotData?.status === 'voting';
+                          const isWaiting = slotData?.status === 'waiting_for_clips';
+
+                          // In swap mode, limit to 2 selections
+                          const canSelect = reorgMode === 'swap' ? (isSelected || reorgSelectedSlots.size < 2) : true;
+
+                          return (
+                            <button
+                              key={pos}
+                              onClick={() => {
+                                if (!canSelect && !isSelected) return;
+                                const newSet = new Set(reorgSelectedSlots);
+                                if (isSelected) {
+                                  newSet.delete(pos);
+                                } else {
+                                  newSet.add(pos);
+                                }
+                                setReorgSelectedSlots(newSet);
+                                setReorgResult(null);
+                              }}
+                              disabled={!slotData || isVoting || (!canSelect && !isSelected)}
+                              className={`
+                                w-7 h-7 rounded text-[10px] font-medium transition-all
+                                ${!slotData
+                                  ? 'bg-gray-800/30 text-gray-600 cursor-not-allowed'
+                                  : isSelected
+                                    ? reorgMode === 'delete'
+                                      ? 'bg-red-500 text-white ring-2 ring-red-400'
+                                      : 'bg-blue-500 text-white ring-2 ring-blue-400'
+                                    : isLocked
+                                      ? 'bg-green-500/30 text-green-300 hover:bg-green-500/50'
+                                      : isVoting
+                                        ? 'bg-yellow-500/30 text-yellow-300 cursor-not-allowed'
+                                        : isWaiting
+                                          ? 'bg-orange-500/20 text-orange-300 hover:bg-orange-500/30'
+                                          : 'bg-white/10 text-white/40 hover:bg-white/20'
+                                }
+                                ${(!canSelect && !isSelected) || !slotData ? 'opacity-30 cursor-not-allowed' : ''}
+                              `}
+                              title={slotData ? `Slot ${pos}: ${slotData.status}${slotData.winner_username ? ` (@${slotData.winner_username})` : ''}` : `Slot ${pos}: does not exist`}
+                            >
+                              {pos}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex flex-wrap gap-3 text-[10px] text-white/40 mb-3">
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-green-500/30"></span> Locked</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-yellow-500/30"></span> Voting</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-orange-500/20"></span> Waiting</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-white/10"></span> Upcoming</span>
+                      <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-gray-800/30 opacity-30"></span> No slot</span>
+                    </div>
+
+                    {/* Selected slots summary - Delete mode */}
+                    {reorgMode === 'delete' && reorgSelectedSlots.size > 0 && (
+                      <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 mb-3">
+                        <p className="text-sm text-red-300 mb-1">
+                          <strong>{reorgSelectedSlots.size}</strong> slot(s) selected:
+                          <span className="ml-2 text-white/70">
+                            {Array.from(reorgSelectedSlots).sort((a, b) => a - b).join(', ')}
+                          </span>
+                        </p>
+                        <p className="text-xs text-white/50">
+                          Slots after will shift down by {reorgSelectedSlots.size}.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Selected slots summary - Swap mode */}
+                    {reorgMode === 'swap' && reorgSelectedSlots.size > 0 && (
+                      <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 mb-3">
+                        <p className="text-sm text-blue-300">
+                          {reorgSelectedSlots.size === 1
+                            ? `Selected slot ${Array.from(reorgSelectedSlots)[0]} — select one more to swap`
+                            : `Swap slot ${Array.from(reorgSelectedSlots).sort((a, b) => a - b)[0]} ↔ slot ${Array.from(reorgSelectedSlots).sort((a, b) => a - b)[1]}`
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Clear selection button */}
+                    {reorgSelectedSlots.size > 0 && (
+                      <button
+                        onClick={() => setReorgSelectedSlots(new Set())}
+                        className="text-xs text-white/50 hover:text-white/70 underline"
+                      >
+                        Clear selection
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Reorganize Result */}
+                  {reorgResult && (
+                    <div className={`mb-4 p-3 rounded-lg text-sm ${
+                      reorgResult.success
+                        ? 'bg-green-500/20 border border-green-500/30 text-green-300'
+                        : 'bg-red-500/20 border border-red-500/30 text-red-300'
+                    }`}>
+                      {reorgResult.message}
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* Result Message */}
               <AnimatePresence>
-                {freeAssignResult && (
+                {freeAssignResult && godModeAction !== 'reorganize' && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -3738,6 +3912,105 @@ export default function AdminDashboard() {
                       </>
                     )}
                   </motion.button>
+                ) : godModeAction === 'reorganize' ? (
+                  <motion.button
+                    whileTap={{ scale: 0.95 }}
+                    onClick={async () => {
+                      if (reorgMode === 'delete') {
+                        if (reorgSelectedSlots.size === 0) return;
+                        // Fetch preview first
+                        setReorgProcessing(true);
+                        try {
+                          const previewRes = await fetch(`/api/admin/slots/reorganize?action=delete_and_shift&positions=${Array.from(reorgSelectedSlots).join(',')}`);
+                          const previewData = await previewRes.json();
+                          if (previewData.slotsToDelete) {
+                            setReorgPreview({
+                              slotsToDelete: previewData.slotsToDelete,
+                              clipsToDelete: previewData.clipsToDelete || [],
+                              shiftAmount: previewData.shiftAmount,
+                            });
+                            setReorgShowConfirm(true);
+                          }
+                        } catch {
+                          setReorgResult({ success: false, message: 'Failed to load preview' });
+                        }
+                        setReorgProcessing(false);
+                      } else if (reorgMode === 'swap') {
+                        if (reorgSelectedSlots.size !== 2) return;
+                        const [slotA, slotB] = Array.from(reorgSelectedSlots).sort((a, b) => a - b);
+                        setReorgProcessing(true);
+                        setReorgResult(null);
+                        try {
+                          const response = await fetch('/api/admin/slots/reorganize', {
+                            method: 'POST',
+                            headers: getHeaders(),
+                            body: JSON.stringify({
+                              action: 'swap_slots',
+                              slot_a_position: slotA,
+                              slot_b_position: slotB,
+                            }),
+                          });
+                          const data = await response.json();
+                          if (data.success) {
+                            setReorgResult({ success: true, message: data.message });
+                            setReorgSelectedSlots(new Set());
+                            // Refresh slots data and slot info
+                            const slotsRes = await fetch('/api/admin/slots?simple=false');
+                            const slotsData = await slotsRes.json();
+                            if (slotsData.ok && slotsData.slots) {
+                              setAllSlots(slotsData.slots.map((s: { slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_details?: { username: string }; clip_count?: number }) => ({
+                                slot_position: s.slot_position,
+                                status: s.status,
+                                winner_tournament_clip_id: s.winner_tournament_clip_id,
+                                winner_username: s.winner_details?.username,
+                                clip_count: s.clip_count,
+                              })));
+                            }
+                            fetchSlotInfo();
+                          } else {
+                            setReorgResult({ success: false, message: data.error || 'Failed to swap slots' });
+                          }
+                        } catch {
+                          setReorgResult({ success: false, message: 'Network error' });
+                        }
+                        setReorgProcessing(false);
+                      }
+                    }}
+                    disabled={
+                      (reorgMode === 'delete' && reorgSelectedSlots.size === 0) ||
+                      (reorgMode === 'swap' && reorgSelectedSlots.size !== 2) ||
+                      reorgProcessing ||
+                      reorgResult?.success === true
+                    }
+                    className={`flex-1 px-4 py-2.5 rounded-xl font-bold transition-all disabled:opacity-50
+                             flex items-center justify-center gap-2 ${
+                               reorgMode === 'delete'
+                                 ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:shadow-lg hover:shadow-red-500/20'
+                                 : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:shadow-lg hover:shadow-blue-500/20'
+                             }`}
+                  >
+                    {reorgProcessing ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        {reorgMode === 'delete' ? 'Loading preview...' : 'Swapping...'}
+                      </>
+                    ) : reorgResult?.success ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        Done!
+                      </>
+                    ) : reorgMode === 'delete' ? (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        Delete & Shift
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4" />
+                        Swap Slots
+                      </>
+                    )}
+                  </motion.button>
                 ) : (
                   <motion.button
                     whileTap={{ scale: 0.95 }}
@@ -3765,6 +4038,142 @@ export default function AdminDashboard() {
                     )}
                   </motion.button>
                 )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Slot Reorganization Confirmation Modal */}
+      <AnimatePresence>
+        {reorgShowConfirm && reorgPreview && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm"
+            onClick={() => setReorgShowConfirm(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-gray-900 rounded-2xl border border-red-500/30 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 rounded-lg bg-red-500/20">
+                  <AlertCircle className="w-6 h-6 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Confirm Deletion</h3>
+                  <p className="text-sm text-white/60">This action cannot be undone</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                {/* Slots to delete */}
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <p className="text-sm font-medium text-red-300 mb-2">
+                    Deleting {reorgPreview.slotsToDelete.length} slot(s):
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {reorgPreview.slotsToDelete.map(slot => (
+                      <span key={slot.slot_position} className="px-2 py-1 bg-red-500/20 rounded text-xs text-red-300">
+                        #{slot.slot_position} ({slot.status})
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Clips to delete */}
+                {reorgPreview.clipsToDelete.length > 0 && (
+                  <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                    <p className="text-sm font-medium text-white/70 mb-2">
+                      {reorgPreview.clipsToDelete.length} clip(s) will be deleted:
+                    </p>
+                    <div className="max-h-24 overflow-y-auto space-y-1">
+                      {reorgPreview.clipsToDelete.map(clip => (
+                        <div key={clip.id} className="text-xs text-white/50">
+                          Slot {clip.slot_position}: &quot;{clip.title}&quot; by @{clip.username}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Shift info */}
+                <div className="p-3 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                  <p className="text-sm text-orange-300">
+                    Remaining slots will shift down by {reorgPreview.shiftAmount} position(s).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setReorgShowConfirm(false)}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-white/10 text-white/70 font-medium hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={async () => {
+                    setReorgShowConfirm(false);
+                    setReorgProcessing(true);
+                    setReorgResult(null);
+                    try {
+                      const response = await fetch('/api/admin/slots/reorganize', {
+                        method: 'POST',
+                        headers: getHeaders(),
+                        body: JSON.stringify({
+                          action: 'delete_and_shift',
+                          slot_positions_to_delete: Array.from(reorgSelectedSlots),
+                        }),
+                      });
+                      const data = await response.json();
+                      if (data.success) {
+                        setReorgResult({ success: true, message: data.message });
+                        setReorgSelectedSlots(new Set());
+                        setReorgPreview(null);
+                        // Refresh slots data and slot info
+                        const slotsRes = await fetch('/api/admin/slots?simple=false');
+                        const slotsData = await slotsRes.json();
+                        if (slotsData.ok && slotsData.slots) {
+                          setAllSlots(slotsData.slots.map((s: { slot_position: number; status: string; winner_tournament_clip_id: string | null; winner_details?: { username: string }; clip_count?: number }) => ({
+                            slot_position: s.slot_position,
+                            status: s.status,
+                            winner_tournament_clip_id: s.winner_tournament_clip_id,
+                            winner_username: s.winner_details?.username,
+                            clip_count: s.clip_count,
+                          })));
+                        }
+                        fetchSlotInfo();
+                      } else {
+                        setReorgResult({ success: false, message: data.error || 'Failed to reorganize slots' });
+                      }
+                    } catch {
+                      setReorgResult({ success: false, message: 'Network error' });
+                    }
+                    setReorgProcessing(false);
+                  }}
+                  disabled={reorgProcessing}
+                  className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 font-bold hover:bg-red-600 transition-colors
+                           flex items-center justify-center gap-2"
+                >
+                  {reorgProcessing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      Delete & Shift
+                    </>
+                  )}
+                </motion.button>
               </div>
             </motion.div>
           </motion.div>

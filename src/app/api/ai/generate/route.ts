@@ -148,12 +148,12 @@ export async function POST(request: NextRequest) {
 
     const sanitizedPrompt = sanitizeResult.prompt;
 
-    // 9. Atomic daily limit check and reservation
+    // 9. Atomic daily limit check and reservation (v2 supports per-user custom limits)
     const { data: reservationResult, error: reservationError } = await supabase
-      .rpc('check_and_reserve_generation', {
+      .rpc('check_and_reserve_generation_v2', {
         p_user_id: userId,
         p_date: new Date().toISOString().split('T')[0],
-        p_max_daily: maxDaily,
+        p_global_max_daily: maxDaily,
       });
 
     if (reservationError) {

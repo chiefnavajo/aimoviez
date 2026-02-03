@@ -40,7 +40,7 @@ export async function GET(
     // Get user profile
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, username, display_name, email, avatar_url, bio, level, xp, total_votes_cast, total_votes_received, clips_uploaded, clips_locked, followers_count, following_count, is_admin, is_banned, banned_at, ban_reason, created_at, updated_at')
+      .select('id, username, display_name, email, avatar_url, bio, level, xp, total_votes_cast, total_votes_received, clips_uploaded, clips_locked, followers_count, following_count, is_admin, is_banned, banned_at, ban_reason, created_at, updated_at, ai_daily_limit')
       .eq('id', id)
       .single();
 
@@ -127,9 +127,9 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
-    const { action, reason, username } = body;
+    const { action, reason, username, limit } = body;
 
-    if (!action || !['ban', 'unban', 'make_admin', 'remove_admin', 'update_username'].includes(action)) {
+    if (!action || !['ban', 'unban', 'make_admin', 'remove_admin', 'update_username', 'set_ai_limit'].includes(action)) {
       return NextResponse.json(
         { error: 'Invalid action' },
         { status: 400 }
@@ -161,7 +161,7 @@ export async function PUT(
     }
 
     let updateData: Record<string, unknown> = {};
-    let auditAction: 'ban_user' | 'unban_user' | 'grant_admin' | 'revoke_admin' | 'update_username';
+    let auditAction: 'ban_user' | 'unban_user' | 'grant_admin' | 'revoke_admin' | 'update_username' | 'set_ai_limit';
 
     switch (action) {
       case 'ban':
@@ -225,6 +225,17 @@ export async function PUT(
         updateData = { username: cleanUsername };
         auditAction = 'update_username';
         break;
+      case 'set_ai_limit':
+        // Validate limit value: null (reset to default), -1 (unlimited), or positive number
+        if (limit !== null && limit !== -1 && (typeof limit !== 'number' || limit <= 0 || !Number.isInteger(limit))) {
+          return NextResponse.json(
+            { error: 'Invalid limit. Must be null (default), -1 (unlimited), or a positive integer' },
+            { status: 400 }
+          );
+        }
+        updateData = { ai_daily_limit: limit };
+        auditAction = 'set_ai_limit';
+        break;
       default:
         return NextResponse.json(
           { error: 'Invalid action' },
@@ -265,6 +276,11 @@ export async function PUT(
       make_admin: 'promoted to admin',
       remove_admin: 'removed from admin',
       update_username: `username changed to @${updateData.username}`,
+      set_ai_limit: updateData.ai_daily_limit === null
+        ? 'AI limit reset to default'
+        : updateData.ai_daily_limit === -1
+          ? 'AI limit set to unlimited'
+          : `AI limit set to ${updateData.ai_daily_limit}/day`,
     };
 
     return NextResponse.json({

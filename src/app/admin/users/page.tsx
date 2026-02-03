@@ -28,6 +28,8 @@ import {
   X,
   Eye,
   Edit3,
+  Zap,
+  Infinity,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -44,6 +46,7 @@ interface UserData {
   banned_at?: string;
   clip_count: number;
   vote_count: number;
+  ai_daily_limit: number | null;
 }
 
 interface UserDetail extends UserData {
@@ -59,6 +62,7 @@ interface UserDetail extends UserData {
     vote_count: number;
     created_at: string;
   }>;
+  ai_daily_limit: number | null;
 }
 
 export default function AdminUsersPage() {
@@ -88,6 +92,12 @@ export default function AdminUsersPage() {
   const [newUsername, setNewUsername] = useState('');
   const [usernameError, setUsernameError] = useState('');
   const [processingUsername, setProcessingUsername] = useState(false);
+
+  // AI limit modal
+  const [editingLimitUser, setEditingLimitUser] = useState<UserData | null>(null);
+  const [newLimit, setNewLimit] = useState<string>('');
+  const [isUnlimited, setIsUnlimited] = useState(false);
+  const [processingLimit, setProcessingLimit] = useState(false);
 
   // Fetch users
   const fetchUsers = async () => {
@@ -283,6 +293,79 @@ export default function AdminUsersPage() {
     setUsernameError('');
   };
 
+  // Open AI limit modal
+  const openEditLimit = (user: UserData) => {
+    setEditingLimitUser(user);
+    if (user.ai_daily_limit === -1) {
+      setIsUnlimited(true);
+      setNewLimit('');
+    } else if (user.ai_daily_limit !== null) {
+      setIsUnlimited(false);
+      setNewLimit(user.ai_daily_limit.toString());
+    } else {
+      setIsUnlimited(false);
+      setNewLimit('');
+    }
+  };
+
+  // Set AI limit
+  const handleSetLimit = async () => {
+    if (!editingLimitUser) return;
+
+    setProcessingLimit(true);
+
+    let limitValue: number | null;
+    if (isUnlimited) {
+      limitValue = -1;
+    } else if (newLimit.trim() === '') {
+      limitValue = null; // Reset to default
+    } else {
+      const parsed = parseInt(newLimit, 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        setProcessingLimit(false);
+        return;
+      }
+      limitValue = parsed;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${editingLimitUser.id}`, {
+        method: 'PUT',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          action: 'set_ai_limit',
+          limit: limitValue,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Update local state
+        setUsers(prev =>
+          prev.map(u =>
+            u.id === editingLimitUser.id ? { ...u, ai_daily_limit: limitValue } : u
+          )
+        );
+
+        // Update detail modal if open
+        if (selectedUser?.id === editingLimitUser.id) {
+          setSelectedUser(prev =>
+            prev ? { ...prev, ai_daily_limit: limitValue } : null
+          );
+        }
+
+        setEditingLimitUser(null);
+        setNewLimit('');
+        setIsUnlimited(false);
+      }
+    } catch (error) {
+      console.error('Failed to set AI limit:', error);
+    }
+
+    setProcessingLimit(false);
+  };
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -447,7 +530,7 @@ export default function AdminUsersPage() {
                     </div>
 
                     {/* Actions - Grid on mobile */}
-                    <div className="grid grid-cols-4 sm:flex items-center gap-1.5 sm:gap-2">
+                    <div className="grid grid-cols-5 sm:flex items-center gap-1.5 sm:gap-2">
                       <motion.button
                         whileTap={{ scale: 0.95 }}
                         onClick={() => fetchUserDetail(user.id)}
@@ -464,6 +547,31 @@ export default function AdminUsersPage() {
                         title="Edit Username"
                       >
                         <Edit3 className="w-4 h-4 sm:w-5 sm:h-5" />
+                      </motion.button>
+
+                      <motion.button
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => openEditLimit(user)}
+                        className={`p-2 rounded-lg transition-colors flex items-center justify-center ${
+                          user.ai_daily_limit === -1
+                            ? 'bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400'
+                            : user.ai_daily_limit !== null
+                              ? 'bg-orange-500/20 hover:bg-orange-500/30 text-orange-400'
+                              : 'bg-white/10 hover:bg-white/20 text-white/60'
+                        }`}
+                        title={
+                          user.ai_daily_limit === -1
+                            ? 'Unlimited AI'
+                            : user.ai_daily_limit !== null
+                              ? `AI Limit: ${user.ai_daily_limit}/day`
+                              : 'Set AI Limit'
+                        }
+                      >
+                        {user.ai_daily_limit === -1 ? (
+                          <Infinity className="w-4 h-4 sm:w-5 sm:h-5" />
+                        ) : (
+                          <Zap className="w-4 h-4 sm:w-5 sm:h-5" />
+                        )}
                       </motion.button>
 
                       {user.is_banned ? (
@@ -793,6 +901,114 @@ export default function AdminUsersPage() {
                     <>
                       <Edit3 className="w-5 h-5" />
                       Update
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* AI Limit Modal */}
+      <AnimatePresence>
+        {editingLimitUser && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setEditingLimitUser(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[#1a1a2e] rounded-2xl border border-orange-500/30 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <div className="p-3 rounded-xl bg-orange-500/20">
+                  <Zap className="w-6 h-6 text-orange-400" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold">AI Generation Limit</h2>
+                  <p className="text-sm text-white/60">@{editingLimitUser.username}</p>
+                </div>
+              </div>
+
+              <div className="mb-6 space-y-4">
+                {/* Current status */}
+                <div className="p-3 bg-white/5 rounded-xl">
+                  <p className="text-sm text-white/60">Current limit:</p>
+                  <p className="font-bold">
+                    {editingLimitUser.ai_daily_limit === -1
+                      ? 'Unlimited'
+                      : editingLimitUser.ai_daily_limit !== null
+                        ? `${editingLimitUser.ai_daily_limit} per day`
+                        : 'Default (uses global setting)'}
+                  </p>
+                </div>
+
+                {/* Unlimited toggle */}
+                <label className="flex items-center gap-3 p-3 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={isUnlimited}
+                    onChange={(e) => {
+                      setIsUnlimited(e.target.checked);
+                      if (e.target.checked) setNewLimit('');
+                    }}
+                    className="w-5 h-5 rounded border-white/20 bg-white/10 text-yellow-500 focus:ring-yellow-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <Infinity className="w-5 h-5 text-yellow-400" />
+                    <span>Unlimited generations</span>
+                  </div>
+                </label>
+
+                {/* Custom limit input */}
+                {!isUnlimited && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Custom daily limit
+                    </label>
+                    <input
+                      type="number"
+                      value={newLimit}
+                      onChange={(e) => setNewLimit(e.target.value)}
+                      placeholder="Leave empty for default"
+                      min="1"
+                      className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-white/40 focus:border-orange-500 focus:outline-none"
+                    />
+                    <p className="text-white/40 text-xs mt-2">
+                      Leave empty to use global default limit
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setEditingLimitUser(null)}
+                  disabled={processingLimit}
+                  className="flex-1 py-3 bg-white/10 rounded-xl font-medium hover:bg-white/20 transition-colors"
+                >
+                  Cancel
+                </motion.button>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSetLimit}
+                  disabled={processingLimit || (!isUnlimited && newLimit !== '' && (isNaN(parseInt(newLimit)) || parseInt(newLimit) <= 0))}
+                  className="flex-1 py-3 bg-orange-500 rounded-xl font-bold hover:bg-orange-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingLimit ? (
+                    <RefreshCw className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Zap className="w-5 h-5" />
+                      Save
                     </>
                   )}
                 </motion.button>
