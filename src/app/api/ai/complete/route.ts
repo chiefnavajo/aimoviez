@@ -276,18 +276,19 @@ export async function POST(request: NextRequest) {
 
         if (videoHasAudio) {
           // Mix existing video audio with narration
+          // duration=first keeps full video length even if narration is shorter
           await execFileAsync(ffmpegPath, [
             '-i', inputPath,
             '-i', audioPath,
-            '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=shortest',
+            '-filter_complex', '[0:a][1:a]amix=inputs=2:duration=first',
             '-c:v', 'copy',
             '-map', '0:v:0',
-            '-shortest',
             '-y',
             outputPath,
           ]);
         } else {
           // No existing audio — add narration as the only audio track
+          // Video plays full length; narration ends when it ends (silence after)
           await execFileAsync(ffmpegPath, [
             '-i', inputPath,
             '-i', audioPath,
@@ -295,7 +296,6 @@ export async function POST(request: NextRequest) {
             '-c:a', 'aac',
             '-map', '0:v:0',
             '-map', '1:a:0',
-            '-shortest',
             '-y',
             outputPath,
           ]);
