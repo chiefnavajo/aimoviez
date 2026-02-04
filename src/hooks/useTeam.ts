@@ -63,7 +63,7 @@ export function useUserTeam() {
   return useQuery<UserTeamResponse>({
     queryKey: ['user-team'],
     queryFn: async () => {
-      const res = await fetch('/api/teams?my=true');
+      const res = await fetch('/api/teams?mode=my-team');
       if (!res.ok) throw new Error('Failed to fetch team');
       return res.json();
     },
