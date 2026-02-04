@@ -3,8 +3,6 @@
 
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
 import { Users, Trophy, Vote, Flame } from 'lucide-react';
 import type { TeamLeaderboardEntry } from '@/types';
 
@@ -18,26 +16,26 @@ export function TeamCard({ team, highlight = false }: TeamCardProps) {
     if (rank === 1) return { bg: 'bg-yellow-500/20', text: 'text-yellow-500', icon: '1' };
     if (rank === 2) return { bg: 'bg-gray-400/20', text: 'text-gray-400', icon: '2' };
     if (rank === 3) return { bg: 'bg-orange-600/20', text: 'text-orange-600', icon: '3' };
+    if (rank <= 0) return { bg: 'bg-gray-800', text: 'text-gray-500', icon: '—' };
     return { bg: 'bg-gray-800', text: 'text-gray-400', icon: rank.toString() };
   };
 
   const rankStyle = getRankDisplay(team.rank);
 
   return (
-    <Link href={`/teams/${team.id}`}>
-      <div
-        className={`p-4 rounded-xl transition-all hover:scale-[1.02] cursor-pointer ${
-          highlight
-            ? 'bg-purple-900/30 border border-purple-500/50'
-            : 'bg-gray-800/50 border border-gray-700/50 hover:border-gray-600'
-        }`}
-      >
+    <div
+      className={`p-4 rounded-xl transition-all ${
+        highlight
+          ? 'bg-purple-900/30 border border-purple-500/50'
+          : 'bg-gray-800/50 border border-gray-700/50'
+      }`}
+    >
         <div className="flex items-center gap-4">
           {/* Rank badge */}
           <div
             className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${rankStyle.bg} ${rankStyle.text}`}
           >
-            {team.rank <= 3 ? (
+            {team.rank >= 1 && team.rank <= 3 ? (
               <Trophy size={18} />
             ) : (
               <span>{rankStyle.icon}</span>
@@ -58,7 +56,7 @@ export function TeamCard({ team, highlight = false }: TeamCardProps) {
                 <Users size={12} />
                 {team.member_count}
               </span>
-              <span>Led by {team.leader_username}</span>
+              {team.leader_username && <span>Led by {team.leader_username}</span>}
             </div>
           </div>
 
@@ -91,8 +89,7 @@ export function TeamCard({ team, highlight = false }: TeamCardProps) {
             </div>
           </div>
         </div>
-      </div>
-    </Link>
+    </div>
   );
 }
 

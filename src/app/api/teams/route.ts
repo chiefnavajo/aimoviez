@@ -39,7 +39,21 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Failed to get team' }, { status: 500 });
       }
 
-      return NextResponse.json({ ok: true, team });
+      // Fetch the user's membership details (role, joined_at)
+      let membership = null;
+      if (team?.id) {
+        const { data: memberRow } = await supabase
+          .from('team_members')
+          .select('role, joined_at')
+          .eq('team_id', team.id)
+          .eq('user_id', session.user.userId)
+          .single();
+        if (memberRow) {
+          membership = { role: memberRow.role, joined_at: memberRow.joined_at };
+        }
+      }
+
+      return NextResponse.json({ ok: true, team, membership });
     }
 
     // Get leaderboard

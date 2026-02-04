@@ -21,6 +21,8 @@ function JoinTeamContent() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [teamName, setTeamName] = useState<string>('');
 
+  const joinMutateAsync = joinMutation.mutateAsync;
+
   useEffect(() => {
     if (checkingTeam) return;
 
@@ -36,11 +38,14 @@ function JoinTeamContent() {
       return;
     }
 
+    // Prevent re-joining if already in progress or completed
+    if (status !== 'loading') return;
+
     // Join the team
     const joinTeam = async () => {
       setStatus('joining');
       try {
-        const result = await joinMutation.mutateAsync(code);
+        const result = await joinMutateAsync(code);
         setTeamName(result.team?.name || 'your new team');
         setStatus('success');
         // Redirect to team page after a moment
@@ -52,7 +57,8 @@ function JoinTeamContent() {
     };
 
     joinTeam();
-  }, [code, checkingTeam, teamData, router, joinMutation]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, checkingTeam, teamData, router, joinMutateAsync]);
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-6">

@@ -149,15 +149,16 @@ interface LeaderboardResponse {
   ok: boolean;
   teams: TeamLeaderboardEntry[];
   total: number;
-  page: number;
+  offset: number;
   limit: number;
 }
 
 export function useTeamLeaderboard(page: number = 1, limit: number = 20) {
+  const offset = (page - 1) * limit;
   return useQuery<LeaderboardResponse>({
     queryKey: ['team-leaderboard', page, limit],
     queryFn: async () => {
-      const res = await fetch(`/api/teams?page=${page}&limit=${limit}`);
+      const res = await fetch(`/api/teams?limit=${limit}&offset=${offset}`);
       if (!res.ok) throw new Error('Failed to fetch leaderboard');
       return res.json();
     },
@@ -215,6 +216,7 @@ export function useJoinTeam() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      queryClient.invalidateQueries({ queryKey: ['team-leaderboard'] });
     },
   });
 }
@@ -264,6 +266,8 @@ export function useKickMember() {
     onSuccess: (_, { teamId }) => {
       queryClient.invalidateQueries({ queryKey: ['team-members', teamId] });
       queryClient.invalidateQueries({ queryKey: ['team', teamId] });
+      queryClient.invalidateQueries({ queryKey: ['user-team'] });
+      queryClient.invalidateQueries({ queryKey: ['team-leaderboard'] });
     },
   });
 }

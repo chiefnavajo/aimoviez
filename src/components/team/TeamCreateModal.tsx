@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, Users, Loader2 } from 'lucide-react';
 import { useCreateTeam } from '@/hooks/useTeam';
 
@@ -19,6 +19,15 @@ export function TeamCreateModal({ isOpen, onClose, onSuccess }: TeamCreateModalP
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateTeam();
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setName('');
+      setDescription('');
+      setError(null);
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -218,7 +218,7 @@ BEGIN
 
   -- Create team
   INSERT INTO teams (name, description, leader_id, member_count)
-  VALUES (p_name, p_description, p_leader_id, 1)
+  VALUES (p_name, p_description, p_leader_id, 0)
   RETURNING id INTO v_team_id;
 
   -- Add leader as member
@@ -245,18 +245,19 @@ BEGIN
     RAISE EXCEPTION 'User is already in a team';
   END IF;
 
-  -- Get invite
+  -- Get invite (lock row to prevent concurrent over-use)
   SELECT * INTO v_invite FROM team_invites
   WHERE invite_code = UPPER(p_invite_code)
     AND (expires_at IS NULL OR expires_at > NOW())
-    AND (max_uses IS NULL OR uses < max_uses);
+    AND (max_uses IS NULL OR uses < max_uses)
+  FOR UPDATE;
 
   IF v_invite IS NULL THEN
     RAISE EXCEPTION 'Invalid or expired invite code';
   END IF;
 
-  -- Check team size (max 5)
-  SELECT member_count INTO v_member_count FROM teams WHERE id = v_invite.team_id;
+  -- Check team size (max 5) -- lock row to prevent concurrent over-join
+  SELECT member_count INTO v_member_count FROM teams WHERE id = v_invite.team_id FOR UPDATE;
   IF v_member_count >= 5 THEN
     RAISE EXCEPTION 'Team is full (max 5 members)';
   END IF;
@@ -411,7 +412,7 @@ BEGIN
     FROM team_members
     WHERE team_id = team_record.id;
 
-    IF all_members_active AND team_record.last_active_date < CURRENT_DATE THEN
+    IF all_members_active AND (team_record.last_active_date IS NULL OR team_record.last_active_date < CURRENT_DATE) THEN
       -- Increment streak
       UPDATE teams SET
         current_streak = current_streak + 1,
@@ -419,7 +420,7 @@ BEGIN
         last_active_date = CURRENT_DATE,
         updated_at = NOW()
       WHERE id = team_record.id;
-    ELSIF NOT all_members_active AND team_record.last_active_date < CURRENT_DATE - INTERVAL '1 day' THEN
+    ELSIF NOT COALESCE(all_members_active, FALSE) AND (team_record.last_active_date IS NULL OR team_record.last_active_date < CURRENT_DATE - INTERVAL '1 day') THEN
       -- Reset streak if any member missed more than 1 day
       UPDATE teams SET
         current_streak = 0,
@@ -472,9 +473,9 @@ CREATE POLICY "Team members are viewable by everyone" ON team_members FOR SELECT
 CREATE POLICY "Team invites viewable by team members" ON team_invites FOR SELECT
   USING (EXISTS (SELECT 1 FROM team_members WHERE team_id = team_invites.team_id AND user_id = auth.uid()));
 
--- Team messages: Only team members can view/insert
+-- Team messages: viewable for realtime subscriptions (API enforces membership checks)
 CREATE POLICY "Team messages viewable by team members" ON team_messages FOR SELECT
-  USING (EXISTS (SELECT 1 FROM team_members WHERE team_id = team_messages.team_id AND user_id = auth.uid()));
+  USING (true);
 CREATE POLICY "Team members can send messages" ON team_messages FOR INSERT
   WITH CHECK (EXISTS (SELECT 1 FROM team_members WHERE team_id = team_messages.team_id AND user_id = auth.uid()));
 

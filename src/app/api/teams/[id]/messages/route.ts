@@ -98,8 +98,8 @@ export async function GET(req: NextRequest, context: RouteContext) {
  * Send a message to team chat
  */
 export async function POST(req: NextRequest, context: RouteContext) {
-  // Stricter rate limit for chat
-  const rateLimitResponse = await rateLimit(req, 'api');
+  // Stricter rate limit for chat (15/min)
+  const rateLimitResponse = await rateLimit(req, 'comment');
   if (rateLimitResponse) return rateLimitResponse;
 
   try {

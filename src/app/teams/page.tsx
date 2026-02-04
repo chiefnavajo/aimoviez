@@ -12,7 +12,7 @@ import { TeamCard } from '@/components/team';
 
 export default function TeamsPage() {
   const [page] = useState(1);
-  const { data: leaderboardData, isLoading, error } = useTeamLeaderboard(page, 50);
+  const { data: leaderboardData, isLoading, error, refetch } = useTeamLeaderboard(page, 50);
   const { data: userTeamData } = useUserTeam();
 
   const userTeamId = userTeamData?.team?.id;
@@ -50,8 +50,14 @@ export default function TeamsPage() {
             <Loader2 className="animate-spin text-purple-500" size={32} />
           </div>
         ) : error ? (
-          <div className="text-center py-12 text-red-400">
-            Failed to load teams. Please try again.
+          <div className="text-center py-12">
+            <p className="text-red-400 mb-4">Failed to load teams.</p>
+            <button
+              onClick={() => refetch()}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-medium transition-colors"
+            >
+              Try Again
+            </button>
           </div>
         ) : !leaderboardData?.teams?.length ? (
           <EmptyState />
@@ -63,7 +69,7 @@ export default function TeamsPage() {
                 <div className="text-sm text-gray-400 mb-2">Your Team</div>
                 <TeamCard
                   team={{
-                    rank: 0, // Unknown rank
+                    rank: -1, // Unranked
                     id: userTeamData.team.id,
                     name: userTeamData.team.name,
                     logo_url: userTeamData.team.logo_url,

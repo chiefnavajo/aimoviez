@@ -23,6 +23,11 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const { id: teamId } = await context.params;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -44,7 +49,6 @@ export async function GET(req: NextRequest, context: RouteContext) {
         )
       `)
       .eq('team_id', teamId)
-      .order('role')
       .order('joined_at');
 
     if (error) {
@@ -52,8 +56,9 @@ export async function GET(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to get members' }, { status: 500 });
     }
 
-    // Flatten the response
-    const flatMembers = members?.map(m => ({
+    // Flatten and sort by role hierarchy (leader > officer > member)
+    const roleOrder: Record<string, number> = { leader: 0, officer: 1, member: 2 };
+    const flatMembers = (members?.map(m => ({
       id: m.id,
       role: m.role,
       contribution_xp: m.contribution_xp,
@@ -61,7 +66,7 @@ export async function GET(req: NextRequest, context: RouteContext) {
       last_active_date: m.last_active_date,
       joined_at: m.joined_at,
       user: m.users,
-    })) || [];
+    })) || []).sort((a, b) => (roleOrder[a.role] ?? 3) - (roleOrder[b.role] ?? 3));
 
     return NextResponse.json({ ok: true, members: flatMembers });
   } catch (err) {
@@ -214,15 +219,20 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     }
 
     // Update member role
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from('team_members')
       .update({ role: newRole })
       .eq('team_id', teamId)
-      .eq('user_id', targetUserId);
+      .eq('user_id', targetUserId)
+      .select('id');
 
     if (updateError) {
       console.error('[PATCH /api/teams/[id]/members] error:', updateError);
       return NextResponse.json({ error: 'Failed to update role' }, { status: 500 });
+    }
+
+    if (!updated || updated.length === 0) {
+      return NextResponse.json({ error: 'Member not found in this team' }, { status: 404 });
     }
 
     return NextResponse.json({

@@ -23,6 +23,11 @@ export async function GET(req: NextRequest, context: RouteContext) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.userId) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+    }
+
     const { id: teamId } = await context.params;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -83,10 +88,19 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
 
     // Validate and add fields to update
     if (body.name !== undefined) {
-      const trimmedName = body.name?.trim();
+      const trimmedName = typeof body.name === 'string' ? body.name.trim() : '';
       if (!trimmedName || trimmedName.length < 2 || trimmedName.length > 30) {
         return NextResponse.json(
           { error: 'Team name must be 2-30 characters' },
+          { status: 400 }
+        );
+      }
+      // Profanity filter
+      const nameLC = trimmedName.toLowerCase();
+      const blockedWords = ['fuck', 'shit', 'ass', 'dick', 'pussy', 'nigger', 'faggot'];
+      if (blockedWords.some(word => nameLC.includes(word))) {
+        return NextResponse.json(
+          { error: 'Team name contains inappropriate content' },
           { status: 400 }
         );
       }

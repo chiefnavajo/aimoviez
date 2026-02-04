@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X, UserPlus, Loader2 } from 'lucide-react';
 import { useJoinTeam } from '@/hooks/useTeam';
 
@@ -24,6 +24,14 @@ export function TeamJoinModal({
   const [error, setError] = useState<string | null>(null);
 
   const joinMutation = useJoinTeam();
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setCode(initialCode);
+      setError(null);
+    }
+  }, [isOpen, initialCode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

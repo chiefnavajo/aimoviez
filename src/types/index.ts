@@ -358,5 +358,5 @@ export interface TeamLeaderboardEntry {
   member_count: number;
   combined_votes: number;
   combined_wins: number;
-  leader_username: string;
+  leader_username?: string;
 }

@@ -80,11 +80,13 @@ export function useSendMessage() {
       return data;
     },
     onSuccess: (data, { teamId }) => {
-      // Optimistically add message to cache
+      // Add message to cache (with dedup to prevent race with realtime)
       queryClient.setQueryData<MessagesResponse>(
         ['team-messages', teamId, 50],
         (old) => {
           if (!old) return old;
+          const exists = old.messages.some(m => m.id === data.message.id);
+          if (exists) return old;
           return {
             ...old,
             messages: [...old.messages, data.message],
@@ -108,6 +110,7 @@ export function useTeamChat({ teamId, enabled = true }: UseTeamChatOptions) {
   const queryClient = useQueryClient();
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [reconnectKey, setReconnectKey] = useState(0);
   const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
   const channelRef = useRef<ReturnType<typeof createClient>['channel'] extends (name: string) => infer R ? R : never>(null);
 
@@ -198,22 +201,22 @@ export function useTeamChat({ teamId, enabled = true }: UseTeamChatOptions) {
       }
       setIsConnected(false);
     };
-  }, [teamId, enabled, queryClient]);
+  }, [teamId, enabled, queryClient, reconnectKey]);
 
   // Reconnect function
   const reconnect = useCallback(() => {
     if (!teamId || !supabaseRef.current) return;
 
-    // Remove existing channel and re-subscribe
+    // Remove existing channel before re-subscribing
     if (channelRef.current) {
       supabaseRef.current.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
-    // Trigger re-subscription by toggling enabled state
-    // The effect will re-run and create a new subscription
+    // Increment reconnectKey to trigger the subscription useEffect
     setConnectionError(null);
     setIsConnected(false);
+    setReconnectKey(k => k + 1);
   }, [teamId]);
 
   return {

@@ -10,11 +10,10 @@ import {
   Trophy,
   Vote,
   Zap,
-  Settings,
   UserPlus,
   LogOut,
   Loader2,
-  ChevronRight,
+  MessageCircle,
 } from 'lucide-react';
 import { useUserTeam, useLeaveTeam, useDisbandTeam } from '@/hooks/useTeam';
 import { TeamMemberList } from './TeamMemberList';
@@ -129,15 +128,7 @@ export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps
             </button>
           )}
 
-          {isLeader && (
-            <button
-              onClick={() => {/* TODO: Settings modal */}}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg font-medium transition-colors"
-            >
-              <Settings size={16} />
-              Team Settings
-            </button>
-          )}
+          {/* TODO: Team Settings modal - hidden until implemented */}
 
           <button
             onClick={handleLeave}
@@ -183,7 +174,7 @@ export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps
           active={activeTab === 'chat'}
           onClick={() => setActiveTab('chat')}
         >
-          <ChevronRight size={16} />
+          <MessageCircle size={16} />
           Team Chat
         </TabButton>
       </div>

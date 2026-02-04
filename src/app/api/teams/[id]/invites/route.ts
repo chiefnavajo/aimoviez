@@ -126,8 +126,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const maxUses = body.max_uses || 5;
-    const expiresInDays = body.expires_in_days || 7;
+    const rawMaxUses = typeof body.max_uses === 'number' ? body.max_uses : 5;
+    const rawExpiresInDays = typeof body.expires_in_days === 'number' ? body.expires_in_days : 7;
+    const maxUses = Math.max(1, Math.min(rawMaxUses, 10));
+    const expiresInDays = Math.max(1, Math.min(rawExpiresInDays, 30));
 
     // Generate unique code
     const { data: codeData } = await supabase.rpc('generate_invite_code');
@@ -143,7 +145,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
         team_id: teamId,
         invited_by: session.user.userId,
         invite_code: inviteCode,
-        max_uses: Math.min(maxUses, 10),
+        max_uses: maxUses,
         expires_at: expiresAt.toISOString(),
       })
       .select()
