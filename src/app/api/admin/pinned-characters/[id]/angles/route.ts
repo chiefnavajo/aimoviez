@@ -111,20 +111,32 @@ export async function POST(req: NextRequest, context: RouteContext) {
       angleUrl = clip.last_frame_url;
     }
 
-    // Append to reference_image_urls array
-    const updatedRefs = [...currentRefs, angleUrl];
+    // Atomically append to reference_image_urls with length guard via RPC
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('append_reference_angle', {
+        p_id: pinnedCharId,
+        p_url: angleUrl,
+        p_max_refs: 6,
+      });
 
-    const { data: updated, error: updateError } = await supabase
-      .from('pinned_characters')
-      .update({ reference_image_urls: updatedRefs })
-      .eq('id', pinnedCharId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('[POST angles] update error:', updateError);
+    if (rpcError) {
+      console.error('[POST angles] RPC error:', rpcError);
       return NextResponse.json({ error: 'Failed to add angle' }, { status: 500 });
     }
+
+    if (!rpcResult || rpcResult.length === 0) {
+      return NextResponse.json(
+        { error: 'Maximum 6 reference angles reached (concurrent addition)' },
+        { status: 400 }
+      );
+    }
+
+    // Fetch updated character for response
+    const { data: updated } = await supabase
+      .from('pinned_characters')
+      .select('*')
+      .eq('id', pinnedCharId)
+      .single();
 
     return NextResponse.json({ ok: true, character: updated }, { status: 201 });
   } catch (err) {

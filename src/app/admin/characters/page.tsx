@@ -201,10 +201,15 @@ export default function CharacterPinningPage() {
     if (!confirm('Unpin this character? Existing generations are not affected.')) return;
 
     try {
-      await fetch(`/api/admin/pinned-characters?id=${charId}`, {
+      const res = await fetch(`/api/admin/pinned-characters?id=${charId}`, {
         method: 'DELETE',
         headers: await getHeaders(),
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to delete character');
+        return;
+      }
       if (selectedSeason) fetchCharacters(selectedSeason);
     } catch {
       alert('Failed to delete');
@@ -321,6 +326,10 @@ export default function CharacterPinningPage() {
                   <motion.button
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
+                      setPinClipId(null);
+                      setPinLabel('');
+                      setPinTimestamp(null);
+                      setPinError(null);
                       setPinElementIndex(availableIndices[0]);
                       setShowPinModal(true);
                     }}

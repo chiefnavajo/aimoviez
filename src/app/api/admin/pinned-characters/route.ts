@@ -6,7 +6,7 @@ export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
+import { requireAdmin, requireAdminWithAuth } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
 import { getStorageProvider } from '@/lib/storage';
 import { extractFrameAtTimestamp, uploadPinnedFrame } from '@/lib/storage/frame-upload';
@@ -60,10 +60,9 @@ export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const adminError = await requireAdmin();
-  if (adminError) return adminError;
-
-  const auth = await checkAdminAuth();
+  const adminResult = await requireAdminWithAuth();
+  if (adminResult instanceof NextResponse) return adminResult;
+  const auth = adminResult;
 
   try {
     const body = await req.json();

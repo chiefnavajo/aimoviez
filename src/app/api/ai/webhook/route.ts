@@ -157,9 +157,15 @@ export async function POST(request: NextRequest) {
   const webhookStatus = payload.status;
 
   if (webhookStatus === 'OK') {
-    // Extract video URL
-    const videoUrl = payload.payload?.video?.url;
+    // Extract video URL (try multiple response formats for different fal.ai models)
+    const videoUrl =
+      payload.payload?.video?.url ||
+      payload.payload?.output?.video?.url ||
+      payload.payload?.data?.video_url ||
+      payload.payload?.video_url;
     if (!videoUrl) {
+      // Log full payload structure to help debug new model response formats
+      console.error('[AI_WEBHOOK] Missing video URL for generation:', gen.id, 'payload keys:', JSON.stringify(Object.keys(payload.payload || {})));
       await supabase
         .from('ai_generations')
         .update({
@@ -167,7 +173,6 @@ export async function POST(request: NextRequest) {
           error_message: 'No video URL in webhook response',
         })
         .eq('id', gen.id);
-      console.error('[AI_WEBHOOK] Missing video URL for generation:', gen.id);
       return NextResponse.json({ ok: true });
     }
 

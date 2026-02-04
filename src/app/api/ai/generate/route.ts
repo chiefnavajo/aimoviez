@@ -246,25 +246,26 @@ export async function POST(request: NextRequest) {
             .order('element_index', { ascending: true });
 
           if (pinnedChars && pinnedChars.length > 0) {
-            // Health-check frontal image URLs before sending to fal.ai
-            let allReachable = true;
-            for (const pc of pinnedChars) {
-              try {
-                const headRes = await fetch(pc.frontal_image_url, {
-                  method: 'HEAD',
-                  signal: AbortSignal.timeout(3_000),
-                });
-                if (!headRes.ok) {
-                  console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL unreachable: ${headRes.status}`);
-                  allReachable = false;
-                  break;
+            // Health-check frontal image URLs in parallel before sending to fal.ai
+            const healthChecks = await Promise.all(
+              pinnedChars.map(async (pc) => {
+                try {
+                  const headRes = await fetch(pc.frontal_image_url, {
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(3_000),
+                  });
+                  if (!headRes.ok) {
+                    console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL unreachable: ${headRes.status}`);
+                    return false;
+                  }
+                  return true;
+                } catch {
+                  console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL check failed`);
+                  return false;
                 }
-              } catch {
-                console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL check failed`);
-                allReachable = false;
-                break;
-              }
-            }
+              })
+            );
+            const allReachable = healthChecks.every(Boolean);
 
             if (allReachable) {
               isReferenceToVideo = true;
@@ -276,22 +277,21 @@ export async function POST(request: NextRequest) {
                 reference_image_urls: pc.reference_image_urls || [],
               }));
 
-              // Inject @Element tags into prompt
-              pinnedChars.forEach((pc, i) => {
-                const tag = `@Element${i + 1}`;
-                if (!augmentedPrompt.includes(tag)) {
-                  augmentedPrompt = `${tag} ${augmentedPrompt}`;
-                }
-              });
-
-              // Increment usage count (non-blocking)
-              for (const pc of pinnedChars) {
-                supabase
-                  .from('pinned_characters')
-                  .update({ usage_count: (pc as { usage_count?: number }).usage_count ? ((pc as { usage_count?: number }).usage_count! + 1) : 1 })
-                  .eq('id', pc.id)
-                  .then(() => {});
+              // Inject @Element tags into prompt (in ascending order)
+              const elementTags = pinnedChars
+                .map((_, i) => `@Element${i + 1}`)
+                .filter(tag => !augmentedPrompt.includes(tag))
+                .join(' ');
+              if (elementTags) {
+                augmentedPrompt = `${elementTags} ${augmentedPrompt}`;
               }
+
+              // Increment usage count atomically (non-blocking)
+              supabase
+                .rpc('increment_pinned_usage', { p_ids: pinnedCharacterIds })
+                .then(({ error: incErr }) => {
+                  if (incErr) console.warn('[AI_GENERATE] usage_count increment failed:', incErr.message);
+                });
             }
           }
         }

@@ -130,3 +130,30 @@ export async function requireAdmin(): Promise<NextResponse | null> {
   // User is admin, return null to indicate success
   return null;
 }
+
+/**
+ * Combined requireAdmin + checkAdminAuth in a single call.
+ * Returns an error response if not admin, or the AdminAuthResult on success.
+ * Use when you need the userId/email after the admin check.
+ */
+export async function requireAdminWithAuth(): Promise<NextResponse | AdminAuthResult> {
+  const auth = await checkAdminAuth();
+
+  if (!auth.isAdmin) {
+    console.warn('[admin-auth] Unauthorized admin access attempt');
+
+    if (!auth.email) {
+      return NextResponse.json(
+        { success: false, error: 'Authentication required' },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: 'Admin access required' },
+      { status: 403 }
+    );
+  }
+
+  return auth;
+}
