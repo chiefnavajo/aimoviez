@@ -8,6 +8,27 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@supabase/supabase-js';
 import type { TeamMessage } from '@/types';
 
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'csrf-token') return value;
+  }
+  return null;
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  let token = getCsrfToken();
+  if (token) return token;
+  try {
+    await fetch('/api/csrf', { credentials: 'include' });
+    await new Promise(r => setTimeout(r, 100));
+    token = getCsrfToken();
+  } catch { /* non-fatal */ }
+  return token;
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -44,10 +65,15 @@ export function useSendMessage() {
 
   return useMutation({
     mutationFn: async ({ teamId, message }: { teamId: string; message: string }) => {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      const token = await ensureCsrfToken();
+      if (token) headers['x-csrf-token'] = token;
+
       const res = await fetch(`/api/teams/${teamId}/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ message }),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to send message');

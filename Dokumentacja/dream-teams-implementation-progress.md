@@ -164,6 +164,148 @@ supabase/
 
 ---
 
+## Complete User Flow (How Dream Teams Works)
+
+### 1. User Has No Team
+
+When a user taps the **Team** tab in the bottom navigation:
+- They land on `/team` and see a hero screen explaining Dream Teams
+- Two options: **Create a Team** or **Join a Team**
+- Benefits listed: vote multiplier, streaks, leaderboard, chat
+
+### 2. Creating a Team
+
+1. User taps "Create a Team" → `TeamCreateModal` opens
+2. Enters team name (2-30 chars) and optional description (200 chars max)
+3. Submits → `POST /api/teams` → calls `create_team` RPC
+4. RPC creates the team row AND inserts the user as `leader` in `team_members`
+5. User is redirected to their new Team Dashboard
+6. They are now the **leader** with full control
+
+### 3. Inviting Members
+
+1. Leader (or any member) taps "Invite Members" → `TeamInviteModal` opens
+2. Taps "Generate New Invite Link" → `POST /api/teams/[id]/invites`
+3. Server generates a unique 8-character code (e.g. `K7XP3NVR`)
+4. Creates an invite record with: max 5 uses, expires in 7 days
+5. Returns a shareable link: `https://aimoviez.com/team/join?code=K7XP3NVR`
+6. User can **copy** the link or use **native share** (mobile share sheet)
+7. Multiple invites can be active simultaneously
+
+### 4. Joining a Team via Invite
+
+**Via Link:**
+1. Friend clicks the invite link → lands on `/team/join?code=K7XP3NVR`
+2. If not logged in → redirected to auth, then back
+3. Page auto-calls `POST /api/teams/join` with the code
+4. Server validates: code exists, not expired, not maxed out, team not full, user not already in a team
+5. `join_team_via_code` RPC atomically: adds member, increments uses, increments member_count
+6. Success → redirected to Team Dashboard with "Welcome to [team name]!" message
+
+**Via Code Input:**
+1. User taps "Join a Team" → `TeamJoinModal` opens
+2. Manually types the 8-character code
+3. Same flow as above
+
+### 5. Team Dashboard (Daily Experience)
+
+Once in a team, the `/team` page shows `TeamDashboard`:
+
+**Header Section:**
+- Team name, level, description
+- Streak badge (fire icon, animated when hot)
+- Stats grid: Members (X/5), Total XP, Combined Votes, Wins
+
+**Action Buttons:**
+- "Invite Members" (if < 5 members)
+- "Team Settings" (leader only)
+- "Leave Team" / "Disband Team" (leader sees disband)
+
+**Two Tabs:**
+- **Members** - List of all members with roles, XP contribution, activity status
+- **Team Chat** - Real-time messaging
+
+### 6. Team Chat
+
+1. User switches to Chat tab → `TeamChat` component loads
+2. Fetches recent messages via `GET /api/teams/[id]/messages?limit=50`
+3. Subscribes to Supabase Realtime channel `team-chat:{teamId}`
+4. Messages appear in bubbles (own = purple right-aligned, others = gray left-aligned)
+5. Grouped by date with separators (Today, Yesterday, etc.)
+6. User types message (max 500 chars) → `POST /api/teams/[id]/messages`
+7. Message saved to DB → Supabase Realtime broadcasts to all connected members
+8. Sending a message also updates `team_members.last_active_date` (for streak tracking)
+
+### 7. Vote Multiplier (How Coordination Works)
+
+*(Phase 4 - not yet implemented)*
+
+1. Team member votes on a clip in the tournament
+2. After vote is recorded, system calls `track_team_vote` RPC
+3. RPC checks: how many team members have voted for the same clip in the same slot?
+4. If 3+ members voted the same clip → **1.5x multiplier** applied
+5. Bonus votes added to the clip's score
+6. Team members see a visual indicator when coordination is achieved
+
+### 8. Team Streaks (Daily Tracking)
+
+*(Phase 5 - not yet implemented)*
+
+1. Daily cron job runs `update_all_team_streaks` RPC
+2. For each team, checks: did ALL members have `last_active_date = TODAY`?
+3. If yes → `current_streak += 1`, update `longest_streak` if new record
+4. If any member missed → `current_streak = 0` (reset!)
+5. This creates social pressure: if you don't vote today, your team's streak dies
+6. Streak displayed prominently on Team Dashboard with fire animation
+
+### 9. Member Management
+
+**Promoting/Demoting (Leader only):**
+1. Leader taps "..." on a member card → context menu
+2. Can promote Member → Officer, or demote Officer → Member
+3. `PATCH /api/teams/[id]/members` with `{ user_id, role }`
+
+**Kicking (Leader or Officer):**
+1. Leader/Officer taps "..." → "Kick from Team"
+2. Confirmation dialog → `DELETE /api/teams/[id]/members?user_id=X`
+3. Officers cannot kick other officers. Nobody can kick the leader.
+
+**Leaving:**
+1. User taps "Leave Team" → confirmation
+2. `DELETE /api/teams/[id]/members` (no user_id = self-leave)
+3. Calls `leave_team` RPC which handles cleanup
+
+**Disbanding (Leader only):**
+1. Leader taps "Disband Team" → serious confirmation
+2. `DELETE /api/teams/[id]` → cascading delete removes all members, invites, messages
+
+### 10. Team Leaderboard
+
+1. Users browse `/teams` → `TeamsPage` with ranked list
+2. `GET /api/teams?page=1&limit=50` → calls `get_team_leaderboard` RPC
+3. Teams ranked by: total XP, combined votes, combined wins
+4. Each card shows: rank, name, level, member count, streak, votes, wins, XP
+5. Top 3 get trophy icons (gold, silver, bronze)
+6. User's own team highlighted in purple if visible
+
+### Role Permissions Summary
+
+| Action | Leader | Officer | Member |
+|--------|--------|---------|--------|
+| Update team name/description | Yes | No | No |
+| Disband team | Yes | No | No |
+| Promote/demote members | Yes | No | No |
+| Kick members | Yes | Yes* | No |
+| Create invites | Yes | Yes | Yes |
+| Revoke invites | Yes | Yes | No |
+| Send chat messages | Yes | Yes | Yes |
+| Leave team | Yes** | Yes | Yes |
+
+*Officers cannot kick other officers
+**Leader leaving = team disbanded
+
+---
+
 ## Next Steps (Tomorrow)
 
 1. **Run Migration**

@@ -7,6 +7,46 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TeamWithStats, TeamMember, TeamInvite, TeamLeaderboardEntry } from '@/types';
 
 // ===========================
+// CSRF HELPER
+// ===========================
+
+function getCsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [name, value] = cookie.trim().split('=');
+    if (name === 'csrf-token') return value;
+  }
+  return null;
+}
+
+/** Ensure CSRF cookie exists; fetch from /api/csrf if missing */
+async function ensureCsrfToken(): Promise<string | null> {
+  let token = getCsrfToken();
+  if (token) return token;
+
+  try {
+    await fetch('/api/csrf', { credentials: 'include' });
+    // Wait briefly for cookie to be set
+    await new Promise(r => setTimeout(r, 100));
+    token = getCsrfToken();
+  } catch {
+    // Non-fatal
+  }
+  return token;
+}
+
+async function csrfHeaders(extra?: Record<string, string>): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...extra,
+  };
+  const token = await ensureCsrfToken();
+  if (token) headers['x-csrf-token'] = token;
+  return headers;
+}
+
+// ===========================
 // GET USER'S TEAM
 // ===========================
 
@@ -142,8 +182,9 @@ export function useCreateTeam() {
     mutationFn: async (params: CreateTeamParams) => {
       const res = await fetch('/api/teams', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await csrfHeaders(),
         body: JSON.stringify(params),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create team');
@@ -164,8 +205,9 @@ export function useJoinTeam() {
     mutationFn: async (code: string) => {
       const res = await fetch('/api/teams/join', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await csrfHeaders(),
         body: JSON.stringify({ code }),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to join team');
@@ -185,6 +227,8 @@ export function useLeaveTeam() {
     mutationFn: async (teamId: string) => {
       const res = await fetch(`/api/teams/${teamId}/members`, {
         method: 'DELETE',
+        headers: await csrfHeaders(),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to leave team');
@@ -210,6 +254,8 @@ export function useKickMember() {
     mutationFn: async ({ teamId, userId }: KickMemberParams) => {
       const res = await fetch(`/api/teams/${teamId}/members?user_id=${userId}`, {
         method: 'DELETE',
+        headers: await csrfHeaders(),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to kick member');
@@ -236,8 +282,9 @@ export function useUpdateMemberRole() {
     mutationFn: async ({ teamId, userId, role }: UpdateRoleParams) => {
       const res = await fetch(`/api/teams/${teamId}/members`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await csrfHeaders(),
         body: JSON.stringify({ user_id: userId, role }),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update role');
@@ -263,8 +310,9 @@ export function useCreateInvite() {
     mutationFn: async ({ teamId, ...params }: CreateInviteParams) => {
       const res = await fetch(`/api/teams/${teamId}/invites`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await csrfHeaders(),
         body: JSON.stringify(params),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create invite');
@@ -289,6 +337,8 @@ export function useRevokeInvite() {
     mutationFn: async ({ teamId, inviteId }: RevokeInviteParams) => {
       const res = await fetch(`/api/teams/${teamId}/invites?invite_id=${inviteId}`, {
         method: 'DELETE',
+        headers: await csrfHeaders(),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to revoke invite');
@@ -314,8 +364,9 @@ export function useUpdateTeam() {
     mutationFn: async ({ teamId, ...params }: UpdateTeamParams) => {
       const res = await fetch(`/api/teams/${teamId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await csrfHeaders(),
         body: JSON.stringify(params),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update team');
@@ -336,6 +387,8 @@ export function useDisbandTeam() {
     mutationFn: async (teamId: string) => {
       const res = await fetch(`/api/teams/${teamId}`, {
         method: 'DELETE',
+        headers: await csrfHeaders(),
+        credentials: 'include',
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to disband team');
