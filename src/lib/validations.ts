@@ -204,6 +204,7 @@ export const AIGenerateSchema = z.object({
   style: z.enum(AI_STYLES).optional(),
   genre: z.string().optional(),
   image_url: z.string().url().optional(),
+  skip_pinned: z.boolean().optional(),
 }).strict();
 
 export type AIGenerateRequest = z.infer<typeof AIGenerateSchema>;

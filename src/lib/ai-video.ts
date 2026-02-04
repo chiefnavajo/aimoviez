@@ -52,6 +52,14 @@ export const MODELS: Record<string, ModelConfig> = {
     supportsAudio: false,
     supportsPortrait: true,
   },
+  'kling-o1-ref': {
+    modelId: 'fal-ai/kling-video/o1/reference-to-video',
+    costCents: 56,
+    duration: '5',
+    resolution: '720p',
+    supportsAudio: false,
+    supportsPortrait: true,
+  },
 };
 
 export const MODEL_DURATION_SECONDS: Record<string, number> = {
@@ -59,6 +67,7 @@ export const MODEL_DURATION_SECONDS: Record<string, number> = {
   'kling-2.6': 5,
   'veo3-fast': 8,
   'sora-2': 8,
+  'kling-o1-ref': 5,
 };
 
 // =============================================================================
@@ -258,6 +267,51 @@ export async function startImageToVideoGeneration(
 
 export function getImageToVideoModelConfig(modelKey: string): { modelId: string; costCents: number } | null {
   return IMAGE_TO_VIDEO_MODELS[modelKey] ?? null;
+}
+
+// =============================================================================
+// REFERENCE-TO-VIDEO (Character Pinning via Kling O1)
+// =============================================================================
+
+export interface ReferenceElement {
+  frontal_image_url: string;
+  reference_image_urls?: string[];
+}
+
+export function buildReferenceToVideoInput(
+  rawPrompt: string,
+  elements: ReferenceElement[],
+  style?: string,
+  imageUrls?: string[],
+): Record<string, unknown> {
+  const styledPrompt = style && STYLE_PREFIXES[style]
+    ? `${STYLE_PREFIXES[style]} ${rawPrompt}`
+    : rawPrompt;
+
+  return {
+    prompt: styledPrompt,
+    elements,
+    ...(imageUrls?.length ? { image_urls: imageUrls } : {}),
+    duration: '5',
+    aspect_ratio: '9:16',
+  };
+}
+
+export async function startReferenceToVideoGeneration(
+  prompt: string,
+  elements: ReferenceElement[],
+  style: string | undefined,
+  webhookUrl: string,
+  imageUrls?: string[],
+): Promise<{ requestId: string }> {
+  const input = buildReferenceToVideoInput(prompt, elements, style, imageUrls);
+
+  const result = await fal.queue.submit(
+    'fal-ai/kling-video/o1/reference-to-video',
+    { input: input as Record<string, unknown> & { prompt: string }, webhookUrl }
+  );
+
+  return { requestId: result.request_id };
 }
 
 // =============================================================================

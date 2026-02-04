@@ -1840,6 +1840,16 @@ export default function AdminDashboard() {
                 Users
               </motion.button>
             </Link>
+            <Link href="/admin/characters">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
+                type="button"
+              >
+                <Crosshair className="w-4 h-4" />
+                Characters
+              </motion.button>
+            </Link>
           </div>
         </div>
       </header>

@@ -12,7 +12,8 @@ import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
 import { AIGenerateSchema, parseBody } from '@/lib/validations';
 import crypto from 'crypto';
-import { sanitizePrompt, getModelConfig, startGeneration, supportsImageToVideo, startImageToVideoGeneration, getImageToVideoModelConfig } from '@/lib/ai-video';
+import { sanitizePrompt, getModelConfig, startGeneration, supportsImageToVideo, startImageToVideoGeneration, getImageToVideoModelConfig, startReferenceToVideoGeneration, MODELS } from '@/lib/ai-video';
+import type { ReferenceElement } from '@/lib/ai-video';
 
 // =============================================================================
 // SUPABASE CLIENT
@@ -212,10 +213,96 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use i2v cost if available (may differ from t2v in the future)
+    // 10c. Character pinning — auto-detect pinned characters for reference-to-video
+    let isReferenceToVideo = false;
+    let refElements: ReferenceElement[] = [];
+    let pinnedCharacterIds: string[] = [];
+    let augmentedPrompt = sanitizedPrompt;
+    let effectiveModel: string = validated.model;
+
+    if (!isImageToVideo && !validated.skip_pinned) {
+      // Check if character pinning is enabled
+      const { data: pinFlag } = await supabase
+        .from('feature_flags')
+        .select('enabled')
+        .eq('key', 'character_pinning')
+        .maybeSingle();
+
+      if (pinFlag?.enabled) {
+        // Get active season
+        const { data: activeSeason } = await supabase
+          .from('seasons')
+          .select('id')
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (activeSeason) {
+          // Get active pinned characters for this season
+          const { data: pinnedChars } = await supabase
+            .from('pinned_characters')
+            .select('id, element_index, label, frontal_image_url, reference_image_urls')
+            .eq('season_id', activeSeason.id)
+            .eq('is_active', true)
+            .order('element_index', { ascending: true });
+
+          if (pinnedChars && pinnedChars.length > 0) {
+            // Health-check frontal image URLs before sending to fal.ai
+            let allReachable = true;
+            for (const pc of pinnedChars) {
+              try {
+                const headRes = await fetch(pc.frontal_image_url, {
+                  method: 'HEAD',
+                  signal: AbortSignal.timeout(3_000),
+                });
+                if (!headRes.ok) {
+                  console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL unreachable: ${headRes.status}`);
+                  allReachable = false;
+                  break;
+                }
+              } catch {
+                console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL check failed`);
+                allReachable = false;
+                break;
+              }
+            }
+
+            if (allReachable) {
+              isReferenceToVideo = true;
+              pinnedCharacterIds = pinnedChars.map(pc => pc.id);
+              effectiveModel = 'kling-o1-ref';
+
+              refElements = pinnedChars.map(pc => ({
+                frontal_image_url: pc.frontal_image_url,
+                reference_image_urls: pc.reference_image_urls || [],
+              }));
+
+              // Inject @Element tags into prompt
+              pinnedChars.forEach((pc, i) => {
+                const tag = `@Element${i + 1}`;
+                if (!augmentedPrompt.includes(tag)) {
+                  augmentedPrompt = `${tag} ${augmentedPrompt}`;
+                }
+              });
+
+              // Increment usage count (non-blocking)
+              for (const pc of pinnedChars) {
+                supabase
+                  .from('pinned_characters')
+                  .update({ usage_count: (pc as { usage_count?: number }).usage_count ? ((pc as { usage_count?: number }).usage_count! + 1) : 1 })
+                  .eq('id', pc.id)
+                  .then(() => {});
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Use the effective model's cost (may have switched to kling-o1-ref)
+    const effectiveModelConfig = getModelConfig(effectiveModel);
     const effectiveCostCents = isImageToVideo
       ? (getImageToVideoModelConfig(validated.model)?.costCents ?? modelConfig.costCents)
-      : modelConfig.costCents;
+      : (effectiveModelConfig?.costCents ?? modelConfig.costCents);
 
     // 11. Global cost cap check
     const { data: costCapOk, error: costCapError } = await supabase
@@ -241,18 +328,24 @@ export async function POST(request: NextRequest) {
     }
 
     // 12. Insert pending generation row
+    const generationMode = isReferenceToVideo ? 'reference-to-video'
+      : isImageToVideo ? 'image-to-video'
+      : 'text-to-video';
+
     const { data: generation, error: insertError } = await supabase
       .from('ai_generations')
       .insert({
         user_id: userId,
         fal_request_id: 'placeholder_' + crypto.randomUUID(),
         status: 'pending',
-        prompt: sanitizedPrompt,
-        model: validated.model,
+        prompt: augmentedPrompt,
+        model: effectiveModel,
         style: validated.style || null,
         genre: validated.genre || null,
         cost_cents: effectiveCostCents,
         image_url: validated.image_url || null,
+        generation_mode: generationMode,
+        ...(pinnedCharacterIds.length > 0 ? { pinned_character_ids: pinnedCharacterIds } : {}),
       })
       .select('id')
       .single();
@@ -265,24 +358,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 13. Submit to fal.ai (text-to-video or image-to-video)
+    // 13. Submit to fal.ai (text-to-video, image-to-video, or reference-to-video)
     const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/webhook`;
 
     try {
-      const { requestId } = isImageToVideo
-        ? await startImageToVideoGeneration(
-            validated.model,
-            sanitizedPrompt,
-            validated.image_url!,
-            validated.style,
-            webhookUrl
-          )
-        : await startGeneration(
-            validated.model,
-            sanitizedPrompt,
-            validated.style,
-            webhookUrl
-          );
+      let requestId: string;
+
+      if (isReferenceToVideo) {
+        const result = await startReferenceToVideoGeneration(
+          augmentedPrompt,
+          refElements,
+          validated.style,
+          webhookUrl
+        );
+        requestId = result.requestId;
+      } else if (isImageToVideo) {
+        const result = await startImageToVideoGeneration(
+          validated.model,
+          sanitizedPrompt,
+          validated.image_url!,
+          validated.style,
+          webhookUrl
+        );
+        requestId = result.requestId;
+      } else {
+        const result = await startGeneration(
+          validated.model,
+          sanitizedPrompt,
+          validated.style,
+          webhookUrl
+        );
+        requestId = result.requestId;
+      }
 
       // 14. Update row with real fal_request_id
       const { error: updateError } = await supabase

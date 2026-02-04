@@ -113,8 +113,35 @@ export default function AIGeneratePanel({
   const { post: csrfPost, ensureToken } = useCsrf();
   const { enabled: aiEnabled, isLoading: flagLoading } = useFeature('ai_video_generation');
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
+  const { enabled: pinningEnabled } = useFeature('character_pinning');
 
   const narrationConfig = narrationConfigRaw as NarrationConfig | null;
+
+  // Pinned characters
+  const [pinnedCharacters, setPinnedCharacters] = useState<Array<{
+    element_index: number;
+    label: string | null;
+    frontal_image_url: string;
+    reference_count: number;
+  }>>([]);
+  const [skipPinned, setSkipPinned] = useState(false);
+
+  // Fetch pinned characters when feature is enabled
+  useEffect(() => {
+    if (!pinningEnabled) return;
+    async function fetchPinned() {
+      try {
+        const res = await fetch('/api/story/pinned-characters');
+        const data = await res.json();
+        if (data.ok && data.characters?.length > 0) {
+          setPinnedCharacters(data.characters);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    fetchPinned();
+  }, [pinningEnabled]);
 
   // Continuation mode
   const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
@@ -282,6 +309,7 @@ export default function AIGeneratePanel({
         style: style || undefined,
         genre: genre || undefined,
         ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
+        ...(skipPinned ? { skip_pinned: true } : {}),
       });
 
       if (!result.success || !result.generationId) {
@@ -886,6 +914,40 @@ export default function AIGeneratePanel({
             Switch
           </button>
         </div>
+      )}
+
+      {/* Pinned character banner */}
+      {pinnedCharacters.length > 0 && !skipPinned && (
+        <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={pinnedCharacters[0].frontal_image_url}
+            alt={pinnedCharacters[0].label || 'Pinned character'}
+            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-yellow-500/30"
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-yellow-300">
+              {pinnedCharacters.length === 1
+                ? `Character pinned: ${pinnedCharacters[0].label || 'Element 1'}`
+                : `${pinnedCharacters.length} characters pinned`}
+            </p>
+            <p className="text-xs text-white/50">Your clip will use consistent character appearance via Kling O1</p>
+          </div>
+          <button
+            onClick={() => setSkipPinned(true)}
+            className="text-xs text-white/40 hover:text-white/60 flex-shrink-0"
+          >
+            Skip
+          </button>
+        </div>
+      )}
+      {pinnedCharacters.length > 0 && skipPinned && (
+        <button
+          onClick={() => setSkipPinned(false)}
+          className="text-xs text-yellow-500/60 hover:text-yellow-500 transition-colors"
+        >
+          Re-enable pinned character
+        </button>
       )}
 
       {/* Prompt input */}

@@ -6,7 +6,14 @@
 
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { createClient } from '@supabase/supabase-js';
+import { execFile } from 'child_process';
+import { writeFile, readFile, unlink } from 'fs/promises';
+import { tmpdir } from 'os';
+import path from 'path';
+import { promisify } from 'util';
 import type { StorageProvider } from './index';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Upload a JPEG frame buffer to the active storage provider.
@@ -21,16 +28,89 @@ export async function uploadFrame(
   const filename = `${clipId}.jpg`;
 
   if (provider === 'r2') {
-    return uploadFrameToR2(filename, jpegBuffer);
+    return uploadToR2(`frames/${filename}`, jpegBuffer);
   }
-  return uploadFrameToSupabase(filename, jpegBuffer);
+  return uploadToSupabase(`frames/${filename}`, jpegBuffer);
+}
+
+/**
+ * Upload a pinned character frame to storage.
+ * Stores under `pinned/{seasonId}/{elementIndex}_{suffix}.jpg`.
+ */
+export async function uploadPinnedFrame(
+  seasonId: string,
+  elementIndex: number,
+  suffix: string,
+  jpegBuffer: Uint8Array,
+  provider: StorageProvider
+): Promise<string> {
+  const key = `pinned/${seasonId}/${elementIndex}_${suffix}.jpg`;
+
+  if (provider === 'r2') {
+    return uploadToR2(key, jpegBuffer);
+  }
+  return uploadToSupabase(key, jpegBuffer);
+}
+
+/**
+ * Extract a frame at an arbitrary timestamp from a video URL.
+ * Downloads the video, runs ffmpeg, returns the JPEG buffer.
+ */
+export async function extractFrameAtTimestamp(
+  videoUrl: string,
+  timestampSeconds: number
+): Promise<Uint8Array> {
+  const id = crypto.randomUUID();
+  const inputPath = path.join(tmpdir(), `pin_input_${id}.mp4`);
+  const outputPath = path.join(tmpdir(), `pin_output_${id}.jpg`);
+
+  try {
+    // Download video
+    const videoRes = await fetch(videoUrl, {
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!videoRes.ok) {
+      throw new Error(`Failed to fetch video: ${videoRes.status}`);
+    }
+
+    const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+    await writeFile(inputPath, videoBuffer);
+
+    // Get ffmpeg binary
+    const ffmpegPath = (await import('ffmpeg-static')).default;
+    if (!ffmpegPath) {
+      throw new Error('ffmpeg binary not found');
+    }
+
+    // Extract frame at specified timestamp
+    await execFileAsync(ffmpegPath, [
+      '-ss', String(timestampSeconds),
+      '-i', inputPath,
+      '-frames:v', '1',
+      '-q:v', '2',
+      '-y',
+      outputPath,
+    ]);
+
+    const frameData = new Uint8Array(await readFile(outputPath));
+
+    if (frameData.length === 0) {
+      throw new Error('Frame extraction produced empty output');
+    }
+
+    return frameData;
+  } finally {
+    await unlink(inputPath).catch(() => {});
+    await unlink(outputPath).catch(() => {});
+  }
 }
 
 // ============================================================================
 // R2
 // ============================================================================
 
-function uploadFrameToR2(filename: string, buffer: Uint8Array): Promise<string> {
+function uploadToR2(key: string, buffer: Uint8Array): Promise<string> {
   const endpoint = process.env.CLOUDFLARE_R2_ENDPOINT;
   const accessKeyId = process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
@@ -49,8 +129,6 @@ function uploadFrameToR2(filename: string, buffer: Uint8Array): Promise<string> 
     responseChecksumValidation: 'WHEN_REQUIRED',
   });
 
-  const key = `frames/${filename}`;
-
   return client
     .send(
       new PutObjectCommand({
@@ -68,8 +146,8 @@ function uploadFrameToR2(filename: string, buffer: Uint8Array): Promise<string> 
 // SUPABASE
 // ============================================================================
 
-async function uploadFrameToSupabase(
-  filename: string,
+async function uploadToSupabase(
+  filePath: string,
   buffer: Uint8Array
 ): Promise<string> {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -80,7 +158,6 @@ async function uploadFrameToSupabase(
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
-  const filePath = `frames/${filename}`;
 
   const { error } = await supabase.storage
     .from('clips')
