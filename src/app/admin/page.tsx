@@ -2926,7 +2926,7 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-6">
               {/* Group by category */}
-              {['growth', 'engagement', 'monetization', 'safety', 'performance', 'realtime', 'general'].map((category) => {
+              {['growth', 'engagement', 'monetization', 'safety', 'performance', 'realtime', 'ai', 'general'].map((category) => {
                 const categoryFlags = featureFlags.filter((f) => f.category === category);
                 if (categoryFlags.length === 0) return null;
 
@@ -2937,6 +2937,7 @@ export default function AdminDashboard() {
                   safety: <Shield className="w-5 h-5 text-red-400" />,
                   performance: <Zap className="w-5 h-5 text-purple-400" />,
                   realtime: <Zap className="w-5 h-5 text-orange-400" />,
+                  ai: <Crosshair className="w-5 h-5 text-pink-400" />,
                   general: <Settings className="w-5 h-5 text-white/60" />,
                 };
 
@@ -2947,6 +2948,7 @@ export default function AdminDashboard() {
                   safety: 'from-red-500/20 to-pink-500/20 border-red-500/30',
                   performance: 'from-purple-500/20 to-violet-500/20 border-purple-500/30',
                   realtime: 'from-orange-500/20 to-amber-500/20 border-orange-500/30',
+                  ai: 'from-pink-500/20 to-fuchsia-500/20 border-pink-500/30',
                   general: 'from-white/10 to-white/5 border-white/20',
                 };
 
