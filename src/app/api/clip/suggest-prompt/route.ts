@@ -222,40 +222,89 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // If no brief is available, return a basic suggestion based on learned patterns only
+  // If no brief is available, generate a prompt using AI from learned patterns
   if (!brief) {
-    // Generate a generic prompt based on model patterns and season vocabulary
-    const { getTopModelPatterns, getTopVocabulary } = await import('@/lib/prompt-learning');
+    const { getTopModelPatterns, getTopVocabulary, getWinningPrompts } = await import('@/lib/prompt-learning');
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
 
     const patterns = await getTopModelPatterns(model, 5);
-    const vocabulary = await getTopVocabulary(activeSeason.id, undefined, 10);
+    const vocabulary = await getTopVocabulary(activeSeason.id, undefined, 15);
+    const winningPrompts = await getWinningPrompts(activeSeason.id, model, 3);
 
-    const patternTexts = patterns.map(p => p.pattern_text).join(', ');
-    const vocabTerms = vocabulary.map(v => v.term).slice(0, 5).join(', ');
+    const patternTexts = patterns.map(p => p.pattern_text);
+    const vocabTerms = vocabulary.map(v => v.term);
 
-    // Build a simple prompt from patterns
-    let basePrompt = '';
-    if (patternTexts) {
-      basePrompt = `${patternTexts}, `;
+    // Get visual vocabulary if enabled
+    let visualTerms: string[] = [];
+    if (visualLearningEnabled) {
+      try {
+        const { getVisualVocabulary } = await import('@/lib/visual-learning');
+        const visualVocab = await getVisualVocabulary(activeSeason.id, undefined, 10);
+        visualTerms = visualVocab.map(v => `${v.term} (${v.category})`);
+      } catch {
+        // Visual learning not available
+      }
     }
-    if (vocabTerms) {
-      basePrompt += vocabTerms;
-    }
-    if (!basePrompt) {
-      basePrompt = 'cinematic scene with dramatic lighting';
+
+    // Character context
+    const characterContext = pinnedCharacters.length > 0
+      ? pinnedCharacters.map(c => c.label).join(', ')
+      : null;
+
+    // Use Claude to generate a coherent prompt
+    let generatedPrompt = 'cinematic scene with dramatic lighting';
+
+    try {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (apiKey && (patternTexts.length > 0 || vocabTerms.length > 0)) {
+        const anthropic = new Anthropic({ apiKey });
+        const response = await anthropic.messages.create({
+          model: 'claude-3-haiku-20240307',
+          max_tokens: 256,
+          messages: [{
+            role: 'user',
+            content: `Generate a ready-to-use video generation prompt based on these learned patterns.
+
+AI Model: ${model}
+${patternTexts.length > 0 ? `Best text patterns for this model: ${patternTexts.join(', ')}` : ''}
+${vocabTerms.length > 0 ? `Popular prompt terms from winning clips: ${vocabTerms.slice(0, 10).join(', ')}` : ''}
+${visualTerms.length > 0 ? `Visual style patterns: ${visualTerms.slice(0, 8).join(', ')}` : ''}
+${characterContext ? `Characters: ${characterContext}` : ''}
+${winningPrompts.length > 0 ? `Example winning prompts:\n${winningPrompts.map(p => `- ${p.prompt}`).join('\n')}` : ''}
+
+Write a single, detailed video prompt (50-100 words) that:
+1. Combines the learned patterns into a coherent scene
+2. Uses the visual style elements naturally
+3. Is ready to paste directly into the AI video generator
+4. Creates an engaging, cinematic scene
+
+Return ONLY the prompt text, nothing else.`
+          }]
+        });
+
+        const textContent = response.content.find(c => c.type === 'text');
+        if (textContent && textContent.type === 'text') {
+          generatedPrompt = textContent.text.trim();
+        }
+      }
+    } catch (err) {
+      console.warn('[suggest-prompt] Failed to generate smart prompt:', err);
+      // Fall back to simple concatenation
+      if (patternTexts.length > 0 || vocabTerms.length > 0) {
+        generatedPrompt = [...patternTexts, ...vocabTerms.slice(0, 5)].join(', ');
+      }
     }
 
     return NextResponse.json({
       ok: true,
       has_brief: false,
-      prompt: basePrompt,
+      prompt: generatedPrompt,
       based_on: {
         brief_title: null,
-        scene_context: 'No creative brief available',
-        top_patterns: patterns.map(p => p.pattern_text),
-        character_context: pinnedCharacters.length > 0
-          ? pinnedCharacters.map(c => c.label).join(', ')
-          : null,
+        scene_context: 'Generated from learned patterns',
+        top_patterns: patternTexts,
+        visual_patterns: visualTerms.slice(0, 5),
+        character_context: characterContext,
       },
     });
   }
