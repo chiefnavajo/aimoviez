@@ -476,6 +476,7 @@ export async function generateSmartPrompt(params: {
 
   // Build the prompt using Claude
   try {
+    const anthropic = getAnthropicClient();
     const response = await anthropic.messages.create({
       model: EXTRACTION_MODEL,
       max_tokens: 512,
