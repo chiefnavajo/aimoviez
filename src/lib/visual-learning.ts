@@ -955,7 +955,7 @@ export async function processExistingClipVisuals(
   let processed = 0;
   let errors = 0;
 
-  // Get clips without visual data - also fetch video_url to detect video thumbnails
+  // Get clips without visual data - use left join to exclude already-processed
   const { data: clips, error } = await supabase
     .from('tournament_clips')
     .select(`
@@ -965,8 +965,10 @@ export async function processExistingClipVisuals(
       video_url,
       ai_prompt,
       vote_count,
-      status
+      status,
+      clip_visuals!left(id)
     `)
+    .is('clip_visuals.id', null)
     .not('thumbnail_url', 'is', null)
     .not('season_id', 'is', null)
     .limit(batchSize);
@@ -976,15 +978,9 @@ export async function processExistingClipVisuals(
     return { processed: 0, errors: 1 };
   }
 
-  for (const clip of clips) {
-    // Check if already processed
-    const { data: existing } = await supabase
-      .from('clip_visuals')
-      .select('id')
-      .eq('clip_id', clip.id)
-      .maybeSingle();
+  console.log(`[visual-learning] Found ${clips.length} unprocessed clips`);
 
-    if (existing) continue;
+  for (const clip of clips) {
 
     try {
       // Determine if thumbnail is actually a video URL
