@@ -5,7 +5,7 @@
 // Step-by-step guide for new users
 // ============================================================================
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -124,33 +124,33 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
   const isLastStep = currentStep === TOUR_STEPS.length - 1;
   const progress = ((currentStep + 1) / TOUR_STEPS.length) * 100;
 
-  const handleNext = () => {
+  const handleComplete = useCallback(() => {
+    setIsVisible(false);
+    setTimeout(() => {
+      onComplete();
+    }, 300);
+  }, [onComplete]);
+
+  const handleSkip = useCallback(() => {
+    setIsVisible(false);
+    setTimeout(() => {
+      onSkip();
+    }, 300);
+  }, [onSkip]);
+
+  const handleNext = useCallback(() => {
     if (isLastStep) {
       handleComplete();
     } else {
       setCurrentStep((prev) => prev + 1);
     }
-  };
+  }, [isLastStep, handleComplete]);
 
-  const handlePrev = () => {
+  const handlePrev = useCallback(() => {
     if (!isFirstStep) {
       setCurrentStep((prev) => prev - 1);
     }
-  };
-
-  const handleComplete = () => {
-    setIsVisible(false);
-    setTimeout(() => {
-      onComplete();
-    }, 300);
-  };
-
-  const handleSkip = () => {
-    setIsVisible(false);
-    setTimeout(() => {
-      onSkip();
-    }, 300);
-  };
+  }, [isFirstStep]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -166,8 +166,7 @@ export default function OnboardingTour({ onComplete, onSkip }: OnboardingTourPro
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep]);
+  }, [handleNext, handlePrev, handleSkip]);
 
   return (
     <AnimatePresence>

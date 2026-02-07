@@ -24,8 +24,20 @@ export function useCountdown(targetDate: Date | null): TimeLeft {
       return;
     }
 
+    // Check if already expired to avoid starting interval
+    const initial = calculateTimeLeft(targetDate);
+    if (initial.isExpired) {
+      setTimeLeft(initial);
+      return;
+    }
+
     const interval = setInterval(() => {
-      setTimeLeft(calculateTimeLeft(targetDate));
+      const newTimeLeft = calculateTimeLeft(targetDate);
+      setTimeLeft(newTimeLeft);
+      // Clear interval once expired to prevent unnecessary re-renders
+      if (newTimeLeft.isExpired) {
+        clearInterval(interval);
+      }
     }, 1000);
 
     return () => clearInterval(interval);

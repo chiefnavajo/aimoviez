@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Users,
@@ -14,6 +14,8 @@ import {
   LogOut,
   Loader2,
   MessageCircle,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
 import { useUserTeam, useLeaveTeam, useDisbandTeam } from '@/hooks/useTeam';
 import { TeamMemberList } from './TeamMemberList';
@@ -31,6 +33,8 @@ interface TeamDashboardProps {
 export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps) {
   const { user } = useAuth();
   const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'members' | 'chat'>('members');
 
   const leaveMutation = useLeaveTeam();
@@ -39,24 +43,29 @@ export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps
   const isLeader = userRole === 'leader';
   const currentUserId = user?.id;
 
-  const handleLeave = async () => {
-    const message = isLeader
-      ? 'As the leader, leaving will disband the entire team. Are you sure?'
-      : 'Are you sure you want to leave this team?';
+  const handleLeaveClick = useCallback(() => {
+    setLeaveError(null);
+    setShowLeaveConfirm(true);
+  }, []);
 
-    if (!confirm(message)) return;
-
+  const handleLeaveConfirm = useCallback(async () => {
     try {
       if (isLeader) {
         await disbandMutation.mutateAsync(team.id);
       } else {
         await leaveMutation.mutateAsync(team.id);
       }
+      setShowLeaveConfirm(false);
       onTeamLeft?.();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to leave team');
+      setLeaveError(err instanceof Error ? err.message : 'Failed to leave team');
     }
-  };
+  }, [isLeader, disbandMutation, leaveMutation, team.id, onTeamLeft]);
+
+  const handleLeaveCancel = useCallback(() => {
+    setShowLeaveConfirm(false);
+    setLeaveError(null);
+  }, []);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
@@ -131,7 +140,7 @@ export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps
           {/* TODO: Team Settings modal - hidden until implemented */}
 
           <button
-            onClick={handleLeave}
+            onClick={handleLeaveClick}
             disabled={leaveMutation.isPending || disbandMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 rounded-lg font-medium transition-colors ml-auto"
           >
@@ -142,6 +151,58 @@ export function TeamDashboard({ team, userRole, onTeamLeft }: TeamDashboardProps
             )}
             {isLeader ? 'Disband Team' : 'Leave Team'}
           </button>
+
+      {/* Leave/Disband Confirmation Modal */}
+      {showLeaveConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl p-6 max-w-md w-full">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-10 h-10 bg-red-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="text-red-500" size={20} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold text-white mb-1">
+                  {isLeader ? 'Disband Team?' : 'Leave Team?'}
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  {isLeader
+                    ? 'As the leader, leaving will permanently disband the entire team. All members will be removed.'
+                    : 'Are you sure you want to leave this team? You can rejoin later if invited.'}
+                </p>
+              </div>
+              <button
+                onClick={handleLeaveCancel}
+                className="text-gray-400 hover:text-white p-1"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            {leaveError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
+                {leaveError}
+              </div>
+            )}
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={handleLeaveCancel}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLeaveConfirm}
+                disabled={leaveMutation.isPending || disbandMutation.isPending}
+                className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+              >
+                {(leaveMutation.isPending || disbandMutation.isPending) && (
+                  <Loader2 size={16} className="animate-spin" />
+                )}
+                {isLeader ? 'Disband Team' : 'Leave Team'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </div>
       </div>
 

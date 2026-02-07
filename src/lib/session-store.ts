@@ -169,7 +169,7 @@ async function resolveSessionFromDb(
       email: String(token.email),
       username: token.username ? String(token.username) : null,
       hasProfile: !!token.hasProfile,
-      isAdmin: false, // Not available in JWT until auth-options.ts is modified
+      isAdmin: token.isAdmin === true, // Use isAdmin from JWT if available
       avatarUrl: null,
       cachedAt: Date.now(),
     };

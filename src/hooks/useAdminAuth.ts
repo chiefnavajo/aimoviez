@@ -26,6 +26,8 @@ export function useAdminAuth(): AdminAuthState {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     async function checkAdminStatus() {
       // Still loading session
       if (status === 'loading') {
@@ -41,7 +43,12 @@ export function useAdminAuth(): AdminAuthState {
       }
 
       try {
-        const response = await fetch('/api/admin/stats');
+        const response = await fetch('/api/admin/stats', {
+          signal: abortController.signal,
+        });
+
+        // Don't update state if aborted
+        if (abortController.signal.aborted) return;
 
         if (response.status === 401) {
           setIsAdmin(false);
@@ -57,6 +64,8 @@ export function useAdminAuth(): AdminAuthState {
           setError('Failed to verify admin status');
         }
       } catch (err) {
+        // Ignore abort errors
+        if (err instanceof Error && err.name === 'AbortError') return;
         console.error('[useAdminAuth] Error:', err);
         setIsAdmin(false);
         setError('Failed to verify admin status');
@@ -66,6 +75,8 @@ export function useAdminAuth(): AdminAuthState {
     }
 
     checkAdminStatus();
+
+    return () => abortController.abort();
   }, [session, status]);
 
   return { isLoading, isAdmin, error };

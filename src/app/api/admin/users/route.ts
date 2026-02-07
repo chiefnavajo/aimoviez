@@ -55,10 +55,13 @@ export async function GET(request: NextRequest) {
       .from('users')
       .select('id, username, email, avatar_url, level, xp, total_votes_cast, total_votes_received, clips_uploaded, is_verified, is_banned, is_admin, ai_daily_limit, created_at, updated_at', { count: 'exact' });
 
-    // Search filter (escape SQL special characters to prevent injection)
+    // Search filter - sanitize to alphanumeric + safe chars only to prevent injection
     if (search) {
-      const escapedSearch = search.replace(/[%_\\]/g, '\\$&');
-      query = query.or(`username.ilike.%${escapedSearch}%,email.ilike.%${escapedSearch}%`);
+      // Only allow alphanumeric, @, ., _, - characters
+      const sanitized = search.replace(/[^a-zA-Z0-9@._-]/g, '');
+      if (sanitized.length > 0) {
+        query = query.or(`username.ilike.%${sanitized}%,email.ilike.%${sanitized}%`);
+      }
     }
 
     // Status filter

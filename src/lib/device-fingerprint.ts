@@ -142,10 +142,21 @@ export function assessDeviceRisk(signals: DeviceSignals): {
 
   // Check for data center IPs (simplified check)
   // In production, you'd use a proper IP reputation service
+  // Private IPs are fine (behind NAT) - RFC 1918 ranges:
+  // - 10.0.0.0/8
+  // - 172.16.0.0/12 (172.16.x.x - 172.31.x.x, NOT 172.0-172.15)
+  // - 192.168.0.0/16
   if (signals.ip.startsWith('10.') ||
-      signals.ip.startsWith('172.') ||
       signals.ip.startsWith('192.168.')) {
-    // Private IPs are fine (behind NAT)
+    // Private IPs are fine
+  } else if (signals.ip.startsWith('172.')) {
+    // Check if it's actually in the 172.16-172.31 range
+    const secondOctet = parseInt(signals.ip.split('.')[1] || '0', 10);
+    if (secondOctet < 16 || secondOctet > 31) {
+      // 172.0-172.15 and 172.32+ are public IPs - could be datacenter
+      reasons.push('Potentially datacenter IP');
+      score += 5;
+    }
   }
 
   // Cap the score at 100

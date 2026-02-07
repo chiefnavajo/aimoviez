@@ -8,7 +8,14 @@ import { fal } from '@fal-ai/client';
 // CONFIGURATION
 // =============================================================================
 
-fal.config({ credentials: process.env.FAL_KEY! });
+// Validate FAL_KEY at module load time
+const FAL_KEY = process.env.FAL_KEY;
+if (!FAL_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('FAL_KEY environment variable is required in production');
+}
+if (FAL_KEY) {
+  fal.config({ credentials: FAL_KEY });
+}
 
 export interface ModelConfig {
   modelId: string;

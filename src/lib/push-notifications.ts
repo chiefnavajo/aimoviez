@@ -39,6 +39,12 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     return null;
   }
 
+  // Validate VAPID key is configured
+  if (!VAPID_PUBLIC_KEY || VAPID_PUBLIC_KEY.length < 10) {
+    console.warn('[Push] VAPID public key not configured');
+    return null;
+  }
+
   const permission = await requestNotificationPermission();
   if (permission !== 'granted') {
     console.warn('[Push] Permission not granted:', permission);

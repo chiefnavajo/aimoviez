@@ -19,8 +19,14 @@ import { getSessionFast } from '@/lib/session-store';
 import { broadcastCommentEvent } from '@/lib/realtime-broadcast';
 import { pushCommentEvent, type CommentQueueEvent } from '@/lib/comment-event-queue';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  return { url, key };
+}
 
 // Feature flag cache (shared across handlers within a single invocation)
 async function getCommentFeatureFlags(supabase: SupabaseClient): Promise<Record<string, boolean>> {
@@ -152,7 +158,8 @@ export async function GET(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { url, key } = getSupabaseConfig();
+    const supabase = createClient(url, key);
     const { searchParams } = new URL(req.url);
     const clipId = searchParams.get('clipId');
     const countOnly = searchParams.get('countOnly') === 'true';
@@ -386,7 +393,8 @@ export async function POST(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { url, key } = getSupabaseConfig();
+    const supabase = createClient(url, key);
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
     const body = await req.json();
@@ -588,7 +596,8 @@ export async function PATCH(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { url, key } = getSupabaseConfig();
+    const supabase = createClient(url, key);
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
 
@@ -686,7 +695,8 @@ export async function DELETE(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const { url, key } = getSupabaseConfig();
+    const supabase = createClient(url, key);
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
 

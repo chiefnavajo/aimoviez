@@ -9,8 +9,14 @@ import { sanitizePrompt } from '@/lib/ai-video';
 // CONFIGURATION
 // =============================================================================
 
+// Validate ANTHROPIC_API_KEY at module load time
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+if (!ANTHROPIC_API_KEY && process.env.NODE_ENV === 'production') {
+  throw new Error('ANTHROPIC_API_KEY environment variable is required in production');
+}
+
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY!,
+  apiKey: ANTHROPIC_API_KEY || 'dummy-key-for-dev',
 });
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
@@ -91,7 +97,7 @@ export interface ClipMetadata {
   user_prompt?: string;
 }
 
-export interface AnalyzeResult {
+export type AnalyzeResult = {
   ok: true;
   analysis: StoryAnalysis;
   inputTokens: number;
@@ -100,9 +106,9 @@ export interface AnalyzeResult {
 } | {
   ok: false;
   error: string;
-}
+};
 
-export interface DirectionsResult {
+export type DirectionsResult = {
   ok: true;
   directions: DirectionOption[];
   inputTokens: number;
@@ -111,9 +117,9 @@ export interface DirectionsResult {
 } | {
   ok: false;
   error: string;
-}
+};
 
-export interface BriefResult {
+export type BriefResult = {
   ok: true;
   brief: CreativeBrief;
   inputTokens: number;
@@ -122,7 +128,7 @@ export interface BriefResult {
 } | {
   ok: false;
   error: string;
-}
+};
 
 // =============================================================================
 // SYSTEM PROMPTS
@@ -223,7 +229,7 @@ function sanitizeClipMetadata(clips: ClipMetadata[]): ClipMetadata[] {
 // HELPER: CALL CLAUDE WITH ERROR HANDLING
 // =============================================================================
 
-interface ClaudeResponse {
+type ClaudeResponse = {
   ok: true;
   content: string;
   inputTokens: number;
@@ -231,7 +237,7 @@ interface ClaudeResponse {
 } | {
   ok: false;
   error: string;
-}
+};
 
 async function callClaude(
   systemPrompt: string,

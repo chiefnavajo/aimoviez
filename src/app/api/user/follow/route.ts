@@ -8,8 +8,17 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    throw new Error('Missing Supabase environment variables');
+  }
+  return createClient(url, key);
+}
+
+// UUID validation helper
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
  * POST /api/user/follow
@@ -49,7 +58,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Validate targetUserId is a valid UUID
+    if (!UUID_REGEX.test(targetUserId)) {
+      return NextResponse.json(
+        { error: 'Invalid userId format' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseClient();
 
     // Get current user
     const { data: currentUser } = await supabase
@@ -87,30 +104,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check if already following
-    const { data: existingFollow } = await supabase
-      .from('followers')
-      .select('id')
-      .eq('follower_id', currentUser.id)
-      .eq('following_id', targetUserId)
-      .maybeSingle();
-
-    if (existingFollow) {
-      return NextResponse.json(
-        { error: 'Already following this user', isFollowing: true },
-        { status: 400 }
-      );
-    }
-
-    // Create follow relationship
+    // Use upsert to prevent race condition (check-then-insert)
+    // onConflict will handle duplicates gracefully
     const { error: insertError } = await supabase
       .from('followers')
-      .insert({
-        follower_id: currentUser.id,
-        following_id: targetUserId,
-      });
+      .upsert(
+        {
+          follower_id: currentUser.id,
+          following_id: targetUserId,
+        },
+        {
+          onConflict: 'follower_id,following_id',
+          ignoreDuplicates: true,
+        }
+      );
 
     if (insertError) {
+      // Handle unique constraint violation (should be rare with upsert)
+      if (insertError.code === '23505') {
+        return NextResponse.json({
+          success: true,
+          isFollowing: true,
+          message: `Already following @${targetUser.username}`,
+        });
+      }
       console.error('[POST /api/user/follow] Insert error:', insertError);
       return NextResponse.json(
         { error: 'Failed to follow user' },
@@ -175,7 +192,15 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Validate targetUserId is a valid UUID
+    if (!UUID_REGEX.test(targetUserId)) {
+      return NextResponse.json(
+        { error: 'Invalid userId format' },
+        { status: 400 }
+      );
+    }
+
+    const supabase = getSupabaseClient();
 
     // Get current user
     const { data: currentUser } = await supabase

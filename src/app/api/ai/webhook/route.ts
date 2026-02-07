@@ -116,8 +116,8 @@ export async function POST(request: NextRequest) {
   const { valid, body } = await verifyFalWebhook(request);
   if (!valid) {
     console.warn('[AI_WEBHOOK] Invalid signature — rejecting');
-    // Return 200 to prevent fal.ai retries (log for monitoring)
-    return NextResponse.json({ ok: true });
+    // Return 403 for invalid signatures (proper security response)
+    return NextResponse.json({ error: 'Invalid signature' }, { status: 403 });
   }
 
   let payload: any;

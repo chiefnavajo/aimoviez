@@ -174,8 +174,9 @@ export function sanitizeSearchQuery(input: string | null | undefined): string {
   if (!input) return '';
 
   return input
-    // Remove SQL injection patterns
+    // Remove SQL injection patterns (including SQL comments)
     .replace(/[;'"\\]/g, '')
+    .replace(/--/g, '')
     // Remove special characters that could be used for injection
     .replace(/[<>(){}[\]]/g, '')
     // Limit length

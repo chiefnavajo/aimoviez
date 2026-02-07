@@ -487,17 +487,20 @@ export async function retry<T>(
   maxAttempts = 3,
   delayMs = 1000
 ): Promise<T> {
+  const MAX_DELAY = 60000; // Cap delay at 60 seconds
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       return await fn();
     } catch (error) {
       if (attempt === maxAttempts) throw error;
-      
-      const delay = delayMs * Math.pow(2, attempt - 1);
+
+      // Exponential backoff with max delay cap to prevent overflow
+      const delay = Math.min(delayMs * Math.pow(2, attempt - 1), MAX_DELAY);
       await sleep(delay);
     }
   }
-  
+
   throw new Error('Retry failed');
 }
 
