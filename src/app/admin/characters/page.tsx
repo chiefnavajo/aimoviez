@@ -496,13 +496,16 @@ export default function CharacterPinningPage() {
                     ref={videoRef}
                     src={clip.video_url}
                     className="w-full max-h-[50vh] object-contain rounded-lg"
-                    controls
+                    controls={true}
                     muted
+                    playsInline
+                    controlsList="nodownload"
                     onTimeUpdate={() => {
                       if (videoRef.current) {
                         setPinTimestamp(videoRef.current.currentTime);
                       }
                     }}
+                    style={{ colorScheme: 'dark' }}
                   />
                   <p className="text-xs text-white/40">
                     Pause at the best character frame. Timestamp: {pinTimestamp?.toFixed(2) || '0.00'}s
