@@ -51,6 +51,10 @@ export const RATE_LIMITS = {
   co_director_analyze: { requests: 2, window: '1m' as const },
   co_director_vote: { requests: 10, window: '1m' as const },
   co_director_read: { requests: 30, window: '1m' as const },
+
+  // AI Prompt Learning endpoints
+  prompt_suggest: { requests: 20, window: '1m' as const },
+  prompt_record: { requests: 10, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;
