@@ -955,8 +955,16 @@ export async function processExistingClipVisuals(
   let processed = 0;
   let errors = 0;
 
-  // Get winner clips without visual data - only learn from winning content
-  const { data: clips, error } = await supabase
+  // Step 1: Get IDs of clips already processed
+  const { data: processedClips } = await supabase
+    .from('clip_visuals')
+    .select('clip_id');
+
+  const processedIds = (processedClips || []).map(c => c.clip_id);
+  console.log(`[visual-learning] Already processed: ${processedIds.length} clips`);
+
+  // Step 2: Get winner clips that haven't been processed yet
+  let query = supabase
     .from('tournament_clips')
     .select(`
       id,
@@ -965,14 +973,18 @@ export async function processExistingClipVisuals(
       video_url,
       ai_prompt,
       vote_count,
-      status,
-      clip_visuals!left(id)
+      status
     `)
-    .is('clip_visuals.id', null)
     .in('status', ['winner', 'locked']) // Only analyze winner clips
     .not('thumbnail_url', 'is', null)
-    .not('season_id', 'is', null)
-    .limit(batchSize);
+    .not('season_id', 'is', null);
+
+  // Exclude already processed clips
+  if (processedIds.length > 0) {
+    query = query.not('id', 'in', `(${processedIds.join(',')})`);
+  }
+
+  const { data: clips, error } = await query.limit(batchSize);
 
   if (error || !clips) {
     console.error('[visual-learning] Failed to fetch clips:', error);
