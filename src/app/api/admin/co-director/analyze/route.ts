@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     const winnerIds = slots.map(s => s.winner_tournament_clip_id).filter(Boolean);
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
-      .select('id, title, description, user_prompt, slot_position')
+      .select('id, title, description, ai_prompt, slot_position')
       .in('id', winnerIds);
 
     if (clipsError) {
@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
       slot_position: c.slot_position,
       title: c.title || 'Untitled',
       description: c.description || undefined,
-      user_prompt: c.user_prompt || undefined,
+      user_prompt: c.ai_prompt || undefined,
     }));
 
     // Call Claude for analysis
