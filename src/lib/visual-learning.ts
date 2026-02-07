@@ -110,11 +110,337 @@ export interface VisualSimilarityResult {
 }
 
 // =============================================================================
-// VISUAL FEATURE EXTRACTION
+// MULTI-FRAME VIDEO EXTRACTION
+// =============================================================================
+
+// Number of frames to sample from each video (0%, 25%, 50%, 75%, 100%)
+const FRAMES_TO_SAMPLE = 5;
+
+/**
+ * Extract multiple frames from a video at evenly spaced intervals
+ * Returns array of base64-encoded JPEG images
+ */
+export async function extractFramesFromVideo(
+  videoUrl: string,
+  numFrames: number = FRAMES_TO_SAMPLE
+): Promise<{ frames: string[]; duration: number } | null> {
+  const { execFile } = await import('child_process');
+  const { writeFile, readFile, unlink } = await import('fs/promises');
+  const { tmpdir } = await import('os');
+  const path = await import('path');
+  const { promisify } = await import('util');
+
+  const execFileAsync = promisify(execFile);
+  const clipId = `vid_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const inputPath = path.join(tmpdir(), `${clipId}_input.mp4`);
+  const frames: string[] = [];
+  const framePaths: string[] = [];
+
+  try {
+    // 1. Download video
+    console.log(`[visual-learning] Downloading video: ${videoUrl.slice(0, 80)}...`);
+    const videoRes = await fetch(videoUrl, {
+      signal: AbortSignal.timeout(60_000),
+    });
+
+    if (!videoRes.ok) {
+      console.error('[visual-learning] Failed to download video:', videoRes.status);
+      return null;
+    }
+
+    const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
+    await writeFile(inputPath, videoBuffer);
+
+    // 2. Get video duration using ffprobe
+    const ffmpegPath = (await import('ffmpeg-static')).default;
+    if (!ffmpegPath) {
+      console.error('[visual-learning] ffmpeg binary not found');
+      return null;
+    }
+
+    // Get duration
+    let duration = 8; // Default fallback
+    try {
+      const { stdout } = await execFileAsync(ffmpegPath, [
+        '-i', inputPath,
+        '-f', 'null',
+        '-'
+      ], { timeout: 30000 }).catch(() => ({ stdout: '', stderr: '' }));
+
+      // Try to parse duration from ffmpeg output (it goes to stderr)
+      // Fallback: use fixed timestamps
+    } catch {
+      // Duration detection failed, use default
+    }
+
+    // 3. Extract frames at percentage intervals (0%, 25%, 50%, 75%, 100%)
+    const percentages = Array.from({ length: numFrames }, (_, i) => i / (numFrames - 1));
+
+    for (let i = 0; i < numFrames; i++) {
+      const timestamp = percentages[i] * duration;
+      const outputPath = path.join(tmpdir(), `${clipId}_frame_${i}.jpg`);
+      framePaths.push(outputPath);
+
+      try {
+        await execFileAsync(ffmpegPath, [
+          '-ss', timestamp.toFixed(2),
+          '-i', inputPath,
+          '-frames:v', '1',
+          '-q:v', '2',
+          '-y',
+          outputPath,
+        ], { timeout: 15000 });
+
+        const frameData = await readFile(outputPath);
+        if (frameData.length > 0) {
+          frames.push(frameData.toString('base64'));
+        }
+      } catch (err) {
+        console.warn(`[visual-learning] Failed to extract frame at ${timestamp}s:`, err);
+        // Continue with other frames
+      }
+    }
+
+    console.log(`[visual-learning] Extracted ${frames.length}/${numFrames} frames`);
+    return frames.length > 0 ? { frames, duration } : null;
+
+  } catch (error) {
+    console.error('[visual-learning] Frame extraction failed:', error);
+    return null;
+  } finally {
+    // Cleanup temp files
+    await unlink(inputPath).catch(() => {});
+    for (const fp of framePaths) {
+      await unlink(fp).catch(() => {});
+    }
+  }
+}
+
+/**
+ * Analyze a single frame (base64) using Claude Vision
+ */
+async function analyzeFrame(base64Image: string): Promise<VisualFeatures | null> {
+  try {
+    const response = await getAnthropicClient().messages.create({
+      model: VISION_MODEL,
+      max_tokens: 1500,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/jpeg',
+              data: base64Image,
+            },
+          },
+          {
+            type: 'text',
+            text: `Analyze this video frame and extract visual features. Return ONLY valid JSON matching this structure:
+
+{
+  "composition": {
+    "framing": "close-up|medium shot|wide shot|extreme close-up|full shot",
+    "angle": "eye level|low angle|high angle|dutch angle|overhead|worm's eye",
+    "depth": "shallow|deep|flat"
+  },
+  "lighting": {
+    "type": "natural|artificial|mixed",
+    "direction": "front|back|side|top|ambient|rim",
+    "quality": "soft|hard|diffused",
+    "mood": "bright|dark|moody|dramatic|warm|cool|neutral"
+  },
+  "colors": {
+    "dominant": ["color1", "color2", "color3"],
+    "palette_type": "monochromatic|complementary|analogous|triadic|warm|cool|neutral",
+    "saturation": "vibrant|muted|desaturated",
+    "contrast": "high|medium|low"
+  },
+  "environment": {
+    "setting": "indoor|outdoor|urban|nature|abstract|space|underwater",
+    "time_of_day": "day|night|dawn|dusk|golden hour|blue hour|unknown",
+    "weather": "clear|cloudy|rain|fog|snow|storm|null",
+    "location_type": "brief description of location"
+  },
+  "motion": {
+    "implied_movement": "static|slow|dynamic|fast|chaotic",
+    "camera_motion": "static|pan|tilt|tracking|dolly|zoom|handheld|unknown"
+  },
+  "subjects": {
+    "has_people": true|false,
+    "people_count": 0,
+    "has_animals": true|false,
+    "has_text": true|false,
+    "main_focus": "brief description of main subject"
+  },
+  "style": {
+    "genre": "cinematic|documentary|animation|abstract|vfx|live-action",
+    "aesthetic": "realistic|stylized|artistic|minimalist|surreal|retro",
+    "era": "modern|vintage|futuristic|timeless|period"
+  },
+  "description": "One sentence describing the overall visual impression"
+}`,
+          },
+        ],
+      }],
+    });
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      return null;
+    }
+
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return null;
+    }
+
+    return JSON.parse(jsonMatch[0]) as VisualFeatures;
+  } catch (error) {
+    console.error('[visual-learning] Frame analysis failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Combine features from multiple frames into a single comprehensive profile
+ */
+function combineFrameFeatures(featuresArray: VisualFeatures[]): VisualFeatures {
+  if (featuresArray.length === 0) {
+    throw new Error('No features to combine');
+  }
+
+  if (featuresArray.length === 1) {
+    return featuresArray[0];
+  }
+
+  // Helper: get most common value from array
+  const mostCommon = <T>(arr: T[]): T => {
+    const counts = new Map<T, number>();
+    for (const item of arr) {
+      counts.set(item, (counts.get(item) || 0) + 1);
+    }
+    let maxCount = 0;
+    let result = arr[0];
+    for (const [item, count] of counts) {
+      if (count > maxCount) {
+        maxCount = count;
+        result = item;
+      }
+    }
+    return result;
+  };
+
+  // Helper: merge arrays and get unique values, sorted by frequency
+  const mergeArrays = (arrays: string[][]): string[] => {
+    const counts = new Map<string, number>();
+    for (const arr of arrays) {
+      for (const item of arr) {
+        const normalized = item.toLowerCase();
+        counts.set(normalized, (counts.get(normalized) || 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5) // Top 5 colors across all frames
+      .map(([color]) => color);
+  };
+
+  // Combine all features using most common values
+  const combined: VisualFeatures = {
+    composition: {
+      framing: mostCommon(featuresArray.map(f => f.composition.framing)),
+      angle: mostCommon(featuresArray.map(f => f.composition.angle)),
+      depth: mostCommon(featuresArray.map(f => f.composition.depth)),
+    },
+    lighting: {
+      type: mostCommon(featuresArray.map(f => f.lighting.type)),
+      direction: mostCommon(featuresArray.map(f => f.lighting.direction)),
+      quality: mostCommon(featuresArray.map(f => f.lighting.quality)),
+      mood: mostCommon(featuresArray.map(f => f.lighting.mood)),
+    },
+    colors: {
+      dominant: mergeArrays(featuresArray.map(f => f.colors.dominant)),
+      palette_type: mostCommon(featuresArray.map(f => f.colors.palette_type)),
+      saturation: mostCommon(featuresArray.map(f => f.colors.saturation)),
+      contrast: mostCommon(featuresArray.map(f => f.colors.contrast)),
+    },
+    environment: {
+      setting: mostCommon(featuresArray.map(f => f.environment.setting)),
+      time_of_day: mostCommon(featuresArray.map(f => f.environment.time_of_day)),
+      weather: mostCommon(featuresArray.map(f => f.environment.weather).filter(Boolean)) || null,
+      location_type: mostCommon(featuresArray.map(f => f.environment.location_type)),
+    },
+    motion: {
+      implied_movement: mostCommon(featuresArray.map(f => f.motion.implied_movement)),
+      camera_motion: mostCommon(featuresArray.map(f => f.motion.camera_motion)),
+    },
+    subjects: {
+      has_people: featuresArray.some(f => f.subjects.has_people),
+      people_count: Math.max(...featuresArray.map(f => f.subjects.people_count)),
+      has_animals: featuresArray.some(f => f.subjects.has_animals),
+      has_text: featuresArray.some(f => f.subjects.has_text),
+      main_focus: mostCommon(featuresArray.map(f => f.subjects.main_focus)),
+    },
+    style: {
+      genre: mostCommon(featuresArray.map(f => f.style.genre)),
+      aesthetic: mostCommon(featuresArray.map(f => f.style.aesthetic)),
+      era: mostCommon(featuresArray.map(f => f.style.era)),
+    },
+    description: featuresArray.map(f => f.description).join(' | '),
+  };
+
+  return combined;
+}
+
+/**
+ * Extract visual features from a video by sampling multiple frames
+ * This is the main entry point for video-based visual learning
+ */
+export async function extractVisualFeaturesFromVideo(
+  videoUrl: string,
+  numFrames: number = FRAMES_TO_SAMPLE
+): Promise<VisualFeatures | null> {
+  console.log(`[visual-learning] Analyzing video with ${numFrames} frames: ${videoUrl.slice(0, 60)}...`);
+
+  // 1. Extract frames from video
+  const extraction = await extractFramesFromVideo(videoUrl, numFrames);
+  if (!extraction || extraction.frames.length === 0) {
+    console.error('[visual-learning] No frames extracted from video');
+    return null;
+  }
+
+  // 2. Analyze each frame
+  const featurePromises = extraction.frames.map((frame, i) => {
+    console.log(`[visual-learning] Analyzing frame ${i + 1}/${extraction.frames.length}...`);
+    return analyzeFrame(frame);
+  });
+
+  const allFeatures = await Promise.all(featurePromises);
+  const validFeatures = allFeatures.filter((f): f is VisualFeatures => f !== null);
+
+  console.log(`[visual-learning] Successfully analyzed ${validFeatures.length}/${extraction.frames.length} frames`);
+
+  if (validFeatures.length === 0) {
+    console.error('[visual-learning] No frames were successfully analyzed');
+    return null;
+  }
+
+  // 3. Combine features from all frames
+  const combined = combineFrameFeatures(validFeatures);
+  console.log(`[visual-learning] Combined features from ${validFeatures.length} frames`);
+
+  return combined;
+}
+
+// =============================================================================
+// VISUAL FEATURE EXTRACTION (Single Image)
 // =============================================================================
 
 /**
  * Analyze a frame/thumbnail using Claude Vision to extract visual features
+ * For single images/thumbnails - use extractVisualFeaturesFromVideo for videos
  */
 export async function extractVisualFeatures(imageUrl: string): Promise<VisualFeatures | null> {
   try {
@@ -620,6 +946,7 @@ export async function getPromptsForVisualStyle(
 /**
  * Process existing clips to extract visual features
  * Run this to build visual vocabulary from existing data
+ * Automatically handles both image thumbnails and video URLs (extracts 5 frames)
  */
 export async function processExistingClipVisuals(
   batchSize: number = 10
@@ -628,13 +955,14 @@ export async function processExistingClipVisuals(
   let processed = 0;
   let errors = 0;
 
-  // Get clips without visual data
+  // Get clips without visual data - also fetch video_url to detect video thumbnails
   const { data: clips, error } = await supabase
     .from('tournament_clips')
     .select(`
       id,
       season_id,
       thumbnail_url,
+      video_url,
       ai_prompt,
       vote_count,
       status
@@ -659,7 +987,23 @@ export async function processExistingClipVisuals(
     if (existing) continue;
 
     try {
-      const features = await extractVisualFeatures(clip.thumbnail_url);
+      // Determine if thumbnail is actually a video URL
+      const isVideoUrl = clip.thumbnail_url === clip.video_url ||
+        clip.thumbnail_url.endsWith('.mp4') ||
+        clip.thumbnail_url.endsWith('.webm') ||
+        clip.thumbnail_url.endsWith('.mov');
+
+      let features: VisualFeatures | null = null;
+
+      if (isVideoUrl) {
+        // Use multi-frame video extraction (5 frames)
+        console.log(`[visual-learning] Processing video clip ${clip.id} with multi-frame extraction...`);
+        features = await extractVisualFeaturesFromVideo(clip.thumbnail_url, FRAMES_TO_SAMPLE);
+      } else {
+        // Use single image extraction
+        console.log(`[visual-learning] Processing image thumbnail for clip ${clip.id}...`);
+        features = await extractVisualFeatures(clip.thumbnail_url);
+      }
 
       if (features) {
         const seasonId = clip.season_id;
@@ -676,14 +1020,18 @@ export async function processExistingClipVisuals(
         });
 
         processed++;
+        console.log(`[visual-learning] Successfully processed clip ${clip.id} (${processed}/${clips.length})`);
+      } else {
+        console.warn(`[visual-learning] No features extracted for clip ${clip.id}`);
+        errors++;
       }
     } catch (e) {
       console.error('[visual-learning] Error processing clip:', e);
       errors++;
     }
 
-    // Small delay to avoid rate limits
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Delay between clips to avoid rate limits (longer for video processing)
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   return { processed, errors };
@@ -693,4 +1041,4 @@ export async function processExistingClipVisuals(
 // EXPORTS
 // =============================================================================
 
-export { VISION_MODEL };
+export { VISION_MODEL, FRAMES_TO_SAMPLE };
