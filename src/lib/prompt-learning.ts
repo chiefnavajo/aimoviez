@@ -17,17 +17,16 @@ import type { CreativeBrief, StoryAnalysis } from '@/lib/claude-director';
 // CONFIGURATION
 // =============================================================================
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-if (!ANTHROPIC_API_KEY && process.env.NODE_ENV === 'production') {
-  throw new Error('ANTHROPIC_API_KEY environment variable is required in production');
-}
-
-const anthropic = new Anthropic({
-  apiKey: ANTHROPIC_API_KEY || 'dummy-key-for-dev',
-});
-
 // Use Haiku for fast, cheap extraction
 const EXTRACTION_MODEL = 'claude-3-5-haiku-20241022';
+
+function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is required');
+  }
+  return new Anthropic({ apiKey });
+}
 
 // =============================================================================
 // TYPES
@@ -79,6 +78,7 @@ export interface PinnedCharacter {
  */
 export async function extractSceneElements(prompt: string): Promise<SceneElements | null> {
   try {
+    const anthropic = getAnthropicClient();
     const response = await anthropic.messages.create({
       model: EXTRACTION_MODEL,
       max_tokens: 1024,
