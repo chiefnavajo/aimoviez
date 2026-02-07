@@ -77,14 +77,13 @@ export interface PinnedCharacter {
  * This helps the AI learn visual vocabulary from user prompts
  */
 export async function extractSceneElements(prompt: string): Promise<SceneElements | null> {
-  try {
-    const anthropic = getAnthropicClient();
-    const response = await anthropic.messages.create({
-      model: EXTRACTION_MODEL,
-      max_tokens: 1024,
-      messages: [{
-        role: 'user',
-        content: `Extract visual/scene elements from this video generation prompt. Return ONLY valid JSON.
+  const anthropic = getAnthropicClient();
+  const response = await anthropic.messages.create({
+    model: EXTRACTION_MODEL,
+    max_tokens: 1024,
+    messages: [{
+      role: 'user',
+      content: `Extract visual/scene elements from this video generation prompt. Return ONLY valid JSON.
 
 Prompt: "${prompt}"
 
@@ -99,25 +98,21 @@ Return JSON with these arrays (empty array if not found):
   "time_of_day": "single term or null",
   "motion": ["movement descriptions like 'walking', 'running', 'flying'"]
 }`
-      }]
-    });
+    }]
+  });
 
-    const textContent = response.content.find(c => c.type === 'text');
-    if (!textContent || textContent.type !== 'text') {
-      return null;
-    }
-
-    // Extract JSON from response
-    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return null;
-    }
-
-    return JSON.parse(jsonMatch[0]) as SceneElements;
-  } catch (error) {
-    console.error('[prompt-learning] Failed to extract scene elements:', error);
-    return null;
+  const textContent = response.content.find(c => c.type === 'text');
+  if (!textContent || textContent.type !== 'text') {
+    throw new Error('No text content in response');
   }
+
+  // Extract JSON from response
+  const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('No JSON found in response: ' + textContent.text.slice(0, 100));
+  }
+
+  return JSON.parse(jsonMatch[0]) as SceneElements;
 }
 
 // =============================================================================
