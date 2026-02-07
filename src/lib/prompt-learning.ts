@@ -18,7 +18,7 @@ import type { CreativeBrief, StoryAnalysis } from '@/lib/claude-director';
 // =============================================================================
 
 // Use Haiku for fast, cheap extraction
-const EXTRACTION_MODEL = 'claude-3-5-haiku-20241022';
+const EXTRACTION_MODEL = 'claude-3-haiku-20240307';
 
 function getAnthropicClient() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
