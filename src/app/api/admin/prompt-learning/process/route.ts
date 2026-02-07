@@ -98,11 +98,18 @@ export async function POST(req: NextRequest) {
     let errors = 0;
     const processedIds: string[] = [];
 
+    const extractionResults: Array<{ id: string; success: boolean; error?: string }> = [];
+
     for (const prompt of prompts) {
       try {
         const elements = await extractSceneElements(prompt.user_prompt);
 
+        if (!elements) {
+          extractionResults.push({ id: prompt.id, success: false, error: 'null result' });
+        }
+
         if (elements) {
+          extractionResults.push({ id: prompt.id, success: true });
           // Update prompt_history
           await supabase
             .from('prompt_history')
@@ -130,18 +137,21 @@ export async function POST(req: NextRequest) {
           processedIds.push(prompt.id);
         }
       } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : 'Unknown error';
         console.error(`[prompt-learning] Error processing ${prompt.id}:`, e);
+        extractionResults.push({ id: prompt.id, success: false, error: errorMsg });
         errors++;
       }
     }
 
     return NextResponse.json({
       ok: true,
-      version: 'v4',
+      version: 'v5',
       processed,
       errors,
       foundPrompts: prompts.length,
       processedIds,
+      extractionResults,
       message: processed > 0
         ? `Successfully processed ${processed} prompts`
         : 'No prompts were processed',
