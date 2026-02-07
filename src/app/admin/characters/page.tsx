@@ -86,6 +86,8 @@ export default function CharacterPinningPage() {
   const [angleClipId, setAngleClipId] = useState<string | null>(null);
   const [angleTimestamp, setAngleTimestamp] = useState<number | null>(null);
   const [addingAngle, setAddingAngle] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [videoDuration, setVideoDuration] = useState(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -491,24 +493,68 @@ export default function CharacterPinningPage() {
               const clip = winnerClips.find(c => c.id === pinClipId);
               if (!clip) return null;
               return (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <video
                     ref={videoRef}
                     src={clip.video_url}
-                    className="w-full max-h-[50vh] object-contain rounded-lg"
-                    controls={true}
+                    className="w-full max-h-[40vh] object-contain rounded-lg bg-black"
                     muted
                     playsInline
-                    controlsList="nodownload"
                     onTimeUpdate={() => {
                       if (videoRef.current) {
                         setPinTimestamp(videoRef.current.currentTime);
                       }
                     }}
-                    style={{ colorScheme: 'dark' }}
+                    onLoadedMetadata={() => {
+                      if (videoRef.current) {
+                        setVideoDuration(videoRef.current.duration);
+                      }
+                    }}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
                   />
+                  {/* Custom video controls */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (videoRef.current) {
+                          if (isPlaying) {
+                            videoRef.current.pause();
+                          } else {
+                            videoRef.current.play();
+                          }
+                        }
+                      }}
+                      className="p-2 bg-white/10 hover:bg-white/20 rounded-lg transition"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-5 h-5" />
+                      ) : (
+                        <Play className="w-5 h-5" />
+                      )}
+                    </button>
+                    <input
+                      type="range"
+                      min={0}
+                      max={videoDuration || 1}
+                      step={0.01}
+                      value={pinTimestamp || 0}
+                      onChange={(e) => {
+                        const time = parseFloat(e.target.value);
+                        setPinTimestamp(time);
+                        if (videoRef.current) {
+                          videoRef.current.currentTime = time;
+                        }
+                      }}
+                      className="flex-1 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-yellow-400"
+                    />
+                    <span className="text-xs text-white/60 min-w-[50px] text-right">
+                      {(pinTimestamp || 0).toFixed(2)}s
+                    </span>
+                  </div>
                   <p className="text-xs text-white/40">
-                    Pause at the best character frame. Timestamp: {pinTimestamp?.toFixed(2) || '0.00'}s
+                    Scrub to find the best character frame, then click Pin.
                   </p>
                   <button
                     onClick={() => setPinTimestamp(null)}
