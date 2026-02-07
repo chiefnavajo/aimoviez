@@ -222,7 +222,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // If no brief is available, generate a prompt using AI from learned patterns
+  // If no brief is available, generate a prompt using AI from learned patterns + story context
   if (!brief) {
     const { getTopModelPatterns, getTopVocabulary, getWinningPrompts } = await import('@/lib/prompt-learning');
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
@@ -233,6 +233,30 @@ export async function GET(req: NextRequest) {
 
     const patternTexts = patterns.map(p => p.pattern_text);
     const vocabTerms = vocabulary.map(v => v.term);
+
+    // Get the last locked clips for story continuity
+    const { data: previousClips } = await supabase
+      .from('story_slots')
+      .select(`
+        slot_position,
+        tournament_clips!inner(
+          ai_prompt,
+          title,
+          status
+        )
+      `)
+      .eq('season_id', activeSeason.id)
+      .eq('status', 'locked')
+      .order('slot_position', { ascending: false })
+      .limit(3);
+
+    // Build story context from previous clips
+    const storyContext = previousClips?.map(slot => {
+      const clip = Array.isArray(slot.tournament_clips)
+        ? slot.tournament_clips.find((c: { status: string }) => c.status === 'locked' || c.status === 'winner')
+        : slot.tournament_clips;
+      return clip ? `Slot ${slot.slot_position}: ${clip.ai_prompt || clip.title || 'Unknown scene'}` : null;
+    }).filter(Boolean).reverse().join('\n') || '';
 
     // Get visual vocabulary if enabled
     let visualTerms: string[] = [];
@@ -251,32 +275,36 @@ export async function GET(req: NextRequest) {
       ? pinnedCharacters.map(c => c.label).join(', ')
       : null;
 
-    // Use Claude to generate a coherent prompt
+    // Use Claude to generate a coherent prompt that continues the story
     let generatedPrompt = 'cinematic scene with dramatic lighting';
 
     try {
       const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (apiKey && (patternTexts.length > 0 || vocabTerms.length > 0)) {
+      if (apiKey) {
         const anthropic = new Anthropic({ apiKey });
         const response = await anthropic.messages.create({
           model: 'claude-3-haiku-20240307',
           max_tokens: 256,
           messages: [{
             role: 'user',
-            content: `Generate a ready-to-use video generation prompt based on these learned patterns.
+            content: `Generate a ready-to-use video generation prompt that CONTINUES this story.
+
+${storyContext ? `STORY SO FAR (in order):
+${storyContext}
+
+The next scene (Slot ${(slotPosition || 0) + 1}) should logically continue from where the story left off.` : 'This is the first scene of a new story.'}
 
 AI Model: ${model}
-${patternTexts.length > 0 ? `Best text patterns for this model: ${patternTexts.join(', ')}` : ''}
-${vocabTerms.length > 0 ? `Popular prompt terms from winning clips: ${vocabTerms.slice(0, 10).join(', ')}` : ''}
-${visualTerms.length > 0 ? `Visual style patterns: ${visualTerms.slice(0, 8).join(', ')}` : ''}
-${characterContext ? `Characters: ${characterContext}` : ''}
-${winningPrompts.length > 0 ? `Example winning prompts:\n${winningPrompts.map(p => `- ${p.prompt}`).join('\n')}` : ''}
+${characterContext ? `Main characters: ${characterContext}` : ''}
+${patternTexts.length > 0 ? `Best prompt patterns for this model: ${patternTexts.join(', ')}` : ''}
+${vocabTerms.length > 0 ? `Popular terms from winning clips: ${vocabTerms.slice(0, 8).join(', ')}` : ''}
+${visualTerms.length > 0 ? `Visual style: ${visualTerms.slice(0, 6).join(', ')}` : ''}
 
 Write a single, detailed video prompt (50-100 words) that:
-1. Combines the learned patterns into a coherent scene
-2. Uses the visual style elements naturally
-3. Is ready to paste directly into the AI video generator
-4. Creates an engaging, cinematic scene
+1. Logically continues the story from the previous scene
+2. Features the same characters if applicable
+3. Uses the successful visual style and patterns
+4. Is ready to paste directly into the AI video generator
 
 Return ONLY the prompt text, nothing else.`
           }]
@@ -301,7 +329,8 @@ Return ONLY the prompt text, nothing else.`
       prompt: generatedPrompt,
       based_on: {
         brief_title: null,
-        scene_context: 'Generated from learned patterns',
+        scene_context: storyContext || 'First scene of new story',
+        previous_slots: previousClips?.length || 0,
         top_patterns: patternTexts,
         visual_patterns: visualTerms.slice(0, 5),
         character_context: characterContext,
