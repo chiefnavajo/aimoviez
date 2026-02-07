@@ -40,6 +40,7 @@ interface AIGeneratePanelProps {
   onComplete?: () => void;
   compact?: boolean;
   lastFrameUrl?: string | null;
+  initialPrompt?: string;
 }
 
 interface VoiceOption {
@@ -108,6 +109,7 @@ export default function AIGeneratePanel({
   onComplete,
   compact = false,
   lastFrameUrl,
+  initialPrompt,
 }: AIGeneratePanelProps) {
   const router = useRouter();
   const { post: csrfPost, ensureToken } = useCsrf();
@@ -147,11 +149,18 @@ export default function AIGeneratePanel({
   const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
 
   // Form state
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt || '');
   const [style, setStyle] = useState<string | undefined>();
   const [model, setModel] = useState('kling-2.6');
   const [genre, setGenre] = useState(preselectedGenre || '');
   const [title, setTitle] = useState('');
+
+  // Update prompt when initialPrompt changes (from BriefBanner)
+  useEffect(() => {
+    if (initialPrompt) {
+      setPrompt(initialPrompt);
+    }
+  }, [initialPrompt]);
 
   // Generation state
   const [stage, setStage] = useState<Stage>('idle');

@@ -14,11 +14,13 @@ import BottomNavigation from '@/components/BottomNavigation';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import AIGeneratePanel from '@/components/AIGeneratePanel';
+import BriefBanner from '@/components/BriefBanner';
 
 function CreatePageContent() {
   const router = useRouter();
   const { enabled: aiEnabled, isLoading } = useFeature('ai_video_generation');
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
+  const [externalPrompt, setExternalPrompt] = useState('');
 
   // Redirect if AI is not enabled
   useEffect(() => {
@@ -84,7 +86,8 @@ function CreatePageContent() {
               <h1 className="text-3xl font-black mb-2">Create with AI</h1>
               <p className="text-white/60">Describe your scene and let AI generate an 8-second video clip</p>
             </div>
-            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} />
+            <BriefBanner onSelectPrompt={setExternalPrompt} />
+            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} />
           </div>
         </div>
       </div>
@@ -100,7 +103,8 @@ function CreatePageContent() {
             <h1 className="text-2xl font-black mb-1">Create with AI</h1>
             <p className="text-sm text-white/60">Describe your scene and let AI create it</p>
           </div>
-          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} />
+          <BriefBanner onSelectPrompt={setExternalPrompt} />
+          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} />
         </div>
         <BottomNavigation />
       </div>

@@ -46,6 +46,11 @@ export const RATE_LIMITS = {
   ai_generate: { requests: 3, window: '1m' as const },
   ai_status: { requests: 30, window: '1m' as const },
   ai_narrate: { requests: 5, window: '1m' as const },
+
+  // AI Co-Director endpoints
+  co_director_analyze: { requests: 2, window: '1m' as const },
+  co_director_vote: { requests: 10, window: '1m' as const },
+  co_director_read: { requests: 30, window: '1m' as const },
 } as const;
 
 export type RateLimitType = keyof typeof RATE_LIMITS;
@@ -61,6 +66,8 @@ const CRITICAL_RATE_LIMIT_TYPES: ReadonlySet<RateLimitType> = new Set([
   'upload',
   'ai_generate',
   'ai_narrate',
+  'co_director_analyze',
+  'co_director_vote',
 ]);
 
 // ============================================================================

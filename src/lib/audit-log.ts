@@ -38,7 +38,15 @@ export type AuditAction =
   | 'slot_swap'
   | 'ai_generate'
   | 'ai_complete'
-  | 'ai_register';
+  | 'ai_register'
+  // AI Co-Director actions
+  | 'analyze_story'
+  | 'generate_directions'
+  | 'open_direction_vote'
+  | 'close_direction_vote'
+  | 'generate_brief'
+  | 'publish_brief'
+  | 'score_submission';
 
 export type ResourceType =
   | 'clip'
@@ -48,7 +56,13 @@ export type ResourceType =
   | 'feature_flag'
   | 'comment'
   | 'vote'
-  | 'ai_generation';
+  | 'ai_generation'
+  // AI Co-Director resources
+  | 'story_analysis'
+  | 'direction_option'
+  | 'direction_vote'
+  | 'slot_brief'
+  | 'submission_score';
 
 export interface AuditLogEntry {
   action: AuditAction;

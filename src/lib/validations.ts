@@ -242,6 +242,66 @@ export const AINarrateSchema = z.object({
 export type AINarrateRequest = z.infer<typeof AINarrateSchema>;
 
 // =============================================================================
+// AI CO-DIRECTOR VALIDATION
+// =============================================================================
+
+export const DirectionVoteSchema = z.object({
+  direction_option_id: z.string().uuid('Invalid direction option ID'),
+});
+
+export type DirectionVoteRequest = z.infer<typeof DirectionVoteSchema>;
+
+export const GenerateDirectionsSchema = z.object({
+  season_id: z.string().uuid('Invalid season ID'),
+  slot_position: z.number().int().min(1, 'Slot position must be at least 1'),
+});
+
+export type GenerateDirectionsRequest = z.infer<typeof GenerateDirectionsSchema>;
+
+export const AnalyzeStorySchema = z.object({
+  season_id: z.string().uuid('Invalid season ID'),
+  up_to_slot: z.number().int().min(1).optional(),
+});
+
+export type AnalyzeStoryRequest = z.infer<typeof AnalyzeStorySchema>;
+
+export const OpenDirectionVoteSchema = z.object({
+  season_id: z.string().uuid('Invalid season ID'),
+  slot_position: z.number().int().min(1, 'Slot position must be at least 1'),
+  duration_hours: z.number().int().min(1).max(168).default(48), // max 1 week
+});
+
+export type OpenDirectionVoteRequest = z.infer<typeof OpenDirectionVoteSchema>;
+
+export const CloseDirectionVoteSchema = z.object({
+  season_id: z.string().uuid('Invalid season ID'),
+  slot_position: z.number().int().min(1, 'Slot position must be at least 1'),
+});
+
+export type CloseDirectionVoteRequest = z.infer<typeof CloseDirectionVoteSchema>;
+
+export const GenerateBriefSchema = z.object({
+  season_id: z.string().uuid('Invalid season ID'),
+  slot_position: z.number().int().min(1, 'Slot position must be at least 1'),
+});
+
+export type GenerateBriefRequest = z.infer<typeof GenerateBriefSchema>;
+
+export const PublishBriefSchema = z.object({
+  brief_id: z.string().uuid('Invalid brief ID'),
+  brief_title: z.string().min(5, 'Title must be at least 5 characters').max(200, 'Title must be 200 characters or less'),
+  scene_description: z.string().min(20, 'Scene description must be at least 20 characters').max(2000, 'Scene description must be 2000 characters or less'),
+  visual_requirements: z.string().min(10, 'Visual requirements must be at least 10 characters').max(1000, 'Visual requirements must be 1000 characters or less'),
+  tone_guidance: z.string().min(10, 'Tone guidance must be at least 10 characters').max(500, 'Tone guidance must be 500 characters or less'),
+  continuity_notes: z.string().max(1000, 'Continuity notes must be 1000 characters or less').optional(),
+  do_list: z.string().max(500, 'Do list must be 500 characters or less').optional(),
+  dont_list: z.string().max(500, 'Dont list must be 500 characters or less').optional(),
+  example_prompts: z.array(z.string().max(300, 'Each prompt must be 300 characters or less')).max(5, 'Maximum 5 example prompts').optional(),
+});
+
+export type PublishBriefRequest = z.infer<typeof PublishBriefSchema>;
+
+// =============================================================================
 // HELPER: Parse and validate with friendly error
 // =============================================================================
 
