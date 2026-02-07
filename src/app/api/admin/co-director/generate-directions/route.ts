@@ -184,7 +184,10 @@ export async function POST(req: NextRequest) {
           narrative_hooks: d.narrative_hooks,
           vote_count: d.vote_count,
         }));
-        await supabase.from('direction_options').insert(restoreData);
+        const { error: restoreError } = await supabase.from('direction_options').insert(restoreData);
+        if (restoreError) {
+          console.error('[generate-directions] CRITICAL: Failed to restore directions:', restoreError);
+        }
       }
 
       return NextResponse.json({ error: 'Failed to store directions' }, { status: 500 });

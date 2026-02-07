@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
     // Check if user already voted for this slot
     const { data: existingVote } = await supabase
       .from('direction_votes')
-      .select('id, direction_option_id')
+      .select('id, direction_option_id, user_id')
       .eq('season_id', direction.season_id)
       .eq('slot_position', direction.slot_position)
       .eq('voter_key', voterKey)
@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
       const oldVoteData = {
         direction_option_id: existingVote.direction_option_id,
         voter_key: voterKey,
-        user_id: userId,
+        user_id: existingVote.user_id,
         season_id: direction.season_id,
         slot_position: direction.slot_position,
       };
@@ -240,7 +240,14 @@ export async function POST(req: NextRequest) {
       if (insertError) {
         // Try to restore old vote to prevent data loss
         console.error('[POST direction-vote] Insert error after delete, restoring:', insertError);
-        await supabase.from('direction_votes').insert(oldVoteData).select().maybeSingle();
+        const { error: restoreError } = await supabase.from('direction_votes').insert(oldVoteData);
+        if (restoreError) {
+          console.error('[POST direction-vote] CRITICAL: Failed to restore vote:', restoreError);
+          return NextResponse.json(
+            { error: 'Vote data may have been lost. Please try again.' },
+            { status: 500 }
+          );
+        }
         return NextResponse.json({ error: 'Failed to change vote' }, { status: 500 });
       }
 
