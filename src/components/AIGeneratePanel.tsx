@@ -25,6 +25,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  Wand2,
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -99,6 +100,7 @@ const SUGGESTION_CHIPS = [
 
 const STORAGE_KEY = 'ai_active_generation_id';
 const STORAGE_TIMESTAMP_KEY = 'ai_active_generation_ts';
+const PROMPT_SUGGEST_KEY = 'ai_prompt_suggest_enabled';
 
 // ============================================================================
 // COMPONENT
@@ -116,6 +118,7 @@ export default function AIGeneratePanel({
   const { enabled: aiEnabled, isLoading: flagLoading } = useFeature('ai_video_generation');
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
   const { enabled: pinningEnabled } = useFeature('character_pinning');
+  const { enabled: promptLearningEnabled } = useFeature('prompt_learning');
 
   const narrationConfig = narrationConfigRaw as NarrationConfig | null;
 
@@ -127,6 +130,18 @@ export default function AIGeneratePanel({
     reference_count: number;
   }>>([]);
   const [skipPinned, setSkipPinned] = useState(false);
+
+  // AI Prompt Suggestion state
+  const [autoSuggestEnabled, setAutoSuggestEnabled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem(PROMPT_SUGGEST_KEY);
+    return stored === null ? true : stored === 'true';
+  });
+  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
+  const [suggestionBasis, setSuggestionBasis] = useState<{
+    brief_title: string | null;
+    top_patterns: string[];
+  } | null>(null);
 
   // Fetch pinned characters when feature is enabled
   useEffect(() => {
@@ -154,6 +169,42 @@ export default function AIGeneratePanel({
   const [model, setModel] = useState('kling-2.6');
   const [genre, setGenre] = useState(preselectedGenre || '');
   const [title, setTitle] = useState('');
+
+  // Persist auto-suggest toggle to localStorage
+  useEffect(() => {
+    localStorage.setItem(PROMPT_SUGGEST_KEY, String(autoSuggestEnabled));
+  }, [autoSuggestEnabled]);
+
+  // Fetch AI-suggested prompt when enabled and model changes
+  useEffect(() => {
+    // Skip if feature disabled, already has prompt, or initialPrompt provided
+    if (!promptLearningEnabled || !autoSuggestEnabled || initialPrompt || prompt.length > 0) {
+      return;
+    }
+
+    async function fetchSuggestedPrompt() {
+      setIsLoadingSuggestion(true);
+      try {
+        const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}`);
+        if (!res.ok) {
+          setIsLoadingSuggestion(false);
+          return;
+        }
+        const data = await res.json();
+        if (data.ok && data.prompt) {
+          setPrompt(data.prompt);
+          setSuggestionBasis(data.based_on || null);
+        }
+      } catch {
+        // Non-critical - user can still type their own prompt
+      } finally {
+        setIsLoadingSuggestion(false);
+      }
+    }
+
+    fetchSuggestedPrompt();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptLearningEnabled, autoSuggestEnabled, model]);
 
   // Update prompt when initialPrompt changes (from BriefBanner)
   useEffect(() => {
@@ -440,6 +491,7 @@ export default function AIGeneratePanel({
         if (!registerResult.success) {
           throw new Error(registerResult.error || 'Failed to register clip');
         }
+        // Note: Prompt recording is now handled server-side in /api/ai/register
       } else {
         // Standard path: get signed URL, client downloads and uploads
         let falVideoUrl: string;
@@ -495,6 +547,8 @@ export default function AIGeneratePanel({
         if (!registerResult.success) {
           throw new Error(registerResult.error || 'Failed to register clip');
         }
+
+        // Note: Prompt recording is now handled server-side in /api/ai/register
       }
 
       setStage('done');
@@ -959,11 +1013,46 @@ export default function AIGeneratePanel({
         </button>
       )}
 
+      {/* AI Prompt Suggestion Toggle */}
+      {promptLearningEnabled && (
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <Wand2 className="w-4 h-4 text-purple-400" />
+            <span className="text-sm text-white/70">AI Prompt Suggestion</span>
+            {suggestionBasis?.brief_title && (
+              <span className="text-xs text-purple-400/70">
+                (based on: {suggestionBasis.brief_title})
+              </span>
+            )}
+          </div>
+          <button
+            onClick={() => setAutoSuggestEnabled(!autoSuggestEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${
+              autoSuggestEnabled ? 'bg-purple-600' : 'bg-white/20'
+            }`}
+            aria-label={autoSuggestEnabled ? 'Disable AI prompt suggestions' : 'Enable AI prompt suggestions'}
+          >
+            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+              autoSuggestEnabled ? 'left-6' : 'left-1'
+            }`} />
+          </button>
+        </div>
+      )}
+
       {/* Prompt input */}
-      <div>
+      <div className="relative">
+        {isLoadingSuggestion && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl z-10">
+            <Loader2 className="w-6 h-6 animate-spin text-purple-400" />
+          </div>
+        )}
         <textarea
           value={prompt}
-          onChange={(e) => setPrompt(e.target.value.slice(0, 500))}
+          onChange={(e) => {
+            setPrompt(e.target.value.slice(0, 500));
+            // Clear suggestion basis when user edits
+            if (suggestionBasis) setSuggestionBasis(null);
+          }}
           placeholder="Describe your 8-second video clip..."
           rows={compact ? 3 : 4}
           className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"

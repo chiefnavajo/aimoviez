@@ -282,6 +282,52 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 12b. Record prompt for AI learning (server-side, reliable)
+    const { data: promptLearningFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'prompt_learning')
+      .maybeSingle();
+
+    if (promptLearningFlag?.enabled && gen.prompt) {
+      try {
+        const { recordUserPrompt } = await import('@/lib/prompt-learning');
+        // Fire-and-forget: don't block registration on learning
+        recordUserPrompt({
+          userId: userId || undefined,
+          clipId: clipData.id,
+          slotId: votingSlot.id,
+          seasonId: season.id,
+          prompt: gen.prompt,
+          model: gen.model,
+        }).catch(err => console.warn('[AI_REGISTER] Prompt recording failed:', err));
+      } catch (importErr) {
+        console.warn('[AI_REGISTER] Failed to import prompt-learning:', importErr);
+      }
+    }
+
+    // 12c. Trigger thumbnail extraction (fire-and-forget)
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && publicUrl) {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+        fetch(`${baseUrl}/api/internal/extract-thumbnail`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${cronSecret}`,
+          },
+          body: JSON.stringify({
+            clipId: clipData.id,
+            videoUrl: publicUrl,
+            seasonId: season.id,
+          }),
+        }).catch(() => {}); // Fire-and-forget
+      } catch {
+        // Ignore thumbnail extraction errors - non-critical
+      }
+    }
+
     // 13. Voting timer logic (same as register route)
     let timerStarted = false;
     if (isFirstClipInSlot) {
