@@ -71,9 +71,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      version: 'v3',
       processed: result.processed,
       errors: result.errors,
-      debug: result.debug,
+      debug: result.debug || { missing: true },
       directQuery: {
         error: debugError?.message || null,
         count: debugPrompts?.length || 0,
