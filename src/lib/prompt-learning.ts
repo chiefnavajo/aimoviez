@@ -608,16 +608,26 @@ export async function processExistingPrompts(
   let errors = 0;
 
   // Get prompts without scene_elements
+  console.log('[prompt-learning] Fetching prompts without scene_elements...');
   const { data: prompts, error } = await supabase
     .from('prompt_history')
     .select('id, season_id, user_prompt, ai_model, vote_count, is_winner')
     .is('scene_elements', null)
     .limit(batchSize);
 
+  console.log('[prompt-learning] Query result:', { count: prompts?.length, error: error?.message });
+
   if (error || !prompts) {
     console.error('[prompt-learning] Failed to fetch prompts for processing:', error);
     return { processed: 0, errors: 1 };
   }
+
+  if (prompts.length === 0) {
+    console.log('[prompt-learning] No prompts found with null scene_elements');
+    return { processed: 0, errors: 0 };
+  }
+
+  console.log(`[prompt-learning] Found ${prompts.length} prompts to process`);
 
   for (const prompt of prompts) {
     try {
