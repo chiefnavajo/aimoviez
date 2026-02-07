@@ -45,6 +45,7 @@ import {
   Unlock,
   Crosshair,
   Search,
+  Sparkles,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -1803,11 +1804,11 @@ export default function AdminDashboard() {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex gap-2 mt-4">
+          <div className="flex gap-2 mt-4 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setActiveTab('clips')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'clips'
                   ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
                   : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -1820,7 +1821,7 @@ export default function AdminDashboard() {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => setActiveTab('features')}
-              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+              className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap ${
                 activeTab === 'features'
                   ? 'bg-gradient-to-r from-cyan-500 to-purple-500 text-white'
                   : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -1833,7 +1834,7 @@ export default function AdminDashboard() {
             <Link href="/admin/users">
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap bg-white/10 text-white/70 hover:bg-white/20"
                 type="button"
               >
                 <Users className="w-4 h-4" />
@@ -1843,11 +1844,21 @@ export default function AdminDashboard() {
             <Link href="/admin/characters">
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 bg-white/10 text-white/70 hover:bg-white/20"
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap bg-white/10 text-white/70 hover:bg-white/20"
                 type="button"
               >
                 <Crosshair className="w-4 h-4" />
                 Characters
+              </motion.button>
+            </Link>
+            <Link href="/admin/co-director">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap bg-white/10 text-white/70 hover:bg-white/20"
+                type="button"
+              >
+                <Sparkles className="w-4 h-4" />
+                AI Director
               </motion.button>
             </Link>
           </div>
@@ -2966,8 +2977,8 @@ export default function AdminDashboard() {
                           whileHover={{ scale: 1.01 }}
                           className={`bg-gradient-to-r ${categoryColors[category]} backdrop-blur-sm rounded-xl p-4 border`}
                         >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2 mb-1">
                                 <h4 className="font-bold">{flag.name}</h4>
                                 <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -2990,7 +3001,7 @@ export default function AdminDashboard() {
                               whileTap={{ scale: 0.9 }}
                               onClick={() => handleToggleFeature(flag)}
                               disabled={togglingFlag === flag.key}
-                              className={`p-3 rounded-xl transition-all ${
+                              className={`flex-shrink-0 p-3 rounded-xl transition-all ${
                                 flag.enabled
                                   ? 'bg-green-500 hover:bg-green-600'
                                   : 'bg-white/10 hover:bg-white/20'
