@@ -4,23 +4,30 @@
 // Server-only — never import from client code
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getServiceClient } from '@/lib/supabase-client';
+import { createClient } from '@supabase/supabase-js';
 
 // =============================================================================
 // CONFIGURATION
 // =============================================================================
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-if (!ANTHROPIC_API_KEY && process.env.NODE_ENV === 'production') {
-  throw new Error('ANTHROPIC_API_KEY environment variable is required in production');
+// Use Haiku for fast, cheap visual analysis
+const VISION_MODEL = 'claude-3-haiku-20240307';
+
+// Runtime client factories (avoid module-load time env var issues in serverless)
+function getAnthropicClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY environment variable is required');
+  }
+  return new Anthropic({ apiKey });
 }
 
-const anthropic = new Anthropic({
-  apiKey: ANTHROPIC_API_KEY || 'dummy-key-for-dev',
-});
-
-// Use Haiku for fast, cheap visual analysis
-const VISION_MODEL = 'claude-3-5-haiku-20241022';
+function getSupabaseClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase config');
+  return createClient(url, key);
+}
 
 // =============================================================================
 // TYPES
@@ -129,7 +136,7 @@ export async function extractVisualFeatures(imageUrl: string): Promise<VisualFea
       return null;
     }
 
-    const response = await anthropic.messages.create({
+    const response = await getAnthropicClient().messages.create({
       model: VISION_MODEL,
       max_tokens: 1500,
       messages: [{
@@ -229,7 +236,7 @@ export async function storeClipVisuals(params: {
   isWinner?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = getServiceClient();
+    const supabase = getSupabaseClient();
 
     const { error } = await supabase
       .from('clip_visuals')
@@ -269,7 +276,7 @@ async function updateVisualVocabulary(
   voteCount: number,
   isWinner: boolean
 ): Promise<void> {
-  const supabase = getServiceClient();
+  const supabase = getSupabaseClient();
 
   // Extract vocabulary terms from features
   const terms: Array<{ category: string; term: string }> = [];
@@ -425,7 +432,7 @@ export async function findVisuallySimilarClips(
   seasonId: string,
   limit: number = 5
 ): Promise<VisualSimilarityResult[]> {
-  const supabase = getServiceClient();
+  const supabase = getSupabaseClient();
 
   // Get all clip visuals for this season
   const { data: clips, error } = await supabase
@@ -495,7 +502,7 @@ export async function getVisualVocabulary(
   category?: string,
   limit: number = 10
 ): Promise<Array<{ term: string; category: string; frequency: number; avg_vote_score: number }>> {
-  const supabase = getServiceClient();
+  const supabase = getSupabaseClient();
 
   // Try Bayesian scored view first
   let query = supabase
@@ -550,7 +557,7 @@ export async function getPromptsForVisualStyle(
   }>,
   limit: number = 5
 ): Promise<Array<{ prompt: string; vote_count: number; similarity: number }>> {
-  const supabase = getServiceClient();
+  const supabase = getSupabaseClient();
 
   // Build filters based on target features
   const { data: clips, error } = await supabase
@@ -617,7 +624,7 @@ export async function getPromptsForVisualStyle(
 export async function processExistingClipVisuals(
   batchSize: number = 10
 ): Promise<{ processed: number; errors: number }> {
-  const supabase = getServiceClient();
+  const supabase = getSupabaseClient();
   let processed = 0;
   let errors = 0;
 

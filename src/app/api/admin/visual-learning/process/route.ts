@@ -84,8 +84,11 @@ export async function GET(req: NextRequest) {
   if (adminError) return adminError;
 
   try {
-    const { getServiceClient } = await import('@/lib/supabase-client');
-    const supabase = getServiceClient();
+    const { createClient } = await import('@supabase/supabase-js');
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Missing Supabase config');
+    const supabase = createClient(url, key);
 
     // Get counts
     const [
