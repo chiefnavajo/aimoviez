@@ -180,7 +180,7 @@ export async function recordUserPrompt(params: {
 /**
  * Update scene vocabulary with extracted elements
  */
-async function updateSceneVocabulary(
+export async function updateSceneVocabulary(
   seasonId: string,
   elements: SceneElements,
   prompt: string,
@@ -223,7 +223,7 @@ async function updateSceneVocabulary(
 /**
  * Update model-specific patterns
  */
-async function updateModelPatterns(
+export async function updateModelPatterns(
   model: string,
   prompt: string,
   voteCount: number,

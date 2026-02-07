@@ -42,46 +42,109 @@ export async function POST(req: NextRequest) {
       100 // Max 100 per request
     );
 
-    // Direct debug query first
+    // Direct processing - bypass library
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anthropicKey = process.env.ANTHROPIC_API_KEY;
 
     if (!url || !key) {
       return NextResponse.json({
         ok: false,
-        error: 'Missing env vars',
+        error: 'Missing Supabase env vars',
         hasUrl: !!url,
         hasKey: !!key,
       });
     }
 
+    if (!anthropicKey) {
+      return NextResponse.json({
+        ok: false,
+        error: 'Missing ANTHROPIC_API_KEY',
+      });
+    }
+
     const supabase = createClient(url, key);
-    const { data: debugPrompts, error: debugError } = await supabase
+
+    // Fetch prompts directly
+    const { data: prompts, error: fetchError } = await supabase
       .from('prompt_history')
-      .select('id')
+      .select('id, season_id, user_prompt, ai_model, vote_count, is_winner')
       .is('scene_elements', null)
-      .limit(5);
+      .limit(batchSize);
 
-    console.log(`[prompt-learning/process] Starting batch processing with batchSize=${batchSize}`);
+    if (fetchError) {
+      return NextResponse.json({
+        ok: false,
+        error: 'Failed to fetch prompts',
+        details: fetchError.message,
+      });
+    }
 
-    // Process existing prompts
-    const result = await processExistingPrompts(batchSize);
+    if (!prompts || prompts.length === 0) {
+      return NextResponse.json({
+        ok: true,
+        version: 'v4',
+        processed: 0,
+        errors: 0,
+        message: 'No prompts found with null scene_elements',
+        promptCount: prompts?.length || 0,
+      });
+    }
 
-    console.log(`[prompt-learning/process] Completed: processed=${result.processed}, errors=${result.errors}`);
+    // Process prompts using library function for extraction
+    const { extractSceneElements, updateSceneVocabulary, updateModelPatterns } = await import('@/lib/prompt-learning');
+
+    let processed = 0;
+    let errors = 0;
+    const processedIds: string[] = [];
+
+    for (const prompt of prompts) {
+      try {
+        const elements = await extractSceneElements(prompt.user_prompt);
+
+        if (elements) {
+          // Update prompt_history
+          await supabase
+            .from('prompt_history')
+            .update({ scene_elements: elements })
+            .eq('id', prompt.id);
+
+          // Update vocabulary
+          await updateSceneVocabulary(
+            prompt.season_id,
+            elements,
+            prompt.user_prompt,
+            prompt.vote_count,
+            prompt.is_winner
+          );
+
+          // Update model patterns
+          await updateModelPatterns(
+            prompt.ai_model,
+            prompt.user_prompt,
+            prompt.vote_count,
+            prompt.is_winner
+          );
+
+          processed++;
+          processedIds.push(prompt.id);
+        }
+      } catch (e) {
+        console.error(`[prompt-learning] Error processing ${prompt.id}:`, e);
+        errors++;
+      }
+    }
 
     return NextResponse.json({
       ok: true,
-      version: 'v3',
-      processed: result.processed,
-      errors: result.errors,
-      debug: result.debug || { missing: true },
-      directQuery: {
-        error: debugError?.message || null,
-        count: debugPrompts?.length || 0,
-      },
-      message: result.processed > 0
-        ? `Successfully processed ${result.processed} prompts`
-        : 'No prompts to process (all have scene_elements or none exist)',
+      version: 'v4',
+      processed,
+      errors,
+      foundPrompts: prompts.length,
+      processedIds,
+      message: processed > 0
+        ? `Successfully processed ${processed} prompts`
+        : 'No prompts were processed',
     });
   } catch (error) {
     console.error('[prompt-learning/process] Error:', error);
