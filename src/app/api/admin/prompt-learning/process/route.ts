@@ -8,6 +8,7 @@ export const maxDuration = 300; // 5 minutes for batch processing
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { createClient } from '@supabase/supabase-js';
 import { processExistingPrompts } from '@/lib/prompt-learning';
 
 /**
@@ -41,6 +42,26 @@ export async function POST(req: NextRequest) {
       100 // Max 100 per request
     );
 
+    // Direct debug query first
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!url || !key) {
+      return NextResponse.json({
+        ok: false,
+        error: 'Missing env vars',
+        hasUrl: !!url,
+        hasKey: !!key,
+      });
+    }
+
+    const supabase = createClient(url, key);
+    const { data: debugPrompts, error: debugError } = await supabase
+      .from('prompt_history')
+      .select('id')
+      .is('scene_elements', null)
+      .limit(5);
+
     console.log(`[prompt-learning/process] Starting batch processing with batchSize=${batchSize}`);
 
     // Process existing prompts
@@ -53,6 +74,10 @@ export async function POST(req: NextRequest) {
       processed: result.processed,
       errors: result.errors,
       debug: result.debug,
+      directQuery: {
+        error: debugError?.message || null,
+        count: debugPrompts?.length || 0,
+      },
       message: result.processed > 0
         ? `Successfully processed ${result.processed} prompts`
         : 'No prompts to process (all have scene_elements or none exist)',
