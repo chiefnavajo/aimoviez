@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       processed: result.processed,
       errors: result.errors,
+      debug: result.debug,
       message: result.processed > 0
         ? `Successfully processed ${result.processed} prompts`
         : 'No prompts to process (all have scene_elements or none exist)',

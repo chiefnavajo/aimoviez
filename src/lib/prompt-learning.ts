@@ -602,32 +602,37 @@ function buildFallbackPrompt(
  */
 export async function processExistingPrompts(
   batchSize: number = 50
-): Promise<{ processed: number; errors: number }> {
+): Promise<{ processed: number; errors: number; debug?: Record<string, unknown> }> {
   const supabase = getServiceClient();
   let processed = 0;
   let errors = 0;
+  const debug: Record<string, unknown> = {};
 
   // Get prompts without scene_elements
-  console.log('[prompt-learning] Fetching prompts without scene_elements...');
   const { data: prompts, error } = await supabase
     .from('prompt_history')
     .select('id, season_id, user_prompt, ai_model, vote_count, is_winner')
     .is('scene_elements', null)
     .limit(batchSize);
 
-  console.log('[prompt-learning] Query result:', { count: prompts?.length, error: error?.message });
+  debug.queryError = error?.message || null;
+  debug.promptsFound = prompts?.length ?? 0;
 
   if (error || !prompts) {
     console.error('[prompt-learning] Failed to fetch prompts for processing:', error);
-    return { processed: 0, errors: 1 };
+    return { processed: 0, errors: 1, debug };
   }
 
   if (prompts.length === 0) {
-    console.log('[prompt-learning] No prompts found with null scene_elements');
-    return { processed: 0, errors: 0 };
+    // Check total count in table for debugging
+    const { count } = await supabase
+      .from('prompt_history')
+      .select('*', { count: 'exact', head: true });
+    debug.totalPromptsInTable = count;
+    return { processed: 0, errors: 0, debug };
   }
 
-  console.log(`[prompt-learning] Found ${prompts.length} prompts to process`);
+  debug.promptIds = prompts.map(p => p.id);
 
   for (const prompt of prompts) {
     try {
