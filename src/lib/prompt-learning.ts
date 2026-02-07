@@ -3,7 +3,14 @@
 // Server-only — never import from client code
 
 import Anthropic from '@anthropic-ai/sdk';
-import { getServiceClient } from '@/lib/supabase-client';
+import { createClient } from '@supabase/supabase-js';
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase config');
+  return createClient(url, key);
+}
 import type { CreativeBrief, StoryAnalysis } from '@/lib/claude-director';
 
 // =============================================================================
@@ -131,7 +138,7 @@ export async function recordUserPrompt(params: {
   briefId?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const supabase = getServiceClient();
+    const supabase = getSupabase();
 
     // Extract scene elements from prompt
     const sceneElements = await extractSceneElements(params.prompt);
@@ -180,7 +187,7 @@ async function updateSceneVocabulary(
   voteCount: number,
   isWinner: boolean
 ): Promise<void> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
 
   const categories: Array<{ category: string; terms: string[] }> = [
     { category: 'lighting', terms: elements.lighting },
@@ -222,7 +229,7 @@ async function updateModelPatterns(
   voteCount: number,
   isWinner: boolean
 ): Promise<void> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
 
   // Extract common patterns
   const patterns: Array<{ type: string; text: string }> = [];
@@ -282,7 +289,7 @@ export async function getTopModelPatterns(
   model: string,
   limit: number = 5
 ): Promise<ModelPattern[]> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
 
   // Try Bayesian scored view first, fall back to raw table
   const { data, error } = await supabase
@@ -323,7 +330,7 @@ export async function getTopVocabulary(
   category?: string,
   limit: number = 10
 ): Promise<Array<{ term: string; category: string; frequency: number; avg_vote_score: number }>> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
 
   // Try Bayesian scored view first
   let query = supabase
@@ -373,7 +380,7 @@ export async function getWinningPrompts(
   model?: string,
   limit: number = 5
 ): Promise<Array<{ prompt: string; vote_count: number }>> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
 
   let query = supabase
     .from('prompt_history')
@@ -603,7 +610,7 @@ function buildFallbackPrompt(
 export async function processExistingPrompts(
   batchSize: number = 50
 ): Promise<{ processed: number; errors: number; debug?: Record<string, unknown> }> {
-  const supabase = getServiceClient();
+  const supabase = getSupabase();
   let processed = 0;
   let errors = 0;
   const debug: Record<string, unknown> = {};
