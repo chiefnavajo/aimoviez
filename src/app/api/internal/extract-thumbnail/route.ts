@@ -161,8 +161,9 @@ export async function POST(req: NextRequest) {
 
     console.log(`[extract-thumbnail] Thumbnail saved: ${thumbnailUrl}`);
 
-    // 7. Optionally trigger visual learning
-    let visualLearningResult: { processed: boolean; error?: string } = { processed: false };
+    // 7. Optionally trigger visual learning (only for winner clips)
+    let visualLearningResult: { processed: boolean; error?: string; skipped?: boolean } = { processed: false };
+    const isWinner = clip.status === 'winner' || clip.status === 'locked';
 
     const { data: visualFlag } = await supabase
       .from('feature_flags')
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
       .eq('key', 'visual_learning')
       .maybeSingle();
 
-    if (visualFlag?.enabled && sourceSeasonId) {
+    if (visualFlag?.enabled && sourceSeasonId && isWinner) {
       try {
         const { extractVisualFeatures, storeClipVisuals } = await import('@/lib/visual-learning');
         const features = await extractVisualFeatures(thumbnailUrl);
@@ -196,6 +197,9 @@ export async function POST(req: NextRequest) {
           error: visualErr instanceof Error ? visualErr.message : 'Unknown error',
         };
       }
+    } else if (visualFlag?.enabled && !isWinner) {
+      console.log(`[extract-thumbnail] Skipping visual learning for non-winner clip ${clipId} (status: ${clip.status})`);
+      visualLearningResult = { processed: false, skipped: true };
     }
 
     return NextResponse.json({
