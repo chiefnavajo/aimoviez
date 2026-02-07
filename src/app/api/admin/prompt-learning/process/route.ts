@@ -8,7 +8,6 @@ export const maxDuration = 300; // 5 minutes for batch processing
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
-import { createClient } from '@supabase/supabase-js';
 import { processExistingPrompts } from '@/lib/prompt-learning';
 
 /**
@@ -42,119 +41,20 @@ export async function POST(req: NextRequest) {
       100 // Max 100 per request
     );
 
-    // Direct processing - bypass library
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    console.log(`[prompt-learning/process] Starting batch processing with batchSize=${batchSize}`);
 
-    if (!url || !key) {
-      return NextResponse.json({
-        ok: false,
-        error: 'Missing Supabase env vars',
-        hasUrl: !!url,
-        hasKey: !!key,
-      });
-    }
+    // Process existing prompts
+    const result = await processExistingPrompts(batchSize);
 
-    if (!anthropicKey) {
-      return NextResponse.json({
-        ok: false,
-        error: 'Missing ANTHROPIC_API_KEY',
-      });
-    }
-
-    const supabase = createClient(url, key);
-
-    // Fetch prompts directly
-    const { data: prompts, error: fetchError } = await supabase
-      .from('prompt_history')
-      .select('id, season_id, user_prompt, ai_model, vote_count, is_winner')
-      .is('scene_elements', null)
-      .limit(batchSize);
-
-    if (fetchError) {
-      return NextResponse.json({
-        ok: false,
-        error: 'Failed to fetch prompts',
-        details: fetchError.message,
-      });
-    }
-
-    if (!prompts || prompts.length === 0) {
-      return NextResponse.json({
-        ok: true,
-        version: 'v4',
-        processed: 0,
-        errors: 0,
-        message: 'No prompts found with null scene_elements',
-        promptCount: prompts?.length || 0,
-      });
-    }
-
-    // Process prompts using library function for extraction
-    const { extractSceneElements, updateSceneVocabulary, updateModelPatterns } = await import('@/lib/prompt-learning');
-
-    let processed = 0;
-    let errors = 0;
-    const processedIds: string[] = [];
-
-    const extractionResults: Array<{ id: string; success: boolean; error?: string }> = [];
-
-    for (const prompt of prompts) {
-      try {
-        const elements = await extractSceneElements(prompt.user_prompt);
-
-        if (!elements) {
-          extractionResults.push({ id: prompt.id, success: false, error: 'null result' });
-        }
-
-        if (elements) {
-          extractionResults.push({ id: prompt.id, success: true });
-          // Update prompt_history
-          await supabase
-            .from('prompt_history')
-            .update({ scene_elements: elements })
-            .eq('id', prompt.id);
-
-          // Update vocabulary
-          await updateSceneVocabulary(
-            prompt.season_id,
-            elements,
-            prompt.user_prompt,
-            prompt.vote_count,
-            prompt.is_winner
-          );
-
-          // Update model patterns
-          await updateModelPatterns(
-            prompt.ai_model,
-            prompt.user_prompt,
-            prompt.vote_count,
-            prompt.is_winner
-          );
-
-          processed++;
-          processedIds.push(prompt.id);
-        }
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : 'Unknown error';
-        console.error(`[prompt-learning] Error processing ${prompt.id}:`, e);
-        extractionResults.push({ id: prompt.id, success: false, error: errorMsg });
-        errors++;
-      }
-    }
+    console.log(`[prompt-learning/process] Completed: processed=${result.processed}, errors=${result.errors}`);
 
     return NextResponse.json({
       ok: true,
-      version: 'v5',
-      processed,
-      errors,
-      foundPrompts: prompts.length,
-      processedIds,
-      extractionResults,
-      message: processed > 0
-        ? `Successfully processed ${processed} prompts`
-        : 'No prompts were processed',
+      processed: result.processed,
+      errors: result.errors,
+      message: result.processed > 0
+        ? `Successfully processed ${result.processed} prompts`
+        : 'No prompts to process (all have scene_elements or none exist)',
     });
   } catch (error) {
     console.error('[prompt-learning/process] Error:', error);
@@ -181,8 +81,11 @@ export async function GET(req: NextRequest) {
   if (adminError) return adminError;
 
   try {
-    const { getServiceClient } = await import('@/lib/supabase-client');
-    const supabase = getServiceClient();
+    const { createClient } = await import('@supabase/supabase-js');
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Missing Supabase config');
+    const supabase = createClient(url, key);
 
     // Get counts
     const [
