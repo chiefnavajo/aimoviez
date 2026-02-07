@@ -495,7 +495,7 @@ export default function CharacterPinningPage() {
                   <video
                     ref={videoRef}
                     src={clip.video_url}
-                    className="w-full rounded-lg"
+                    className="w-full max-h-[50vh] object-contain rounded-lg"
                     controls
                     muted
                     onTimeUpdate={() => {
