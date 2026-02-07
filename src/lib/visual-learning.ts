@@ -955,7 +955,7 @@ export async function processExistingClipVisuals(
   let processed = 0;
   let errors = 0;
 
-  // Get clips without visual data - use left join to exclude already-processed
+  // Get winner clips without visual data - only learn from winning content
   const { data: clips, error } = await supabase
     .from('tournament_clips')
     .select(`
@@ -969,6 +969,7 @@ export async function processExistingClipVisuals(
       clip_visuals!left(id)
     `)
     .is('clip_visuals.id', null)
+    .in('status', ['winner', 'locked']) // Only analyze winner clips
     .not('thumbnail_url', 'is', null)
     .not('season_id', 'is', null)
     .limit(batchSize);
