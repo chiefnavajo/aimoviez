@@ -104,6 +104,8 @@ function addSecurityHeaders(response: NextResponse): NextResponse {
     "base-uri 'self'",
     // Object/embed: none
     "object-src 'none'",
+    // Worker: service worker + blob workers (used by some libraries on /create)
+    "worker-src 'self' blob:",
   ];
 
   response.headers.set('Content-Security-Policy', cspDirectives.join('; '));
