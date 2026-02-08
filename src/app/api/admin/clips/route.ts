@@ -51,9 +51,23 @@ export async function GET(request: NextRequest) {
       query = query.eq('status', status);
     }
 
-    // Filter by season if provided
+    // FIX: Filter by season - default to active season if none provided
+    // This prevents returning clips from all seasons which can cause confusion
     if (seasonId) {
       query = query.eq('season_id', seasonId);
+    } else {
+      // Get active season as default
+      const { data: activeSeason } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (activeSeason?.id) {
+        query = query.eq('season_id', activeSeason.id);
+      }
     }
 
     // Filter AI-only clips

@@ -80,6 +80,8 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   const [newComment, setNewComment] = useState('');
   const [replyingTo, setReplyingTo] = useState<Comment | null>(null);
   const [loading, setLoading] = useState(false);
+  // FIX: Use ref for synchronous loading check to prevent stale closure in fetchComments
+  const loadingRef = useRef(false);
   const [posting, setPosting] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -241,8 +243,10 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
   }, [isOpen]); // Removed onClose from deps - using ref instead
 
   // Fetch comments
+  // FIX: Use loadingRef for synchronous check to prevent stale closure issues
   const fetchComments = async (pageNum: number = 1, append: boolean = false) => {
-    if (loading) return;
+    // Use ref for synchronous check (state is async and can cause stale closure)
+    if (loadingRef.current) return;
 
     // Cancel any pending request
     if (abortControllerRef.current) {
@@ -253,6 +257,8 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
+    // Update both ref (synchronous) and state (for UI)
+    loadingRef.current = true;
     setLoading(true);
 
     try {
@@ -288,6 +294,8 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
       const errorMessage = err instanceof Error ? err.message : 'Network error. Please check your connection and try again.';
       toast.error(errorMessage);
     } finally {
+      // Update both ref and state
+      loadingRef.current = false;
       setLoading(false);
     }
   };

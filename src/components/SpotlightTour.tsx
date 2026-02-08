@@ -330,8 +330,12 @@ export default function SpotlightTour({ onComplete, onSkip }: SpotlightTourProps
 
   // Find and track the target element
   useEffect(() => {
+    // FIX: Track target in ref to safely check existence in ResizeObserver callback
+    let currentTarget: Element | null = null;
+
     const findTarget = () => {
       const target = document.querySelector(`[data-tour="${step.target}"]`);
+      currentTarget = target;
       if (target) {
         const rect = target.getBoundingClientRect();
         setTargetRect(rect);
@@ -340,8 +344,12 @@ export default function SpotlightTour({ onComplete, onSkip }: SpotlightTourProps
           observerRef.current.disconnect();
         }
         observerRef.current = new ResizeObserver(() => {
-          const newRect = target.getBoundingClientRect();
-          setTargetRect(newRect);
+          // FIX: Guard against callback firing after element removed
+          // Check if element is still in DOM before calling getBoundingClientRect
+          if (currentTarget && document.contains(currentTarget)) {
+            const newRect = currentTarget.getBoundingClientRect();
+            setTargetRect(newRect);
+          }
         });
         observerRef.current.observe(target);
       } else {
@@ -361,6 +369,7 @@ export default function SpotlightTour({ onComplete, onSkip }: SpotlightTourProps
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
+      currentTarget = null;
     };
   }, [step.target]);
 

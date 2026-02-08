@@ -44,6 +44,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // FIX: Validate UUID format to prevent database errors and potential injection
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof clipId !== 'string' || !uuidRegex.test(clipId)) {
+      return NextResponse.json(
+        { error: 'Invalid clip ID format' },
+        { status: 400 }
+      );
+    }
+
     const supabase = getSupabaseClient();
 
     // Get current clip status for validation and audit log

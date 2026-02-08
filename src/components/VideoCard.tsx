@@ -14,10 +14,18 @@ interface VideoCardProps {
   clip: Clip;
   onVote: (clipId: string) => void;
   isAuthenticated: boolean;
+  // FIX: Accept hasVoted prop from parent to sync with server state
+  initialHasVoted?: boolean;
 }
 
-function VideoCard({ clip, onVote, isAuthenticated }: VideoCardProps) {
-  const [hasVoted, setHasVoted] = useState(false);
+function VideoCard({ clip, onVote, isAuthenticated, initialHasVoted = false }: VideoCardProps) {
+  // FIX: Initialize from prop to sync with server data
+  const [hasVoted, setHasVoted] = useState(initialHasVoted);
+
+  // FIX: Sync hasVoted state when initialHasVoted prop changes (e.g., server data loaded)
+  useEffect(() => {
+    setHasVoted(initialHasVoted);
+  }, [initialHasVoted]);
   const [showPulse, setShowPulse] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
 
