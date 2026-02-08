@@ -397,6 +397,15 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(url, key);
     const flags = await getCommentFeatureFlags(supabase);
     const userInfo = await getUserInfo(req, supabase, flags['redis_session_store'] ?? false);
+
+    // FIX: Require authentication for posting comments (prevent anonymous spam)
+    if (!userInfo.isAuthenticated) {
+      return NextResponse.json(
+        { error: 'Authentication required to post comments' },
+        { status: 401 }
+      );
+    }
+
     const body = await req.json();
 
     // Validate request body with Zod
