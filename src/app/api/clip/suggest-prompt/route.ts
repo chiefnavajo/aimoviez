@@ -234,29 +234,30 @@ export async function GET(req: NextRequest) {
     const patternTexts = patterns.map(p => p.pattern_text);
     const vocabTerms = vocabulary.map(v => v.term);
 
-    // Get the last locked clips for story continuity
+    // Get the last locked clips for story continuity (query tournament_clips directly)
     const { data: previousClips } = await supabase
-      .from('story_slots')
-      .select(`
-        slot_position,
-        tournament_clips!inner(
-          ai_prompt,
-          title,
-          status
-        )
-      `)
+      .from('tournament_clips')
+      .select('slot_position, ai_prompt, title')
       .eq('season_id', activeSeason.id)
-      .eq('status', 'locked')
+      .in('status', ['winner', 'locked'])
+      .not('slot_position', 'is', null)
       .order('slot_position', { ascending: false })
-      .limit(3);
+      .limit(5);
 
-    // Build story context from previous clips
-    const storyContext = previousClips?.map(slot => {
-      const clip = Array.isArray(slot.tournament_clips)
-        ? slot.tournament_clips.find((c: { status: string }) => c.status === 'locked' || c.status === 'winner')
-        : slot.tournament_clips;
-      return clip ? `Slot ${slot.slot_position}: ${clip.ai_prompt || clip.title || 'Unknown scene'}` : null;
-    }).filter(Boolean).reverse().join('\n') || '';
+    // Separate the last clip (most important) from earlier context
+    const lastClip = previousClips?.[0];
+    const earlierClips = previousClips?.slice(1) || [];
+
+    // Build story context - earlier clips as background
+    const earlierContext = earlierClips
+      .reverse()
+      .map(c => `Slot ${c.slot_position}: ${c.ai_prompt || c.title || 'Unknown'}`)
+      .join('\n');
+
+    // Last clip gets special emphasis
+    const lastClipContext = lastClip
+      ? `LAST SCENE (Slot ${lastClip.slot_position}): "${lastClip.ai_prompt || lastClip.title}"`
+      : '';
 
     // Get visual vocabulary if enabled
     let visualTerms: string[] = [];
@@ -287,26 +288,29 @@ export async function GET(req: NextRequest) {
           max_tokens: 256,
           messages: [{
             role: 'user',
-            content: `Generate a ready-to-use video generation prompt that CONTINUES this story.
+            content: `Generate a video prompt that DIRECTLY CONTINUES from the last scene.
 
-${storyContext ? `STORY SO FAR (in order):
-${storyContext}
+${lastClipContext ? `${lastClipContext}
 
-The next scene (Slot ${(slotPosition || 0) + 1}) should logically continue from where the story left off.` : 'This is the first scene of a new story.'}
+CRITICAL: Your prompt must be an IMMEDIATE continuation of this exact scene.
+- Keep the SAME characters (same gender, same appearance)
+- Continue the SAME action that was happening
+- Show what happens NEXT in this exact moment` : 'This is the first scene of a new story.'}
 
-AI Model: ${model}
+${earlierContext ? `Earlier story context:
+${earlierContext}` : ''}
+
 ${characterContext ? `Main characters: ${characterContext}` : ''}
-${patternTexts.length > 0 ? `Best prompt patterns for this model: ${patternTexts.join(', ')}` : ''}
-${vocabTerms.length > 0 ? `Popular terms from winning clips: ${vocabTerms.slice(0, 8).join(', ')}` : ''}
-${visualTerms.length > 0 ? `Visual style: ${visualTerms.slice(0, 6).join(', ')}` : ''}
+AI Model: ${model}
+${visualTerms.length > 0 ? `Visual style to match: ${visualTerms.slice(0, 5).join(', ')}` : ''}
 
-Write a single, detailed video prompt (50-100 words) that:
-1. Logically continues the story from the previous scene
-2. Features the same characters if applicable
-3. Uses the successful visual style and patterns
-4. Is ready to paste directly into the AI video generator
+Write a video prompt (50-80 words) that:
+1. Continues IMMEDIATELY from where the last scene ended
+2. Uses the EXACT same characters (don't change gender or appearance)
+3. Shows the next logical action in the story
+4. Matches the visual style
 
-Return ONLY the prompt text, nothing else.`
+Return ONLY the prompt text.`
           }]
         });
 
@@ -329,9 +333,9 @@ Return ONLY the prompt text, nothing else.`
       prompt: generatedPrompt,
       based_on: {
         brief_title: null,
-        scene_context: storyContext || 'First scene of new story',
+        last_scene: lastClip?.ai_prompt || null,
+        last_slot: lastClip?.slot_position || null,
         previous_slots: previousClips?.length || 0,
-        top_patterns: patternTexts,
         visual_patterns: visualTerms.slice(0, 5),
         character_context: characterContext,
       },
