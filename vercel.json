@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/ai-generation-timeout",
-      "schedule": "*/5 * * * *"
+      "schedule": "*/2 * * * *"
     },
     {
       "path": "/api/cron/cleanup-videos",

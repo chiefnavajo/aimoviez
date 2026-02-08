@@ -51,10 +51,10 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 4. Check user is not banned
+    // 4. Check user is not banned + get credit balance
     const { data: userData, error: userLookupError } = await supabase
       .from('users')
-      .select('id, is_banned')
+      .select('id, is_banned, balance_credits')
       .eq('email', session.user.email)
       .maybeSingle();
 
@@ -117,6 +117,15 @@ export async function POST(request: NextRequest) {
     const monthlyCostLimitCents = config?.monthly_cost_limit_cents ?? 10000;
     const keywordBlocklist = config?.keyword_blocklist ?? [];
 
+    // 6b. Check if credit system is enabled
+    const { data: creditFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'credit_system')
+      .maybeSingle();
+
+    const creditSystemEnabled = creditFlag?.enabled ?? false;
+
     // 7. Validate request body
     let body: unknown;
     try {
@@ -149,27 +158,29 @@ export async function POST(request: NextRequest) {
 
     const sanitizedPrompt = sanitizeResult.prompt;
 
-    // 9. Atomic daily limit check and reservation (v2 supports per-user custom limits)
-    const { data: reservationResult, error: reservationError } = await supabase
-      .rpc('check_and_reserve_generation_v2', {
-        p_user_id: userId,
-        p_date: new Date().toISOString().split('T')[0],
-        p_global_max_daily: maxDaily,
-      });
+    // 9. Daily limit check (only when credit system is disabled)
+    if (!creditSystemEnabled) {
+      const { data: reservationResult, error: reservationError } = await supabase
+        .rpc('check_and_reserve_generation_v2', {
+          p_user_id: userId,
+          p_date: new Date().toISOString().split('T')[0],
+          p_global_max_daily: maxDaily,
+        });
 
-    if (reservationError) {
-      console.error('[AI_GENERATE] Reservation RPC error:', reservationError.message);
-      return NextResponse.json(
-        { success: false, error: 'Internal server error' },
-        { status: 500 }
-      );
-    }
+      if (reservationError) {
+        console.error('[AI_GENERATE] Reservation RPC error:', reservationError.message);
+        return NextResponse.json(
+          { success: false, error: 'Internal server error' },
+          { status: 500 }
+        );
+      }
 
-    if (reservationResult === -1) {
-      return NextResponse.json(
-        { success: false, error: 'Daily generation limit reached' },
-        { status: 429 }
-      );
+      if (reservationResult === -1) {
+        return NextResponse.json(
+          { success: false, error: 'Daily generation limit reached' },
+          { status: 429 }
+        );
+      }
     }
 
     // 10. Get model configuration
@@ -310,6 +321,35 @@ export async function POST(request: NextRequest) {
       ? (getImageToVideoModelConfig(validated.model)?.costCents ?? modelConfig.costCents)
       : (effectiveModelConfig?.costCents ?? modelConfig.costCents);
 
+    // 10d. Credit system: get model credit cost and check balance
+    let creditCost = 0;
+    if (creditSystemEnabled) {
+      // Get credit cost from model_pricing table
+      const { data: pricingData } = await supabase
+        .from('model_pricing')
+        .select('credit_cost')
+        .eq('model_key', effectiveModel)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      creditCost = pricingData?.credit_cost ?? 10; // Fallback to 10 credits
+
+      // Check if user has enough credits
+      const userBalance = userData.balance_credits ?? 0;
+      if (userBalance < creditCost) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Insufficient credits',
+            code: 'INSUFFICIENT_CREDITS',
+            required: creditCost,
+            current: userBalance,
+          },
+          { status: 402 } // Payment Required
+        );
+      }
+    }
+
     // 11. Global cost cap check
     const { data: costCapOk, error: costCapError } = await supabase
       .rpc('check_global_cost_cap', {
@@ -362,6 +402,48 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Internal server error' },
         { status: 500 }
       );
+    }
+
+    // 12b. Credit system: deduct credits atomically
+    if (creditSystemEnabled && creditCost > 0) {
+      const { data: deductResult, error: deductError } = await supabase.rpc('deduct_credits', {
+        p_user_id: userId,
+        p_amount: creditCost,
+        p_generation_id: generation.id,
+      });
+
+      if (deductError) {
+        console.error('[AI_GENERATE] Credit deduction error:', deductError.message);
+        // Mark generation as failed
+        await supabase
+          .from('ai_generations')
+          .update({ status: 'failed', error_message: 'Credit deduction failed' })
+          .eq('id', generation.id);
+        return NextResponse.json(
+          { success: false, error: 'Failed to process payment' },
+          { status: 500 }
+        );
+      }
+
+      if (!deductResult?.success) {
+        console.error('[AI_GENERATE] Credit deduction rejected:', deductResult?.error);
+        await supabase
+          .from('ai_generations')
+          .update({ status: 'failed', error_message: deductResult?.error || 'Insufficient credits' })
+          .eq('id', generation.id);
+        return NextResponse.json(
+          {
+            success: false,
+            error: deductResult?.error || 'Insufficient credits',
+            code: 'INSUFFICIENT_CREDITS',
+            required: creditCost,
+            current: deductResult?.current ?? 0,
+          },
+          { status: 402 }
+        );
+      }
+
+      console.info(`[AI_GENERATE] Deducted ${creditCost} credits for generation ${generation.id}`);
     }
 
     // 13. Submit to fal.ai (text-to-video, image-to-video, or reference-to-video)
@@ -419,6 +501,20 @@ export async function POST(request: NextRequest) {
           error_message: errorMessage.slice(0, 500),
         })
         .eq('id', generation.id);
+
+      // Refund credits if they were deducted
+      if (creditSystemEnabled && creditCost > 0) {
+        const { data: refundResult, error: refundError } = await supabase.rpc('refund_credits', {
+          p_user_id: userId,
+          p_generation_id: generation.id,
+        });
+
+        if (refundError) {
+          console.error('[AI_GENERATE] Credit refund error:', refundError.message);
+        } else if (refundResult?.success) {
+          console.info(`[AI_GENERATE] Refunded ${refundResult.refunded} credits for failed generation ${generation.id}`);
+        }
+      }
 
       // Do NOT decrement daily limit — reservation stands to prevent abuse loops
       return NextResponse.json(

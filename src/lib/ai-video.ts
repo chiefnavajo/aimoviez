@@ -5,6 +5,31 @@
 import { fal } from '@fal-ai/client';
 
 // =============================================================================
+// RETRY HELPER (exponential backoff for transient failures)
+// =============================================================================
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxAttempts = 3,
+  baseDelayMs = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err as Error;
+      console.warn(`[AI_VIDEO] Attempt ${attempt}/${maxAttempts} failed:`, lastError.message);
+      if (attempt < maxAttempts) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+  throw lastError;
+}
+
+// =============================================================================
 // CONFIGURATION
 // =============================================================================
 
@@ -163,10 +188,13 @@ export async function startGeneration(
 
   const input = buildInput(modelKey, prompt, style, config.supportsAudio);
 
-  const result = await fal.queue.submit(config.modelId, {
-    input,
-    webhookUrl,
-  });
+  // Retry with exponential backoff for transient failures
+  const result = await withRetry(() =>
+    fal.queue.submit(config.modelId, {
+      input,
+      webhookUrl,
+    })
+  );
 
   return { requestId: result.request_id };
 }
@@ -260,10 +288,13 @@ export async function startImageToVideoGeneration(
 
   const input = buildImageToVideoInput(modelKey, prompt, imageUrl, style, t2vConfig.supportsAudio);
 
-  const result = await fal.queue.submit(i2vConfig.modelId, {
-    input,
-    webhookUrl,
-  });
+  // Retry with exponential backoff for transient failures
+  const result = await withRetry(() =>
+    fal.queue.submit(i2vConfig.modelId, {
+      input,
+      webhookUrl,
+    })
+  );
 
   return { requestId: result.request_id };
 }
@@ -313,9 +344,12 @@ export async function startReferenceToVideoGeneration(
 ): Promise<{ requestId: string }> {
   const input = buildReferenceToVideoInput(prompt, elements, style, imageUrls);
 
-  const result = await fal.queue.submit(
-    'fal-ai/kling-video/o1/reference-to-video',
-    { input: input as Record<string, unknown> & { prompt: string }, webhookUrl }
+  // Retry with exponential backoff for transient failures
+  const result = await withRetry(() =>
+    fal.queue.submit(
+      'fal-ai/kling-video/o1/reference-to-video',
+      { input: input as Record<string, unknown> & { prompt: string }, webhookUrl }
+    )
   );
 
   return { requestId: result.request_id };

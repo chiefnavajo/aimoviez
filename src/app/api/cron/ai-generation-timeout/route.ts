@@ -136,12 +136,77 @@ export async function GET(req: NextRequest) {
       })
       .in('status', ['pending', 'processing'])
       .lt('created_at', thirtyMinAgo)
-      .select('id');
+      .select('id, user_id, credit_deducted, credit_amount');
 
     results.auto_failed = failedGens?.length ?? 0;
     if (failError) {
       console.error('[ai-timeout] Auto-fail error:', failError);
     }
+
+    // ========================================================================
+    // STEP 3b: Refund credits for auto-failed generations
+    // ========================================================================
+    let creditsRefunded = 0;
+    if (failedGens && failedGens.length > 0) {
+      for (const gen of failedGens) {
+        if (gen.credit_deducted && gen.credit_amount && gen.user_id) {
+          try {
+            const { data: refundResult } = await supabase.rpc('refund_credits', {
+              p_user_id: gen.user_id,
+              p_generation_id: gen.id,
+            });
+            if (refundResult?.success) {
+              creditsRefunded += refundResult.refunded;
+              console.info(`[ai-timeout] Refunded ${refundResult.refunded} credits for timed-out generation:`, gen.id);
+            }
+          } catch (err) {
+            console.error('[ai-timeout] Credit refund error for generation:', gen.id, err);
+          }
+        }
+      }
+    }
+    results.credits_refunded = creditsRefunded;
+
+    // ========================================================================
+    // STEP 3c: Find orphaned credit transactions (failed with credits but no refund)
+    // ========================================================================
+    const { data: orphanedGens } = await supabase
+      .from('ai_generations')
+      .select('id, user_id, credit_amount')
+      .eq('status', 'failed')
+      .eq('credit_deducted', true)
+      .not('credit_amount', 'is', null)
+      .lt('created_at', tenMinAgo)
+      .limit(20);
+
+    let orphanedRefunded = 0;
+    if (orphanedGens && orphanedGens.length > 0) {
+      for (const gen of orphanedGens) {
+        // Check if already refunded
+        const { data: existingRefund } = await supabase
+          .from('credit_transactions')
+          .select('id')
+          .eq('reference_id', gen.id)
+          .eq('type', 'refund')
+          .maybeSingle();
+
+        if (!existingRefund && gen.user_id) {
+          try {
+            const { data: refundResult } = await supabase.rpc('refund_credits', {
+              p_user_id: gen.user_id,
+              p_generation_id: gen.id,
+            });
+            if (refundResult?.success) {
+              orphanedRefunded += refundResult.refunded;
+              console.info(`[ai-timeout] Recovered orphaned credits for generation:`, gen.id);
+            }
+          } catch (err) {
+            console.error('[ai-timeout] Orphaned credit recovery error:', gen.id, err);
+          }
+        }
+      }
+    }
+    results.orphaned_credits_recovered = orphanedRefunded;
 
     // ========================================================================
     // STEP 4: Expire unclaimed completed > 24h

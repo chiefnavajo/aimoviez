@@ -104,6 +104,36 @@ function getSupabase() {
 }
 
 // =============================================================================
+// CREDIT REFUND HELPER
+// =============================================================================
+
+async function refundCreditsIfApplicable(
+  supabase: ReturnType<typeof getSupabase>,
+  gen: { id: string; user_id: string; credit_deducted: boolean; credit_amount: number | null }
+): Promise<void> {
+  if (!gen.credit_deducted || !gen.credit_amount || !gen.user_id) {
+    return;
+  }
+
+  try {
+    const { data: result, error } = await supabase.rpc('refund_credits', {
+      p_user_id: gen.user_id,
+      p_generation_id: gen.id,
+    });
+
+    if (error) {
+      console.error('[AI_WEBHOOK] Credit refund error:', error.message, 'generation:', gen.id);
+    } else if (result?.success) {
+      console.info(`[AI_WEBHOOK] Auto-refunded ${result.refunded} credits for failed generation:`, gen.id);
+    } else if (result?.error === 'Already refunded') {
+      console.info('[AI_WEBHOOK] Credits already refunded for generation:', gen.id);
+    }
+  } catch (err) {
+    console.error('[AI_WEBHOOK] Credit refund exception:', err, 'generation:', gen.id);
+  }
+}
+
+// =============================================================================
 // ROUTE HANDLER
 // =============================================================================
 
@@ -136,10 +166,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabase();
 
-  // Look up generation by fal_request_id
+  // Look up generation by fal_request_id (include user_id and credit info for refunds)
   const { data: gen, error: lookupError } = await supabase
     .from('ai_generations')
-    .select('id, status')
+    .select('id, status, user_id, credit_deducted, credit_amount')
     .eq('fal_request_id', falRequestId)
     .maybeSingle();
 
@@ -173,6 +203,8 @@ export async function POST(request: NextRequest) {
           error_message: 'No video URL in webhook response',
         })
         .eq('id', gen.id);
+      // Auto-refund credits
+      await refundCreditsIfApplicable(supabase, gen);
       return NextResponse.json({ ok: true });
     }
 
@@ -188,6 +220,8 @@ export async function POST(request: NextRequest) {
           })
           .eq('id', gen.id);
         console.error('[AI_WEBHOOK] Unexpected video hostname:', hostname);
+        // Auto-refund credits
+        await refundCreditsIfApplicable(supabase, gen);
         return NextResponse.json({ ok: true });
       }
     } catch {
@@ -198,6 +232,8 @@ export async function POST(request: NextRequest) {
           error_message: 'Invalid video URL in webhook response',
         })
         .eq('id', gen.id);
+      // Auto-refund credits
+      await refundCreditsIfApplicable(supabase, gen);
       return NextResponse.json({ ok: true });
     }
 
@@ -224,6 +260,9 @@ export async function POST(request: NextRequest) {
       .eq('id', gen.id);
 
     console.error('[AI_WEBHOOK] Generation failed:', gen.id, errorMessage);
+
+    // Auto-refund credits
+    await refundCreditsIfApplicable(supabase, gen);
   }
 
   // Always return 200 to prevent retries
