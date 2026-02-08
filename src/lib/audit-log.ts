@@ -48,6 +48,8 @@ export type AuditAction =
   | 'close_direction_vote'
   | 'generate_brief'
   | 'publish_brief'
+  | 'unpublish_brief'
+  | 'update_brief'
   | 'score_submission';
 
 export type ResourceType =

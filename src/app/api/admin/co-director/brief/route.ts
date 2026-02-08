@@ -139,6 +139,18 @@ export async function PUT(req: NextRequest) {
         .update({ brief_id: existing.id })
         .eq('season_id', existing.season_id)
         .eq('slot_position', existing.slot_position);
+    } else if (publish === false && existing.status === 'published') {
+      // Unpublishing - set back to draft
+      updateData.status = 'draft';
+      updateData.published_at = null;
+      updateData.published_by = null;
+
+      // Remove the brief reference from the slot
+      await supabase
+        .from('story_slots')
+        .update({ brief_id: null })
+        .eq('season_id', existing.season_id)
+        .eq('slot_position', existing.slot_position);
     }
 
     // Update the brief
@@ -155,8 +167,9 @@ export async function PUT(req: NextRequest) {
     }
 
     // Audit log
+    const action = publish === true ? 'publish_brief' : publish === false ? 'unpublish_brief' : 'update_brief';
     await logAdminAction(req, {
-      action: publish ? 'publish_brief' : 'generate_brief',
+      action,
       resourceType: 'slot_brief',
       resourceId: updated.id,
       adminId: auth.userId || undefined,
@@ -165,6 +178,7 @@ export async function PUT(req: NextRequest) {
         season_id: existing.season_id,
         slot_position: existing.slot_position,
         published: publish === true,
+        unpublished: publish === false,
         brief_title: updated.brief_title,
       },
     });

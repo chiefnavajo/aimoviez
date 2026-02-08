@@ -25,6 +25,7 @@ import {
   Sparkles,
   Edit,
   Send,
+  EyeOff,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -140,6 +141,7 @@ export default function CoDirectorPage() {
   const [editingBrief, setEditingBrief] = useState(false);
   const [briefForm, setBriefForm] = useState<Partial<SlotBrief>>({});
   const [savingBrief, setSavingBrief] = useState(false);
+  const [unpublishingBrief, setUnpublishingBrief] = useState(false);
 
   // ============================================================================
   // DATA FETCHING
@@ -425,6 +427,43 @@ export default function CoDirectorPage() {
       setError('Failed to save brief');
     } finally {
       setSavingBrief(false);
+    }
+  }
+
+  async function handleUnpublishBrief() {
+    if (!brief) return;
+    if (!confirm('Are you sure you want to unpublish this brief? Users will no longer see it on the /create page.')) {
+      return;
+    }
+    setUnpublishingBrief(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/co-director/brief', {
+        method: 'PUT',
+        headers: await getHeaders(),
+        body: JSON.stringify({
+          brief_id: brief.id,
+          brief_title: brief.brief_title,
+          scene_description: brief.scene_description,
+          visual_requirements: brief.visual_requirements,
+          tone_guidance: brief.tone_guidance,
+          continuity_notes: brief.continuity_notes,
+          do_list: brief.do_list,
+          dont_list: brief.dont_list,
+          example_prompts: brief.example_prompts,
+          publish: false,
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        await fetchBrief();
+      } else {
+        setError(data.error || 'Failed to unpublish brief');
+      }
+    } catch {
+      setError('Failed to unpublish brief');
+    } finally {
+      setUnpublishingBrief(false);
     }
   }
 
@@ -745,13 +784,25 @@ export default function CoDirectorPage() {
                   </button>
                 )}
                 {brief && !editingBrief && (
-                  <button
-                    onClick={() => setEditingBrief(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingBrief(true)}
+                      className="flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm font-medium"
+                    >
+                      <Edit className="w-4 h-4" />
+                      Edit
+                    </button>
+                    {brief.status === 'published' && (
+                      <button
+                        onClick={handleUnpublishBrief}
+                        disabled={unpublishingBrief}
+                        className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 rounded-lg text-sm font-medium"
+                      >
+                        {unpublishingBrief ? <Loader2 className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />}
+                        Unpublish
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
