@@ -69,17 +69,20 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (redisFlag?.enabled) {
-      // Get active slot position
+      // Get active slot position (use first active slot for live leaderboard)
+      // Multi-genre: In future, could accept genre param to filter
       const { data: activeSlot } = await supabase
         .from('story_slots')
-        .select('slot_position')
+        .select('slot_position, season_id')
         .eq('status', 'voting')
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (activeSlot) {
         // Parallel Redis reads
         const [redisClips, redisVoters, redisCreators] = await Promise.all([
-          getTopClips(activeSlot.slot_position, 10, 0),
+          getTopClips(activeSlot.season_id, activeSlot.slot_position, 10, 0),
           getTopVoters('all', 10, 0),
           getTopCreators(10, 0),
         ]);

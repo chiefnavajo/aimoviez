@@ -1270,7 +1270,7 @@ async function handleVoteRedis(
   // Fire-and-forget: broadcast + leaderboard + cache updates
   Promise.allSettled([
     broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore),
-    updateClipScore(clipId, slotPosition, newWeightedScore),
+    updateClipScore(seasonId, clipId, slotPosition, newWeightedScore),
     updateVoterScore(effectiveVoterKey, weight),
     updateCachedVoteCount(clipId, counts?.voteCount ?? 0, newWeightedScore),
   ]).catch(() => {});
@@ -1721,7 +1721,7 @@ export async function POST(req: NextRequest) {
 
     // Fire-and-forget: broadcast + leaderboard + cache updates (sync path)
     broadcastVoteUpdate(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
-    updateClipScore(clipId, slotPosition, newWeightedScore);
+    updateClipScore(clipData.season_id, clipId, slotPosition, newWeightedScore);
     updateVoterScore(effectiveVoterKey, weight);
     updateCachedVoteCount(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
 

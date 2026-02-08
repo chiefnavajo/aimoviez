@@ -19,7 +19,10 @@ const DAILY_TTL = 48 * 60 * 60;
 // ============================================================================
 
 const KEYS = {
-  clips: (slotPosition: number) => `leaderboard:clips:${slotPosition}`,
+  // Multi-genre: namespace clip leaderboards by seasonId to prevent cross-genre collisions
+  clips: (seasonId: string, slotPosition: number) => `leaderboard:clips:${seasonId}:${slotPosition}`,
+  // Legacy key for backwards compatibility (single-genre mode)
+  clipsLegacy: (slotPosition: number) => `leaderboard:clips:${slotPosition}`,
   votersAll: () => 'leaderboard:voters:all',
   votersDaily: (date: string) => `leaderboard:voters:daily:${date}`,
   creatorsAll: () => 'leaderboard:creators:all',
@@ -59,8 +62,10 @@ export interface LeaderboardEntry {
 /**
  * Update a clip's score in the slot leaderboard.
  * Uses ZADD to set absolute score (idempotent).
+ * Multi-genre: seasonId namespaces the key to prevent cross-genre collisions.
  */
 export async function updateClipScore(
+  seasonId: string,
   clipId: string,
   slotPosition: number,
   weightedScore: number
@@ -69,7 +74,7 @@ export async function updateClipScore(
   if (!r) return;
 
   try {
-    await r.zadd(KEYS.clips(slotPosition), { score: weightedScore, member: clipId });
+    await r.zadd(KEYS.clips(seasonId, slotPosition), { score: weightedScore, member: clipId });
   } catch (err) {
     console.warn('[Leaderboard] updateClipScore failed:', err);
   }
@@ -126,8 +131,10 @@ export async function updateCreatorScore(
 /**
  * Get top clips for a specific slot position.
  * Returns null if Redis unavailable (triggers PostgreSQL fallback).
+ * Multi-genre: seasonId namespaces the key to prevent cross-genre collisions.
  */
 export async function getTopClips(
+  seasonId: string,
   slotPosition: number,
   limit: number,
   offset: number
@@ -137,8 +144,8 @@ export async function getTopClips(
 
   try {
     const pipeline = r.pipeline();
-    pipeline.zrange(KEYS.clips(slotPosition), offset, offset + limit - 1, { rev: true, withScores: true });
-    pipeline.zcard(KEYS.clips(slotPosition));
+    pipeline.zrange(KEYS.clips(seasonId, slotPosition), offset, offset + limit - 1, { rev: true, withScores: true });
+    pipeline.zcard(KEYS.clips(seasonId, slotPosition));
 
     const results = await pipeline.exec();
 
@@ -263,13 +270,14 @@ export async function getCreatorRank(username: string): Promise<number | null> {
 
 /**
  * Clear the leaderboard for a specific slot (on slot transition).
+ * Multi-genre: seasonId namespaces the key to prevent cross-genre collisions.
  */
-export async function clearSlotLeaderboard(slotPosition: number): Promise<void> {
+export async function clearSlotLeaderboard(seasonId: string, slotPosition: number): Promise<void> {
   const r = getRedis();
   if (!r) return;
 
   try {
-    await r.del(KEYS.clips(slotPosition));
+    await r.del(KEYS.clips(seasonId, slotPosition));
   } catch (err) {
     console.warn('[Leaderboard] clearSlotLeaderboard failed:', err);
   }
@@ -282,8 +290,10 @@ export async function clearSlotLeaderboard(slotPosition: number): Promise<void> 
 /**
  * Batch update clip scores for a slot.
  * Used by sync-leaderboards cron for consistency.
+ * Multi-genre: seasonId namespaces the key to prevent cross-genre collisions.
  */
 export async function batchUpdateClipScores(
+  seasonId: string,
   slotPosition: number,
   clips: Array<{ clipId: string; weightedScore: number }>
 ): Promise<void> {
@@ -293,7 +303,7 @@ export async function batchUpdateClipScores(
   try {
     const pipeline = r.pipeline();
     for (const clip of clips) {
-      pipeline.zadd(KEYS.clips(slotPosition), { score: clip.weightedScore, member: clip.clipId });
+      pipeline.zadd(KEYS.clips(seasonId, slotPosition), { score: clip.weightedScore, member: clip.clipId });
     }
     await pipeline.exec();
   } catch (err) {

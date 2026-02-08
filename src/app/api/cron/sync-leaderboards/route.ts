@@ -97,29 +97,33 @@ export async function GET(req: NextRequest) {
   };
 
   try {
-    // --- 4. Sync clip scores for active slot ---
-    const { data: activeSlot } = await supabase
+    // --- 4. Sync clip scores for ALL active voting slots (multi-genre support) ---
+    // Query all active voting slots across all seasons
+    const { data: activeSlots } = await supabase
       .from('story_slots')
-      .select('slot_position')
-      .eq('status', 'voting')
-      .maybeSingle();
+      .select('slot_position, season_id')
+      .eq('status', 'voting');
 
-    if (activeSlot) {
-      const { data: activeClips } = await supabase
-        .from('tournament_clips')
-        .select('id, weighted_score')
-        .eq('slot_position', activeSlot.slot_position)
-        .eq('status', 'active');
+    if (activeSlots && activeSlots.length > 0) {
+      for (const slot of activeSlots) {
+        const { data: activeClips } = await supabase
+          .from('tournament_clips')
+          .select('id, weighted_score')
+          .eq('slot_position', slot.slot_position)
+          .eq('season_id', slot.season_id)  // Filter by season to avoid cross-genre mixing
+          .eq('status', 'active');
 
-      if (activeClips && activeClips.length > 0) {
-        await batchUpdateClipScores(
-          activeSlot.slot_position,
-          activeClips.map(c => ({
-            clipId: c.id,
-            weightedScore: c.weighted_score || 0,
-          }))
-        );
-        stats.clips = activeClips.length;
+        if (activeClips && activeClips.length > 0) {
+          await batchUpdateClipScores(
+            slot.season_id,
+            slot.slot_position,
+            activeClips.map(c => ({
+              clipId: c.id,
+              weightedScore: c.weighted_score || 0,
+            }))
+          );
+          stats.clips += activeClips.length;
+        }
       }
     }
 

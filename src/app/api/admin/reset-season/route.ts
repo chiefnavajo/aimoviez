@@ -238,10 +238,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 6. Get clips available for the voting slot
+    // 6. Get clips available for the voting slot (filter by season_id for multi-genre)
     const { data: clipsInSlot, count: clipCount } = await supabase
       .from('tournament_clips')
       .select('id, username, vote_count, genre, thumbnail_url', { count: 'exact' })
+      .eq('season_id', season.id)
       .eq('slot_position', start_slot)
       .order('vote_count', { ascending: false })
       .limit(10);

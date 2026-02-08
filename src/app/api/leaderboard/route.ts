@@ -136,14 +136,17 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     // Get active slot position (needed for both Redis and DB paths)
+    // Multi-genre: Use first active slot for now
     const { data: activeSlot } = await supabase
       .from('story_slots')
-      .select('slot_position')
+      .select('slot_position, season_id')
       .eq('status', 'voting')
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (redisFlag?.enabled && activeSlot) {
-      const redisResult = await getTopClips(activeSlot.slot_position, limit, offset);
+      const redisResult = await getTopClips(activeSlot.season_id, activeSlot.slot_position, limit, offset);
       if (redisResult !== null) {
         // Fetch clip details for enrichment
         const clipIds = redisResult.entries.map(e => e.member);
