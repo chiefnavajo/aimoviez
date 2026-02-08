@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Check, Vote, ChevronUp, Sparkles, Clock, AlertCircle } from 'lucide-react';
+import { X, Check, Vote, ChevronUp, Sparkles, Clock } from 'lucide-react';
 import {
   useDirections,
   useDirectionVoteStatus,
@@ -26,6 +26,7 @@ export default function DirectionVotingModal({ className = '' }: DirectionVoting
   const [isOpen, setIsOpen] = useState(false);
   const [hasShownThisSession, setHasShownThisSession] = useState(false);
   const [selectedDirection, setSelectedDirection] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string | null>(null);
 
   // Fetch directions data
   const { data: directionsData, isLoading: loadingDirections } = useDirections();
@@ -38,6 +39,41 @@ export default function DirectionVotingModal({ className = '' }: DirectionVoting
   const hasVoted = voteStatus?.has_voted ?? false;
   const votedFor = voteStatus?.voted_for ?? null;
   const slotPosition = directionsData?.slot_position;
+
+  // Calculate time remaining in useEffect (not during render)
+  useEffect(() => {
+    if (!directionsData?.voting_ends_at) {
+      setTimeRemaining(null);
+      return;
+    }
+
+    const updateTimeRemaining = () => {
+      const endTime = new Date(directionsData.voting_ends_at!).getTime();
+      const now = Date.now();
+      const diff = endTime - now;
+
+      if (diff <= 0) {
+        setTimeRemaining('Ended');
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (hours > 0) {
+        setTimeRemaining(`${hours}h ${minutes}m left`);
+      } else {
+        setTimeRemaining(`${minutes}m left`);
+      }
+    };
+
+    // Initial calculation
+    updateTimeRemaining();
+
+    // Update every minute
+    const interval = setInterval(updateTimeRemaining, 60000);
+    return () => clearInterval(interval);
+  }, [directionsData?.voting_ends_at]);
 
   // Auto-show modal once per session when voting is open and user hasn't voted
   useEffect(() => {
@@ -74,21 +110,6 @@ export default function DirectionVotingModal({ className = '' }: DirectionVoting
   const handleOpenModal = useCallback(() => {
     setIsOpen(true);
   }, []);
-
-  // Calculate time remaining
-  const getTimeRemaining = () => {
-    if (!directionsData?.voting_ends_at) return null;
-    const endTime = new Date(directionsData.voting_ends_at).getTime();
-    const now = Date.now();
-    const diff = endTime - now;
-    if (diff <= 0) return 'Ended';
-
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-
-    if (hours > 0) return `${hours}h ${minutes}m left`;
-    return `${minutes}m left`;
-  };
 
   // Don't render anything if voting is not open or no directions
   if (!votingOpen || directions.length === 0) {
@@ -173,10 +194,10 @@ export default function DirectionVotingModal({ className = '' }: DirectionVoting
                 </div>
 
                 {/* Timer */}
-                {directionsData?.voting_ends_at && (
+                {timeRemaining && (
                   <div className="flex items-center justify-center gap-2 mt-3 px-4">
                     <Clock className="w-4 h-4 text-purple-400" />
-                    <span className="text-purple-400 text-sm font-medium">{getTimeRemaining()}</span>
+                    <span className="text-purple-400 text-sm font-medium">{timeRemaining}</span>
                     <span className="text-white/40 text-sm">· {totalVotes} votes</span>
                   </div>
                 )}
