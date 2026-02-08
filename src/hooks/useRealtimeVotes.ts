@@ -115,22 +115,31 @@ export function useRealtimeVoteBroadcast({
 
   // Resubscribe when seasonId changes (multi-genre support)
   // Uses subscribeToSeason directly with the new seasonId to avoid stale closure
+  // FIX: Reset isSubscribingRef to prevent race condition on rapid genre switching
   useEffect(() => {
     if (enabled && mountedRef.current && currentSeasonIdRef.current !== seasonId) {
-      // Unsubscribe from old channel and subscribe to new one with updated seasonId
+      // Unsubscribe from old channel
       unsubscribe();
+      // Reset subscribing flag to allow immediate resubscription
+      // This fixes race condition where rapid switching leaves user without subscription
+      isSubscribingRef.current = false;
+      // Subscribe to new channel with updated seasonId
       subscribeToSeason(seasonId);
     }
   }, [seasonId, enabled, unsubscribe, subscribeToSeason]);
 
   // Visibility-aware: disconnect when tab hidden, reconnect on visible
+  // FIX: Use currentSeasonIdRef to get latest seasonId, avoiding stale closure
   useEffect(() => {
     if (!enabled) return;
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         if (!channelRef.current && mountedRef.current) {
-          subscribe();
+          // Use ref value to ensure we subscribe to current genre's channel
+          // This fixes issue where genre changes while tab is hidden
+          isSubscribingRef.current = false;
+          subscribeToSeason(currentSeasonIdRef.current);
         }
       } else {
         unsubscribe();
@@ -141,5 +150,5 @@ export function useRealtimeVoteBroadcast({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [enabled, subscribe, unsubscribe]);
+  }, [enabled, subscribeToSeason, unsubscribe]);
 }

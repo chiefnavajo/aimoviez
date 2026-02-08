@@ -13,6 +13,7 @@ import crypto from 'crypto';
 import { RegisterClipSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeText } from '@/lib/sanitize';
+import { isValidGenre } from '@/lib/genres';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -78,6 +79,15 @@ export async function POST(request: NextRequest) {
 
     const { videoUrl, genre, title, description, duration } = validation.data;
 
+    // Validate genre against allowed values
+    const clipGenre = genre.toLowerCase();
+    if (!isValidGenre(clipGenre)) {
+      return NextResponse.json({
+        success: false,
+        error: `Invalid genre "${genre}". Please select a valid genre.`
+      }, { status: 400 });
+    }
+
     // Look up user profile to get their username and ID
     let uploaderUsername = `creator_${voterKey.slice(-8)}`;
     let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
@@ -95,20 +105,49 @@ export async function POST(request: NextRequest) {
       uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
     }
 
-    // Get active season
-    const { data: season, error: seasonError } = await supabase
+    // Check if multi-genre feature is enabled
+    const { data: multiGenreFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'multi_genre_enabled')
+      .maybeSingle();
+
+    const multiGenreEnabled = multiGenreFlag?.enabled ?? false;
+
+    // Get active season - filter by genre if multi-genre is enabled
+    let seasonQuery = supabase
       .from('seasons')
-      .select('id, total_slots')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+      .select('id, total_slots, genre')
+      .eq('status', 'active');
+
+    if (multiGenreEnabled) {
+      // Match clip genre to season genre
+      seasonQuery = seasonQuery.eq('genre', clipGenre);
+    }
+
+    const { data: season, error: seasonError } = await seasonQuery
+      .order('created_at', { ascending: true })  // Get oldest (first) active season
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (seasonError || !season) {
-      console.error('[REGISTER] No active season:', seasonError);
-      return NextResponse.json({ 
+      console.error('[REGISTER] No active season for genre:', clipGenre, seasonError);
+      const errorMsg = multiGenreEnabled
+        ? `No active season for genre: ${genre}. Try a different genre.`
+        : 'No active season. Uploads are currently closed.';
+      return NextResponse.json({
         success: false,
-        error: 'No active season. Uploads are currently closed.' 
+        error: errorMsg
+      }, { status: 400 });
+    }
+
+    // Validate clip genre matches season genre (even in single-genre mode)
+    const seasonGenre = (season as { genre?: string }).genre;
+    if (seasonGenre && clipGenre !== seasonGenre.toLowerCase()) {
+      console.warn('[REGISTER] Genre mismatch - clip:', clipGenre, 'season:', seasonGenre);
+      return NextResponse.json({
+        success: false,
+        error: `This season is for "${seasonGenre}" clips. You selected "${genre}".`
       }, { status: 400 });
     }
 
@@ -150,7 +189,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,  // Link to user for "My Clips" feature
         username: sanitizeText(uploaderUsername),
         avatar_url: uploaderAvatar,
-        genre: genre.toUpperCase(),
+        genre: clipGenre,  // Use lowercase to match season.genre (consistent with main upload route)
         title: sanitizedTitle,
         description: sanitizedDescription,
         vote_count: 0,
@@ -206,7 +245,7 @@ export async function POST(request: NextRequest) {
         video_url: videoUrl,
         slot_position: slotPosition,
         status: 'pending',
-        genre: genre,
+        genre: clipGenre,  // Return normalized (lowercase) value
         title: title,
       },
       message,

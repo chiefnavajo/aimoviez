@@ -565,6 +565,13 @@ function VotingArena() {
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
   // Include genre param when multi-genre is enabled
   const genreParam = multiGenreEnabled && currentGenre ? currentGenre.genre : null;
+
+  // Ref to track current genreParam for stale closure detection in async callbacks
+  const genreParamRef = useRef(genreParam);
+  useEffect(() => {
+    genreParamRef.current = genreParam;
+  }, [genreParam]);
+
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main', genreParam],
     queryFn: async () => {
@@ -612,7 +619,8 @@ function VotingArena() {
       const apiResponse: APIVotingResponse = await response.json();
 
       // Verify genre hasn't changed during fetch - if it has, discard results
-      if (capturedGenreParam !== genreParam) {
+      // FIX: Compare against ref (current live value), not closure value (always stale)
+      if (capturedGenreParam !== genreParamRef.current) {
         console.log('[loadMoreClips] Genre changed during fetch, discarding results');
         return;
       }

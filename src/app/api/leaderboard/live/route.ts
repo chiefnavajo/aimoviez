@@ -116,10 +116,12 @@ export async function GET(req: NextRequest) {
             .select('username, avatar_url, id')
             .in('username', creatorNames);
 
+          // Multi-genre: filter locked slots by season_id to prevent cross-genre pollution
           const { data: lockedSlots } = await supabase
             .from('story_slots')
             .select('winner_tournament_clip_id')
-            .eq('status', 'locked');
+            .eq('status', 'locked')
+            .eq('season_id', activeSlot.season_id);
 
           const winningClipIds = new Set(
             lockedSlots?.map(s => s.winner_tournament_clip_id).filter(Boolean) || []
@@ -248,11 +250,17 @@ export async function GET(req: NextRequest) {
 
     const { data: allClips } = await allClipsQuery;
 
-    // Get locked slots
-    const { data: lockedSlots } = await supabase
+    // Get locked slots - filter by season_id to prevent cross-genre pollution
+    let lockedSlotsQuery = supabase
       .from('story_slots')
       .select('winner_tournament_clip_id')
       .eq('status', 'locked');
+
+    if (fallbackSeason?.id) {
+      lockedSlotsQuery = lockedSlotsQuery.eq('season_id', fallbackSeason.id);
+    }
+
+    const { data: lockedSlots } = await lockedSlotsQuery;
 
     const winningClipIds = new Set(
       lockedSlots?.map((s) => s.winner_tournament_clip_id).filter(Boolean) || []

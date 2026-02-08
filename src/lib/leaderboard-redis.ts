@@ -23,7 +23,11 @@ const KEYS = {
   clips: (seasonId: string, slotPosition: number) => `leaderboard:clips:${seasonId}:${slotPosition}`,
   votersAll: () => 'leaderboard:voters:all',
   votersDaily: (date: string) => `leaderboard:voters:daily:${date}`,
-  creatorsAll: () => 'leaderboard:creators:all',
+  // Multi-genre: namespace creators by seasonId to prevent cross-genre pollution
+  // Uses optional seasonId - when provided, returns season-specific key; otherwise global
+  creatorsAll: (seasonId?: string) => seasonId
+    ? `leaderboard:creators:${seasonId}`
+    : 'leaderboard:creators:all',
 } as const;
 
 // ============================================================================
@@ -105,18 +109,27 @@ export async function updateVoterScore(
 }
 
 /**
- * Increment a creator's score in the all-time leaderboard.
+ * Increment a creator's score in the leaderboard.
  * Uses ZINCRBY for atomic increment.
+ * Multi-genre: seasonId namespaces the key to prevent cross-genre pollution.
  */
 export async function updateCreatorScore(
   username: string,
-  increment: number
+  increment: number,
+  seasonId?: string
 ): Promise<void> {
   const r = getRedis();
   if (!r) return;
 
   try {
-    await r.zincrby(KEYS.creatorsAll(), increment, username);
+    // Update both season-specific and global leaderboards
+    const pipeline = r.pipeline();
+    if (seasonId) {
+      pipeline.zincrby(KEYS.creatorsAll(seasonId), increment, username);
+    }
+    // Always update global for backwards compatibility
+    pipeline.zincrby(KEYS.creatorsAll(), increment, username);
+    await pipeline.exec();
   } catch (err) {
     console.warn('[Leaderboard] updateCreatorScore failed:', err);
   }
@@ -200,18 +213,22 @@ export async function getTopVoters(
 /**
  * Get top creators.
  * Returns null if Redis unavailable (triggers PostgreSQL fallback).
+ * Multi-genre: seasonId returns season-specific leaderboard; otherwise global.
  */
 export async function getTopCreators(
   limit: number,
-  offset: number
+  offset: number,
+  seasonId?: string
 ): Promise<{ entries: LeaderboardEntry[]; total: number } | null> {
   const r = getRedis();
   if (!r) return null;
 
+  const key = KEYS.creatorsAll(seasonId);
+
   try {
     const pipeline = r.pipeline();
-    pipeline.zrange(KEYS.creatorsAll(), offset, offset + limit - 1, { rev: true, withScores: true });
-    pipeline.zcard(KEYS.creatorsAll());
+    pipeline.zrange(key, offset, offset + limit - 1, { rev: true, withScores: true });
+    pipeline.zcard(key);
 
     const results = await pipeline.exec();
 
@@ -253,13 +270,14 @@ export async function getVoterRank(
 /**
  * Get a creator's rank (0-indexed).
  * Returns null if unavailable.
+ * Multi-genre: seasonId returns rank in season-specific leaderboard.
  */
-export async function getCreatorRank(username: string): Promise<number | null> {
+export async function getCreatorRank(username: string, seasonId?: string): Promise<number | null> {
   const r = getRedis();
   if (!r) return null;
 
   try {
-    const rank = await r.zrevrank(KEYS.creatorsAll(), username);
+    const rank = await r.zrevrank(KEYS.creatorsAll(seasonId), username);
     return rank !== null ? rank + 1 : null; // Convert to 1-indexed
   } catch {
     return null;
@@ -343,17 +361,21 @@ export async function batchUpdateVoterScores(
 /**
  * Batch update creator scores.
  * Uses ZADD (absolute set) for consistency sync.
+ * Multi-genre: seasonId updates season-specific leaderboard; otherwise global.
  */
 export async function batchUpdateCreatorScores(
-  creators: Array<{ username: string; totalVotes: number }>
+  creators: Array<{ username: string; totalVotes: number }>,
+  seasonId?: string
 ): Promise<void> {
   const r = getRedis();
   if (!r || creators.length === 0) return;
 
+  const key = KEYS.creatorsAll(seasonId);
+
   try {
     const pipeline = r.pipeline();
     for (const creator of creators) {
-      pipeline.zadd(KEYS.creatorsAll(), { score: creator.totalVotes, member: creator.username });
+      pipeline.zadd(key, { score: creator.totalVotes, member: creator.username });
     }
     await pipeline.exec();
   } catch (err) {

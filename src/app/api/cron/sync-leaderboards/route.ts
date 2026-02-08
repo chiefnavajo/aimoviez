@@ -214,7 +214,16 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // --- 7. Sync creator scores ---
+    // --- 7. Sync creator scores (multi-genre: per-season and global) ---
+    // Get all active seasons for per-season leaderboards
+    const { data: activeSeasons } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active');
+
+    const seasonIds = activeSeasons?.map(s => s.id) || [];
+
+    // First try RPC for global creators leaderboard
     const { data: creatorRpcData, error: creatorRpcError } = await supabase
       .rpc('get_top_creators', {
         p_limit: 500,
@@ -223,6 +232,7 @@ export async function GET(req: NextRequest) {
       });
 
     if (!creatorRpcError && creatorRpcData && creatorRpcData.length > 0) {
+      // Update global leaderboard
       await batchUpdateCreatorScores(
         creatorRpcData.map((row: { username: string; total_votes?: number }) => ({
           username: row.username,
@@ -230,17 +240,38 @@ export async function GET(req: NextRequest) {
         }))
       );
       stats.creators = creatorRpcData.length;
-    } else {
-      // Fallback: aggregate from tournament_clips
-      // Multi-genre: Only count active clips from active seasons to prevent stale data
-      // Get all active season IDs first
-      const { data: activeSeasonIds } = await supabase
-        .from('seasons')
-        .select('id')
-        .eq('status', 'active');
+    }
 
-      const seasonIds = activeSeasonIds?.map(s => s.id) || [];
+    // Multi-genre: Also sync per-season creator leaderboards from clips
+    for (const seasonId of seasonIds) {
+      const { data: seasonClips } = await supabase
+        .from('tournament_clips')
+        .select('username, vote_count')
+        .eq('season_id', seasonId)
+        .eq('status', 'active')
+        .limit(5000);
 
+      if (seasonClips && seasonClips.length > 0) {
+        const creatorMap = new Map<string, number>();
+        seasonClips.forEach(c => {
+          const u = c.username || 'unknown';
+          creatorMap.set(u, (creatorMap.get(u) || 0) + (c.vote_count || 0));
+        });
+
+        // Update season-specific leaderboard
+        await batchUpdateCreatorScores(
+          Array.from(creatorMap.entries()).map(([username, totalVotes]) => ({
+            username,
+            totalVotes,
+          })),
+          seasonId
+        );
+      }
+    }
+
+    // Fallback for global if RPC failed
+    if (creatorRpcError || !creatorRpcData?.length) {
+      // Aggregate all active seasons into global
       let clipsQuery = supabase
         .from('tournament_clips')
         .select('username, vote_count')

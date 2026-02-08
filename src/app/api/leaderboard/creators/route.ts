@@ -96,21 +96,43 @@ export async function GET(req: NextRequest) {
       .eq('key', 'redis_leaderboards')
       .maybeSingle();
 
+    // Get active season for multi-genre filtering
+    const { data: activeSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     if (redisFlag?.enabled) {
-      const redisResult = await getTopCreators(limit, offset);
+      const redisResult = await getTopCreators(limit, offset, activeSeason?.id);
       if (redisResult !== null) {
         // Fetch creator details from tournament_clips for enrichment
+        // Multi-genre: filter by season_id to prevent cross-genre pollution
         const usernames = redisResult.entries.map(e => e.member);
-        const { data: creatorClips } = await supabase
+        let creatorClipsQuery = supabase
           .from('tournament_clips')
           .select('username, avatar_url, id, vote_count')
           .in('username', usernames);
 
-        // Get locked slots for locked_in count
-        const { data: lockedSlots } = await supabase
+        if (activeSeason?.id) {
+          creatorClipsQuery = creatorClipsQuery.eq('season_id', activeSeason.id);
+        }
+
+        const { data: creatorClips } = await creatorClipsQuery;
+
+        // Get locked slots for locked_in count - filter by season_id
+        let lockedSlotsQuery = supabase
           .from('story_slots')
           .select('winner_tournament_clip_id')
           .eq('status', 'locked');
+
+        if (activeSeason?.id) {
+          lockedSlotsQuery = lockedSlotsQuery.eq('season_id', activeSeason.id);
+        }
+
+        const { data: lockedSlots } = await lockedSlotsQuery;
 
         const winningClipIds = new Set(
           lockedSlots?.map(s => s.winner_tournament_clip_id).filter(Boolean) || []
@@ -246,10 +268,15 @@ export async function GET(req: NextRequest) {
       startDate = weekAgo.toISOString();
     }
 
-    // Fetch clips with limit
+    // Fetch clips with limit - multi-genre: filter by season_id
     let query = supabase
       .from('tournament_clips')
-      .select('id, username, avatar_url, vote_count, genre');
+      .select('id, username, avatar_url, vote_count, genre')
+      .eq('status', 'active');
+
+    if (activeSeason?.id) {
+      query = query.eq('season_id', activeSeason.id);
+    }
 
     if (startDate) {
       query = query.gte('created_at', startDate);
@@ -273,11 +300,17 @@ export async function GET(req: NextRequest) {
       } satisfies LeaderboardCreatorsResponse);
     }
 
-    // Get locked slots to determine winners
-    const { data: lockedSlots } = await supabase
+    // Get locked slots to determine winners - filter by season_id
+    let lockedSlotsQuery = supabase
       .from('story_slots')
       .select('winner_tournament_clip_id')
       .eq('status', 'locked');
+
+    if (activeSeason?.id) {
+      lockedSlotsQuery = lockedSlotsQuery.eq('season_id', activeSeason.id);
+    }
+
+    const { data: lockedSlots } = await lockedSlotsQuery;
 
     const winningClipIds = new Set(
       lockedSlots?.map((s) => s.winner_tournament_clip_id).filter(Boolean) || []
