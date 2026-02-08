@@ -485,6 +485,14 @@ function VotingArena() {
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile autoplay
 
+  // FIX: Ref to track isPaused for use in setTimeout (prevents stale closure)
+  const isPausedRef = useRef(false);
+
+  // FIX: Sync ref with state to prevent stale closures in setTimeout callbacks
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
+
   // Double-tap detection
   const [lastTapTime, setLastTapTime] = useState(0);
   const [doubleTapPosition, setDoubleTapPosition] = useState<{ x: number; y: number } | null>(null);
@@ -1311,7 +1319,8 @@ function VotingArena() {
       // Only pause/play if this was a single tap (no double tap occurred)
       if (Date.now() - now >= DOUBLE_TAP_DELAY - 20) {
         if (!videoRef.current) return;
-        if (isPaused) {
+        // FIX: Use ref instead of state to avoid stale closure in setTimeout
+        if (isPausedRef.current) {
           videoRef.current.play();
           setIsPaused(false);
         } else {
@@ -1802,8 +1811,12 @@ function VotingArena() {
             dailyGoal={DAILY_GOAL}
             showDailyProgress={showVoteProgress}
           />
-          {/* Vote Count */}
-          <span className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+          {/* Vote Count - FIX: Added aria-live for screen reader accessibility */}
+          <span
+            className="text-white text-xs font-bold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {formatNumber(currentClip?.vote_count ?? 0)}
           </span>
         </div>
