@@ -286,20 +286,40 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Get active season
-    const { data: season, error: seasonError } = await supabase
+    // Check if multi-genre feature is enabled
+    const { data: multiGenreFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'multi_genre_enabled')
+      .single();
+
+    const multiGenreEnabled = multiGenreFlag?.enabled ?? false;
+    const clipGenre = genre.toLowerCase();
+
+    // Get active season - filter by genre if multi-genre is enabled
+    let seasonQuery = supabase
       .from('seasons')
-      .select('id, total_slots')
-      .eq('status', 'active')
+      .select('id, total_slots, genre')
+      .eq('status', 'active');
+
+    if (multiGenreEnabled) {
+      // Match clip genre to season genre
+      seasonQuery = seasonQuery.eq('genre', clipGenre);
+    }
+
+    const { data: season, error: seasonError } = await seasonQuery
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
 
     if (seasonError || !season) {
-      console.error('[UPLOAD] No active season:', seasonError);
-      return NextResponse.json({ 
+      console.error('[UPLOAD] No active season for genre:', clipGenre, seasonError);
+      const errorMsg = multiGenreEnabled
+        ? `No active season for genre: ${genre}. Try a different genre.`
+        : 'No active season. Uploads are currently closed.';
+      return NextResponse.json({
         success: false,
-        error: 'No active season. Uploads are currently closed.' 
+        error: errorMsg
       }, { status: 400 });
     }
 

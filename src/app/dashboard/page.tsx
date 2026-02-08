@@ -35,6 +35,8 @@ import { useRealtimeVoteBroadcast } from '@/hooks/useRealtimeVotes';
 import type { VoteUpdatePayload } from '@/hooks/useRealtimeVotes';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { useGenreSwiper, useKeyboardNavigation } from '@/hooks/useGenreSwiper';
+import { GenreHeader } from '@/components/GenreSwiper';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -513,6 +515,19 @@ function VotingArena() {
   // Feature flag for multi-vote mode (allows voting multiple times on same clip)
   const { enabled: multiVoteMode } = useFeature('multi_vote_mode');
 
+  // Multi-genre swiper
+  const {
+    genres,
+    currentGenre,
+    currentIndex: genreIndex,
+    goToGenre,
+    nextGenre,
+    prevGenre,
+    multiGenreEnabled,
+    hasNext: hasNextGenre,
+    hasPrev: hasPrevGenre,
+  } = useGenreSwiper();
+
   // CSRF protection for API calls
   const { getHeaders } = useCsrf();
 
@@ -546,10 +561,15 @@ function VotingArena() {
 
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
+  // Include genre param when multi-genre is enabled
+  const genreParam = multiGenreEnabled && currentGenre ? currentGenre.genre : null;
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
-    queryKey: ['voting', 'track-main'],
+    queryKey: ['voting', 'track-main', genreParam],
     queryFn: async () => {
-      const response = await fetch('/api/vote?trackId=track-main');
+      const url = genreParam
+        ? `/api/vote?trackId=track-main&genre=${encodeURIComponent(genreParam)}`
+        : '/api/vote?trackId=track-main';
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch voting data');
       }
@@ -576,14 +596,18 @@ function VotingArena() {
     try {
       // Send IDs of all already-loaded clips to exclude them from new batch
       const excludeIds = votingData.clips.map(c => c.id).join(',');
-      const response = await fetch(`/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10`);
+      let moreUrl = `/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10`;
+      if (genreParam) {
+        moreUrl += `&genre=${encodeURIComponent(genreParam)}`;
+      }
+      const response = await fetch(moreUrl);
       if (!response.ok) {
         throw new Error('Failed to load more clips');
       }
       const apiResponse: APIVotingResponse = await response.json();
 
       // Update the query cache with appended clips
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (old) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (old) => {
         if (!old) return old;
         return transformAndAppendClips(old, apiResponse);
       });
@@ -593,7 +617,7 @@ function VotingArena() {
       loadingMoreRef.current = false;
       setIsLoadingMore(false);
     }
-  }, [votingData?.hasMoreClips, votingData?.clips, queryClient]);
+  }, [votingData?.hasMoreClips, votingData?.clips, queryClient, genreParam]);
 
   // Auto-refresh at midnight UTC when daily votes reset
   // This ensures users don't need to manually refresh to see their reset vote count
@@ -1065,33 +1089,62 @@ function VotingArena() {
   }, [votingData?.clips]);
 
   // Keyboard navigation for desktop users
-  // Moved after handleNext/handlePrevious definitions to fix TypeScript error
+  // Up/Down = clips within genre, Left/Right = switch genres (when multi-genre enabled)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
-        e.preventDefault();
-        handlePrevious();
-      } else if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
-        e.preventDefault();
-        handleNext();
-      } else if (e.key === ' ') {
-        e.preventDefault();
-        // handleVideoTap is not a stable callback, so inline the play/pause logic
-        if (videoRef.current) {
-          if (videoRef.current.paused) {
-            videoRef.current.play();
-            setIsPaused(false);
+      // Don't handle if typing in input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+
+      switch (e.key) {
+        // Vertical: Navigate clips
+        case 'ArrowUp':
+          e.preventDefault();
+          handlePrevious();
+          break;
+        case 'ArrowDown':
+          e.preventDefault();
+          handleNext();
+          break;
+
+        // Horizontal: Navigate genres (when enabled) or clips (fallback)
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (multiGenreEnabled && hasPrevGenre) {
+            prevGenre();
           } else {
-            videoRef.current.pause();
-            setIsPaused(true);
+            handlePrevious();
           }
-        }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (multiGenreEnabled && hasNextGenre) {
+            nextGenre();
+          } else {
+            handleNext();
+          }
+          break;
+
+        // Spacebar: Play/Pause
+        case ' ':
+          e.preventDefault();
+          if (videoRef.current) {
+            if (videoRef.current.paused) {
+              videoRef.current.play();
+              setIsPaused(false);
+            } else {
+              videoRef.current.pause();
+              setIsPaused(true);
+            }
+          }
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleNext, handlePrevious]);
+  }, [handleNext, handlePrevious, multiGenreEnabled, hasPrevGenre, hasNextGenre, prevGenre, nextGenre]);
 
   // Handle vote - if already voted, revoke (unless multi-vote mode); otherwise cast new vote
   const handleVote = async () => {
@@ -1460,6 +1513,15 @@ function VotingArena() {
 
       {/* PWA Install Banner - shows at top when not installed */}
       {!isLandscape && <InstallPrompt variant="banner" />}
+
+      {/* Multi-genre header - shows genre tabs when enabled */}
+      {multiGenreEnabled && genres.length > 1 && !isLandscape && (
+        <GenreHeader
+          genres={genres}
+          currentIndex={genreIndex}
+          onSelectIndex={goToGenre}
+        />
+      )}
 
       {/* Invisible CAPTCHA widget (renders nothing visible) */}
       {captchaConfigured && <CaptchaWidget />}

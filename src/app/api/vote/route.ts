@@ -262,6 +262,9 @@ interface VotingStateResponse {
   finishedSeasonName?: string;
   // Waiting for clips status
   waitingForClips?: boolean;
+  // Multi-genre support
+  currentGenre?: string;
+  availableGenres?: string[];
 }
 
 interface VoteResponseBody {
@@ -582,6 +585,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const limit = Math.min(MAX_CLIPS_PER_REQUEST, Math.max(1, parseInt(searchParams.get('limit') || String(CLIPS_PER_SESSION), 10)));
 
+  // Genre parameter for multi-genre seasons
+  const genreParam = searchParams.get('genre');
+
   // Client can optionally pass excludeIds for immediate deduplication (before server-side check)
   const excludeIdsParam = searchParams.get('excludeIds') || '';
   const clientExcludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0).slice(0, 200) : [];
@@ -638,25 +644,64 @@ export async function GET(req: NextRequest) {
 
     const dailyRemaining = Math.max(0, DAILY_VOTE_LIMIT - totalVotesToday);
 
-    // 2. Get active Season (with caching)
-    let season = getCached<SeasonRow>('activeSeason');
+    // 2. Get active Season (with caching, genre-aware)
+    // When genre param is provided, query that specific genre's season
+    // When no genre, use default cached season or first active
+    let season: SeasonRow | null = null;
     let seasonError = null;
+    let currentGenre: string | undefined;
+    let availableGenres: string[] = [];
 
-    if (!season) {
+    // Check if multi-genre is enabled
+    const multiGenreEnabled = featureFlags['multi_genre_enabled'] ?? false;
+
+    if (genreParam && multiGenreEnabled) {
+      // Genre-specific query (no caching to keep it simple)
       const result = await supabase
         .from('seasons')
-        .select('id, total_slots, status')
+        .select('id, total_slots, status, genre')
         .eq('status', 'active')
-        .order('created_at', { ascending: true })
-        .limit(1)
+        .eq('genre', genreParam.toLowerCase())
         .maybeSingle();
 
       season = result.data;
       seasonError = result.error;
+      currentGenre = genreParam.toLowerCase();
+    } else {
+      // Default behavior: get first active season (with caching)
+      season = getCached<SeasonRow>('activeSeason');
 
-      if (season) {
-        setCache('activeSeason', season, CACHE_TTL.season);
+      if (!season) {
+        const result = await supabase
+          .from('seasons')
+          .select('id, total_slots, status, genre')
+          .eq('status', 'active')
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+
+        season = result.data;
+        seasonError = result.error;
+
+        if (season) {
+          setCache('activeSeason', season, CACHE_TTL.season);
+        }
       }
+
+      currentGenre = (season as SeasonRow & { genre?: string })?.genre || undefined;
+    }
+
+    // Fetch available genres if multi-genre is enabled
+    if (multiGenreEnabled) {
+      const { data: activeSeasons } = await supabase
+        .from('seasons')
+        .select('genre')
+        .eq('status', 'active')
+        .not('genre', 'is', null);
+
+      availableGenres = (activeSeasons || [])
+        .map((s: { genre: string | null }) => s.genre)
+        .filter((g): g is string => !!g);
     }
 
     if (seasonError) {
@@ -1057,6 +1102,9 @@ export async function GET(req: NextRequest) {
       totalClipsInSlot,
       clipsShown: sampledClips.length,
       hasMoreClips,
+      // Multi-genre support
+      currentGenre,
+      availableGenres: availableGenres.length > 0 ? availableGenres : undefined,
     };
 
     return NextResponse.json(response, {
