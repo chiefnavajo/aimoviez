@@ -454,27 +454,27 @@ export default function CoDirectorPage() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-black via-gray-900 to-black text-white">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        {/* Header - responsive layout for mobile */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
           <div className="flex items-center gap-4">
-            <Link href="/admin" className="text-gray-400 hover:text-white">
+            <Link href="/admin" className="text-gray-400 hover:text-white flex-shrink-0">
               <ArrowLeft className="w-6 h-6" />
             </Link>
-            <div>
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Brain className="w-6 h-6 text-purple-500" />
-                AI Co-Director
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                <Brain className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500 flex-shrink-0" />
+                <span className="truncate">AI Co-Director</span>
               </h1>
-              <p className="text-gray-400 text-sm">Story analysis, direction voting, and creative briefs</p>
+              <p className="text-gray-400 text-xs sm:text-sm truncate">Story analysis, direction voting, and creative briefs</p>
             </div>
           </div>
 
-          {/* Season & Slot Selector */}
-          <div className="flex items-center gap-4">
+          {/* Season & Slot Selector - wrap on mobile */}
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <select
               value={selectedSeason || ''}
               onChange={(e) => setSelectedSeason(e.target.value)}
-              className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm"
+              className="bg-gray-800 border border-gray-700 rounded-lg px-2 sm:px-3 py-2 text-sm flex-shrink min-w-0 max-w-[180px] sm:max-w-none"
             >
               {seasons.map(s => (
                 <option key={s.id} value={s.id}>
@@ -482,15 +482,29 @@ export default function CoDirectorPage() {
                 </option>
               ))}
             </select>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-gray-400 text-sm">Slot:</span>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 min={1}
                 max={season?.total_slots || 75}
                 value={currentSlot}
-                onChange={(e) => setCurrentSlot(parseInt(e.target.value, 10) || 1)}
-                className="w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-center"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  // Allow empty string for easier editing
+                  if (val === '') {
+                    setCurrentSlot(1);
+                    return;
+                  }
+                  const num = parseInt(val, 10);
+                  if (!isNaN(num) && num >= 1) {
+                    setCurrentSlot(Math.min(num, season?.total_slots || 75));
+                  }
+                }}
+                onFocus={(e) => e.target.select()}
+                className="w-14 sm:w-16 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-sm text-center"
               />
             </div>
           </div>
