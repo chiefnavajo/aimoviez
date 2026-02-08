@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { Crown, Shield, MoreVertical, UserMinus, ArrowUp, ArrowDown } from 'lucide-react';
 import type { TeamMember, TeamRole } from '@/types';
@@ -29,6 +29,20 @@ export function TeamMemberCard({
   const isCurrentUser = member.user.id === currentUserId;
   const isActive =
     member.last_active_date === new Date().toISOString().split('T')[0];
+
+  // FIX: Add keyboard support for Escape key to close menu
+  const handleKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Escape' && showMenu) {
+      setShowMenu(false);
+    }
+  }, [showMenu]);
+
+  useEffect(() => {
+    if (showMenu) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [showMenu, handleKeyDown]);
 
   const roleIcons: Record<TeamRole, React.ReactNode> = {
     leader: <Crown size={14} className="text-yellow-500" />,

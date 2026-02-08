@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { X, UserPlus, Loader2 } from 'lucide-react';
 import { useJoinTeam } from '@/hooks/useTeam';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface TeamJoinModalProps {
   isOpen: boolean;
@@ -24,6 +25,12 @@ export function TeamJoinModal({
   const [error, setError] = useState<string | null>(null);
 
   const joinMutation = useJoinTeam();
+
+  // FIX: Add focus trap for accessibility (WCAG 2.1 compliance)
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: onClose,
+  });
 
   // Reset state when modal opens
   useEffect(() => {
@@ -70,7 +77,10 @@ export function TeamJoinModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
@@ -94,10 +104,12 @@ export function TeamJoinModal({
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">
+            {/* FIX: Added htmlFor/id for accessibility label association */}
+            <label htmlFor="invite-code-input" className="block text-sm font-medium text-gray-300 mb-2">
               Invite Code
             </label>
             <input
+              id="invite-code-input"
               type="text"
               value={code}
               onChange={(e) => setCode(formatCode(e.target.value))}

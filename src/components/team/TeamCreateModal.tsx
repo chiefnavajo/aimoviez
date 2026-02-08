@@ -6,6 +6,7 @@
 import { useState, useEffect } from 'react';
 import { X, Users, Loader2 } from 'lucide-react';
 import { useCreateTeam } from '@/hooks/useTeam';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 interface TeamCreateModalProps {
   isOpen: boolean;
@@ -19,6 +20,12 @@ export function TeamCreateModal({ isOpen, onClose, onSuccess }: TeamCreateModalP
   const [error, setError] = useState<string | null>(null);
 
   const createMutation = useCreateTeam();
+
+  // FIX: Add focus trap for accessibility (WCAG 2.1 compliance)
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: onClose,
+  });
 
   // Reset state when modal opens
   useEffect(() => {
@@ -64,7 +71,10 @@ export function TeamCreateModal({ isOpen, onClose, onSuccess }: TeamCreateModalP
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">

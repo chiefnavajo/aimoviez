@@ -225,8 +225,8 @@ export async function getAuditLogs(options?: {
     query = query.lte('created_at', options.endDate.toISOString());
   }
 
-  const limit = options?.limit || 50;
-  const offset = options?.offset || 0;
+  const limit = Math.min(options?.limit || 50, 100); // FIX: Cap limit at 100
+  const offset = Math.min(options?.offset || 0, 10000); // FIX: Cap offset to prevent abuse
   query = query.range(offset, offset + limit - 1);
 
   const { data, error, count } = await query;

@@ -3,9 +3,10 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, Link2, Copy, Check, Share2, Loader2, Trash2 } from 'lucide-react';
 import { useTeamInvites, useCreateInvite, useRevokeInvite } from '@/hooks/useTeam';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { TeamInvite } from '@/types';
 
 interface TeamInviteModalProps {
@@ -24,6 +25,23 @@ export function TeamInviteModal({
   memberCount,
 }: TeamInviteModalProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  // FIX: Track timeout ref for cleanup on unmount
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // FIX: Add focus trap for accessibility (WCAG 2.1 compliance)
+  const modalRef = useFocusTrap<HTMLDivElement>({
+    isActive: isOpen,
+    onEscape: onClose,
+  });
+
+  // FIX: Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const { data, isLoading } = useTeamInvites(teamId);
   const createMutation = useCreateInvite();
@@ -50,11 +68,15 @@ export function TeamInviteModal({
   };
 
   const handleCopy = async (invite: TeamInvite) => {
+    // FIX: Clear any existing timeout before setting new one
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
     const shareLink = invite.share_link || `${window.location.origin}/team/join?code=${invite.code}`;
     try {
       await navigator.clipboard.writeText(shareLink);
       setCopiedId(invite.id);
-      setTimeout(() => setCopiedId(null), 2000);
+      copyTimeoutRef.current = setTimeout(() => setCopiedId(null), 2000);
     } catch {
       alert('Failed to copy to clipboard');
     }
@@ -101,7 +123,10 @@ export function TeamInviteModal({
       />
 
       {/* Modal */}
-      <div className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-h-[80vh] flex flex-col">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-md bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl max-h-[80vh] flex flex-col"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
           <div className="flex items-center gap-2">
