@@ -51,22 +51,19 @@ export function useRealtimeVoteBroadcast({
     onVoteUpdateRef.current = onVoteUpdate;
   }, [onVoteUpdate]);
 
-  // Track seasonId changes
-  useEffect(() => {
-    currentSeasonIdRef.current = seasonId;
-  }, [seasonId]);
-
-  const subscribe = useCallback(() => {
+  // Subscribe function takes seasonId as parameter to avoid stale closure
+  const subscribeToSeason = useCallback((targetSeasonId: string | undefined) => {
     if (!mountedRef.current || !enabled) return;
     if (channelRef.current || isSubscribingRef.current) return;
 
     isSubscribingRef.current = true;
+    currentSeasonIdRef.current = targetSeasonId;
 
     try {
       const client = getRealtimeClient();
       // Multi-genre: use season-specific channel if seasonId provided
-      const channelName = currentSeasonIdRef.current
-        ? `votes:season:${currentSeasonIdRef.current}`
+      const channelName = targetSeasonId
+        ? `votes:season:${targetSeasonId}`
         : 'votes';
       const channel = client
         .channel(channelName)
@@ -88,6 +85,11 @@ export function useRealtimeVoteBroadcast({
       isSubscribingRef.current = false;
     }
   }, [enabled]);
+
+  // Wrapper for main effect compatibility
+  const subscribe = useCallback(() => {
+    subscribeToSeason(seasonId);
+  }, [subscribeToSeason, seasonId]);
 
   const unsubscribe = useCallback(() => {
     if (channelRef.current) {
@@ -112,14 +114,14 @@ export function useRealtimeVoteBroadcast({
   }, [enabled, subscribe, unsubscribe]);
 
   // Resubscribe when seasonId changes (multi-genre support)
+  // Uses subscribeToSeason directly with the new seasonId to avoid stale closure
   useEffect(() => {
-    if (enabled && mountedRef.current) {
-      // Unsubscribe from old channel and subscribe to new one
+    if (enabled && mountedRef.current && currentSeasonIdRef.current !== seasonId) {
+      // Unsubscribe from old channel and subscribe to new one with updated seasonId
       unsubscribe();
-      subscribe();
+      subscribeToSeason(seasonId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [seasonId]);
+  }, [seasonId, enabled, unsubscribe, subscribeToSeason]);
 
   // Visibility-aware: disconnect when tab hidden, reconnect on visible
   useEffect(() => {

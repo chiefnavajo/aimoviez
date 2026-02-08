@@ -269,30 +269,41 @@ export async function PATCH(req: NextRequest) {
     const updates: Record<string, string> = {};
     if (status) {
       // If activating, only archive other seasons of the same genre (multi-genre aware)
+      // FIX: Reduce TOCTOU race window by checking season exists and getting genre atomically
       if (status === 'active') {
-        // First get the target season's genre
-        const { data: targetSeason } = await supabase
+        // First get the target season's genre and verify it exists
+        const { data: targetSeason, error: targetError } = await supabase
           .from('seasons')
-          .select('genre')
+          .select('id, genre, status')
           .eq('id', season_id)
           .single();
 
-        if (targetSeason?.genre) {
-          // Only archive active seasons with the same genre
-          await supabase
-            .from('seasons')
-            .update({ status: 'archived' })
-            .eq('status', 'active')
-            .eq('genre', targetSeason.genre)
-            .neq('id', season_id);
-        } else {
-          // If no genre, only archive other null-genre seasons (legacy behavior)
-          await supabase
-            .from('seasons')
-            .update({ status: 'archived' })
-            .eq('status', 'active')
-            .is('genre', null)
-            .neq('id', season_id);
+        if (targetError || !targetSeason) {
+          return NextResponse.json(
+            { error: 'Season not found' },
+            { status: 404 }
+          );
+        }
+
+        // Skip archiving if target is already active (idempotent)
+        if (targetSeason.status !== 'active') {
+          if (targetSeason.genre) {
+            // Only archive active seasons with the same genre
+            await supabase
+              .from('seasons')
+              .update({ status: 'archived' })
+              .eq('status', 'active')
+              .eq('genre', targetSeason.genre)
+              .neq('id', season_id);
+          } else {
+            // If no genre, only archive other null-genre seasons (legacy behavior)
+            await supabase
+              .from('seasons')
+              .update({ status: 'archived' })
+              .eq('status', 'active')
+              .is('genre', null)
+              .neq('id', season_id);
+          }
         }
       }
       updates.status = status;

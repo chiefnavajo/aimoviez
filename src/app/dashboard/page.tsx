@@ -587,11 +587,14 @@ function VotingArena() {
 
   // Load more clips when approaching the end of the list
   // Uses excludeIds to get fresh random clips that haven't been shown yet
+  // FIX: Capture genreParam at start to prevent race condition when genre switches mid-fetch
   const loadMoreClips = useCallback(async () => {
     if (!votingData?.hasMoreClips || !votingData?.clips?.length || loadingMoreRef.current) {
       return;
     }
 
+    // Capture genreParam at the start of async operation
+    const capturedGenreParam = genreParam;
     loadingMoreRef.current = true;
     setIsLoadingMore(true);
 
@@ -599,8 +602,8 @@ function VotingArena() {
       // Send IDs of all already-loaded clips to exclude them from new batch
       const excludeIds = votingData.clips.map(c => c.id).join(',');
       let moreUrl = `/api/vote?trackId=track-main&excludeIds=${encodeURIComponent(excludeIds)}&limit=10`;
-      if (genreParam) {
-        moreUrl += `&genre=${encodeURIComponent(genreParam)}`;
+      if (capturedGenreParam) {
+        moreUrl += `&genre=${encodeURIComponent(capturedGenreParam)}`;
       }
       const response = await fetch(moreUrl);
       if (!response.ok) {
@@ -608,8 +611,14 @@ function VotingArena() {
       }
       const apiResponse: APIVotingResponse = await response.json();
 
-      // Update the query cache with appended clips
-      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (old) => {
+      // Verify genre hasn't changed during fetch - if it has, discard results
+      if (capturedGenreParam !== genreParam) {
+        console.log('[loadMoreClips] Genre changed during fetch, discarding results');
+        return;
+      }
+
+      // Update the query cache with appended clips using captured genreParam
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', capturedGenreParam], (old) => {
         if (!old) return old;
         return transformAndAppendClips(old, apiResponse);
       });
@@ -749,9 +758,15 @@ function VotingArena() {
   });
 
   // Real-time vote broadcast: update vote counts from other users
+  // Multi-genre: pass seasonId to subscribe to genre-specific channel
   useRealtimeVoteBroadcast({
     enabled: true,
+    seasonId: currentGenre?.id,
     onVoteUpdate: useCallback((payload: VoteUpdatePayload) => {
+      // Filter out updates from other seasons/genres
+      if (payload.seasonId && currentGenre?.id && payload.seasonId !== currentGenre.id) {
+        return; // Ignore votes from other genres
+      }
       queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (oldData) => {
         if (!oldData?.clips) return oldData;
         return {
@@ -767,7 +782,7 @@ function VotingArena() {
           ),
         };
       });
-    }, [queryClient, genreParam]),
+    }, [queryClient, genreParam, currentGenre?.id]),
   });
 
   // Browser-level prefetch for next video

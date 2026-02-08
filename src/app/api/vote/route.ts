@@ -27,6 +27,7 @@ import type { VoteQueueEvent } from '@/types/vote-queue';
 import { broadcastVoteUpdate } from '@/lib/realtime-broadcast';
 import { getCachedVoteCounts, setCachedVoteCounts, updateCachedVoteCount, invalidateVoteCount } from '@/lib/vote-count-cache';
 import { updateClipScore, updateVoterScore } from '@/lib/leaderboard-redis';
+import { isValidGenre } from '@/lib/genres';
 // Note: Redis seen-tracking removed for scalability
 // Using view_count + random jitter for fair distribution instead
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
@@ -120,8 +121,9 @@ function setCache(key: 'activeSeason' | 'activeSlot', data: any, ttl: number) {
   cache[key] = { data, expires: Date.now() + ttl };
 }
 
-function _getCachedClips(slotPosition: number): any[] | null {
-  const key = `slot_${slotPosition}`;
+function _getCachedClips(slotPosition: number, seasonId?: string): any[] | null {
+  // Multi-genre: include seasonId in cache key to prevent cross-genre pollution
+  const key = seasonId ? `slot_${seasonId}_${slotPosition}` : `slot_${slotPosition}`;
   const entry = cache.clips.get(key);
   if (entry && Date.now() < entry.expires) {
     return entry.data;
@@ -130,8 +132,9 @@ function _getCachedClips(slotPosition: number): any[] | null {
   return null;
 }
 
-function _setCachedClips(slotPosition: number, data: any[]) {
-  const key = `slot_${slotPosition}`;
+function _setCachedClips(slotPosition: number, data: any[], seasonId?: string) {
+  // Multi-genre: include seasonId in cache key to prevent cross-genre pollution
+  const key = seasonId ? `slot_${seasonId}_${slotPosition}` : `slot_${slotPosition}`;
 
   // Enforce cache size limit to prevent unbounded memory growth
   if (cache.clips.size >= MAX_CLIPS_CACHE_ENTRIES) {
@@ -588,6 +591,14 @@ export async function GET(req: NextRequest) {
   // Genre parameter for multi-genre seasons
   const genreParam = searchParams.get('genre');
 
+  // Validate genre parameter if provided
+  if (genreParam && !isValidGenre(genreParam.toLowerCase())) {
+    return NextResponse.json(
+      { error: `Invalid genre "${genreParam}". Check /api/seasons/active for valid genres.` },
+      { status: 400 }
+    );
+  }
+
   // Client can optionally pass excludeIds for immediate deduplication (before server-side check)
   const excludeIdsParam = searchParams.get('excludeIds') || '';
   const clientExcludeIds = excludeIdsParam ? excludeIdsParam.split(',').filter(id => id.length > 0).slice(0, 200) : [];
@@ -706,12 +717,14 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch available genres if multi-genre is enabled
+    // Limit to 20 genres max to prevent unbounded queries
     if (multiGenreEnabled) {
       const { data: activeSeasons } = await supabase
         .from('seasons')
         .select('genre')
         .eq('status', 'active')
-        .not('genre', 'is', null);
+        .not('genre', 'is', null)
+        .limit(20);
 
       availableGenres = (activeSeasons || [])
         .map((s: { genre: string | null }) => s.genre)

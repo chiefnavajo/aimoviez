@@ -232,10 +232,26 @@ export async function GET(req: NextRequest) {
       stats.creators = creatorRpcData.length;
     } else {
       // Fallback: aggregate from tournament_clips
-      const { data: clips } = await supabase
+      // Multi-genre: Only count active clips from active seasons to prevent stale data
+      // Get all active season IDs first
+      const { data: activeSeasonIds } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active');
+
+      const seasonIds = activeSeasonIds?.map(s => s.id) || [];
+
+      let clipsQuery = supabase
         .from('tournament_clips')
         .select('username, vote_count')
+        .eq('status', 'active')
         .limit(5000);
+
+      if (seasonIds.length > 0) {
+        clipsQuery = clipsQuery.in('season_id', seasonIds);
+      }
+
+      const { data: clips } = await clipsQuery;
 
       if (clips && clips.length > 0) {
         const creatorMap = new Map<string, number>();

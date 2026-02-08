@@ -316,9 +316,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: season, error: seasonError } = await seasonQuery
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: true })  // Get oldest (first) active season
       .limit(1)
-      .single();
+      .maybeSingle();  // Use maybeSingle to handle 0 or 1 result gracefully
 
     if (seasonError || !season) {
       console.error('[UPLOAD] No active season for genre:', clipGenre, seasonError);

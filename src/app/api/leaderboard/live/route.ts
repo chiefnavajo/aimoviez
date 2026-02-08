@@ -160,9 +160,12 @@ export async function GET(req: NextRequest) {
           }));
 
           // Trending + stats still from DB (Redis doesn't track hype_score or today's counts)
+          // Multi-genre: filter by season_id to prevent cross-genre mixing
           const { data: trendingClips } = await supabase
             .from('tournament_clips')
             .select('id, thumbnail_url, username, vote_count, hype_score')
+            .eq('season_id', activeSlot.season_id)
+            .eq('status', 'active')
             .order('hype_score', { ascending: false })
             .limit(10);
 
@@ -312,11 +315,19 @@ export async function GET(req: NextRequest) {
 
     // PERFORMANCE FIX: Use RPC or simple query for trending instead of loading 5K votes
     // Get clips with highest hype_score (already tracked) as proxy for trending
-    const { data: trendingClips } = await supabase
+    // Multi-genre: filter by season_id to prevent cross-genre mixing
+    let trendingQuery = supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, username, vote_count, hype_score')
+      .eq('status', 'active')
       .order('hype_score', { ascending: false })
       .limit(10);
+
+    if (fallbackSeason?.id) {
+      trendingQuery = trendingQuery.eq('season_id', fallbackSeason.id);
+    }
+
+    const { data: trendingClips } = await trendingQuery;
 
     const trendingNow = (trendingClips || []).map((clip) => {
       // Use hype_score as momentum indicator
