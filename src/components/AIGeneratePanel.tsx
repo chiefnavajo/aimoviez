@@ -1052,49 +1052,49 @@ export default function AIGeneratePanel({
             </div>
           </div>
 
-          {/* Character grid */}
+          {/* Character grid - responsive: 2 cols on mobile, 3 on sm, 4 on md+ */}
           <div className="p-3">
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
               {pinnedCharacters.map((char) => {
                 const isSelected = selectedCharacterIds.has(char.id);
                 return (
                   <button
                     key={char.id}
                     onClick={() => toggleCharacter(char.id)}
-                    className={`flex flex-col items-center p-2 rounded-lg transition-all min-w-[80px] ${
+                    className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all ${
                       isSelected
                         ? 'bg-yellow-500/20 border-2 border-yellow-500'
                         : 'bg-white/5 border-2 border-transparent opacity-50 hover:opacity-75'
                     }`}
                   >
-                    {/* Thumbnail */}
+                    {/* Thumbnail - larger on desktop */}
                     <div className="relative">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={char.frontal_image_url}
                         alt={char.label || `Element ${char.element_index}`}
-                        className={`w-12 h-12 rounded-lg object-cover ${
+                        className={`w-14 h-14 sm:w-16 sm:h-16 rounded-lg object-cover ${
                           isSelected ? 'ring-2 ring-yellow-500' : 'grayscale'
                         }`}
                       />
                       {/* Checkbox overlay */}
                       <div
-                        className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                        className={`absolute -top-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-xs ${
                           isSelected
                             ? 'bg-yellow-500 text-black'
                             : 'bg-white/20 text-white/40'
                         }`}
                       >
-                        {isSelected ? <Check className="w-3 h-3" /> : null}
+                        {isSelected ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : null}
                       </div>
                     </div>
                     {/* Label */}
-                    <p className={`text-xs mt-1.5 font-medium truncate max-w-[70px] ${
+                    <p className={`text-xs sm:text-sm mt-1.5 font-medium truncate w-full text-center ${
                       isSelected ? 'text-yellow-300' : 'text-white/40'
                     }`}>
                       {char.label || `Element ${char.element_index}`}
                     </p>
-                    <p className="text-[10px] text-white/30">
+                    <p className="text-[10px] sm:text-xs text-white/30">
                       @Element{char.element_index}
                     </p>
                   </button>
