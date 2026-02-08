@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     // Full mode: fetch all slots with details
     const { data: slots, error } = await supabase
       .from('story_slots')
-      .select('id, slot_position, status, season_id, winner_tournament_clip_id, voting_started_at, voting_ends_at, voting_duration_hours, created_at')
+      .select('id, slot_position, status, season_id, winner_tournament_clip_id, voting_started_at, voting_ends_at, voting_duration_hours, created_at, direction_voting_status, direction_voting_ends_at, winning_direction_id')
       .eq('season_id', targetSeasonId)
       .order('slot_position', { ascending: true });
 
