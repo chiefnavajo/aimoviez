@@ -52,6 +52,7 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [multiGenreEnabled, setMultiGenreEnabled] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Fetch active seasons from API
   const fetchGenres = useCallback(async () => {
@@ -70,15 +71,21 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
       setGenres(seasons);
       setMultiGenreEnabled(data.multiGenreEnabled ?? false);
 
-      // Restore last viewed genre from localStorage
-      if (typeof window !== 'undefined' && seasons.length > 0) {
-        const savedGenre = localStorage.getItem(STORAGE_KEY);
-        if (savedGenre) {
-          const savedIndex = seasons.findIndex(s => s.genre === savedGenre);
-          if (savedIndex >= 0) {
-            setCurrentIndex(savedIndex);
+      // Only restore from localStorage on initial mount, not on refresh
+      // This prevents losing user's current position when calling refresh()
+      if (isInitialLoad && typeof window !== 'undefined' && seasons.length > 0) {
+        try {
+          const savedGenre = localStorage.getItem(STORAGE_KEY);
+          if (savedGenre) {
+            const savedIndex = seasons.findIndex(s => s.genre === savedGenre);
+            if (savedIndex >= 0) {
+              setCurrentIndex(savedIndex);
+            }
           }
+        } catch {
+          // localStorage not available (private browsing) - ignore
         }
+        setIsInitialLoad(false);
       }
     } catch (err) {
       console.error('[useGenreSwiper] Error fetching genres:', err);
@@ -86,7 +93,7 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isInitialLoad]);
 
   // Fetch on mount
   useEffect(() => {
@@ -102,10 +109,14 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
   const goToGenre = useCallback((index: number) => {
     if (index >= 0 && index < genres.length) {
       setCurrentIndex(index);
-      // Save to localStorage
+      // Save to localStorage (with error handling for private browsing)
       const genre = genres[index];
       if (typeof window !== 'undefined' && genre) {
-        localStorage.setItem(STORAGE_KEY, genre.genre);
+        try {
+          localStorage.setItem(STORAGE_KEY, genre.genre);
+        } catch {
+          // localStorage not available - ignore
+        }
       }
     }
   }, [genres]);

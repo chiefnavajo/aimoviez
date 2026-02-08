@@ -656,7 +656,7 @@ export async function GET(req: NextRequest) {
     const multiGenreEnabled = featureFlags['multi_genre_enabled'] ?? false;
 
     if (genreParam && multiGenreEnabled) {
-      // Genre-specific query (no caching to keep it simple)
+      // Genre-specific query (no caching - each genre has its own season)
       const result = await supabase
         .from('seasons')
         .select('id, total_slots, status, genre')
@@ -667,8 +667,22 @@ export async function GET(req: NextRequest) {
       season = result.data;
       seasonError = result.error;
       currentGenre = genreParam.toLowerCase();
+    } else if (multiGenreEnabled) {
+      // Multi-genre enabled but no genre specified - get first active, no caching
+      // Skip cache to prevent cross-genre pollution
+      const result = await supabase
+        .from('seasons')
+        .select('id, total_slots, status, genre')
+        .eq('status', 'active')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      season = result.data;
+      seasonError = result.error;
+      currentGenre = (season as SeasonRow & { genre?: string })?.genre || undefined;
     } else {
-      // Default behavior: get first active season (with caching)
+      // Single-genre mode: use caching for performance
       season = getCached<SeasonRow>('activeSeason');
 
       if (!season) {
@@ -745,10 +759,11 @@ export async function GET(req: NextRequest) {
     const totalSlots = seasonRow.total_slots ?? 75;
 
     // 3. Get active slot (status = 'voting') with caching
-    let storySlot = getCached<StorySlotRow>('activeSlot');
+    // Skip cache when multi-genre is enabled to prevent cross-genre pollution
+    let storySlot = multiGenreEnabled ? null : getCached<StorySlotRow>('activeSlot');
     let slotError = null;
 
-    // Validate cached slot is for current season
+    // Validate cached slot is for current season (extra safety check)
     if (storySlot && storySlot.season_id !== seasonRow.id) {
       storySlot = null;
     }
@@ -782,7 +797,8 @@ export async function GET(req: NextRequest) {
         slotError = waitingResult.error;
       }
 
-      if (storySlot) {
+      // Only cache in single-genre mode
+      if (storySlot && !multiGenreEnabled) {
         setCache('activeSlot', storySlot, CACHE_TTL.slot);
       }
     }

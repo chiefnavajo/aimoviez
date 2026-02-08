@@ -323,6 +323,17 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validate clip genre matches season genre (even in single-genre mode)
+    // This prevents uploading a "comedy" clip to an "action" season
+    const seasonGenre = (season as { genre?: string }).genre;
+    if (seasonGenre && clipGenre !== seasonGenre.toLowerCase()) {
+      console.warn('[UPLOAD] Genre mismatch - clip:', clipGenre, 'season:', seasonGenre);
+      return NextResponse.json({
+        success: false,
+        error: `This season is for "${seasonGenre}" clips. You selected "${genre}".`
+      }, { status: 400 });
+    }
+
     // Get current voting slot (accept both 'voting' and 'waiting_for_clips' statuses)
     const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
@@ -444,7 +455,7 @@ export async function POST(request: NextRequest) {
       thumbnail_url: null, // No thumbnail yet — UI handles missing with poster/gradient fallbacks
       username: uploaderUsername,
       avatar_url: uploaderAvatar,
-      genre: genre.toUpperCase(),
+      genre: clipGenre,  // Use lowercase to match season.genre
       title: title,
       description: description,
       vote_count: 0,
@@ -473,7 +484,7 @@ export async function POST(request: NextRequest) {
         slot_position: slotPosition,
         track_id: 'track-main',
         video_url: videoUrl,
-        genre: genre.toUpperCase(),
+        genre: clipGenre,
         title: title,
         status: 'pending'
       });

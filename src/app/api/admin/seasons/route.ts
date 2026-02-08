@@ -250,13 +250,32 @@ export async function PATCH(req: NextRequest) {
     // Build update object
     const updates: Record<string, string> = {};
     if (status) {
-      // If activating, deactivate all other seasons
+      // If activating, only archive other seasons of the same genre (multi-genre aware)
       if (status === 'active') {
-        await supabase
+        // First get the target season's genre
+        const { data: targetSeason } = await supabase
           .from('seasons')
-          .update({ status: 'archived' })
-          .eq('status', 'active')
-          .neq('id', season_id);
+          .select('genre')
+          .eq('id', season_id)
+          .single();
+
+        if (targetSeason?.genre) {
+          // Only archive active seasons with the same genre
+          await supabase
+            .from('seasons')
+            .update({ status: 'archived' })
+            .eq('status', 'active')
+            .eq('genre', targetSeason.genre)
+            .neq('id', season_id);
+        } else {
+          // If no genre, only archive other null-genre seasons (legacy behavior)
+          await supabase
+            .from('seasons')
+            .update({ status: 'archived' })
+            .eq('status', 'active')
+            .is('genre', null)
+            .neq('id', season_id);
+        }
       }
       updates.status = status;
     }

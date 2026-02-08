@@ -674,7 +674,7 @@ function VotingArena() {
       // If clip status changed to non-active (rejected, pending, etc.), remove it
       if (updatedClip.status && updatedClip.status !== 'active' && updatedClip.status !== 'approved' && updatedClip.status !== 'voting') {
         console.log('[Realtime] Clip status changed to', updatedClip.status, '- removing from feed');
-        queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (oldData) => {
           if (!oldData?.clips) return oldData;
           return {
             ...oldData,
@@ -692,7 +692,7 @@ function VotingArena() {
       }
 
       // Update the clip in the React Query cache
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (oldData) => {
         if (!oldData?.clips) return oldData;
         return {
           ...oldData,
@@ -708,7 +708,7 @@ function VotingArena() {
           ),
         };
       });
-    }, [queryClient, refetch]),
+    }, [queryClient, refetch, genreParam]),
     onNewClip: useCallback((newClip: ClipUpdate) => {
       // When a new clip is approved/added, refetch to get the full clip data
       // Only refetch if the clip status is 'active' or 'approved' (ready for voting)
@@ -720,7 +720,7 @@ function VotingArena() {
     }, [refetch]),
     onClipDelete: useCallback((clipId: string) => {
       // Remove deleted clip from the cache
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (oldData) => {
         if (!oldData?.clips) return oldData;
         const newClips = oldData.clips.filter((clip) => clip.clip_id !== clipId);
         return {
@@ -728,7 +728,7 @@ function VotingArena() {
           clips: newClips,
         };
       });
-    }, [queryClient]),
+    }, [queryClient, genreParam]),
   });
 
   // Real-time broadcast listener for winner selection
@@ -750,7 +750,7 @@ function VotingArena() {
   useRealtimeVoteBroadcast({
     enabled: true,
     onVoteUpdate: useCallback((payload: VoteUpdatePayload) => {
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], (oldData) => {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], (oldData) => {
         if (!oldData?.clips) return oldData;
         return {
           ...oldData,
@@ -765,7 +765,7 @@ function VotingArena() {
           ),
         };
       });
-    }, [queryClient]),
+    }, [queryClient, genreParam]),
   });
 
   // Browser-level prefetch for next video
@@ -793,6 +793,11 @@ function VotingArena() {
   useEffect(() => {
     setIsPaused(false);
   }, [activeIndex]);
+
+  // Reset activeIndex when switching genres to prevent out-of-bounds access
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [genreParam]);
 
   // Video prefetching - preload next clips for smooth playback
   // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
@@ -878,14 +883,14 @@ function VotingArena() {
         navigator.vibrate(50);
       }
 
-      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', genreParam] });
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
 
       // Calculate new vote count for sound decision
       const newVotesToday = (previous?.totalVotesToday ?? 0) + 1;
 
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
@@ -921,7 +926,7 @@ function VotingArena() {
         navigator.vibrate([100, 50, 100]);
       }
       if (context?.previous) {
-        queryClient.setQueryData(['voting', 'track-main'], context.previous);
+        queryClient.setQueryData(['voting', 'track-main', genreParam], context.previous);
       }
       toast.error(error.message);
       setIsVoting(false);
@@ -961,11 +966,11 @@ function VotingArena() {
         navigator.vibrate([30, 20, 30]);
       }
 
-      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main'] });
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', genreParam] });
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
 
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
@@ -980,7 +985,7 @@ function VotingArena() {
     },
     onError: (error: Error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(['voting', 'track-main'], context.previous);
+        queryClient.setQueryData(['voting', 'track-main', genreParam], context.previous);
       }
       toast.error(error.message);
       setIsVoting(false);
@@ -990,9 +995,9 @@ function VotingArena() {
       setIsVoting(false);
 
       // Update with actual server value
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId

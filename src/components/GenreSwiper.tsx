@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ActiveSeason } from '@/hooks/useGenreSwiper';
 import { getGenreEmoji } from '@/lib/genres';
 
@@ -33,19 +33,23 @@ export function GenreSwiper({
     }
   }, [currentIndex, isScrolling]);
 
-  // Handle scroll end to detect user swipe
-  const handleScroll = () => {
+  // Handle scroll end to detect user swipe - memoized to avoid stale closures
+  const handleScroll = useCallback(() => {
     if (!containerRef.current) return;
 
     const container = containerRef.current;
     const scrollLeft = container.scrollLeft;
     const pageWidth = container.offsetWidth;
+
+    // Guard against division by zero if container not rendered
+    if (pageWidth === 0) return;
+
     const newIndex = Math.round(scrollLeft / pageWidth);
 
     if (newIndex !== currentIndex && newIndex >= 0 && newIndex < genres.length) {
       onIndexChange(newIndex);
     }
-  };
+  }, [currentIndex, genres.length, onIndexChange]);
 
   // Debounced scroll handler
   useEffect(() => {
@@ -68,7 +72,7 @@ export function GenreSwiper({
       container.removeEventListener('scroll', onScroll);
       clearTimeout(scrollTimeout);
     };
-  }, [currentIndex, genres.length]);
+  }, [handleScroll]);
 
   if (genres.length === 0) {
     return (
@@ -243,13 +247,22 @@ export function SwipeHint() {
     if (typeof window === 'undefined') return;
     if (window.innerWidth >= 768) return;
 
-    const seen = localStorage.getItem('genre_swipe_hint_seen');
-    if (seen) return;
+    try {
+      const seen = localStorage.getItem('genre_swipe_hint_seen');
+      if (seen) return;
+    } catch {
+      // localStorage not available (private browsing)
+      return;
+    }
 
     setShow(true);
     const timer = setTimeout(() => {
       setShow(false);
-      localStorage.setItem('genre_swipe_hint_seen', 'true');
+      try {
+        localStorage.setItem('genre_swipe_hint_seen', 'true');
+      } catch {
+        // Ignore - localStorage not available
+      }
     }, 4000);
 
     return () => clearTimeout(timer);
