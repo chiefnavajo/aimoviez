@@ -48,6 +48,7 @@ import toast from 'react-hot-toast';
 import CommentsSection from '@/components/CommentsSection';
 import BottomNavigation from '@/components/BottomNavigation';
 import { ActionButton } from '@/components/ActionButton';
+import DirectionVotingModal from '@/components/DirectionVotingModal';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload, SeasonResetPayload } from '@/hooks/useRealtimeClips';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
@@ -1931,6 +1932,9 @@ function StoryPage() {
         </div>
 
         {/* Season Navigation Arrows - REMOVED: overlapped with segment navigation, use sidebar season selector instead */}
+
+        {/* Direction Voting Modal - Shows when Co-Director direction voting is open */}
+        <DirectionVotingModal />
       </div>
       )}
 
@@ -1993,6 +1997,9 @@ function StoryPage() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Direction Voting Modal - Shows when Co-Director direction voting is open */}
+        {!isFullscreen && !isLandscape && <DirectionVotingModal />}
 
         {/* Bottom Navigation - Using shared component (hidden when fullscreen or landscape) */}
         {!isFullscreen && !isLandscape && <BottomNavigation />}
