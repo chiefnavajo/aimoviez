@@ -238,12 +238,18 @@ export async function POST(request: NextRequest) {
 
         if (activeSeason) {
           // Get active pinned characters for this season
-          const { data: pinnedChars } = await supabase
+          let pinnedCharsQuery = supabase
             .from('pinned_characters')
             .select('id, element_index, label, frontal_image_url, reference_image_urls')
             .eq('season_id', activeSeason.id)
-            .eq('is_active', true)
-            .order('element_index', { ascending: true });
+            .eq('is_active', true);
+
+          // Filter out skipped character IDs if provided
+          if (validated.skip_character_ids && validated.skip_character_ids.length > 0) {
+            pinnedCharsQuery = pinnedCharsQuery.not('id', 'in', `(${validated.skip_character_ids.join(',')})`);
+          }
+
+          const { data: pinnedChars } = await pinnedCharsQuery.order('element_index', { ascending: true });
 
           if (pinnedChars && pinnedChars.length > 0) {
             // Health-check frontal image URLs in parallel before sending to fal.ai

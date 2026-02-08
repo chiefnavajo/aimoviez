@@ -124,12 +124,13 @@ export default function AIGeneratePanel({
 
   // Pinned characters
   const [pinnedCharacters, setPinnedCharacters] = useState<Array<{
+    id: string;
     element_index: number;
     label: string | null;
     frontal_image_url: string;
     reference_count: number;
   }>>([]);
-  const [skipPinned, setSkipPinned] = useState(false);
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<Set<string>>(new Set());
 
   // AI Prompt Suggestion state
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState<boolean>(() => {
@@ -152,6 +153,8 @@ export default function AIGeneratePanel({
         const data = await res.json();
         if (data.ok && data.characters?.length > 0) {
           setPinnedCharacters(data.characters);
+          // Default: all characters selected
+          setSelectedCharacterIds(new Set(data.characters.map((c: { id: string }) => c.id)));
         }
       } catch {
         // Non-critical
@@ -159,6 +162,36 @@ export default function AIGeneratePanel({
     }
     fetchPinned();
   }, [pinningEnabled]);
+
+  // Toggle a single character selection
+  const toggleCharacter = (id: string) => {
+    setSelectedCharacterIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Select all characters
+  const selectAllCharacters = () => {
+    setSelectedCharacterIds(new Set(pinnedCharacters.map(c => c.id)));
+  };
+
+  // Deselect all characters
+  const deselectAllCharacters = () => {
+    setSelectedCharacterIds(new Set());
+  };
+
+  // Get the IDs of characters to skip (those not selected)
+  const getSkipCharacterIds = (): string[] => {
+    return pinnedCharacters
+      .filter(c => !selectedCharacterIds.has(c.id))
+      .map(c => c.id);
+  };
 
   // Continuation mode
   const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
@@ -359,6 +392,10 @@ export default function AIGeneratePanel({
     try {
       await ensureToken();
 
+      // Determine which characters to skip
+      const skipCharacterIds = getSkipCharacterIds();
+      const skipAll = pinnedCharacters.length > 0 && skipCharacterIds.length === pinnedCharacters.length;
+
       const result = await csrfPost<{
         success: boolean;
         generationId?: string;
@@ -369,7 +406,10 @@ export default function AIGeneratePanel({
         style: style || undefined,
         genre: genre || undefined,
         ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
-        ...(skipPinned ? { skip_pinned: true } : {}),
+        // If all characters are skipped, use skip_pinned for backwards compatibility
+        // Otherwise, pass the specific IDs to skip
+        ...(skipAll ? { skip_pinned: true } : {}),
+        ...(skipCharacterIds.length > 0 && !skipAll ? { skip_character_ids: skipCharacterIds } : {}),
       });
 
       if (!result.success || !result.generationId) {
@@ -979,38 +1019,97 @@ export default function AIGeneratePanel({
         </div>
       )}
 
-      {/* Pinned character banner */}
-      {pinnedCharacters.length > 0 && !skipPinned && (
-        <div className="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={pinnedCharacters[0].frontal_image_url}
-            alt={pinnedCharacters[0].label || 'Pinned character'}
-            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-yellow-500/30"
-          />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-yellow-300">
-              {pinnedCharacters.length === 1
-                ? `Character pinned: ${pinnedCharacters[0].label || 'Element 1'}`
-                : `${pinnedCharacters.length} characters pinned`}
-            </p>
-            <p className="text-xs text-white/50">Your clip will use consistent character appearance via Kling O1</p>
+      {/* Pinned characters browser */}
+      {pinnedCharacters.length > 0 && (
+        <div className="border border-yellow-500/20 rounded-xl overflow-hidden bg-yellow-500/5">
+          {/* Header */}
+          <div className="flex items-center justify-between px-3 py-2 border-b border-yellow-500/10">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-yellow-300">
+                Pinned Characters
+              </span>
+              <span className="text-xs text-white/50">
+                ({selectedCharacterIds.size} active)
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              {selectedCharacterIds.size < pinnedCharacters.length && (
+                <button
+                  onClick={selectAllCharacters}
+                  className="text-xs text-yellow-500/70 hover:text-yellow-400 transition-colors"
+                >
+                  Use All
+                </button>
+              )}
+              {selectedCharacterIds.size > 0 && (
+                <button
+                  onClick={deselectAllCharacters}
+                  className="text-xs text-white/40 hover:text-white/60 transition-colors"
+                >
+                  Skip All
+                </button>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => setSkipPinned(true)}
-            className="text-xs text-white/40 hover:text-white/60 flex-shrink-0"
-          >
-            Skip
-          </button>
+
+          {/* Character grid */}
+          <div className="p-3">
+            <div className="flex flex-wrap gap-2">
+              {pinnedCharacters.map((char) => {
+                const isSelected = selectedCharacterIds.has(char.id);
+                return (
+                  <button
+                    key={char.id}
+                    onClick={() => toggleCharacter(char.id)}
+                    className={`flex flex-col items-center p-2 rounded-lg transition-all min-w-[80px] ${
+                      isSelected
+                        ? 'bg-yellow-500/20 border-2 border-yellow-500'
+                        : 'bg-white/5 border-2 border-transparent opacity-50 hover:opacity-75'
+                    }`}
+                  >
+                    {/* Thumbnail */}
+                    <div className="relative">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={char.frontal_image_url}
+                        alt={char.label || `Element ${char.element_index}`}
+                        className={`w-12 h-12 rounded-lg object-cover ${
+                          isSelected ? 'ring-2 ring-yellow-500' : 'grayscale'
+                        }`}
+                      />
+                      {/* Checkbox overlay */}
+                      <div
+                        className={`absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs ${
+                          isSelected
+                            ? 'bg-yellow-500 text-black'
+                            : 'bg-white/20 text-white/40'
+                        }`}
+                      >
+                        {isSelected ? <Check className="w-3 h-3" /> : null}
+                      </div>
+                    </div>
+                    {/* Label */}
+                    <p className={`text-xs mt-1.5 font-medium truncate max-w-[70px] ${
+                      isSelected ? 'text-yellow-300' : 'text-white/40'
+                    }`}>
+                      {char.label || `Element ${char.element_index}`}
+                    </p>
+                    <p className="text-[10px] text-white/30">
+                      @Element{char.element_index}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Info text */}
+            <p className="text-xs text-white/40 mt-3">
+              {selectedCharacterIds.size > 0
+                ? 'Selected characters will maintain consistent appearance via Kling O1'
+                : 'No characters selected - clip will generate without character references'}
+            </p>
+          </div>
         </div>
-      )}
-      {pinnedCharacters.length > 0 && skipPinned && (
-        <button
-          onClick={() => setSkipPinned(false)}
-          className="text-xs text-yellow-500/60 hover:text-yellow-500 transition-colors"
-        >
-          Re-enable pinned character
-        </button>
       )}
 
       {/* AI Prompt Suggestion Toggle */}

@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
     // Get active pinned characters
     const { data: characters, error } = await supabase
       .from('pinned_characters')
-      .select('element_index, label, frontal_image_url, reference_image_urls, usage_count')
+      .select('id, element_index, label, frontal_image_url, reference_image_urls, usage_count')
       .eq('season_id', seasonId)
       .eq('is_active', true)
       .order('element_index', { ascending: true });
@@ -75,6 +75,7 @@ export async function GET(req: NextRequest) {
     }
 
     const result = (characters || []).map(c => ({
+      id: c.id,
       element_index: c.element_index,
       label: c.label,
       frontal_image_url: c.frontal_image_url,
