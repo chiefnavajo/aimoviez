@@ -25,7 +25,7 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 md:bg-black/90 backdrop-blur-md border-t border-fuchsia-500/30 safe-area-bottom" data-tour="bottom-nav">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-transparent md:bg-black/50 backdrop-blur-sm border-t border-fuchsia-500/30 safe-area-bottom" data-tour="bottom-nav">
       {/* Safe area spacer for devices with home indicator */}
       <div className="flex justify-around items-center h-14 md:h-16 px-1 pb-safe">
         {navItems.map((item) => {
