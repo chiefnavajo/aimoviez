@@ -20,12 +20,15 @@ export interface VoteUpdatePayload {
   clipId: string;
   voteCount: number;
   weightedScore: number;
+  seasonId?: string;
   timestamp: number;
 }
 
 interface UseRealtimeVoteBroadcastOptions {
   onVoteUpdate?: (payload: VoteUpdatePayload) => void;
   enabled?: boolean;
+  /** Multi-genre: subscribe to season-specific channel instead of global */
+  seasonId?: string;
 }
 
 // ============================================================================
@@ -35,16 +38,23 @@ interface UseRealtimeVoteBroadcastOptions {
 export function useRealtimeVoteBroadcast({
   onVoteUpdate,
   enabled = true,
+  seasonId,
 }: UseRealtimeVoteBroadcastOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
   const mountedRef = useRef(true);
   const onVoteUpdateRef = useRef(onVoteUpdate);
+  const currentSeasonIdRef = useRef(seasonId);
 
   // Keep callback ref fresh without resubscribing
   useEffect(() => {
     onVoteUpdateRef.current = onVoteUpdate;
   }, [onVoteUpdate]);
+
+  // Track seasonId changes
+  useEffect(() => {
+    currentSeasonIdRef.current = seasonId;
+  }, [seasonId]);
 
   const subscribe = useCallback(() => {
     if (!mountedRef.current || !enabled) return;
@@ -54,8 +64,12 @@ export function useRealtimeVoteBroadcast({
 
     try {
       const client = getRealtimeClient();
+      // Multi-genre: use season-specific channel if seasonId provided
+      const channelName = currentSeasonIdRef.current
+        ? `votes:season:${currentSeasonIdRef.current}`
+        : 'votes';
       const channel = client
-        .channel('votes')
+        .channel(channelName)
         .on('broadcast', { event: 'vote-update' }, (payload) => {
           if (onVoteUpdateRef.current && payload.payload) {
             onVoteUpdateRef.current(payload.payload as VoteUpdatePayload);
@@ -96,6 +110,16 @@ export function useRealtimeVoteBroadcast({
       unsubscribe();
     };
   }, [enabled, subscribe, unsubscribe]);
+
+  // Resubscribe when seasonId changes (multi-genre support)
+  useEffect(() => {
+    if (enabled && mountedRef.current) {
+      // Unsubscribe from old channel and subscribe to new one
+      unsubscribe();
+      subscribe();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seasonId]);
 
   // Visibility-aware: disconnect when tab hidden, reconnect on visible
   useEffect(() => {

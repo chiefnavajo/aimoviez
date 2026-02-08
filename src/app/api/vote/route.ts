@@ -1268,8 +1268,9 @@ async function handleVoteRedis(
   const dailyCount = (validation.dailyCount ?? 0) + weight;
 
   // Fire-and-forget: broadcast + leaderboard + cache updates
+  // Multi-genre: pass seasonId to broadcast for genre-specific channels
   Promise.allSettled([
-    broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore),
+    broadcastVoteUpdate(clipId, counts?.voteCount ?? 0, newWeightedScore, seasonId),
     updateClipScore(seasonId, clipId, slotPosition, newWeightedScore),
     updateVoterScore(effectiveVoterKey, weight),
     updateCachedVoteCount(clipId, counts?.voteCount ?? 0, newWeightedScore),
@@ -1600,6 +1601,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // NOTE: Season validation is implicit - activeSlot is queried using clipData.season_id
+    // so if a slot is found, it's guaranteed to be for the clip's season.
+
     // 5. Check vote risk (for fraud detection)
     // Note: vote weight was already calculated above (before daily limit check)
     const voteRisk = checkVoteRisk(req);
@@ -1720,7 +1724,8 @@ export async function POST(req: NextRequest) {
     const newWeightedScore = rpcResult?.new_weighted_score ?? ((clipData.weighted_score ?? 0) + weight);
 
     // Fire-and-forget: broadcast + leaderboard + cache updates (sync path)
-    broadcastVoteUpdate(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);
+    // Multi-genre: pass seasonId to broadcast for genre-specific channels
+    broadcastVoteUpdate(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore, clipData.season_id);
     updateClipScore(clipData.season_id, clipId, slotPosition, newWeightedScore);
     updateVoterScore(effectiveVoterKey, weight);
     updateCachedVoteCount(clipId, rpcResult?.new_vote_count ?? 0, newWeightedScore);

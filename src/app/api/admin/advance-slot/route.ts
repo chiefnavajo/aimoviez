@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
 import { rateLimit } from '@/lib/rate-limit';
+import { clearSlotLeaderboard } from '@/lib/leaderboard-redis';
 
 function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -70,6 +71,21 @@ export async function POST(req: NextRequest) {
       targetGenre = body.genre;
     } catch {
       // No body or invalid JSON - use default behavior
+    }
+
+    // Check if multi_genre_enabled before accepting genre parameter
+    if (targetGenre) {
+      const { data: multiGenreFlag } = await supabase
+        .from('feature_flags')
+        .select('enabled')
+        .eq('key', 'multi_genre_enabled')
+        .maybeSingle();
+
+      if (!multiGenreFlag?.enabled) {
+        // Genre parameter not supported when multi-genre is disabled
+        console.warn('[advance-slot] Genre parameter ignored - multi_genre_enabled is disabled');
+        targetGenre = undefined;
+      }
     }
 
     // 1. Get Season - by ID, by genre, or first active
@@ -181,6 +197,9 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Clear Redis leaderboard for this slot (prevents stale data in next round)
+    await clearSlotLeaderboard(seasonRow.id, storySlot.slot_position);
 
     // 5b. Mark the winning clip as 'locked' (winner status)
     // IMPORTANT: This must succeed before moving other clips to prevent race conditions

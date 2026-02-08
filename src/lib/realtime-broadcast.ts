@@ -14,6 +14,7 @@ import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const CHANNELS = {
   VOTES: 'votes',
+  VOTES_BY_SEASON: (seasonId: string) => `votes:season:${seasonId}`,
   COMMENTS: (clipId: string) => `comments:${clipId}`,
   LEADERBOARD: 'leaderboard',
 } as const;
@@ -45,26 +46,44 @@ function getSupabase(): SupabaseClient | null {
 // ============================================================================
 
 /**
- * Broadcast a vote count update to all connected clients.
+ * Broadcast a vote count update to connected clients.
+ * Multi-genre: When seasonId is provided, broadcasts to season-specific channel.
  * Fire-and-forget — never throws.
  */
 export async function broadcastVoteUpdate(
   clipId: string,
   voteCount: number,
-  weightedScore: number
+  weightedScore: number,
+  seasonId?: string
 ): Promise<void> {
   const sb = getSupabase();
   if (!sb) return;
 
   try {
-    const channel = sb.channel(CHANNELS.VOTES);
+    // Use season-specific channel if seasonId provided, otherwise global channel
+    const channelName = seasonId ? CHANNELS.VOTES_BY_SEASON(seasonId) : CHANNELS.VOTES;
+    const channel = sb.channel(channelName);
     await channel.httpSend('vote-update', {
       clipId,
       voteCount,
       weightedScore,
+      seasonId,
       timestamp: Date.now(),
     });
     sb.removeChannel(channel);
+
+    // Also broadcast to global channel for backwards compatibility
+    if (seasonId) {
+      const globalChannel = sb.channel(CHANNELS.VOTES);
+      await globalChannel.httpSend('vote-update', {
+        clipId,
+        voteCount,
+        weightedScore,
+        seasonId,
+        timestamp: Date.now(),
+      });
+      sb.removeChannel(globalChannel);
+    }
   } catch (err) {
     console.warn('[Broadcast] Vote update failed (non-fatal):', err);
   }

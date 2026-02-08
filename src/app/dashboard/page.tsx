@@ -267,6 +267,8 @@ interface VoteResponse {
 
 interface MutationContext {
   previous?: VotingState;
+  /** Captured genreParam at mutation time to prevent stale closure issues */
+  capturedGenreParam?: string | null;
 }
 
 // ============================================================================
@@ -882,6 +884,9 @@ function VotingArena() {
       return res.json();
     },
     onMutate: async ({ clipId }): Promise<MutationContext> => {
+      // Capture genreParam at mutation time to prevent stale closure issues
+      const capturedGenreParam = genreParam;
+
       // QUICK WIN #1: Don't show spinner - optimistic update makes it feel instant
       // setIsVoting only used briefly for preventing double-clicks
       setIsVoting(true);
@@ -891,14 +896,14 @@ function VotingArena() {
         navigator.vibrate(50);
       }
 
-      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', genreParam] });
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
+      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', capturedGenreParam] });
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', capturedGenreParam]);
 
       // Calculate new vote count for sound decision
       const newVotesToday = (previous?.totalVotesToday ?? 0) + 1;
 
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', capturedGenreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
@@ -925,7 +930,7 @@ function VotingArena() {
       // The has_voted state change shows the checkmark, no spinner needed
       setTimeout(() => setIsVoting(false), 50);
 
-      return { previous };
+      return { previous, capturedGenreParam };
     },
     onError: (error: Error, _variables, context) => {
       // On error: play error sound and rollback
@@ -934,7 +939,8 @@ function VotingArena() {
         navigator.vibrate([100, 50, 100]);
       }
       if (context?.previous) {
-        queryClient.setQueryData(['voting', 'track-main', genreParam], context.previous);
+        // Use captured genreParam from mutation time, not current (which may have changed)
+        queryClient.setQueryData(['voting', 'track-main', context.capturedGenreParam], context.previous);
       }
       toast.error(error.message);
       setIsVoting(false);
@@ -967,6 +973,8 @@ function VotingArena() {
       return res.json();
     },
     onMutate: async ({ clipId }): Promise<MutationContext> => {
+      // Capture genreParam at mutation time
+      const capturedGenreParam = genreParam;
       setIsVoting(true);
 
       // Vibration feedback for revoke
@@ -974,11 +982,11 @@ function VotingArena() {
         navigator.vibrate([30, 20, 30]);
       }
 
-      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', genreParam] });
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
+      await queryClient.cancelQueries({ queryKey: ['voting', 'track-main', capturedGenreParam] });
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', capturedGenreParam]);
 
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', capturedGenreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId
@@ -989,23 +997,25 @@ function VotingArena() {
         });
       }
 
-      return { previous };
+      return { previous, capturedGenreParam };
     },
     onError: (error: Error, _variables, context) => {
       if (context?.previous) {
-        queryClient.setQueryData(['voting', 'track-main', genreParam], context.previous);
+        // Use captured genreParam from mutation time
+        queryClient.setQueryData(['voting', 'track-main', context.capturedGenreParam], context.previous);
       }
       toast.error(error.message);
       setIsVoting(false);
     },
-    onSuccess: (data, { clipId }) => {
+    onSuccess: (data, { clipId }, context) => {
       toast.success('Vote removed');
       setIsVoting(false);
 
-      // Update with actual server value
-      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
+      // Update with actual server value using captured genreParam
+      const capturedGenreParam = context?.capturedGenreParam;
+      const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', capturedGenreParam]);
       if (previous) {
-        queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
+        queryClient.setQueryData<VotingState>(['voting', 'track-main', capturedGenreParam], {
           ...previous,
           clips: previous.clips.map((clip) =>
             clip.clip_id === clipId

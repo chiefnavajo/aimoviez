@@ -208,19 +208,42 @@ export async function GET(req: NextRequest) {
       // Redis returned null — fall through to DB
     }
 
-    // Fetch top clips
-    const { data: topClips } = await supabase
+    // Get active season for DB fallback path (multi-genre aware)
+    const { data: fallbackSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    // Fetch top clips (multi-genre: filter by season_id)
+    let topClipsQuery = supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, username, vote_count, slot_position')
+      .eq('status', 'active')
       .order('vote_count', { ascending: false })
       .limit(10);
 
-    // Fetch top clips for creator aggregation (limit to top 500 by vote count)
-    const { data: allClips } = await supabase
+    if (fallbackSeason?.id) {
+      topClipsQuery = topClipsQuery.eq('season_id', fallbackSeason.id);
+    }
+
+    const { data: topClips } = await topClipsQuery;
+
+    // Fetch top clips for creator aggregation (multi-genre: filter by season_id)
+    let allClipsQuery = supabase
       .from('tournament_clips')
       .select('user_id, username, avatar_url, vote_count, id')
+      .eq('status', 'active')
       .order('vote_count', { ascending: false })
       .limit(500);
+
+    if (fallbackSeason?.id) {
+      allClipsQuery = allClipsQuery.eq('season_id', fallbackSeason.id);
+    }
+
+    const { data: allClips } = await allClipsQuery;
 
     // Get locked slots
     const { data: lockedSlots } = await supabase

@@ -169,12 +169,28 @@ export async function GET(req: NextRequest) {
       // Redis returned null or no active slot — fall through to DB
     }
 
+    // Get active season for DB fallback path (multi-genre aware)
+    const { data: fallbackSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     // Simple query without JOIN - more reliable across database configurations
+    // Multi-genre: filter by status='active' and season_id to prevent cross-genre mixing
     let query = supabase
       .from('tournament_clips')
       .select('id, thumbnail_url, video_url, username, avatar_url, genre, slot_position, vote_count, weighted_score, hype_score, created_at', { count: 'exact' })
+      .eq('status', 'active')
       .order('vote_count', { ascending: false })
       .order('weighted_score', { ascending: false });
+
+    // Apply season filter if available
+    if (fallbackSeason?.id) {
+      query = query.eq('season_id', fallbackSeason.id);
+    }
 
     // Apply timeframe filter
     if (timeframe === 'today') {

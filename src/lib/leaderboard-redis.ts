@@ -21,8 +21,6 @@ const DAILY_TTL = 48 * 60 * 60;
 const KEYS = {
   // Multi-genre: namespace clip leaderboards by seasonId to prevent cross-genre collisions
   clips: (seasonId: string, slotPosition: number) => `leaderboard:clips:${seasonId}:${slotPosition}`,
-  // Legacy key for backwards compatibility (single-genre mode)
-  clipsLegacy: (slotPosition: number) => `leaderboard:clips:${slotPosition}`,
   votersAll: () => 'leaderboard:voters:all',
   votersDaily: (date: string) => `leaderboard:voters:daily:${date}`,
   creatorsAll: () => 'leaderboard:creators:all',

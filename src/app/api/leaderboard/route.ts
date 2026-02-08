@@ -204,20 +204,24 @@ export async function GET(request: NextRequest) {
     }
 
     // Get total count of active clips (for pagination info)
+    // Multi-genre: filter by season_id to prevent cross-genre mixing
     const { count: totalClips, error: countError } = await supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'active');
+      .eq('status', 'active')
+      .eq('season_id', activeSeason.id);
 
     if (countError) {
       console.error('Count fetch error:', countError);
     }
 
     // Get paginated active clips with votes (LIMIT prevents OOM at scale)
+    // Multi-genre: filter by season_id to prevent cross-genre mixing
     const { data: clips, error: clipsError } = await supabase
       .from('tournament_clips')
       .select('id, video_url, thumbnail_url, username, avatar_url, vote_count, genre, title, slot_position')
       .eq('status', 'active')
+      .eq('season_id', activeSeason.id)
       .order('vote_count', { ascending: false })
       .range(offset, offset + limit - 1);
 
