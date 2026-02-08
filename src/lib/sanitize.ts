@@ -112,6 +112,15 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
       const secondOctet = parseInt(hostname.split('.')[1], 10);
       isPrivate172 = secondOctet >= 16 && secondOctet <= 31;
     }
+
+    // FIX: Check for IPv6-mapped IPv4 addresses (SSRF bypass vector)
+    // Examples: ::ffff:127.0.0.1, ::ffff:10.0.0.1, ::ffff:169.254.169.254
+    const isIPv6MappedIPv4 = hostname.startsWith('::ffff:') || hostname.startsWith('[::ffff:');
+
+    // FIX: Explicitly block cloud metadata endpoint (AWS/GCP/Azure)
+    // This is the primary target for SSRF attacks
+    const isCloudMetadata = hostname === '169.254.169.254' || hostname === '[169.254.169.254]';
+
     if (hostname === 'localhost' ||
         hostname === '127.0.0.1' ||
         hostname === '[::1]' ||              // IPv6 loopback
@@ -123,7 +132,9 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
         hostname.endsWith('.local') ||
         hostname.endsWith('.internal') ||
         hostname === '0.0.0.0' ||
-        hostname === '[::0]') {
+        hostname === '[::0]' ||
+        isIPv6MappedIPv4 ||                  // FIX: Block IPv6-mapped IPv4
+        isCloudMetadata) {                   // FIX: Explicitly block metadata endpoint
       return null;
     }
 

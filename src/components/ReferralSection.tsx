@@ -5,7 +5,7 @@
 // Shows user's referral info, link, and progress
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -43,6 +43,17 @@ interface ReferralData {
 export default function ReferralSection() {
   const [copied, setCopied] = useState(false);
   const [showTiers, setShowTiers] = useState(false);
+  // FIX: Track timeout ref for cleanup on unmount
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // FIX: Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const { data, isLoading, error } = useQuery<ReferralData>({
     queryKey: ['referral-info'],
@@ -70,10 +81,15 @@ export default function ReferralSection() {
   }
 
   const copyLink = async () => {
+    // FIX: Clear any existing timeout before setting new one
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+
     try {
       await navigator.clipboard.writeText(data.referral_link);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback for older browsers
       const textArea = document.createElement('textarea');
@@ -83,7 +99,7 @@ export default function ReferralSection() {
       document.execCommand('copy');
       document.body.removeChild(textArea);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 

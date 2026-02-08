@@ -52,6 +52,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'clipId required' }, { status: 400 });
   }
 
+  // FIX: Validate UUID format to prevent path traversal in temp file paths
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (typeof clipId !== 'string' || !uuidRegex.test(clipId)) {
+    return NextResponse.json({ error: 'Invalid clipId format' }, { status: 400 });
+  }
+
   const supabase = getSupabase();
 
   // Temp file paths for this extraction

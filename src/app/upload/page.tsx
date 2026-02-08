@@ -147,9 +147,11 @@ function UploadPageContent() {
         setVideoDuration(video.duration);
         resolve(errors);
       };
-      video.onerror = () => { 
-        errors.push('Could not read video file'); 
-        resolve(errors); 
+      video.onerror = () => {
+        // FIX: Revoke object URL on error to prevent memory leak
+        URL.revokeObjectURL(video.src);
+        errors.push('Could not read video file');
+        resolve(errors);
       };
       video.src = URL.createObjectURL(file);
     });

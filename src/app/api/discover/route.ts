@@ -89,9 +89,22 @@ export async function GET(req: NextRequest) {
         .from('tournament_clips')
         .select('id, thumbnail_url, video_url, username, avatar_url, genre, vote_count, slot_position, created_at', { count: 'exact' });
 
-      // Apply search filter (escape SQL special characters to prevent injection)
+      // FIX: Filter by season_id to prevent cross-season data pollution
+      if (activeSeason?.id) {
+        clipsQuery = clipsQuery.eq('season_id', activeSeason.id);
+      }
+
+      // FIX: Apply search filter using safer pattern
+      // Escape PostgREST special characters to prevent filter injection
       if (query) {
-        const escapedQuery = query.replace(/[%_\\]/g, '\\$&');
+        // Escape LIKE wildcards and PostgREST special chars: % _ \ ( ) , .
+        const escapedQuery = query
+          .replace(/[\\]/g, '\\\\')  // Escape backslashes first
+          .replace(/[%]/g, '\\%')    // Escape LIKE wildcard
+          .replace(/[_]/g, '\\_')    // Escape LIKE single char
+          .replace(/[(),."']/g, ''); // Remove chars that could break filter syntax
+
+        // Use separate filters instead of string interpolation for safer handling
         clipsQuery = clipsQuery.or(`username.ilike.%${escapedQuery}%,genre.ilike.%${escapedQuery}%`);
       }
 

@@ -65,11 +65,12 @@ export async function GET(request: NextRequest) {
         .limit(1000);
       votes = votesData;
 
-      // Get user's comments
+      // FIX: Get user's comments - comments table uses user_key format (user_UUID)
+      const userKey = `user_${profile.id}`;
       const { data: commentsData } = await supabase
         .from('comments')
         .select('id, comment_text, created_at, clip_id')
-        .eq('user_id', profile.id)
+        .eq('user_key', userKey)
         .limit(1000);
       comments = commentsData;
     }

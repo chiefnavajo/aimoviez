@@ -101,7 +101,8 @@ export async function getR2SignedUploadUrl(
     ContentType: contentType,
   });
 
-  const signedUrl = await getSignedUrl(r2, command, { expiresIn: 3600 });
+  // FIX: Reduced expiry from 1 hour to 15 minutes for security
+  const signedUrl = await getSignedUrl(r2, command, { expiresIn: 900 });
   const publicUrl = `${getPublicUrl()}/${key}`;
 
   return { signedUrl, publicUrl, key };
