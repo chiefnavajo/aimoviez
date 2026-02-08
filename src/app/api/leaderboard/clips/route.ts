@@ -75,18 +75,6 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const offset = (page - 1) * limit;
 
-    // Check cache first
-    const cacheKey = `leaderboard_clips_${timeframe}_${page}_${limit}`;
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-          'X-Cache': 'HIT',
-        },
-      });
-    }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // --- Redis-first path (when redis_leaderboards enabled, 'all' timeframe) ---
@@ -111,6 +99,17 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
 
       if (activeSlot) {
+        // FIX: Include season_id in cache key to prevent cross-genre data pollution
+        const seasonCacheKey = `leaderboard_clips_${activeSlot.season_id}_${timeframe}_${page}_${limit}`;
+        const seasonCached = getCached(seasonCacheKey);
+        if (seasonCached) {
+          return NextResponse.json(seasonCached, {
+            headers: {
+              'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+              'X-Cache': 'HIT',
+            },
+          });
+        }
         const redisResult = await getTopClips(activeSlot.season_id, activeSlot.slot_position, limit, offset);
         if (redisResult !== null) {
           // Fetch clip details from DB for enrichment
@@ -155,7 +154,8 @@ export async function GET(req: NextRequest) {
             has_more: redisResult.total > offset + limit,
           };
 
-          setCache(cacheKey, response);
+          // FIX: Use season-aware cache key
+          setCache(seasonCacheKey, response);
 
           return NextResponse.json(response, {
             status: 200,
@@ -177,6 +177,18 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
+
+    // FIX: Include season_id in cache key to prevent cross-genre data pollution
+    const dbCacheKey = `leaderboard_clips_${fallbackSeason?.id || 'no-season'}_${timeframe}_${page}_${limit}`;
+    const dbCached = getCached(dbCacheKey);
+    if (dbCached) {
+      return NextResponse.json(dbCached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
 
     // Simple query without JOIN - more reliable across database configurations
     // Multi-genre: filter by status='active' and season_id to prevent cross-genre mixing
@@ -249,8 +261,8 @@ export async function GET(req: NextRequest) {
       has_more: (count || 0) > offset + limit,
     };
 
-    // Cache the response
-    setCache(cacheKey, response);
+    // Cache the response with season-aware key
+    setCache(dbCacheKey, response);
 
     return NextResponse.json(response, {
       status: 200,

@@ -98,31 +98,46 @@ export async function GET(req: NextRequest) {
 
   try {
     // --- 4. Sync clip scores for ALL active voting slots (multi-genre support) ---
-    // Query all active voting slots across all seasons
+    // FIX: Batch query all clips instead of N+1 queries per slot
     const { data: activeSlots } = await supabase
       .from('story_slots')
       .select('slot_position, season_id')
       .eq('status', 'voting');
 
     if (activeSlots && activeSlots.length > 0) {
-      for (const slot of activeSlots) {
-        const { data: activeClips } = await supabase
-          .from('tournament_clips')
-          .select('id, weighted_score')
-          .eq('slot_position', slot.slot_position)
-          .eq('season_id', slot.season_id)  // Filter by season to avoid cross-genre mixing
-          .eq('status', 'active');
+      // Get all season IDs from active slots
+      const slotSeasonIds = [...new Set(activeSlots.map(s => s.season_id))];
 
-        if (activeClips && activeClips.length > 0) {
-          await batchUpdateClipScores(
-            slot.season_id,
-            slot.slot_position,
-            activeClips.map(c => ({
-              clipId: c.id,
-              weightedScore: c.weighted_score || 0,
-            }))
-          );
-          stats.clips += activeClips.length;
+      // Single batch query for all active clips across all seasons
+      const { data: allActiveClips } = await supabase
+        .from('tournament_clips')
+        .select('id, weighted_score, slot_position, season_id')
+        .eq('status', 'active')
+        .in('season_id', slotSeasonIds);
+
+      if (allActiveClips && allActiveClips.length > 0) {
+        // Group clips by season_id + slot_position
+        const clipsBySlot = new Map<string, Array<{ clipId: string; weightedScore: number }>>();
+
+        allActiveClips.forEach(clip => {
+          const key = `${clip.season_id}:${clip.slot_position}`;
+          if (!clipsBySlot.has(key)) {
+            clipsBySlot.set(key, []);
+          }
+          clipsBySlot.get(key)!.push({
+            clipId: clip.id,
+            weightedScore: clip.weighted_score || 0,
+          });
+        });
+
+        // Update Redis for each slot
+        for (const slot of activeSlots) {
+          const key = `${slot.season_id}:${slot.slot_position}`;
+          const clips = clipsBySlot.get(key);
+          if (clips && clips.length > 0) {
+            await batchUpdateClipScores(slot.season_id, slot.slot_position, clips);
+            stats.clips += clips.length;
+          }
         }
       }
     }

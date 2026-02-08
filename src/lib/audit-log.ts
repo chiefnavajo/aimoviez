@@ -18,6 +18,8 @@ export type AuditAction =
   | 'delete_clip'
   | 'edit_clip'
   | 'toggle_feature'
+  | 'create_season'
+  | 'update_season'
   | 'reset_season'
   | 'delete_season'
   | 'advance_slot'

@@ -3,11 +3,38 @@
 // Requires admin authentication
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, PostgrestError } from '@supabase/supabase-js';
 import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
 import { rateLimit } from '@/lib/rate-limit';
 import { isValidGenre, getGenreCodes } from '@/lib/genres';
+
+// ============================================================================
+// STATUS TRANSITION VALIDATION
+// ============================================================================
+
+type SeasonStatus = 'draft' | 'active' | 'finished' | 'archived';
+
+const VALID_STATUS_TRANSITIONS: Record<SeasonStatus, SeasonStatus[]> = {
+  'draft': ['active', 'archived'],
+  'active': ['finished', 'archived'],
+  'finished': ['archived'],
+  'archived': [], // Terminal state - no transitions allowed
+};
+
+function isValidStatusTransition(from: SeasonStatus, to: SeasonStatus): boolean {
+  if (from === to) return true; // No-op is always valid
+  return VALID_STATUS_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+// ============================================================================
+// ERROR HELPERS
+// ============================================================================
+
+function isUniqueConstraintViolation(error: PostgrestError | null): boolean {
+  // PostgreSQL unique constraint violation code
+  return error?.code === '23505';
+}
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -176,6 +203,15 @@ export async function POST(req: NextRequest) {
 
     if (seasonError || !season) {
       console.error('[POST /api/admin/seasons] seasonError:', seasonError);
+
+      // Handle TOCTOU race condition: concurrent requests created duplicate active seasons
+      if (isUniqueConstraintViolation(seasonError)) {
+        return NextResponse.json(
+          { error: 'A season with this configuration already exists. This may be due to a concurrent request.' },
+          { status: 409 }
+        );
+      }
+
       return NextResponse.json(
         { error: 'Failed to create season' },
         { status: 500 }
@@ -202,12 +238,36 @@ export async function POST(req: NextRequest) {
     if (slotsError) {
       console.error('[POST /api/admin/seasons] slotsError:', slotsError);
       // Try to clean up the season if slots failed
-      await supabase.from('seasons').delete().eq('id', season.id);
+      const { error: cleanupError } = await supabase.from('seasons').delete().eq('id', season.id);
+      if (cleanupError) {
+        console.error('[POST /api/admin/seasons] Failed to cleanup season after slots error:', cleanupError);
+        // Log for manual intervention - orphaned season exists
+        console.error(`[POST /api/admin/seasons] MANUAL CLEANUP REQUIRED: Orphaned season ${season.id} may exist`);
+      }
       return NextResponse.json(
         { error: 'Failed to create slots for season' },
         { status: 500 }
       );
     }
+
+    // Get admin info for audit logging
+    const adminAuth = await checkAdminAuth();
+
+    // Audit log the creation
+    await logAdminAction(req, {
+      action: 'create_season',
+      resourceType: 'season',
+      resourceId: season.id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        label,
+        genre: genre || null,
+        total_slots,
+        auto_activate,
+        description: description || null,
+      },
+    });
 
     return NextResponse.json({
       success: true,
@@ -267,43 +327,55 @@ export async function PATCH(req: NextRequest) {
 
     // Build update object
     const updates: Record<string, string> = {};
+
+    // First get the target season to validate status transitions and get genre
+    const { data: targetSeason, error: targetError } = await supabase
+      .from('seasons')
+      .select('id, genre, status, label')
+      .eq('id', season_id)
+      .single();
+
+    if (targetError || !targetSeason) {
+      return NextResponse.json(
+        { error: 'Season not found' },
+        { status: 404 }
+      );
+    }
+
     if (status) {
+      // Validate status transition
+      const currentStatus = targetSeason.status as SeasonStatus;
+      const newStatus = status as SeasonStatus;
+
+      if (!isValidStatusTransition(currentStatus, newStatus)) {
+        return NextResponse.json(
+          {
+            error: `Invalid status transition: cannot change from '${currentStatus}' to '${newStatus}'. ` +
+                   `Allowed transitions from '${currentStatus}': ${VALID_STATUS_TRANSITIONS[currentStatus].join(', ') || 'none (terminal state)'}`
+          },
+          { status: 400 }
+        );
+      }
+
       // If activating, only archive other seasons of the same genre (multi-genre aware)
-      // FIX: Reduce TOCTOU race window by checking season exists and getting genre atomically
-      if (status === 'active') {
-        // First get the target season's genre and verify it exists
-        const { data: targetSeason, error: targetError } = await supabase
-          .from('seasons')
-          .select('id, genre, status')
-          .eq('id', season_id)
-          .single();
-
-        if (targetError || !targetSeason) {
-          return NextResponse.json(
-            { error: 'Season not found' },
-            { status: 404 }
-          );
-        }
-
-        // Skip archiving if target is already active (idempotent)
-        if (targetSeason.status !== 'active') {
-          if (targetSeason.genre) {
-            // Only archive active seasons with the same genre
-            await supabase
-              .from('seasons')
-              .update({ status: 'archived' })
-              .eq('status', 'active')
-              .eq('genre', targetSeason.genre)
-              .neq('id', season_id);
-          } else {
-            // If no genre, only archive other null-genre seasons (legacy behavior)
-            await supabase
-              .from('seasons')
-              .update({ status: 'archived' })
-              .eq('status', 'active')
-              .is('genre', null)
-              .neq('id', season_id);
-          }
+      // Skip archiving if target is already active (idempotent)
+      if (status === 'active' && targetSeason.status !== 'active') {
+        if (targetSeason.genre) {
+          // Only archive active seasons with the same genre
+          await supabase
+            .from('seasons')
+            .update({ status: 'archived' })
+            .eq('status', 'active')
+            .eq('genre', targetSeason.genre)
+            .neq('id', season_id);
+        } else {
+          // If no genre, only archive other null-genre seasons (legacy behavior)
+          await supabase
+            .from('seasons')
+            .update({ status: 'archived' })
+            .eq('status', 'active')
+            .is('genre', null)
+            .neq('id', season_id);
         }
       }
       updates.status = status;
@@ -332,6 +404,24 @@ export async function PATCH(req: NextRequest) {
         { status: 500 }
       );
     }
+
+    // Get admin info for audit logging
+    const adminAuth = await checkAdminAuth();
+
+    // Audit log the update
+    await logAdminAction(req, {
+      action: 'update_season',
+      resourceType: 'season',
+      resourceId: season_id,
+      adminEmail: adminAuth.email || 'unknown',
+      adminId: adminAuth.userId || undefined,
+      details: {
+        previousStatus: targetSeason.status,
+        newStatus: status || targetSeason.status,
+        label: label || targetSeason.label,
+        updates: Object.keys(updates),
+      },
+    });
 
     return NextResponse.json({
       success: true,

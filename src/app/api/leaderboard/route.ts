@@ -88,18 +88,6 @@ export async function GET(request: NextRequest) {
   const offset = Math.max(0, parseInt(searchParams.get('offset') || '0', 10));
 
   try {
-    // Cache key includes pagination
-    const cacheKey = `leaderboard_main_${limit}_${offset}`;
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-          'X-Cache': 'HIT',
-        },
-      });
-    }
-
     const supabase = getSupabaseClient();
 
     // Get active season (only needed fields)
@@ -125,6 +113,18 @@ export async function GET(request: NextRequest) {
         clips: [],
         season: null,
         message: 'No active season',
+      });
+    }
+
+    // FIX: Include season_id in cache key to prevent cross-genre data pollution
+    const cacheKey = `leaderboard_main_${activeSeason.id}_${limit}_${offset}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
       });
     }
 

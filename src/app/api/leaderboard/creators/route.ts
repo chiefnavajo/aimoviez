@@ -75,18 +75,6 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '20'), 100);
     const offset = (page - 1) * limit;
 
-    // Check cache first
-    const cacheKey = `leaderboard_creators_${timeframe}_${page}_${limit}`;
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
-          'X-Cache': 'HIT',
-        },
-      });
-    }
-
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // --- Redis-first path (when redis_leaderboards enabled) ---
@@ -104,6 +92,18 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
+
+    // FIX: Include season_id in cache key to prevent cross-genre data pollution
+    const cacheKey = `leaderboard_creators_${activeSeason?.id || 'no-season'}_${timeframe}_${page}_${limit}`;
+    const cached = getCached(cacheKey);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: {
+          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+          'X-Cache': 'HIT',
+        },
+      });
+    }
 
     if (redisFlag?.enabled) {
       const redisResult = await getTopCreators(limit, offset, activeSeason?.id);

@@ -572,6 +572,17 @@ function VotingArena() {
     genreParamRef.current = genreParam;
   }, [genreParam]);
 
+  // FIX: Clear preloaded videos on genre switch to prevent memory waste
+  // Videos from previous genre are not useful after switching
+  useEffect(() => {
+    const cache = preloadedVideosRef.current;
+    cache.forEach((video) => {
+      video.src = '';
+      video.load();
+    });
+    cache.clear();
+  }, [genreParam]);
+
   const { data: votingData, isLoading, error, refetch } = useQuery<VotingState>({
     queryKey: ['voting', 'track-main', genreParam],
     queryFn: async () => {
