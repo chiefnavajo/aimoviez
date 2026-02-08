@@ -222,19 +222,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // If no brief is available, generate a prompt using AI from learned patterns + story context
+  // If no brief is available, use co-director to generate story beat + prompt
   if (!brief) {
-    const { getTopModelPatterns, getTopVocabulary, getWinningPrompts } = await import('@/lib/prompt-learning');
+    const { getTopModelPatterns, getTopVocabulary } = await import('@/lib/prompt-learning');
+    const { generateQuickStoryBeat } = await import('@/lib/claude-director');
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
 
     const patterns = await getTopModelPatterns(model, 5);
     const vocabulary = await getTopVocabulary(activeSeason.id, undefined, 15);
-    const winningPrompts = await getWinningPrompts(activeSeason.id, model, 3);
 
     const patternTexts = patterns.map(p => p.pattern_text);
     const vocabTerms = vocabulary.map(v => v.term);
 
-    // Get the last locked clips for story continuity (query tournament_clips directly)
+    // Get the last locked clips for story continuity
     const { data: previousClips } = await supabase
       .from('tournament_clips')
       .select('slot_position, ai_prompt, title')
@@ -242,22 +242,28 @@ export async function GET(req: NextRequest) {
       .in('status', ['winner', 'locked'])
       .not('slot_position', 'is', null)
       .order('slot_position', { ascending: false })
-      .limit(5);
+      .limit(7);
 
-    // Separate the last clip (most important) from earlier context
-    const lastClip = previousClips?.[0];
-    const earlierClips = previousClips?.slice(1) || [];
+    // Format clips for story beat generator
+    const clipsForBeat = (previousClips || []).map(c => ({
+      slot_position: c.slot_position,
+      prompt: c.ai_prompt || c.title || 'Unknown scene',
+    }));
 
-    // Build story context - earlier clips as background
-    const earlierContext = earlierClips
-      .reverse()
-      .map(c => `Slot ${c.slot_position}: ${c.ai_prompt || c.title || 'Unknown'}`)
-      .join('\n');
+    // Character context
+    const characterContext = pinnedCharacters.length > 0
+      ? pinnedCharacters.map(c => c.label).join(', ')
+      : null;
+    const characterList = pinnedCharacters.map(c => c.label).filter(Boolean);
 
-    // Last clip gets special emphasis
-    const lastClipContext = lastClip
-      ? `LAST SCENE (Slot ${lastClip.slot_position}): "${lastClip.ai_prompt || lastClip.title}"`
-      : '';
+    // Generate story beat using co-director (what should happen next)
+    const storyBeatResult = await generateQuickStoryBeat(
+      clipsForBeat,
+      characterList.length > 0 ? characterList : undefined,
+      10 // total slots estimate
+    );
+
+    const storyBeat = storyBeatResult.ok ? storyBeatResult.beat : null;
 
     // Get visual vocabulary if enabled
     let visualTerms: string[] = [];
@@ -271,12 +277,13 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Character context
-    const characterContext = pinnedCharacters.length > 0
-      ? pinnedCharacters.map(c => c.label).join(', ')
-      : null;
+    // Build context from last clip
+    const lastClip = previousClips?.[0];
+    const lastClipContext = lastClip
+      ? `LAST SCENE (Slot ${lastClip.slot_position}): "${lastClip.ai_prompt || lastClip.title}"`
+      : '';
 
-    // Use Claude to generate a coherent prompt that continues the story
+    // Use Claude to generate prompt based on story beat
     let generatedPrompt = 'cinematic scene with dramatic lighting';
 
     try {
@@ -288,26 +295,25 @@ export async function GET(req: NextRequest) {
           max_tokens: 256,
           messages: [{
             role: 'user',
-            content: `Generate a video prompt that DIRECTLY CONTINUES from the last scene.
+            content: `Generate a video prompt for the NEXT scene in this story.
 
-${lastClipContext ? `${lastClipContext}
+${lastClipContext}
 
-CRITICAL: Your prompt must be an IMMEDIATE continuation of this exact scene.
-- Keep the SAME characters (same gender, same appearance)
-- Continue the SAME action that was happening
-- Show what happens NEXT in this exact moment` : 'This is the first scene of a new story.'}
-
-${earlierContext ? `Earlier story context:
-${earlierContext}` : ''}
+${storyBeat ? `CO-DIRECTOR'S GUIDANCE FOR NEXT SCENE:
+- What happens: ${storyBeat.next_action}
+- Scene description: ${storyBeat.scene_description}
+- Must include: ${storyBeat.key_elements.join(', ')}
+- Avoid: ${storyBeat.avoid.join(', ')}` : 'Advance the story with something new happening.'}
 
 ${characterContext ? `Main characters: ${characterContext}` : ''}
 AI Model: ${model}
-${visualTerms.length > 0 ? `Visual style to match: ${visualTerms.slice(0, 5).join(', ')}` : ''}
+${visualTerms.length > 0 ? `Visual style: ${visualTerms.slice(0, 5).join(', ')}` : ''}
+${patternTexts.length > 0 ? `Prompt patterns: ${patternTexts.slice(0, 3).join(', ')}` : ''}
 
 Write a video prompt (50-80 words) that:
-1. Continues IMMEDIATELY from where the last scene ended
-2. Uses the EXACT same characters (don't change gender or appearance)
-3. Shows the next logical action in the story
+1. Follows the co-director's guidance for what happens next
+2. Uses the SAME characters (same gender, same appearance)
+3. ADVANCES the story - don't just continue the same action
 4. Matches the visual style
 
 Return ONLY the prompt text.`
@@ -330,6 +336,7 @@ Return ONLY the prompt text.`
     return NextResponse.json({
       ok: true,
       has_brief: false,
+      auto_directed: true,
       prompt: generatedPrompt,
       based_on: {
         brief_title: null,
@@ -339,6 +346,12 @@ Return ONLY the prompt text.`
         visual_patterns: visualTerms.slice(0, 5),
         character_context: characterContext,
       },
+      story_beat: storyBeat ? {
+        next_action: storyBeat.next_action,
+        scene_description: storyBeat.scene_description,
+        key_elements: storyBeat.key_elements,
+        avoid: storyBeat.avoid,
+      } : null,
     });
   }
 

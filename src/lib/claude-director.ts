@@ -432,6 +432,105 @@ ${JSON.stringify(previousBriefs.slice(-3), null, 2)}`;
 }
 
 // =============================================================================
+// QUICK STORY BEAT (Lightweight on-the-fly generation)
+// =============================================================================
+
+export interface QuickStoryBeat {
+  next_action: string;        // What should happen next
+  scene_description: string;  // Brief scene description
+  key_elements: string[];     // Important elements to include
+  avoid: string[];           // Things to avoid
+}
+
+/**
+ * Generate a quick story beat for the next slot without full co-director flow.
+ * Uses Haiku for speed and cost efficiency.
+ * Returns guidance on what should happen next to advance the story.
+ */
+export async function generateQuickStoryBeat(
+  previousClips: Array<{ slot_position: number; prompt: string }>,
+  characters?: string[],
+  totalSlots?: number
+): Promise<{ ok: true; beat: QuickStoryBeat } | { ok: false; error: string }> {
+  if (previousClips.length === 0) {
+    return {
+      ok: true,
+      beat: {
+        next_action: 'Begin an exciting new story',
+        scene_description: 'Opening scene that establishes the world and main character',
+        key_elements: ['establish setting', 'introduce protagonist', 'hint at adventure'],
+        avoid: ['too much exposition', 'slow pacing'],
+      },
+    };
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return { ok: false, error: 'API key not configured' };
+  }
+
+  // Sort clips by slot position
+  const sortedClips = [...previousClips].sort((a, b) => a.slot_position - b.slot_position);
+  const lastClip = sortedClips[sortedClips.length - 1];
+  const nextSlot = lastClip.slot_position + 1;
+
+  // Build story context
+  const storyContext = sortedClips
+    .map(c => `Slot ${c.slot_position}: ${c.prompt}`)
+    .join('\n');
+
+  try {
+    const client = new Anthropic({ apiKey });
+    const response = await client.messages.create({
+      model: 'claude-3-haiku-20240307',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `You are a story director. Based on the story so far, decide what should happen NEXT to advance the plot.
+
+STORY SO FAR:
+${storyContext}
+
+${characters?.length ? `MAIN CHARACTERS: ${characters.join(', ')}` : ''}
+${totalSlots ? `This is slot ${nextSlot} of ${totalSlots} total.` : ''}
+
+LAST SCENE: "${lastClip.prompt}"
+
+IMPORTANT: The story must PROGRESS. Don't repeat the same action. Something NEW must happen.
+- If someone is running/chasing → they catch up, find something, or something stops them
+- If there's a confrontation → it resolves or escalates
+- If traveling → they arrive somewhere
+- Always advance the narrative
+
+Return JSON:
+{
+  "next_action": "One sentence describing what happens next",
+  "scene_description": "Brief visual description of the next scene",
+  "key_elements": ["element1", "element2", "element3"],
+  "avoid": ["thing to avoid 1", "thing to avoid 2"]
+}`
+      }]
+    });
+
+    const textContent = response.content.find(c => c.type === 'text');
+    if (!textContent || textContent.type !== 'text') {
+      return { ok: false, error: 'No response from AI' };
+    }
+
+    const jsonMatch = textContent.text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { ok: false, error: 'Invalid JSON response' };
+    }
+
+    const beat = JSON.parse(jsonMatch[0]) as QuickStoryBeat;
+    return { ok: true, beat };
+  } catch (err) {
+    console.error('[claude-director] Quick story beat error:', err);
+    return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+// =============================================================================
 // EXPORTS
 // =============================================================================
 
