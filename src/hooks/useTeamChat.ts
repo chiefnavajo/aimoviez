@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { createClient } from '@supabase/supabase-js';
+import { getRealtimeClient } from '@/lib/supabase-client';
 import type { TeamMessage } from '@/types';
 
 function getCsrfToken(): string | null {
@@ -28,9 +28,6 @@ async function ensureCsrfToken(): Promise<string | null> {
   } catch { /* non-fatal */ }
   return token;
 }
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // ===========================
 // FETCH MESSAGES
@@ -111,23 +108,18 @@ export function useTeamChat({ teamId, enabled = true }: UseTeamChatOptions) {
   const [isConnected, setIsConnected] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [reconnectKey, setReconnectKey] = useState(0);
-  const supabaseRef = useRef<ReturnType<typeof createClient> | null>(null);
-  const channelRef = useRef<ReturnType<typeof createClient>['channel'] extends (name: string) => infer R ? R : never>(null);
-
-  // Initialize Supabase client
-  useEffect(() => {
-    if (!supabaseRef.current) {
-      supabaseRef.current = createClient(supabaseUrl, supabaseAnonKey);
-    }
-  }, []);
+  // FIX: Use singleton client to prevent resource exhaustion
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null);
 
   // Subscribe to team chat channel
   useEffect(() => {
-    if (!teamId || !enabled || !supabaseRef.current) {
+    if (!teamId || !enabled) {
       return;
     }
 
-    const supabase = supabaseRef.current;
+    // FIX: Use singleton Supabase client instead of creating new instance per hook
+    const supabase = getRealtimeClient();
     setConnectionError(null);
 
     // Create channel for this team's messages
@@ -205,11 +197,11 @@ export function useTeamChat({ teamId, enabled = true }: UseTeamChatOptions) {
 
   // Reconnect function
   const reconnect = useCallback(() => {
-    if (!teamId || !supabaseRef.current) return;
+    if (!teamId) return;
 
     // Remove existing channel before re-subscribing
     if (channelRef.current) {
-      supabaseRef.current.removeChannel(channelRef.current);
+      getRealtimeClient().removeChannel(channelRef.current);
       channelRef.current = null;
     }
 

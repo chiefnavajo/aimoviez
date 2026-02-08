@@ -246,6 +246,9 @@ export async function removeVoteRecord(
 // SLOT STATE MANAGEMENT (used by auto-advance cron)
 // ============================================================================
 
+// FIX: Add TTL to prevent stale keys from accumulating
+const SLOT_STATE_TTL = 7 * 24 * 60 * 60; // 7 days in seconds
+
 /**
  * Update the slot state in Redis.
  * Called by auto-advance cron when a slot transitions.
@@ -255,7 +258,8 @@ export async function setSlotState(
   state: SlotState
 ): Promise<void> {
   const r = getRedis();
-  await r.set(KEYS.slot(seasonId), JSON.stringify(state));
+  // FIX: Add TTL to prevent stale slot state from accumulating after season ends
+  await r.set(KEYS.slot(seasonId), JSON.stringify(state), { ex: SLOT_STATE_TTL });
 }
 
 /**

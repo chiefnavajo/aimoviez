@@ -69,6 +69,15 @@ export async function GET(req: NextRequest) {
     const limit = Math.max(1, Math.min(parseInt(searchParams.get('limit') || '20', 10) || 20, 100));
     const offset = (page - 1) * limit;
 
+    // FIX: Get active season for multi-genre filtering
+    const { data: activeSeason } = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('status', 'active')
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
     let clips: DiscoverClip[] = [];
     let creators: DiscoverCreator[] = [];
     let total_clips = 0;
@@ -132,9 +141,15 @@ export async function GET(req: NextRequest) {
       // Previously loaded ALL clips into memory, now uses efficient GROUP BY
 
       // Build aggregation query - only fetch needed columns
+      // FIX: Filter by season_id to prevent cross-season data pollution
       let creatorsQuery = supabase
         .from('tournament_clips')
         .select('user_id, username, avatar_url, vote_count, id');
+
+      // Apply season filter for multi-genre isolation
+      if (activeSeason?.id) {
+        creatorsQuery = creatorsQuery.eq('season_id', activeSeason.id);
+      }
 
       // Escape SQL special characters to prevent injection
       if (query) {
@@ -146,12 +161,19 @@ export async function GET(req: NextRequest) {
       // Fetch enough to aggregate top creators while keeping memory usage reasonable
       const maxClipsToFetch = Math.min(limit * 20, 1000);
 
+      // FIX: Also filter locked slots by season_id
+      let lockedSlotsQuery = supabase
+        .from('story_slots')
+        .select('winner_tournament_clip_id')
+        .eq('status', 'locked');
+
+      if (activeSeason?.id) {
+        lockedSlotsQuery = lockedSlotsQuery.eq('season_id', activeSeason.id);
+      }
+
       const [clipsResult, lockedSlotsResult] = await Promise.all([
         creatorsQuery.limit(maxClipsToFetch),
-        supabase
-          .from('story_slots')
-          .select('winner_tournament_clip_id')
-          .eq('status', 'locked')
+        lockedSlotsQuery
       ]);
 
       const { data: creatorClips, error: creatorsError } = clipsResult;

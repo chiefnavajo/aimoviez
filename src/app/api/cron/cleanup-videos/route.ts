@@ -41,6 +41,36 @@ export async function GET(req: NextRequest) {
 
   const supabase = createSupabaseClient();
 
+  // FIX: Add distributed lock to prevent concurrent execution
+  const lockId = `cleanup-videos-${Date.now()}`;
+  const expiresAt = new Date(Date.now() + 120000).toISOString(); // 2 minute lock
+
+  // Clean up expired locks first
+  const now = new Date().toISOString();
+  await supabase
+    .from('cron_locks')
+    .delete()
+    .eq('job_name', 'cleanup_videos')
+    .lt('expires_at', now);
+
+  // Try to acquire lock
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
+      job_name: 'cleanup_videos',
+      lock_id: lockId,
+      acquired_at: now,
+      expires_at: expiresAt,
+    });
+
+  if (lockError) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'Lock held by another instance'
+    }, { status: 202 });
+  }
+
   try {
     // Read grace period from feature flags
     const { data: flag } = await supabase
@@ -137,5 +167,12 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[cleanup-videos] Unexpected error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  } finally {
+    // Release the lock
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('job_name', 'cleanup_videos')
+      .eq('lock_id', lockId);
   }
 }

@@ -35,6 +35,36 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabase();
 
+  // FIX: Add distributed lock to prevent concurrent execution
+  const lockId = `extract-frames-${Date.now()}`;
+  const expiresAt = new Date(Date.now() + 300000).toISOString(); // 5 minute lock (matches maxDuration)
+
+  // Clean up expired locks first
+  const now = new Date().toISOString();
+  await supabase
+    .from('cron_locks')
+    .delete()
+    .eq('job_name', 'extract_missing_frames')
+    .lt('expires_at', now);
+
+  // Try to acquire lock
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
+      job_name: 'extract_missing_frames',
+      lock_id: lockId,
+      acquired_at: now,
+      expires_at: expiresAt,
+    });
+
+  if (lockError) {
+    return NextResponse.json({
+      ok: true,
+      skipped: true,
+      reason: 'Lock held by another instance'
+    }, { status: 202 });
+  }
+
   try {
     // Find locked clips missing last_frame_url
     const { data: clips, error } = await supabase
@@ -88,5 +118,12 @@ export async function GET(req: NextRequest) {
   } catch (err) {
     console.error('[extract-missing-frames] Unexpected error:', err);
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
+  } finally {
+    // Release the lock
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('job_name', 'extract_missing_frames')
+      .eq('lock_id', lockId);
   }
 }

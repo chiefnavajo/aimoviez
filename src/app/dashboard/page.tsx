@@ -558,6 +558,9 @@ function VotingArena() {
   const [_isLoadingMore, setIsLoadingMore] = useState(false);
   const loadingMoreRef = useRef(false);
 
+  // FIX: Ref to track midnight timeout for proper cleanup of recursive timeout
+  const midnightTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
@@ -651,8 +654,14 @@ function VotingArena() {
 
   // Auto-refresh at midnight UTC when daily votes reset
   // This ensures users don't need to manually refresh to see their reset vote count
+  // FIX: Use ref to track recursive timeout and clear properly on cleanup
   useEffect(() => {
     const scheduleNextMidnightRefresh = () => {
+      // Clear any existing timeout first to prevent duplicates
+      if (midnightTimeoutRef.current) {
+        clearTimeout(midnightTimeoutRef.current);
+      }
+
       const now = new Date();
       // Calculate next midnight UTC
       const nextMidnight = new Date(Date.UTC(
@@ -664,20 +673,21 @@ function VotingArena() {
       const msUntilMidnight = nextMidnight.getTime() - now.getTime();
 
       // Set timeout to refetch at midnight UTC
-      const timeoutId = setTimeout(() => {
+      midnightTimeoutRef.current = setTimeout(() => {
         console.log('[Dashboard] Midnight UTC - refreshing vote data');
         refetch();
         // Schedule the next midnight refresh
         scheduleNextMidnightRefresh();
       }, msUntilMidnight);
-
-      return timeoutId;
     };
 
-    const timeoutId = scheduleNextMidnightRefresh();
+    scheduleNextMidnightRefresh();
 
     return () => {
-      clearTimeout(timeoutId);
+      if (midnightTimeoutRef.current) {
+        clearTimeout(midnightTimeoutRef.current);
+        midnightTimeoutRef.current = null;
+      }
     };
   }, [refetch]);
 

@@ -89,10 +89,10 @@ export async function GET(
       // No session - anonymous user
     }
 
-    // 1. Fetch the clip
+    // 1. Fetch the clip (include season_id for ranking queries)
     const { data: clip, error: clipError } = await supabase
       .from('tournament_clips')
-      .select('id, video_url, thumbnail_url, username, avatar_url, title, description, vote_count, weighted_score, genre, slot_position, status, view_count, created_at')
+      .select('id, video_url, thumbnail_url, username, avatar_url, title, description, vote_count, weighted_score, genre, slot_position, status, view_count, created_at, season_id')
       .eq('id', clipId)
       .maybeSingle();
 
@@ -163,16 +163,31 @@ export async function GET(
       .eq('is_deleted', false);
 
     // 6. Get rank in slot (how many clips have more votes)
-    const { count: higherRankedClips } = await supabase
+    // FIX: Include season_id filter to prevent cross-season ranking pollution
+    const seasonIdForRank = clip.season_id || slot?.season_id || activeSeason?.id;
+
+    let rankQuery = supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
       .eq('slot_position', clip.slot_position)
       .gt('vote_count', clip.vote_count || 0);
 
-    const { count: totalClipsInSlot } = await supabase
+    if (seasonIdForRank) {
+      rankQuery = rankQuery.eq('season_id', seasonIdForRank);
+    }
+
+    const { count: higherRankedClips } = await rankQuery;
+
+    let totalQuery = supabase
       .from('tournament_clips')
       .select('id', { count: 'exact', head: true })
       .eq('slot_position', clip.slot_position);
+
+    if (seasonIdForRank) {
+      totalQuery = totalQuery.eq('season_id', seasonIdForRank);
+    }
+
+    const { count: totalClipsInSlot } = await totalQuery;
 
     // 7. Determine clip status
     let clipStatus: 'pending' | 'active' | 'voting' | 'locked' | 'rejected' = 'active';
