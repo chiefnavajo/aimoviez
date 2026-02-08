@@ -21,8 +21,8 @@ SET genre = 'action'
 WHERE genre IS NULL AND status = 'active';
 
 -- Step 5: Add feature flag for multi-genre (disabled by default)
-INSERT INTO feature_flags (key, enabled, description)
-VALUES ('multi_genre_enabled', false, 'Enable multi-genre seasons with horizontal swipe')
+INSERT INTO feature_flags (key, name, enabled, description)
+VALUES ('multi_genre_enabled', 'Multi-Genre Seasons', false, 'Enable multi-genre seasons with horizontal swipe')
 ON CONFLICT (key) DO NOTHING;
 
 -- Verification queries:

@@ -79,6 +79,7 @@ interface Season {
   id: string;
   label: string;
   description?: string;
+  genre?: string;
   status: 'draft' | 'active' | 'finished' | 'archived';
   total_slots: number;
   created_at: string;
@@ -248,6 +249,7 @@ export default function AdminDashboard() {
   const [creatingSeason, setCreatingSeason] = useState(false);
   const [newSeasonLabel, setNewSeasonLabel] = useState('');
   const [newSeasonDescription, setNewSeasonDescription] = useState('');
+  const [newSeasonGenre, setNewSeasonGenre] = useState('');
   const [newSeasonSlots, setNewSeasonSlots] = useState(75);
 
   // Edit season description state
@@ -319,6 +321,7 @@ export default function AdminDashboard() {
         body: JSON.stringify({
           label: newSeasonLabel.trim(),
           description: newSeasonDescription.trim(),
+          genre: newSeasonGenre || undefined,
           total_slots: newSeasonSlots,
           auto_activate: true,
         }),
@@ -331,6 +334,7 @@ export default function AdminDashboard() {
         setShowCreateSeason(false);
         setNewSeasonLabel('');
         setNewSeasonDescription('');
+        setNewSeasonGenre('');
         setNewSeasonSlots(75);
         fetchSeasons();
         fetchSlotInfo();
@@ -2366,6 +2370,7 @@ export default function AdminDashboard() {
               <option value="all" className="bg-gray-900">All Seasons</option>
               {seasons.map((season) => (
                 <option key={season.id} value={season.id} className="bg-gray-900">
+                  {season.genre ? `${GENRES.find(g => g.id === season.genre)?.emoji || ''} ` : ''}
                   {season.label || `Season ${season.id.slice(0, 8)}`}
                   {season.status === 'active' ? ' (Active)' :
                    season.status === 'finished' ? ' (Finished)' :
@@ -4267,6 +4272,27 @@ export default function AdminDashboard() {
                     placeholder="e.g., In a world where clips battle for glory..."
                   />
                   <p className="text-xs text-white/40 mt-1">Typewriter intro shown on Story page (optional)</p>
+                </div>
+
+                {/* Genre Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-white/90 mb-2">
+                    Genre
+                  </label>
+                  <select
+                    value={newSeasonGenre}
+                    onChange={(e) => setNewSeasonGenre(e.target.value)}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white
+                             focus:border-cyan-400 focus:outline-none transition-colors"
+                  >
+                    <option value="">Select a genre (optional)...</option>
+                    {GENRES.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.emoji} {g.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-white/40 mt-1">Multi-genre: Each genre has its own active season</p>
                 </div>
 
                 {/* Total Slots */}

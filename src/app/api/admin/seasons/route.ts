@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
     const { data: seasons, error } = await supabase
       .from('seasons')
-      .select('id, label, status, total_slots, created_at, description')
+      .select('id, label, status, total_slots, created_at, description, genre')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -114,6 +114,7 @@ export async function POST(req: NextRequest) {
     const {
       label,
       description = '',
+      genre,
       total_slots = 75,
       auto_activate = false,
     } = body;
@@ -125,12 +126,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // If auto_activate, finish all other active seasons
+    // If auto_activate with genre, only finish the active season for the same genre
+    // If no genre, finish all active seasons (legacy behavior)
     if (auto_activate) {
-      await supabase
-        .from('seasons')
-        .update({ status: 'finished' })
-        .eq('status', 'active');
+      if (genre) {
+        await supabase
+          .from('seasons')
+          .update({ status: 'finished' })
+          .eq('status', 'active')
+          .eq('genre', genre);
+      } else {
+        await supabase
+          .from('seasons')
+          .update({ status: 'finished' })
+          .eq('status', 'active');
+      }
     }
 
     // Create season
@@ -139,6 +149,7 @@ export async function POST(req: NextRequest) {
       .insert({
         label,
         description,
+        genre: genre || null,
         total_slots,
         status: auto_activate ? 'active' : 'draft',
         created_at: new Date().toISOString(),
@@ -155,11 +166,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Create slots for this season
-    // If auto_activate, set first slot to 'voting' (timer starts when first clip is uploaded)
+    // If auto_activate, set first slot to 'waiting_for_clips' (transitions to 'voting' when first clip arrives)
     const slots = Array.from({ length: total_slots }, (_, i) => ({
       season_id: season.id,
       slot_position: i + 1,
-      status: (auto_activate && i === 0) ? 'voting' : 'upcoming',
+      status: (auto_activate && i === 0) ? 'waiting_for_clips' : 'upcoming',
+      genre: genre || null,
       voting_started_at: null, // Timer starts when first clip is uploaded
       voting_ends_at: null,
       voting_duration_hours: 24,
