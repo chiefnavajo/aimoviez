@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
   Loader2,
@@ -131,6 +131,13 @@ export default function AIGeneratePanel({
     reference_count: number;
   }>>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<Set<string>>(new Set());
+  const [previewCharacter, setPreviewCharacter] = useState<{
+    id: string;
+    label: string | null;
+    frontal_image_url: string;
+    element_index: number;
+    reference_count: number;
+  } | null>(null);
 
   // AI Prompt Suggestion state
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState<boolean>(() => {
@@ -1060,7 +1067,7 @@ export default function AIGeneratePanel({
                 return (
                   <button
                     key={char.id}
-                    onClick={() => toggleCharacter(char.id)}
+                    onClick={() => setPreviewCharacter(char)}
                     className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all ${
                       isSelected
                         ? 'bg-yellow-500/20 border-2 border-yellow-500'
@@ -1077,16 +1084,21 @@ export default function AIGeneratePanel({
                           isSelected ? 'ring-2 ring-yellow-500' : 'grayscale'
                         }`}
                       />
-                      {/* Checkbox overlay */}
-                      <div
-                        className={`absolute -top-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-xs ${
+                      {/* Toggle button - stops propagation to prevent opening modal */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCharacter(char.id);
+                        }}
+                        className={`absolute -top-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-colors ${
                           isSelected
-                            ? 'bg-yellow-500 text-black'
-                            : 'bg-white/20 text-white/40'
+                            ? 'bg-yellow-500 text-black hover:bg-yellow-400'
+                            : 'bg-white/30 text-white/60 hover:bg-white/50'
                         }`}
+                        aria-label={isSelected ? `Deselect ${char.label || `Element ${char.element_index}`}` : `Select ${char.label || `Element ${char.element_index}`}`}
                       >
-                        {isSelected ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : null}
-                      </div>
+                        {isSelected ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <span className="text-sm font-bold">+</span>}
+                      </button>
                     </div>
                     {/* Label */}
                     <p className={`text-xs sm:text-sm mt-1.5 font-medium truncate w-full text-center ${
@@ -1105,10 +1117,81 @@ export default function AIGeneratePanel({
             {/* Info text */}
             <p className="text-xs text-white/40 mt-3">
               {selectedCharacterIds.size > 0
-                ? 'Selected characters will maintain consistent appearance via Kling O1'
-                : 'No characters selected - clip will generate without character references'}
+                ? 'Tap character to preview · Selected will maintain consistent appearance'
+                : 'Tap to preview · Toggle checkbox to select characters'}
             </p>
           </div>
+
+          {/* Character Preview Modal */}
+          <AnimatePresence>
+            {previewCharacter && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+                onClick={() => setPreviewCharacter(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') setPreviewCharacter(null);
+                }}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="preview-character-title"
+              >
+                <motion.div
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.9, opacity: 0 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-gray-900 rounded-2xl p-4 max-w-sm w-full border border-yellow-500/30 shadow-2xl"
+                >
+                  {/* Large Image */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={previewCharacter.frontal_image_url}
+                    alt={previewCharacter.label || `Element ${previewCharacter.element_index}`}
+                    className="w-full aspect-square object-cover rounded-xl mb-4"
+                  />
+
+                  {/* Character Info */}
+                  <div className="text-center mb-4">
+                    <h3 id="preview-character-title" className="text-lg font-bold text-yellow-300">
+                      {previewCharacter.label || `Element ${previewCharacter.element_index}`}
+                    </h3>
+                    <p className="text-sm text-white/50">@Element{previewCharacter.element_index}</p>
+                    {previewCharacter.reference_count > 0 && (
+                      <p className="text-xs text-white/40 mt-1">
+                        {previewCharacter.reference_count} reference angle{previewCharacter.reference_count !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        toggleCharacter(previewCharacter.id);
+                        setPreviewCharacter(null);
+                      }}
+                      className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                        selectedCharacterIds.has(previewCharacter.id)
+                          ? 'bg-white/10 text-white/70 hover:bg-white/20'
+                          : 'bg-yellow-500 text-black hover:bg-yellow-400'
+                      }`}
+                    >
+                      {selectedCharacterIds.has(previewCharacter.id) ? 'Deselect' : 'Select'}
+                    </button>
+                    <button
+                      onClick={() => setPreviewCharacter(null)}
+                      className="flex-1 py-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
