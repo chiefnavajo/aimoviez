@@ -10,6 +10,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
+import { isValidGenre, getGenreCodes } from '@/lib/genres';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -234,6 +235,13 @@ export async function POST(request: NextRequest) {
     }
     if (!genre) {
       return NextResponse.json({ success: false, error: 'Genre is required' }, { status: 400 });
+    }
+    // Validate genre is a known genre code
+    if (!isValidGenre(genre.toLowerCase())) {
+      return NextResponse.json({
+        success: false,
+        error: `Invalid genre "${genre}". Valid genres: ${getGenreCodes().join(', ')}`
+      }, { status: 400 });
     }
     if (!title) {
       return NextResponse.json({ success: false, error: 'Title is required' }, { status: 400 });

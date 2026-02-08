@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
 import { rateLimit } from '@/lib/rate-limit';
+import { isValidGenre, getGenreCodes } from '@/lib/genres';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -126,20 +127,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate genre if provided
+    if (genre && !isValidGenre(genre.toLowerCase())) {
+      return NextResponse.json(
+        { error: `Invalid genre "${genre}". Valid genres: ${getGenreCodes().join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // If auto_activate with genre, only finish the active season for the same genre
     // If no genre, finish all active seasons (legacy behavior)
+    let deactivateWarning: string | undefined;
     if (auto_activate) {
+      let deactivateError;
       if (genre) {
-        await supabase
+        const result = await supabase
           .from('seasons')
           .update({ status: 'finished' })
           .eq('status', 'active')
           .eq('genre', genre);
+        deactivateError = result.error;
       } else {
-        await supabase
+        const result = await supabase
           .from('seasons')
           .update({ status: 'finished' })
           .eq('status', 'active');
+        deactivateError = result.error;
+      }
+      if (deactivateError) {
+        console.error('[POST /api/admin/seasons] Failed to deactivate existing seasons:', deactivateError);
+        deactivateWarning = 'Warning: Failed to deactivate existing seasons. New season created but may conflict.';
       }
     }
 
@@ -200,11 +217,12 @@ export async function POST(req: NextRequest) {
           total_slots,
           locked_slots: 0,
           voting_slots: 0,
-          upcoming_slots: total_slots,
+          upcoming_slots: total_slots - (auto_activate ? 1 : 0),  // First slot is waiting_for_clips
           completion_percent: 0,
         },
       },
       message: `Season "${label}" created with ${total_slots} slots`,
+      warning: deactivateWarning,
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/admin/seasons] Unexpected error:', err);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LAUNCH_GENRES, getGenreEmoji, getGenreLabel } from '@/lib/genres';
 
 /**
@@ -52,7 +52,8 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [multiGenreEnabled, setMultiGenreEnabled] = useState(false);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  // Use ref to avoid re-triggering useEffect when initial load completes
+  const isInitialLoadRef = useRef(true);
 
   // Fetch active seasons from API
   const fetchGenres = useCallback(async () => {
@@ -73,7 +74,7 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
 
       // Only restore from localStorage on initial mount, not on refresh
       // This prevents losing user's current position when calling refresh()
-      if (isInitialLoad && typeof window !== 'undefined' && seasons.length > 0) {
+      if (isInitialLoadRef.current && typeof window !== 'undefined' && seasons.length > 0) {
         try {
           const savedGenre = localStorage.getItem(STORAGE_KEY);
           if (savedGenre) {
@@ -85,7 +86,7 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
         } catch {
           // localStorage not available (private browsing) - ignore
         }
-        setIsInitialLoad(false);
+        isInitialLoadRef.current = false;
       }
     } catch (err) {
       console.error('[useGenreSwiper] Error fetching genres:', err);
@@ -93,7 +94,7 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [isInitialLoad]);
+  }, []);  // No dependencies - ref doesn't trigger re-render
 
   // Fetch on mount
   useEffect(() => {

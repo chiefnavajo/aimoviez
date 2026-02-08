@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
     // 1. Get season - either by ID or the active one
     let seasonQuery = supabase
       .from('seasons')
-      .select('id, label, total_slots, status');
+      .select('id, label, total_slots, status, genre');
 
     if (season_id) {
       // Reset specific season by ID (any status)
@@ -98,12 +98,24 @@ export async function POST(req: NextRequest) {
 
     // 1b. If reactivate is true and season is not active, set it to active
     if (reactivate && season.status !== 'active') {
-      // First, set any other active seasons to 'finished'
-      const { error: deactivateError } = await supabase
+      // First, set other active seasons of the SAME GENRE to 'finished'
+      // This preserves multi-genre: Action, Comedy, Horror can run in parallel
+      const seasonGenre = (season as { genre?: string }).genre;
+      let deactivateQuery = supabase
         .from('seasons')
         .update({ status: 'finished' })
         .eq('status', 'active')
         .neq('id', season.id);
+
+      if (seasonGenre) {
+        // Only finish same-genre seasons
+        deactivateQuery = deactivateQuery.eq('genre', seasonGenre);
+      } else {
+        // If no genre, only finish other null-genre seasons
+        deactivateQuery = deactivateQuery.is('genre', null);
+      }
+
+      const { error: deactivateError } = await deactivateQuery;
 
       if (deactivateError) {
         console.error('[reset-season] deactivateError:', deactivateError);

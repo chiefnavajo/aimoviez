@@ -61,11 +61,32 @@ export async function POST(req: NextRequest) {
   const supabase = createSupabaseServerClient();
 
   try {
-    // 1. Aktywny Season
-    const { data: season, error: seasonError } = await supabase
+    // Parse optional season_id or genre from request body (for multi-genre support)
+    let targetSeasonId: string | undefined;
+    let targetGenre: string | undefined;
+    try {
+      const body = await req.json();
+      targetSeasonId = body.season_id;
+      targetGenre = body.genre;
+    } catch {
+      // No body or invalid JSON - use default behavior
+    }
+
+    // 1. Get Season - by ID, by genre, or first active
+    let seasonQuery = supabase
       .from('seasons')
-      .select('id, status, label, total_slots')
-      .eq('status', 'active')
+      .select('id, status, label, total_slots, genre')
+      .eq('status', 'active');
+
+    if (targetSeasonId) {
+      // Specific season by ID
+      seasonQuery = seasonQuery.eq('id', targetSeasonId);
+    } else if (targetGenre) {
+      // Season by genre
+      seasonQuery = seasonQuery.eq('genre', targetGenre.toLowerCase());
+    }
+
+    const { data: season, error: seasonError } = await seasonQuery
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();

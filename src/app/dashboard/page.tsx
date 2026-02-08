@@ -799,6 +799,14 @@ function VotingArena() {
     setActiveIndex(0);
   }, [genreParam]);
 
+  // Bound activeIndex when clips array shrinks (e.g., realtime deletion)
+  useEffect(() => {
+    const clipsLength = votingData?.clips?.length ?? 0;
+    if (clipsLength > 0 && activeIndex >= clipsLength) {
+      setActiveIndex(clipsLength - 1);
+    }
+  }, [votingData?.clips?.length, activeIndex]);
+
   // Video prefetching - preload next clips for smooth playback
   // FIX: Use Map to cache videos by clip_id, preventing DOM accumulation
   // PERF: Use 'auto' preload for fully buffered next videos
@@ -1295,12 +1303,12 @@ function VotingArena() {
   };
 
   // Handler for when a comment is added - update comment count optimistically
-  const handleCommentAdded = () => {
+  const handleCommentAdded = useCallback(() => {
     if (!currentClip?.clip_id) return;
 
-    const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main']);
+    const previous = queryClient.getQueryData<VotingState>(['voting', 'track-main', genreParam]);
     if (previous) {
-      queryClient.setQueryData<VotingState>(['voting', 'track-main'], {
+      queryClient.setQueryData<VotingState>(['voting', 'track-main', genreParam], {
         ...previous,
         clips: previous.clips.map((clip) =>
           clip.clip_id === currentClip.clip_id
@@ -1309,7 +1317,7 @@ function VotingArena() {
         ),
       });
     }
-  };
+  }, [currentClip?.clip_id, queryClient, genreParam]);
 
   // Loading state with skeleton - improved with gradient background
   if (isLoading) {
