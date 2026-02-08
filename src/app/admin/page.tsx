@@ -2922,7 +2922,7 @@ export default function AdminDashboard() {
 
       {/* FEATURE FLAGS TAB CONTENT */}
       {activeTab === 'features' && (
-        <div className="max-w-7xl mx-auto px-4 py-6">
+        <div className="max-w-7xl mx-auto px-4 py-6 overflow-hidden">
           {/* Feature Flags Header */}
           <div className="mb-6">
             <h2 className="text-xl font-bold mb-2">Feature Flags</h2>
@@ -2994,9 +2994,9 @@ export default function AdminDashboard() {
                                   {flag.enabled ? 'ON' : 'OFF'}
                                 </span>
                               </div>
-                              <p className="text-sm text-white/60">{flag.description}</p>
+                              <p className="text-sm text-white/60 break-words">{flag.description}</p>
                               {flag.enabled && Object.keys(flag.config || {}).length > 0 && (
-                                <div className="mt-2 text-xs text-white/40 font-mono">
+                                <div className="mt-2 text-xs text-white/40 font-mono break-all overflow-hidden">
                                   Config: {JSON.stringify(flag.config)}
                                 </div>
                               )}
