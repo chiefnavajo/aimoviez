@@ -300,7 +300,9 @@ export async function POST(req: NextRequest) {
  * Body: {
  *   season_id: string,
  *   status?: 'draft' | 'active' | 'archived',
- *   label?: string
+ *   label?: string,
+ *   description?: string,
+ *   genre?: string (if changed, auto-syncs to all slots and clips in the season)
  * }
  */
 export async function PATCH(req: NextRequest) {
@@ -316,7 +318,7 @@ export async function PATCH(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
 
-    const { season_id, status, label, description } = body;
+    const { season_id, status, label, description, genre } = body;
 
     if (!season_id) {
       return NextResponse.json(
@@ -325,8 +327,16 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // Validate genre if provided
+    if (genre && !isValidGenre(genre.toLowerCase())) {
+      return NextResponse.json(
+        { error: `Invalid genre "${genre}". Valid genres: ${getGenreCodes().join(', ')}` },
+        { status: 400 }
+      );
+    }
+
     // Build update object
-    const updates: Record<string, string> = {};
+    const updates: Record<string, string | null> = {};
 
     // First get the target season to validate status transitions and get genre
     const { data: targetSeason, error: targetError } = await supabase
@@ -382,6 +392,7 @@ export async function PATCH(req: NextRequest) {
     }
     if (label) updates.label = label;
     if (description !== undefined) updates.description = description;
+    if (genre !== undefined) updates.genre = genre ? genre.toLowerCase() : null;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
@@ -405,6 +416,33 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    // Sync genre to slots and clips if genre was updated
+    let genreSyncResult = { slots: 0, clips: 0 };
+    if (genre !== undefined && genre !== targetSeason.genre) {
+      const newGenre = genre ? genre.toLowerCase() : null;
+
+      // Update all slots in this season
+      const { count: slotsUpdated } = await supabase
+        .from('story_slots')
+        .update({ genre: newGenre })
+        .eq('season_id', season_id)
+        .select('id', { count: 'exact', head: true });
+
+      // Update all clips in this season
+      const { count: clipsUpdated } = await supabase
+        .from('tournament_clips')
+        .update({ genre: newGenre || 'action' }) // clips require non-null genre, default to 'action'
+        .eq('season_id', season_id)
+        .select('id', { count: 'exact', head: true });
+
+      genreSyncResult = {
+        slots: slotsUpdated ?? 0,
+        clips: clipsUpdated ?? 0
+      };
+
+      console.info(`[PATCH /api/admin/seasons] Genre synced to ${genreSyncResult.slots} slots and ${genreSyncResult.clips} clips`);
+    }
+
     // Get admin info for audit logging
     const adminAuth = await checkAdminAuth();
 
@@ -418,15 +456,23 @@ export async function PATCH(req: NextRequest) {
       details: {
         previousStatus: targetSeason.status,
         newStatus: status || targetSeason.status,
+        previousGenre: targetSeason.genre,
+        newGenre: genre !== undefined ? (genre ? genre.toLowerCase() : null) : targetSeason.genre,
         label: label || targetSeason.label,
         updates: Object.keys(updates),
+        genreSync: genreSyncResult.slots > 0 || genreSyncResult.clips > 0 ? genreSyncResult : undefined,
       },
     });
+
+    const message = genreSyncResult.slots > 0 || genreSyncResult.clips > 0
+      ? `Season updated. Genre synced to ${genreSyncResult.slots} slots and ${genreSyncResult.clips} clips.`
+      : 'Season updated successfully';
 
     return NextResponse.json({
       success: true,
       season,
-      message: 'Season updated successfully',
+      message,
+      genreSync: genreSyncResult.slots > 0 || genreSyncResult.clips > 0 ? genreSyncResult : undefined,
     }, { status: 200 });
   } catch (err) {
     console.error('[PATCH /api/admin/seasons] Unexpected error:', err);
