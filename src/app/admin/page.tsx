@@ -257,6 +257,11 @@ export default function AdminDashboard() {
   const [editDescriptionText, setEditDescriptionText] = useState('');
   const [savingDescription, setSavingDescription] = useState(false);
 
+  // Edit season genre state
+  const [editingGenre, setEditingGenre] = useState(false);
+  const [editGenreValue, setEditGenreValue] = useState('');
+  const [savingGenre, setSavingGenre] = useState(false);
+
   // Archive season state
   const [archivingSeason, setArchivingSeason] = useState(false);
 
@@ -433,6 +438,50 @@ export default function AdminDashboard() {
       alert('Network error - failed to update description');
     } finally {
       setSavingDescription(false);
+    }
+  };
+
+  // ============================================================================
+  // EDIT SEASON GENRE
+  // ============================================================================
+
+  const handleEditGenre = (seasonId: string) => {
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+    setEditGenreValue(season.genre || '');
+    setEditingGenre(true);
+  };
+
+  const handleSaveGenre = async () => {
+    if (seasonFilter === 'all') return;
+
+    setSavingGenre(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          season_id: seasonFilter,
+          genre: editGenreValue || null,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        const syncMsg = data.genreSync
+          ? ` Synced to ${data.genreSync.slots} slots and ${data.genreSync.clips} clips.`
+          : '';
+        alert(`Genre updated!${syncMsg}`);
+        fetchSeasons();
+        setEditingGenre(false);
+      } else {
+        alert(`Error: ${data.error || 'Failed to update genre'}`);
+      }
+    } catch (error) {
+      console.error('Failed to update genre:', error);
+      alert('Network error - failed to update genre');
+    } finally {
+      setSavingGenre(false);
     }
   };
 
@@ -2486,6 +2535,19 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">Description</span>
             </motion.button>
           )}
+          {/* Edit Genre Button - show when a specific season is selected */}
+          {seasonFilter !== 'all' && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleEditGenre(seasonFilter)}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-orange-500/20 border border-orange-500/40 hover:bg-orange-500/30 text-orange-300 whitespace-nowrap"
+              type="button"
+              title="Edit genre and sync to all slots/clips in this season"
+            >
+              <Layers className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Genre</span>
+            </motion.button>
+          )}
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowBulkCleanup(true)}
@@ -2553,6 +2615,71 @@ export default function AdminDashboard() {
                     <Save className="w-3.5 h-3.5" />
                   )}
                   Save
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inline Genre Editor */}
+      <AnimatePresence>
+        {editingGenre && seasonFilter !== 'all' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-7xl mx-auto px-4"
+          >
+            <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-4 mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-orange-300">
+                  Season Genre (syncs to all slots &amp; clips)
+                </label>
+                <button
+                  onClick={() => setEditingGenre(false)}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <select
+                value={editGenreValue}
+                onChange={(e) => setEditGenreValue(e.target.value)}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm
+                         focus:border-orange-400 focus:outline-none transition-colors"
+              >
+                <option value="">No genre (legacy)</option>
+                <option value="action">Action</option>
+                <option value="comedy">Comedy</option>
+                <option value="drama">Drama</option>
+                <option value="horror">Horror</option>
+                <option value="romance">Romance</option>
+                <option value="sci-fi">Sci-Fi</option>
+                <option value="thriller">Thriller</option>
+                <option value="fantasy">Fantasy</option>
+                <option value="documentary">Documentary</option>
+                <option value="animation">Animation</option>
+              </select>
+              <p className="text-xs text-orange-300/60 mt-2">
+                Changing the genre will update all slots and clips in this season to match.
+              </p>
+              <div className="flex items-center justify-end mt-3">
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSaveGenre}
+                  disabled={savingGenre}
+                  className="px-4 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-400 text-white text-sm font-medium
+                           transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  type="button"
+                >
+                  {savingGenre ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save &amp; Sync
                 </motion.button>
               </div>
             </div>
