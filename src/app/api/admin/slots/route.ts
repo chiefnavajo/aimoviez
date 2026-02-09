@@ -33,15 +33,31 @@ export async function GET(req: NextRequest) {
     const season_id = searchParams.get('season_id');
     const simple = searchParams.get('simple') === 'true';
 
-    // Get active season
-    const { data: activeSeason } = await supabase
-      .from('seasons')
-      .select('id, status, total_slots')
-      .eq('status', 'active')
-      .maybeSingle();
+    // Get target season - either by ID or first active season
+    let targetSeason = null;
 
-    if (!activeSeason) {
-      // Return empty state if no active season
+    if (season_id) {
+      // Fetch specific season by ID
+      const { data } = await supabase
+        .from('seasons')
+        .select('id, status, total_slots')
+        .eq('id', season_id)
+        .maybeSingle();
+      targetSeason = data;
+    } else {
+      // Fallback to first active season
+      const { data } = await supabase
+        .from('seasons')
+        .select('id, status, total_slots')
+        .eq('status', 'active')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      targetSeason = data;
+    }
+
+    if (!targetSeason) {
+      // Return empty state if no season found
       return NextResponse.json({
         ok: true,
         currentSlot: 0,
@@ -52,8 +68,9 @@ export async function GET(req: NextRequest) {
       }, { status: 200 });
     }
 
-    const targetSeasonId = season_id || activeSeason.id;
-    const totalSlots = activeSeason.total_slots || 75;
+    const targetSeasonId = targetSeason.id;
+    const totalSlots = targetSeason.total_slots || 75;
+    const seasonStatus = targetSeason.status;
 
     // Get current voting or waiting_for_clips slot
     let slotStatus: 'upcoming' | 'voting' | 'locked' | 'waiting_for_clips' = 'upcoming';
@@ -112,7 +129,7 @@ export async function GET(req: NextRequest) {
         ok: true,
         currentSlot,
         totalSlots,
-        seasonStatus: activeSeason.status,
+        seasonStatus,
         slotStatus,
         clipsInSlot: clipsInSlot || 0,
         season_id: targetSeasonId,
@@ -183,7 +200,7 @@ export async function GET(req: NextRequest) {
       season_id: targetSeasonId,
       currentSlot,
       totalSlots,
-      seasonStatus: activeSeason.status,
+      seasonStatus,
       slotStatus,
       clipsInSlot: clipsInSlot || 0,
     }, { status: 200 });

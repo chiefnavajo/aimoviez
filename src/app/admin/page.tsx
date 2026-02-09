@@ -342,7 +342,7 @@ export default function AdminDashboard() {
         setNewSeasonGenre('');
         setNewSeasonSlots(75);
         fetchSeasons();
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
       } else {
         alert(`Error: ${data.error || 'Failed to create season'}`);
       }
@@ -593,7 +593,7 @@ export default function AdminDashboard() {
       const data = await response.json();
       if (data.success) {
         fetchSeasons();
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         setBulkResult({
           success: true,
           message: `Season "${activeSeason.label}" finished successfully`,
@@ -686,7 +686,7 @@ export default function AdminDashboard() {
       setShowBulkCleanup(false);
       setNewSeason1Label('Season 1');
       fetchSeasons();
-      fetchSlotInfo();
+      fetchSlotInfo(seasonFilter);
       setBulkResult({
         success: true,
         message: `Cleanup complete! Deleted ${deletedCount} season(s). Created "${newSeason1Label.trim()}" with 75 slots.`,
@@ -726,9 +726,10 @@ export default function AdminDashboard() {
   // FETCH SLOT INFO
   // ============================================================================
 
-  const fetchSlotInfo = async () => {
+  const fetchSlotInfo = async (seasonId?: string) => {
     try {
-      const response = await fetch('/api/admin/slots');
+      const seasonParam = seasonId && seasonId !== 'all' ? `?season_id=${seasonId}` : '';
+      const response = await fetch(`/api/admin/slots${seasonParam}`);
       const data = await response.json();
       if (data.ok) {
         setSlotInfo({
@@ -746,9 +747,11 @@ export default function AdminDashboard() {
     }
   };
 
+  // Re-fetch slot info when season filter changes
   useEffect(() => {
-    fetchSlotInfo();
-  }, []);
+    fetchSlotInfo(seasonFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seasonFilter]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -1047,7 +1050,7 @@ export default function AdminDashboard() {
           message: `Season reset! Now voting on slot 1 with ${data.clips_in_slot} clips.`,
           clipsInSlot: data.clips_in_slot,
         });
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
       } else {
         setResetResult({
@@ -1118,7 +1121,7 @@ export default function AdminDashboard() {
           message: `Full clean reset complete! Season back to slot 1 with ${data.clips_in_slot} clips. All votes cleared.`,
           clipsInSlot: data.clips_in_slot,
         });
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
       } else {
         setResetResult({
@@ -1175,7 +1178,7 @@ export default function AdminDashboard() {
           message: data.message || `Winner assigned: ${winnerCandidate.title}`,
         });
         // Refresh data
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
         // Close modal after a short delay
         setTimeout(() => {
@@ -1278,7 +1281,7 @@ export default function AdminDashboard() {
           msg += ` | ${data.activeClipsRemaining} active clips remain in slot`;
         }
         setFreeAssignResult({ success: true, message: msg });
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
         setTimeout(() => {
           closeFreeAssignModal();
@@ -1325,7 +1328,7 @@ export default function AdminDashboard() {
           msg += ` | Slot ${data.slotCleared} → ${data.slotNewStatus}`;
         }
         setFreeAssignResult({ success: true, message: msg });
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
         setTimeout(() => closeFreeAssignModal(), 2500);
       } else {
@@ -1370,7 +1373,7 @@ export default function AdminDashboard() {
           msg += ` | ⚠ ${data.warning}`;
         }
         setFreeAssignResult({ success: true, message: msg });
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
         fetchClips();
         setTimeout(() => closeFreeAssignModal(), 2500);
       } else {
@@ -1413,7 +1416,7 @@ export default function AdminDashboard() {
             : `✅ Advanced to slot ${data.nextSlotPosition}. Winner: ${data.winnerClipId?.slice(0, 8)}...`,
           winnerClipId: data.winnerClipId,
         });
-        fetchSlotInfo(); // Refresh slot info
+        fetchSlotInfo(seasonFilter); // Refresh slot info
         fetchClips(); // Refresh clips
       } else {
         setAdvanceResult({
@@ -1609,7 +1612,7 @@ export default function AdminDashboard() {
         alert(message);
         // Refresh data
         fetchClips();
-        fetchSlotInfo();
+        fetchSlotInfo(seasonFilter);
       } else {
         alert(`Failed to unlock slot: ${data.error || 'Unknown error'}`);
       }
@@ -4121,7 +4124,7 @@ export default function AdminDashboard() {
                                 clip_count: s.clip_count,
                               })));
                             }
-                            fetchSlotInfo();
+                            fetchSlotInfo(seasonFilter);
                           } else {
                             setReorgResult({ success: false, message: data.error || 'Failed to swap slots' });
                           }
@@ -4304,7 +4307,7 @@ export default function AdminDashboard() {
                             clip_count: s.clip_count,
                           })));
                         }
-                        fetchSlotInfo();
+                        fetchSlotInfo(seasonFilter);
                       } else {
                         setReorgResult({ success: false, message: data.error || 'Failed to reorganize slots' });
                       }
