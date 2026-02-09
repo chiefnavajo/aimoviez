@@ -1558,6 +1558,12 @@ function StoryPage() {
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
+  // Horizontal swipe for season switching on mobile
+  const [seasonTouchStartX, setSeasonTouchStartX] = useState<number | null>(null);
+  const [seasonTouchEndX, setSeasonTouchEndX] = useState<number | null>(null);
+  const [seasonTouchStartY, setSeasonTouchStartY] = useState<number | null>(null);
+  const [seasonTouchEndY, setSeasonTouchEndY] = useState<number | null>(null);
+
   // Detect desktop vs mobile to render only ONE VideoPlayer (CSS hidden still plays audio)
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 768px)');
@@ -1728,6 +1734,51 @@ function StoryPage() {
       setSelectedSeasonId(seasons[currentIdx + 1].id);
     }
   }, [seasons, selectedSeasonId]);
+
+  // Horizontal swipe handlers for season switching on mobile
+  const handleSeasonTouchStart = useCallback((e: React.TouchEvent) => {
+    setSeasonTouchStartX(e.touches[0].clientX);
+    setSeasonTouchStartY(e.touches[0].clientY);
+    setSeasonTouchEndX(null);
+    setSeasonTouchEndY(null);
+  }, []);
+
+  const handleSeasonTouchMove = useCallback((e: React.TouchEvent) => {
+    setSeasonTouchEndX(e.touches[0].clientX);
+    setSeasonTouchEndY(e.touches[0].clientY);
+  }, []);
+
+  const handleSeasonTouchEnd = useCallback(() => {
+    if (seasonTouchStartX === null || seasonTouchEndX === null) return;
+    if (seasons.length <= 1) return;
+
+    const deltaX = seasonTouchStartX - seasonTouchEndX;
+    const deltaY = seasonTouchStartY !== null && seasonTouchEndY !== null
+      ? seasonTouchStartY - seasonTouchEndY
+      : 0;
+
+    // Only handle if swipe is more horizontal than vertical
+    if (Math.abs(deltaX) <= Math.abs(deltaY)) return;
+
+    const minSwipeDistance = 50;
+    if (Math.abs(deltaX) < minSwipeDistance) return;
+
+    if (deltaX > 0) {
+      // Swipe left = next season
+      goToNextSeason();
+      if (navigator.vibrate) navigator.vibrate(30);
+    } else {
+      // Swipe right = previous season
+      goToPrevSeason();
+      if (navigator.vibrate) navigator.vibrate(30);
+    }
+
+    // Reset
+    setSeasonTouchStartX(null);
+    setSeasonTouchEndX(null);
+    setSeasonTouchStartY(null);
+    setSeasonTouchEndY(null);
+  }, [seasonTouchStartX, seasonTouchEndX, seasonTouchStartY, seasonTouchEndY, seasons.length, goToNextSeason, goToPrevSeason]);
 
   // Loading state
   if (isLoading) {
@@ -1943,6 +1994,9 @@ function StoryPage() {
       <div
         className={`h-[100dvh] relative ${isLandscape ? 'video-landscape-mode' : ''}`}
         onClick={isLandscape ? handleScreenTap : undefined}
+        onTouchStart={handleSeasonTouchStart}
+        onTouchMove={handleSeasonTouchMove}
+        onTouchEnd={handleSeasonTouchEnd}
       >
         {/* Video Player - Full screen */}
         <div className="absolute inset-0">

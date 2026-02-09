@@ -554,9 +554,11 @@ function VotingArena() {
     },
   });
 
-  // Swipe handling
+  // Swipe handling (vertical for clips, horizontal for genres)
   const touchStartY = useRef<number>(0);
   const touchEndY = useRef<number>(0);
+  const touchStartX = useRef<number>(0);
+  const touchEndX = useRef<number>(0);
   const swipeThreshold = 50;
 
   // Video preload cache to prevent DOM accumulation on swipes
@@ -1079,11 +1081,13 @@ function VotingArena() {
     },
   });
 
-  // Touch handlers with pull-to-refresh
+  // Touch handlers with pull-to-refresh and horizontal genre swipe
   const handleTouchStart = (e: React.TouchEvent) => {
     if (showComments) return;
     touchStartY.current = e.touches[0].clientY;
     touchEndY.current = e.touches[0].clientY;
+    touchStartX.current = e.touches[0].clientX;
+    touchEndX.current = e.touches[0].clientX;
 
     // Pull-to-refresh: only start if at top of page
     if (activeIndex === 0 && !isRefreshing) {
@@ -1095,6 +1099,7 @@ function VotingArena() {
   const handleTouchMove = (e: React.TouchEvent) => {
     if (showComments) return;
     touchEndY.current = e.touches[0].clientY;
+    touchEndX.current = e.touches[0].clientX;
 
     // Pull-to-refresh logic
     if (isPulling.current && activeIndex === 0 && !isRefreshing) {
@@ -1135,12 +1140,33 @@ function VotingArena() {
     setPullDistance(0);
     isPulling.current = false;
 
-    // Normal swipe handling
-    const delta = touchStartY.current - touchEndY.current;
-    if (Math.abs(delta) < swipeThreshold) return;
+    // Calculate swipe deltas
+    const deltaY = touchStartY.current - touchEndY.current;
+    const deltaX = touchStartX.current - touchEndX.current;
 
-    if (delta > 0) handleNext();
-    else handlePrevious();
+    // Determine if swipe is more horizontal or vertical
+    const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY);
+
+    // Horizontal swipe for genre switching (when multi-genre enabled)
+    if (isHorizontalSwipe && Math.abs(deltaX) >= swipeThreshold && multiGenreEnabled && genres.length > 1) {
+      if (deltaX > 0 && hasNextGenre) {
+        // Swipe left = next genre
+        nextGenre();
+        // Haptic feedback
+        if (navigator.vibrate) navigator.vibrate(30);
+      } else if (deltaX < 0 && hasPrevGenre) {
+        // Swipe right = previous genre
+        prevGenre();
+        if (navigator.vibrate) navigator.vibrate(30);
+      }
+      return;
+    }
+
+    // Vertical swipe for clip navigation
+    if (!isHorizontalSwipe && Math.abs(deltaY) >= swipeThreshold) {
+      if (deltaY > 0) handleNext();
+      else handlePrevious();
+    }
   };
 
   const handleNext = useCallback(() => {
