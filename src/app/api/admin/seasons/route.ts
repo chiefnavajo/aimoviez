@@ -422,22 +422,22 @@ export async function PATCH(req: NextRequest) {
       const newGenre = genre ? genre.toLowerCase() : null;
 
       // Update all slots in this season
-      const { count: slotsUpdated } = await supabase
+      const { data: slotsData } = await supabase
         .from('story_slots')
         .update({ genre: newGenre })
         .eq('season_id', season_id)
-        .select('id', { count: 'exact', head: true });
+        .select('id');
 
       // Update all clips in this season
-      const { count: clipsUpdated } = await supabase
+      const { data: clipsData } = await supabase
         .from('tournament_clips')
         .update({ genre: newGenre || 'action' }) // clips require non-null genre, default to 'action'
         .eq('season_id', season_id)
-        .select('id', { count: 'exact', head: true });
+        .select('id');
 
       genreSyncResult = {
-        slots: slotsUpdated ?? 0,
-        clips: clipsUpdated ?? 0
+        slots: slotsData?.length ?? 0,
+        clips: clipsData?.length ?? 0
       };
 
       console.info(`[PATCH /api/admin/seasons] Genre synced to ${genreSyncResult.slots} slots and ${genreSyncResult.clips} clips`);
