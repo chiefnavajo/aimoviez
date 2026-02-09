@@ -357,9 +357,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
 
 
   // Swap video source when user navigates to a different segment
-  // IMPORTANT: Only depends on currentIndex — NOT completedSegments.
+  // IMPORTANT: Depends on currentIndex AND season.id — NOT completedSegments.
   // Data refetches (polling, realtime) change completedSegments reference every 30s,
   // which would reset the video mid-playback if included in deps.
+  // season.id is included to ensure we re-run after season switch completes.
   useEffect(() => {
     setVideoLoaded(false);
     setCurrentTime(0); // Reset time immediately to prevent progress bar jump
@@ -381,7 +382,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       video.currentTime = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentIndex]);
+  }, [currentIndex, season.id]);
 
   // Consolidated video playback control - prevents race conditions
   useEffect(() => {
