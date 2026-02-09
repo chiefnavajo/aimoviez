@@ -2032,25 +2032,7 @@ function StoryPage() {
           </div>
         )}
 
-        {/* Season Strip - Overlay at bottom (above nav, hidden when fullscreen or landscape) */}
-        <AnimatePresence>
-          {!isFullscreen && !isLandscape && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 50 }}
-              className="absolute bottom-16 left-0 right-0 z-30"
-            >
-              <SeasonStrip
-                seasons={seasons}
-                selectedSeasonId={selectedSeasonId}
-                onSelectSeason={setSelectedSeasonId}
-                onSwipeLeft={goToNextSeason}
-                onSwipeRight={goToPrevSeason}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* Season Strip removed - using horizontal swipe instead for cleaner mobile UX */}
 
         {/* Direction Voting Modal - Shows when Co-Director direction voting is open */}
         {!isFullscreen && !isLandscape && <DirectionVotingModal />}

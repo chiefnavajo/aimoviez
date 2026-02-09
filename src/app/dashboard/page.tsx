@@ -574,6 +574,15 @@ function VotingArena() {
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
+  // Mobile detection - hide genre tabs on mobile (use swipe instead)
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
   // Include genre param when multi-genre is enabled
@@ -1616,8 +1625,8 @@ function VotingArena() {
       {/* PWA Install Banner - shows at top when not installed */}
       {!isLandscape && <InstallPrompt variant="banner" />}
 
-      {/* Multi-genre header - shows genre tabs when enabled */}
-      {multiGenreEnabled && genres.length > 1 && !isLandscape && (
+      {/* Multi-genre header - shows genre tabs on DESKTOP only (mobile uses horizontal swipe) */}
+      {multiGenreEnabled && genres.length > 1 && !isLandscape && !isMobile && (
         <GenreHeader
           genres={genres}
           currentIndex={genreIndex}
