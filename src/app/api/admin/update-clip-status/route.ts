@@ -72,58 +72,59 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Fetch active season
-    const { data: season, error: seasonError } = await supabase
-      .from('seasons')
-      .select('id, status, total_slots')
-      .eq('status', 'active')
-      .maybeSingle();
-
-    if (seasonError) {
-      console.error('[update-clip-status] seasonError:', seasonError);
-      return NextResponse.json(
-        { ok: false, error: 'Failed to fetch active season' },
-        { status: 500 }
-      );
-    }
-
-    if (!season) {
-      return NextResponse.json(
-        { ok: false, error: 'No active season found' },
-        { status: 404 }
-      );
-    }
-
-    // 4. Fetch clip
-    const { data: clip, error: clipError } = await supabase
+    // 3. Fetch clip first to get its season_id
+    const { data: clipCheck, error: clipCheckError } = await supabase
       .from('tournament_clips')
-      .select('id, title, username, slot_position, status, vote_count, season_id')
+      .select('id, season_id, slot_position, status')
       .eq('id', clipId)
-      .maybeSingle();
+      .single();
 
-    if (clipError) {
-      console.error('[update-clip-status] clipError:', clipError);
-      return NextResponse.json(
-        { ok: false, error: 'Failed to fetch clip' },
-        { status: 500 }
-      );
-    }
-
-    if (!clip) {
+    if (clipCheckError || !clipCheck) {
+      console.error('[update-clip-status] clipCheckError:', clipCheckError);
       return NextResponse.json(
         { ok: false, error: 'Clip not found' },
         { status: 404 }
       );
     }
 
-    if (clip.season_id !== season.id) {
+    // 4. Fetch clip's season (derive from clip, not query active season)
+    const { data: season, error: seasonError } = await supabase
+      .from('seasons')
+      .select('id, status, total_slots')
+      .eq('id', clipCheck.season_id)
+      .single();
+
+    if (seasonError) {
+      console.error('[update-clip-status] seasonError:', seasonError);
       return NextResponse.json(
-        { ok: false, error: 'Clip belongs to a different season' },
-        { status: 400 }
+        { ok: false, error: 'Failed to fetch clip season' },
+        { status: 500 }
       );
     }
 
-    // 5. No-op check
+    if (!season) {
+      return NextResponse.json(
+        { ok: false, error: 'Clip season not found' },
+        { status: 404 }
+      );
+    }
+
+    // 5. Fetch full clip details (with extra fields for audit log)
+    const { data: clip, error: clipError } = await supabase
+      .from('tournament_clips')
+      .select('id, title, username, slot_position, status, vote_count, season_id')
+      .eq('id', clipId)
+      .single();
+
+    if (clipError || !clip) {
+      console.error('[update-clip-status] clipError:', clipError);
+      return NextResponse.json(
+        { ok: false, error: 'Failed to fetch clip details' },
+        { status: 500 }
+      );
+    }
+
+    // 6. No-op check
     if (clip.status === newStatus) {
       return NextResponse.json({
         ok: true,

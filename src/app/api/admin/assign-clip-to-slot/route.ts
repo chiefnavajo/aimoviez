@@ -77,29 +77,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Fetch active season
+    // 3. Fetch clip first to get its season_id (allows operating on non-active seasons)
+    const { data: clipCheck, error: clipCheckError } = await supabase
+      .from('tournament_clips')
+      .select('id, season_id')
+      .eq('id', clipId)
+      .single();
+
+    if (clipCheckError || !clipCheck) {
+      console.error('[assign-clip-to-slot] clipCheckError:', clipCheckError);
+      return NextResponse.json(
+        { ok: false, error: 'Clip not found' },
+        { status: 404 }
+      );
+    }
+
+    // 4. Fetch clip's season (derive from clip, not query active season)
+    // This allows fixing slots in non-active seasons too
     const { data: season, error: seasonError } = await supabase
       .from('seasons')
       .select('id, status, total_slots')
-      .eq('status', 'active')
-      .maybeSingle();
+      .eq('id', clipCheck.season_id)
+      .single();
 
     if (seasonError) {
       console.error('[assign-clip-to-slot] seasonError:', seasonError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to fetch active season' },
+        { ok: false, error: 'Failed to fetch clip season' },
         { status: 500 }
       );
     }
 
     if (!season) {
       return NextResponse.json(
-        { ok: false, error: 'No active season found' },
+        { ok: false, error: 'Clip season not found' },
         { status: 404 }
       );
     }
 
-    // 4. Validate slot position range
+    // 5. Validate slot position range
     const totalSlots = season.total_slots ?? 75;
     if (targetSlotPosition > totalSlots) {
       return NextResponse.json(
@@ -108,32 +124,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Fetch clip
+    // 6. Fetch full clip details (with extra fields for audit log)
     const { data: clip, error: clipError } = await supabase
       .from('tournament_clips')
       .select('id, title, username, slot_position, status, vote_count, weighted_score, hype_score, season_id')
       .eq('id', clipId)
-      .maybeSingle();
+      .single();
 
-    if (clipError) {
+    if (clipError || !clip) {
       console.error('[assign-clip-to-slot] clipError:', clipError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to fetch clip' },
+        { ok: false, error: 'Failed to fetch clip details' },
         { status: 500 }
-      );
-    }
-
-    if (!clip) {
-      return NextResponse.json(
-        { ok: false, error: 'Clip not found' },
-        { status: 404 }
-      );
-    }
-
-    if (clip.season_id !== season.id) {
-      return NextResponse.json(
-        { ok: false, error: 'Clip belongs to a different season' },
-        { status: 400 }
       );
     }
 

@@ -88,6 +88,24 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Check if multi-genre is enabled (for requiring season_id or genre)
+    const { data: multiGenreFlag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'multi_genre_enabled')
+      .maybeSingle();
+
+    const multiGenreEnabled = multiGenreFlag?.enabled ?? false;
+
+    // SECURITY: When multi-genre is enabled, require explicit season_id or genre
+    // to prevent accidentally advancing the wrong season
+    if (multiGenreEnabled && !targetSeasonId && !targetGenre) {
+      return NextResponse.json(
+        { ok: false, error: 'season_id or genre is required when multi-genre is enabled' },
+        { status: 400 }
+      );
+    }
+
     // 1. Get Season - by ID, by genre, or first active
     let seasonQuery = supabase
       .from('seasons')

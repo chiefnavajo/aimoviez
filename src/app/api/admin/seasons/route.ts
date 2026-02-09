@@ -429,9 +429,10 @@ export async function PATCH(req: NextRequest) {
         .select('id');
 
       // Update all clips in this season
+      // Note: clips can have null genre if season genre is null
       const { data: clipsData } = await supabase
         .from('tournament_clips')
-        .update({ genre: newGenre || 'action' }) // clips require non-null genre, default to 'action'
+        .update({ genre: newGenre })
         .eq('season_id', season_id)
         .select('id');
 

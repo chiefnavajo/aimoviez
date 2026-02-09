@@ -666,6 +666,15 @@ export async function GET(req: NextRequest) {
     // Check if multi-genre is enabled
     const multiGenreEnabled = featureFlags['multi_genre_enabled'] ?? false;
 
+    // SECURITY: Reject genre parameter when multi-genre is disabled
+    // This prevents confusion and ensures consistent behavior
+    if (genreParam && !multiGenreEnabled) {
+      return NextResponse.json({
+        error: 'Genre parameter not supported when multi-genre is disabled',
+        code: 'GENRE_NOT_SUPPORTED',
+      }, { status: 400 });
+    }
+
     if (genreParam && multiGenreEnabled) {
       // Genre-specific query (no caching - each genre has its own season)
       const result = await supabase
@@ -1521,6 +1530,42 @@ export async function POST(req: NextRequest) {
           success: false,
           error: 'Cannot vote on this clip',
           code: 'INVALID_CLIP_STATUS',
+        },
+        { status: 400 }
+      );
+    }
+
+    // SECURITY: Cross-genre vote validation (Fix 2)
+    // If a genre is specified in the request, validate clip belongs to that genre's season
+    const genreParam = req.nextUrl.searchParams.get('genre');
+    const multiGenreEnabled = featureFlags['multi_genre_enabled'] ?? false;
+
+    if (genreParam && multiGenreEnabled) {
+      // Verify clip belongs to the requested genre's season
+      const { data: expectedSeason } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active')
+        .eq('genre', genreParam.toLowerCase())
+        .maybeSingle();
+
+      if (expectedSeason && clipData.season_id !== expectedSeason.id) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Clip does not belong to the requested genre season',
+            code: 'WRONG_GENRE_SEASON',
+          },
+          { status: 400 }
+        );
+      }
+    } else if (genreParam && !multiGenreEnabled) {
+      // Reject genre parameter when multi-genre is disabled
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Genre parameter not supported when multi-genre is disabled',
+          code: 'GENRE_NOT_SUPPORTED',
         },
         { status: 400 }
       );

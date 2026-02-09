@@ -299,7 +299,7 @@ export async function POST(request: NextRequest) {
       .from('feature_flags')
       .select('enabled')
       .eq('key', 'multi_genre_enabled')
-      .single();
+      .maybeSingle();
 
     const multiGenreEnabled = multiGenreFlag?.enabled ?? false;
     const clipGenre = genre.toLowerCase();

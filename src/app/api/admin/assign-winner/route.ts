@@ -64,29 +64,44 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Get active season
+    // 1. First fetch the clip to get its season
+    const { data: clipCheck, error: clipCheckError } = await supabase
+      .from('tournament_clips')
+      .select('id, season_id, slot_position, status')
+      .eq('id', clipId)
+      .single();
+
+    if (clipCheckError || !clipCheck) {
+      console.error('[assign-winner] clipCheckError:', clipCheckError);
+      return NextResponse.json(
+        { ok: false, error: 'Clip not found' },
+        { status: 404 }
+      );
+    }
+
+    // 2. Get the clip's season (derive from clip, not query active season)
     const { data: season, error: seasonError } = await supabase
       .from('seasons')
       .select('id, status, total_slots')
-      .eq('status', 'active')
-      .maybeSingle();
+      .eq('id', clipCheck.season_id)
+      .single();
 
     if (seasonError) {
       console.error('[assign-winner] seasonError:', seasonError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to fetch active season' },
+        { ok: false, error: 'Failed to fetch clip season' },
         { status: 500 }
       );
     }
 
     if (!season) {
       return NextResponse.json(
-        { ok: false, error: 'No active season found' },
+        { ok: false, error: 'Clip season not found' },
         { status: 404 }
       );
     }
 
-    // 2. Get active voting slot
+    // 3. Get active voting slot for this season
     const { data: activeSlot, error: slotError } = await supabase
       .from('story_slots')
       .select('id, slot_position, voting_duration_hours')
