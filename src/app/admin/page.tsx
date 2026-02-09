@@ -4315,8 +4315,15 @@ export default function AdminDashboard() {
                 {/* Info */}
                 <div className="p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/30">
                   <p className="text-sm text-cyan-300">
-                    This will finish the current active season (if any) and create a new one.
-                    Voting timer starts when the first clip is uploaded.
+                    {newSeasonGenre ? (
+                      <>
+                        <strong>Multi-genre:</strong> This will only finish the active <strong>{newSeasonGenre}</strong> season (if any).
+                        Seasons with other genres will continue running in parallel.
+                      </>
+                    ) : (
+                      <>This will finish all active seasons (if any) and create a new one.</>
+                    )}
+                    {' '}Voting timer starts when the first clip is uploaded.
                   </p>
                 </div>
               </div>
