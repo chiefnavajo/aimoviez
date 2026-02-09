@@ -2055,7 +2055,7 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 sm:gap-3 w-full md:w-auto">
               <motion.button
                 whileTap={{ scale: 0.95 }}
-                onClick={fetchSlotInfo}
+                onClick={() => fetchSlotInfo(seasonFilter)}
                 className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors col-span-2 sm:col-span-1 flex items-center justify-center gap-2 sm:w-auto"
                 type="button"
                 title="Refresh slot info"
