@@ -263,14 +263,14 @@ export async function DELETE(
       );
     }
 
-    // SAFETY CHECK 2: If last active clip in a voting slot, reset slot to waiting_for_clips
-    if (clipToDelete.status === 'active' && clipToDelete.slot_position != null && clipToDelete.season_id) {
+    // SAFETY CHECK 2: If last active/pending clip in a voting slot, reset slot to waiting_for_clips
+    if ((clipToDelete.status === 'active' || clipToDelete.status === 'pending') && clipToDelete.slot_position != null && clipToDelete.season_id) {
       const { count } = await supabase
         .from('tournament_clips')
         .select('id', { count: 'exact', head: true })
         .eq('slot_position', clipToDelete.slot_position)
         .eq('season_id', clipToDelete.season_id)
-        .eq('status', 'active')
+        .in('status', ['active', 'pending'])
         .neq('id', id);
 
       const { data: currentSlot } = await supabase
@@ -291,7 +291,7 @@ export async function DELETE(
           .eq('season_id', clipToDelete.season_id)
           .eq('slot_position', clipToDelete.slot_position);
 
-        console.log(`[admin/clips] Last active clip in voting Slot ${clipToDelete.slot_position} deleted — reset slot to waiting_for_clips`);
+        console.log(`[admin/clips] Last clip in voting Slot ${clipToDelete.slot_position} deleted — reset slot to waiting_for_clips`);
       }
     }
 
