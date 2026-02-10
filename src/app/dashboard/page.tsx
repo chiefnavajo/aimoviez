@@ -36,7 +36,6 @@ import type { VoteUpdatePayload } from '@/hooks/useRealtimeVotes';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { useGenreSwiper, useKeyboardNavigation } from '@/hooks/useGenreSwiper';
-import { GenreHeader } from '@/components/GenreSwiper';
 
 // Lazy load OnboardingTour - only shown once per user
 const OnboardingTour = dynamic(() => import('@/components/OnboardingTour').then(mod => mod.default), {
@@ -1570,15 +1569,6 @@ function VotingArena() {
           </div>
         )}
 
-        {/* Multi-genre header - shows genre tabs on DESKTOP only */}
-        {multiGenreEnabled && genres.length > 1 && !isLandscape && !isMobile && (
-          <GenreHeader
-            genres={genres}
-            currentIndex={genreIndex}
-            onSelectIndex={goToGenre}
-          />
-        )}
-
         {/* Empty state content - centered, offset for sidebar on desktop */}
         <div className={`min-h-screen flex items-center justify-center p-6 ${isDesktop && !isLandscape ? 'ml-56' : ''}`}>
           <div className="text-center">
@@ -1787,15 +1777,6 @@ function VotingArena() {
 
       {/* PWA Install Banner - shows at top when not installed */}
       {!isLandscape && <InstallPrompt variant="banner" />}
-
-      {/* Multi-genre header - shows genre tabs on DESKTOP only (mobile uses horizontal swipe) */}
-      {multiGenreEnabled && genres.length > 1 && !isLandscape && !isMobile && (
-        <GenreHeader
-          genres={genres}
-          currentIndex={genreIndex}
-          onSelectIndex={goToGenre}
-        />
-      )}
 
       {/* Invisible CAPTCHA widget (renders nothing visible) */}
       {captchaConfigured && <CaptchaWidget />}
