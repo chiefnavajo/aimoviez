@@ -46,6 +46,7 @@ import {
   Crosshair,
   Search,
   Sparkles,
+  Type,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -261,6 +262,11 @@ export default function AdminDashboard() {
   const [editingGenre, setEditingGenre] = useState(false);
   const [editGenreValue, setEditGenreValue] = useState('');
   const [savingGenre, setSavingGenre] = useState(false);
+
+  // Edit season label/name state
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [editLabelText, setEditLabelText] = useState('');
+  const [savingLabel, setSavingLabel] = useState(false);
 
   // Archive season state
   const [archivingSeason, setArchivingSeason] = useState(false);
@@ -482,6 +488,50 @@ export default function AdminDashboard() {
       alert('Network error - failed to update genre');
     } finally {
       setSavingGenre(false);
+    }
+  };
+
+  // ============================================================================
+  // EDIT SEASON LABEL/NAME
+  // ============================================================================
+
+  const handleEditLabel = (seasonId: string) => {
+    const season = seasons.find(s => s.id === seasonId);
+    if (!season) return;
+    setEditLabelText(season.label || '');
+    setEditingLabel(true);
+  };
+
+  const handleSaveLabel = async () => {
+    if (seasonFilter === 'all') return;
+    if (!editLabelText.trim()) {
+      alert('Season name cannot be empty');
+      return;
+    }
+
+    setSavingLabel(true);
+    try {
+      const response = await fetch('/api/admin/seasons', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify({
+          season_id: seasonFilter,
+          label: editLabelText.trim(),
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        fetchSeasons();
+        setEditingLabel(false);
+      } else {
+        alert(`Error: ${data.error || 'Failed to update name'}`);
+      }
+    } catch (error) {
+      console.error('Failed to update label:', error);
+      alert('Network error - failed to update name');
+    } finally {
+      setSavingLabel(false);
     }
   };
 
@@ -2551,6 +2601,19 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">Genre</span>
             </motion.button>
           )}
+          {/* Edit Name Button - show when a specific season is selected */}
+          {seasonFilter !== 'all' && (
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => handleEditLabel(seasonFilter)}
+              className="px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-lg transition-all font-medium text-xs sm:text-sm flex items-center gap-1 bg-cyan-500/20 border border-cyan-500/40 hover:bg-cyan-500/30 text-cyan-300 whitespace-nowrap"
+              type="button"
+              title="Edit season name/label"
+            >
+              <Type className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden sm:inline">Name</span>
+            </motion.button>
+          )}
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={() => setShowBulkCleanup(true)}
@@ -2683,6 +2746,58 @@ export default function AdminDashboard() {
                     <Save className="w-3.5 h-3.5" />
                   )}
                   Save &amp; Sync
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Inline Label/Name Editor */}
+      <AnimatePresence>
+        {editingLabel && seasonFilter !== 'all' && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="max-w-7xl mx-auto px-4"
+          >
+            <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-xl p-4 mt-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-cyan-300">Season Name</label>
+                <button
+                  onClick={() => setEditingLabel(false)}
+                  className="text-white/40 hover:text-white/70 transition-colors"
+                  type="button"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={editLabelText}
+                onChange={(e) => setEditLabelText(e.target.value)}
+                maxLength={50}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-sm
+                         placeholder-white/40 focus:border-cyan-400 focus:outline-none transition-colors"
+                placeholder="e.g., Season 1, Action Season, etc."
+              />
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-xs text-white/40">{editLabelText.length}/50</span>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleSaveLabel}
+                  disabled={savingLabel || !editLabelText.trim()}
+                  className="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-white text-sm font-medium
+                           transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                  type="button"
+                >
+                  {savingLabel ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Save className="w-3.5 h-3.5" />
+                  )}
+                  Save
                 </motion.button>
               </div>
             </div>
