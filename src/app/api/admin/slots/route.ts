@@ -397,9 +397,36 @@ export async function PATCH(req: NextRequest) {
 
       console.log(`[PATCH /api/admin/slots] Unlocked slot ${unlockedSlotPosition}, status: ${newStatus}, previous winner: ${previousWinnerId}, clip reverted: ${clipReverted}, deactivated slot: ${deactivatedSlot?.slot_position || 'none'}, moved clips: ${movedClipsCount}`);
 
+      // Post-unlock safety check: if slot was set to 'voting' but has 0 clips, fix it
+      let finalStatus = newStatus;
+      if (newStatus === 'voting') {
+        const { count: clipCount } = await supabase
+          .from('tournament_clips')
+          .select('id', { count: 'exact', head: true })
+          .eq('slot_position', unlockedSlotPosition)
+          .eq('season_id', slotToUnlock.season_id)
+          .in('status', ['active', 'pending']);
+
+        if (!clipCount || clipCount === 0) {
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('id', slot_id);
+
+          finalStatus = 'waiting_for_clips';
+          console.log(`[PATCH /api/admin/slots] Slot ${unlockedSlotPosition} has 0 clips after unlock — corrected to waiting_for_clips`);
+        }
+      }
+
       // Build response message based on what happened
       let message: string;
-      if (shouldBecomeVoting) {
+      if (finalStatus === 'waiting_for_clips') {
+        message = `Slot #${unlockedSlotPosition} unlocked and set to waiting_for_clips (no clips to vote on)`;
+      } else if (shouldBecomeVoting) {
         message = `Slot #${unlockedSlotPosition} unlocked and set to voting`;
       } else {
         message = `Slot #${unlockedSlotPosition} unlocked and set to upcoming (slot ${existingVotingSlot!.slot_position} is currently voting)`;
@@ -409,7 +436,7 @@ export async function PATCH(req: NextRequest) {
         success: true,
         slot: unlockedSlot,
         message,
-        newStatus,
+        newStatus: finalStatus,
         previousWinnerId,
         clipReverted,
         movedClipsCount,
@@ -455,8 +482,25 @@ export async function PATCH(req: NextRequest) {
         );
       }
 
-      // If setting to 'voting', check for existing voting slot
+      // If setting to 'voting', validate clip count and check for existing voting slot
       if (status === 'voting') {
+        // Safety check: prevent voting with 0 clips
+        const { count: activeClipCount } = await supabase
+          .from('tournament_clips')
+          .select('id', { count: 'exact', head: true })
+          .eq('slot_position', targetSlot.slot_position)
+          .eq('season_id', targetSlot.season_id)
+          .in('status', ['active', 'pending']);
+
+        if (!activeClipCount || activeClipCount === 0) {
+          return NextResponse.json(
+            {
+              error: `No active or pending clips in slot ${targetSlot.slot_position} — cannot start voting. Approve clips first or use 'waiting_for_clips'.`,
+            },
+            { status: 400 }
+          );
+        }
+
         const { data: existingVotingSlot } = await supabase
           .from('story_slots')
           .select('id, slot_position')

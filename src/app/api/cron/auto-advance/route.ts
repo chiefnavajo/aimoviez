@@ -127,6 +127,37 @@ export async function GET(req: NextRequest) {
     }
 
     // ========================================================================
+    // 0. Self-healing: fix any voting slots with 0 clips (invalid state)
+    const { data: allVotingSlots } = await supabase
+      .from('story_slots')
+      .select('id, slot_position, season_id, voting_started_at, voting_ends_at')
+      .eq('status', 'voting');
+
+    if (allVotingSlots && allVotingSlots.length > 0) {
+      for (const vs of allVotingSlots) {
+        const { count } = await supabase
+          .from('tournament_clips')
+          .select('id', { count: 'exact', head: true })
+          .eq('slot_position', vs.slot_position)
+          .eq('season_id', vs.season_id)
+          .in('status', ['active', 'pending']);
+
+        if (!count || count === 0) {
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('id', vs.id);
+
+          console.log(`[auto-advance] Self-healing: Slot ${vs.slot_position} (season ${vs.season_id}) had 0 clips in voting — reset to waiting_for_clips`);
+        }
+      }
+    }
+
+    // ========================================================================
     // 1. Find expired voting slots
     const { data: expiredSlots, error: findError } = await supabase
       .from('story_slots')

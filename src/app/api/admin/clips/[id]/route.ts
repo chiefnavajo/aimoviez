@@ -181,6 +181,40 @@ export async function PUT(
       );
     }
 
+    // Slot cleanup: if changing an active clip to rejected/pending, check if slot needs reset
+    if (currentClip?.status === 'active' && (status === 'rejected' || status === 'pending') && currentClip.slot_position != null && currentClip.season_id) {
+      const { count } = await supabase
+        .from('tournament_clips')
+        .select('id', { count: 'exact', head: true })
+        .eq('slot_position', currentClip.slot_position)
+        .eq('season_id', currentClip.season_id)
+        .in('status', ['active', 'pending'])
+        .neq('id', id);
+
+      if (count === 0) {
+        const { data: currentSlot } = await supabase
+          .from('story_slots')
+          .select('status')
+          .eq('season_id', currentClip.season_id)
+          .eq('slot_position', currentClip.slot_position)
+          .maybeSingle();
+
+        if (currentSlot?.status === 'voting') {
+          await supabase
+            .from('story_slots')
+            .update({
+              status: 'waiting_for_clips',
+              voting_started_at: null,
+              voting_ends_at: null,
+            })
+            .eq('season_id', currentClip.season_id)
+            .eq('slot_position', currentClip.slot_position);
+
+          console.log(`[admin/clips PUT] Last active clip in voting Slot ${currentClip.slot_position} changed to ${status} — reset slot to waiting_for_clips`);
+        }
+      }
+    }
+
     // Audit log the action
     await logAdminAction(request, {
       action: 'edit_clip',

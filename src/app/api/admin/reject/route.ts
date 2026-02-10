@@ -102,14 +102,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // H7: Slot cleanup — if this was the last active clip in a voting slot, reset to waiting_for_clips
+    // H7: Slot cleanup — if this was the last active/pending clip in a voting slot, reset to waiting_for_clips
     if (wasActive && hadSlot && hadSeason) {
       const { count } = await supabase
         .from('tournament_clips')
         .select('id', { count: 'exact', head: true })
         .eq('slot_position', currentClip!.slot_position)
         .eq('season_id', currentClip!.season_id)
-        .eq('status', 'active');
+        .in('status', ['active', 'pending']);
 
       if (count === 0) {
         const { data: currentSlot } = await supabase
