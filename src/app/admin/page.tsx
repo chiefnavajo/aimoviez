@@ -166,6 +166,7 @@ export default function AdminDashboard() {
     winnerClipId?: string;
   } | null>(null);
   const [countdown, setCountdown] = useState<string>('');
+  const [startingTimer, setStartingTimer] = useState(false);
 
   // Reset season state
   const [resettingSeason, setResettingSeason] = useState(false);
@@ -1445,6 +1446,64 @@ export default function AdminDashboard() {
   };
 
   // ============================================================================
+  // START TIMER (for slots in voting status without a timer)
+  // ============================================================================
+
+  const handleStartTimer = async () => {
+    if (!slotInfo?.seasonId) {
+      alert('No season selected');
+      return;
+    }
+
+    setStartingTimer(true);
+    try {
+      // Get the current voting slot for this season
+      const slotsResponse = await fetch(`/api/admin/slots?season_id=${slotInfo.seasonId}`);
+      const slotsData = await slotsResponse.json();
+
+      if (!slotsData.ok) {
+        alert('Failed to get slot info');
+        return;
+      }
+
+      // Find the voting slot
+      const votingSlot = slotsData.slots?.find((s: { status: string }) => s.status === 'voting');
+      if (!votingSlot) {
+        alert('No voting slot found');
+        return;
+      }
+
+      // Update the slot with voting timestamps
+      const now = new Date();
+      const votingEndsAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours
+
+      const response = await fetch('/api/admin/slots', {
+        method: 'PATCH',
+        headers: getHeaders(),
+        credentials: 'include',
+        body: JSON.stringify({
+          slot_id: votingSlot.id,
+          status: 'voting', // Keep it voting, but this will set the timestamps
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        alert(`Timer started! Voting ends at ${votingEndsAt.toLocaleString()}`);
+        fetchSlotInfo(seasonFilter);
+      } else {
+        alert(`Failed to start timer: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Failed to start timer:', error);
+      alert('Failed to start timer. Check console for details.');
+    } finally {
+      setStartingTimer(false);
+    }
+  };
+
+  // ============================================================================
   // ADVANCE SLOT
   // ============================================================================
 
@@ -2122,6 +2181,26 @@ export default function AdminDashboard() {
                         Users need to upload clips for slot {slotInfo.currentSlot} before voting can continue.
                         Approve pending clips or wait for new uploads.
                       </p>
+                    </div>
+                  </div>
+                )}
+                {/* Warning: Voting slot has no timer set */}
+                {slotInfo && slotInfo.slotStatus === 'voting' && !slotInfo.votingEndsAt && slotInfo.seasonStatus === 'active' && (
+                  <div className="mt-3 p-3 rounded-lg bg-yellow-500/20 border border-yellow-500/40 flex items-start gap-2">
+                    <Clock className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="text-yellow-300 font-medium">No timer set for this voting slot!</p>
+                      <p className="text-yellow-300/70 text-xs mt-1">
+                        The slot is in voting status but the auto-advance timer was never started.
+                        Click &quot;Start Timer&quot; to begin a 24-hour countdown.
+                      </p>
+                      <button
+                        onClick={handleStartTimer}
+                        disabled={startingTimer}
+                        className="mt-2 px-3 py-1.5 rounded-lg bg-yellow-500 hover:bg-yellow-400 text-black font-medium text-sm transition-colors disabled:opacity-50"
+                      >
+                        {startingTimer ? 'Starting...' : '⏱️ Start Timer (24h)'}
+                      </button>
                     </div>
                   </div>
                 )}
