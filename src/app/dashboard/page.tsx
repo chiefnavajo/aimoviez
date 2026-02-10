@@ -574,15 +574,16 @@ function VotingArena() {
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
-  // Mobile/Desktop detection - hide genre tabs on mobile (use swipe instead), show sidebar on desktop
-  const [isMobile, setIsMobile] = useState(false);
+  // Desktop detection - show sidebar on desktop, hide genre tabs on mobile (use swipe instead)
+  const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const mediaQuery = window.matchMedia('(min-width: 768px)');
+    setIsDesktop(mediaQuery.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
   }, []);
-  const isDesktop = !isMobile;
+  const isMobile = !isDesktop;
 
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
