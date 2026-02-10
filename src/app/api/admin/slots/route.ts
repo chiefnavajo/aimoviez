@@ -203,6 +203,11 @@ export async function GET(req: NextRequest) {
       seasonStatus,
       slotStatus,
       clipsInSlot: clipsInSlot || 0,
+      // Timer info (was missing - caused countdown to not show when season selected)
+      votingEndsAt,
+      votingStartedAt,
+      votingDurationHours,
+      timeRemainingSeconds,
     }, { status: 200 });
   } catch (err) {
     console.error('[GET /api/admin/slots] Unexpected error:', err);
