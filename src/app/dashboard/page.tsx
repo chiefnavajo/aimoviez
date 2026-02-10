@@ -20,7 +20,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { toast, Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle } from 'lucide-react';
+import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle, BookOpen, Plus, Sparkles, Trophy, User, Play } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
 import { ActionButton } from '@/components/ActionButton';
 import { AuthGuard } from '@/hooks/useAuth';
@@ -574,7 +574,7 @@ function VotingArena() {
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
-  // Mobile detection - hide genre tabs on mobile (use swipe instead)
+  // Mobile/Desktop detection - hide genre tabs on mobile (use swipe instead), show sidebar on desktop
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -582,6 +582,7 @@ function VotingArena() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+  const isDesktop = !isMobile;
 
   // Fetch voting data from real API
   // No refetchInterval - clips only change when user navigates (swipe/arrows)
@@ -1621,6 +1622,81 @@ function VotingArena() {
       onClick={isLandscape ? handleScreenTap : undefined}
     >
       <Toaster position="top-center" />
+
+      {/* Desktop Sidebar - Navigation + Genres */}
+      {isDesktop && !isLandscape && (
+        <div className="absolute left-0 top-0 bottom-0 w-56 flex flex-col py-4 px-3 z-40" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+          {/* Navigation Items */}
+          <nav className="flex-1 space-y-1 mt-40">
+            <Link href="/dashboard">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-gradient-to-r from-cyan-500/20 to-purple-500/20 text-white border border-cyan-500/30">
+                <Play className="w-6 h-6 text-cyan-400" />
+                <span className="font-semibold">Vote Now</span>
+              </div>
+            </Link>
+            <Link href="/story">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <BookOpen className="w-6 h-6" />
+                <span>Story</span>
+              </div>
+            </Link>
+            <Link href="/watch">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Play className="w-6 h-6" />
+                <span>Watch</span>
+              </div>
+            </Link>
+            <Link href="/upload">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Plus className="w-6 h-6" />
+                <span>Upload</span>
+              </div>
+            </Link>
+            <Link href="/create">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Sparkles className="w-6 h-6" />
+                <span>AI Create</span>
+              </div>
+            </Link>
+            <Link href="/leaderboard">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <Trophy className="w-6 h-6" />
+                <span>Leaderboard</span>
+              </div>
+            </Link>
+            <Link href="/profile">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-black/30 text-white/90 transition">
+                <User className="w-6 h-6" />
+                <span>Profile</span>
+              </div>
+            </Link>
+          </nav>
+
+          {/* Genre List at Bottom (only when multi-genre enabled) */}
+          {multiGenreEnabled && genres.length > 0 && (
+            <div className="border-t border-white/20 pt-4 mt-4">
+              <p className="text-white/70 text-xs font-medium px-3 mb-2">GENRES</p>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {genres.map((genre, index) => (
+                  <button
+                    key={genre.id}
+                    onClick={() => goToGenre(index)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition outline-none ${
+                      index === genreIndex
+                        ? 'bg-black/30 backdrop-blur-sm text-white border border-white/10'
+                        : 'hover:bg-black/20 text-white/80'
+                    }`}
+                  >
+                    <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-sm">{genre.emoji} {genre.label}</span>
+                    <span className="text-[10px] text-red-400 font-bold ml-auto">LIVE</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* PWA Install Banner - shows at top when not installed */}
       {!isLandscape && <InstallPrompt variant="banner" />}
