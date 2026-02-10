@@ -1494,7 +1494,33 @@ function VotingArena() {
     const waitingForUploads = isWaitingForClips || ((votingData?.currentSlot ?? 0) > 0 && !votingData?.votingStartedAt);
 
     return (
-      <div className="relative min-h-screen min-h-[100dvh] w-full overflow-hidden bg-black">
+      <div
+        className="relative min-h-screen min-h-[100dvh] w-full overflow-hidden bg-black"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Mobile genre switcher - shown when multi-genre enabled */}
+        {!isDesktop && multiGenreEnabled && genres.length > 1 && (
+          <div className="absolute top-4 left-0 right-0 z-40 flex justify-center">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 backdrop-blur-sm border border-white/10">
+              {genres.map((genre, index) => (
+                <button
+                  key={genre.id}
+                  onClick={() => goToGenre(index)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                    index === genreIndex
+                      ? 'bg-cyan-500/30 text-cyan-300 border border-cyan-500/40'
+                      : 'text-white/50 hover:text-white/80'
+                  }`}
+                >
+                  {genre.emoji} {genre.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Desktop Sidebar - Navigation + Genres (same as main layout) */}
         {isDesktop && !isLandscape && (
           <div className="absolute left-0 top-0 bottom-0 w-56 flex flex-col py-4 px-3 z-40" style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
