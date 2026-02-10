@@ -157,6 +157,7 @@ export default function AdminDashboard() {
     clipsInSlot: number;
     votingEndsAt: string | null;
     timeRemainingSeconds: number | null;
+    seasonId?: string; // Track which season this slot info is for
   } | null>(null);
   const [advancingSlot, setAdvancingSlot] = useState(false);
   const [advanceResult, setAdvanceResult] = useState<{
@@ -790,6 +791,7 @@ export default function AdminDashboard() {
           clipsInSlot: data.clipsInSlot || 0,
           votingEndsAt: data.votingEndsAt || null,
           timeRemainingSeconds: data.timeRemainingSeconds || null,
+          seasonId: data.season_id || undefined, // Track which season this info is for
         });
       }
     } catch (error) {
@@ -2058,13 +2060,30 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <h2 className="text-lg font-bold">Round Control</h2>
+                {/* Warning: Select a specific season when multiple are active */}
+                {seasonFilter === 'all' && seasons.filter(s => s.status === 'active').length > 1 && (
+                  <div className="mb-2 p-2 rounded-lg bg-blue-500/20 border border-blue-500/40 text-xs">
+                    <p className="text-blue-300">
+                      <strong>Tip:</strong> Select a specific season above to see its timer.
+                      {slotInfo?.seasonId && (
+                        <span className="block mt-1 text-blue-200">
+                          Currently showing: <strong>{seasons.find(s => s.id === slotInfo.seasonId)?.label || 'Unknown'}</strong>
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
                 {slotInfo ? (
                   <div className="text-sm text-white/60">
                     <p>
+                      {/* Show season name when a specific season is selected or when showing slot info */}
+                      {slotInfo.seasonId && (
+                        <><span className="text-purple-400 font-semibold">{seasons.find(s => s.id === slotInfo.seasonId)?.label || 'Season'}</span>{' · '}</>
+                      )}
                       Slot <span className="text-cyan-400 font-bold">{slotInfo.currentSlot}</span> of{' '}
                       <span className="text-white/80">{slotInfo.totalSlots}</span>
                       {' · '}<span className={slotInfo.clipsInSlot === 0 ? 'text-red-400 font-bold' : ''}>{slotInfo.clipsInSlot} clips competing</span>
-                      {' · '}Season: <span className={slotInfo.seasonStatus === 'active' ? 'text-green-400' : 'text-yellow-400'}>{slotInfo.seasonStatus}</span>
+                      {' · '}Status: <span className={slotInfo.seasonStatus === 'active' ? 'text-green-400' : 'text-yellow-400'}>{slotInfo.seasonStatus}</span>
                       {' · '}Slot: <span className={
                         slotInfo.slotStatus === 'voting' ? 'text-green-400' :
                         slotInfo.slotStatus === 'waiting_for_clips' ? 'text-orange-400 font-bold' :
