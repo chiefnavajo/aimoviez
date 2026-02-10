@@ -2039,8 +2039,8 @@ function VotingArena() {
         onCommentAdded={handleCommentAdded}
       />
 
-      {/* ============ BOTTOM NAV (hidden in landscape) ============ */}
-      {!isLandscape && <BottomNavigation />}
+      {/* ============ BOTTOM NAV (hidden in landscape and on desktop) ============ */}
+      {!isLandscape && !isDesktop && <BottomNavigation />}
 
       {/* Landscape mode controls overlay */}
       {isLandscape && (
