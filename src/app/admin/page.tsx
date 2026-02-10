@@ -803,6 +803,11 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [seasonFilter]);
 
+  // Clear countdown immediately on season switch to prevent flash
+  useEffect(() => {
+    setCountdown('');
+  }, [seasonFilter]);
+
   // Countdown timer effect
   useEffect(() => {
     if (!slotInfo?.votingEndsAt) {
@@ -836,7 +841,7 @@ export default function AdminDashboard() {
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000);
     return () => clearInterval(interval);
-  }, [slotInfo?.votingEndsAt]);
+  }, [slotInfo?.votingEndsAt, slotInfo?.slotStatus, slotInfo?.currentSlot]);
 
   // ============================================================================
   // FETCH FEATURE FLAGS
@@ -1454,6 +1459,9 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: getHeaders(),
         credentials: 'include',
+        body: JSON.stringify({
+          season_id: seasonFilter !== 'all' ? seasonFilter : undefined,
+        }),
       });
 
       const data = await response.json();

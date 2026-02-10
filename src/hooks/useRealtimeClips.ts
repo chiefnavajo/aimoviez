@@ -23,6 +23,7 @@ interface UseRealtimeClipsOptions {
   onNewClip?: (clip: ClipUpdate) => void;
   onClipDelete?: (clipId: string) => void;
   enabled?: boolean;
+  seasonId?: string; // Filter updates to specific season
 }
 
 export function useRealtimeClips({
@@ -30,6 +31,7 @@ export function useRealtimeClips({
   onNewClip,
   onClipDelete,
   enabled = true,
+  seasonId,
 }: UseRealtimeClipsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
@@ -38,13 +40,15 @@ export function useRealtimeClips({
   const onClipUpdateRef = useRef(onClipUpdate);
   const onNewClipRef = useRef(onNewClip);
   const onClipDeleteRef = useRef(onClipDelete);
+  const seasonIdRef = useRef(seasonId);
 
   // Update refs when callbacks change
   useEffect(() => {
     onClipUpdateRef.current = onClipUpdate;
     onNewClipRef.current = onNewClip;
     onClipDeleteRef.current = onClipDelete;
-  }, [onClipUpdate, onNewClip, onClipDelete]);
+    seasonIdRef.current = seasonId;
+  }, [onClipUpdate, onNewClip, onClipDelete, seasonId]);
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -69,15 +73,20 @@ export function useRealtimeClips({
     // Use the shared singleton realtime client
     const client = getRealtimeClient();
 
+    // Build season filter if seasonId provided
+    const seasonFilter = seasonIdRef.current ? `season_id=eq.${seasonIdRef.current}` : undefined;
+    const channelName = seasonIdRef.current ? `clips-realtime-${seasonIdRef.current}` : 'clips-realtime';
+
     // Subscribe to tournament_clips table changes
     const channel = client
-      .channel('clips-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'tournament_clips',
+          filter: seasonFilter,
         },
         (payload) => {
           if (isDev) console.log('[Realtime] Clip UPDATE received');
@@ -92,6 +101,7 @@ export function useRealtimeClips({
           event: 'INSERT',
           schema: 'public',
           table: 'tournament_clips',
+          filter: seasonFilter,
         },
         (payload) => {
           if (onNewClipRef.current && payload.new) {
@@ -105,6 +115,7 @@ export function useRealtimeClips({
           event: 'DELETE',
           schema: 'public',
           table: 'tournament_clips',
+          filter: seasonFilter,
         },
         (payload) => {
           if (onClipDeleteRef.current && payload.old) {
@@ -131,7 +142,7 @@ export function useRealtimeClips({
       });
 
     return cleanup;
-  }, [enabled, cleanup]);
+  }, [enabled, cleanup, seasonId]);
 
   return { cleanup };
 }
@@ -140,19 +151,23 @@ export function useRealtimeClips({
 interface UseRealtimeSlotsOptions {
   onSlotUpdate?: (slot: { id: string; status?: string; winner_tournament_clip_id?: string | null }) => void;
   enabled?: boolean;
+  seasonId?: string; // Filter updates to specific season
 }
 
 export function useRealtimeSlots({
   onSlotUpdate,
   enabled = true,
+  seasonId,
 }: UseRealtimeSlotsOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
   const onSlotUpdateRef = useRef(onSlotUpdate);
+  const seasonIdRef = useRef(seasonId);
 
   useEffect(() => {
     onSlotUpdateRef.current = onSlotUpdate;
-  }, [onSlotUpdate]);
+    seasonIdRef.current = seasonId;
+  }, [onSlotUpdate, seasonId]);
 
   useEffect(() => {
     if (!enabled || !onSlotUpdateRef.current) {
@@ -168,14 +183,19 @@ export function useRealtimeSlots({
 
     const client = getRealtimeClient();
 
+    // Build season filter if seasonId provided
+    const seasonFilter = seasonIdRef.current ? `season_id=eq.${seasonIdRef.current}` : undefined;
+    const channelName = seasonIdRef.current ? `slots-realtime-${seasonIdRef.current}` : 'slots-realtime';
+
     const channel = client
-      .channel('slots-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'story_slots',
+          filter: seasonFilter,
         },
         (payload) => {
           if (isDev) console.log('[Realtime] Slot UPDATE received');
@@ -206,7 +226,7 @@ export function useRealtimeSlots({
       }
       isSubscribingRef.current = false;
     };
-  }, [enabled]);
+  }, [enabled, seasonId]);
 }
 
 // Hook for subscribing to vote updates specifically
@@ -313,12 +333,14 @@ interface UseStoryBroadcastOptions {
   onWinnerSelected?: (payload: WinnerSelectedPayload) => void;
   onSeasonReset?: (payload: SeasonResetPayload) => void;
   enabled?: boolean;
+  seasonId?: string; // Filter events to specific season
 }
 
 export function useStoryBroadcast({
   onWinnerSelected,
   onSeasonReset,
   enabled = true,
+  seasonId,
 }: UseStoryBroadcastOptions = {}) {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
@@ -327,6 +349,7 @@ export function useStoryBroadcast({
   const mountedRef = useRef(true);
   const onWinnerSelectedRef = useRef(onWinnerSelected);
   const onSeasonResetRef = useRef(onSeasonReset);
+  const seasonIdRef = useRef(seasonId);
 
   // Max reconnect attempts before giving up (will rely on polling fallback)
   const MAX_RECONNECT_ATTEMPTS = 5;
@@ -335,7 +358,8 @@ export function useStoryBroadcast({
   useEffect(() => {
     onWinnerSelectedRef.current = onWinnerSelected;
     onSeasonResetRef.current = onSeasonReset;
-  }, [onWinnerSelected, onSeasonReset]);
+    seasonIdRef.current = seasonId;
+  }, [onWinnerSelected, onSeasonReset, seasonId]);
 
   // Subscribe function that can be called for initial connection and reconnection
   const subscribe = useCallback(() => {
@@ -359,13 +383,25 @@ export function useStoryBroadcast({
       .on('broadcast', { event: 'winner-selected' }, (payload) => {
         if (isDev) console.log('[Broadcast] Winner selected event received');
         if (onWinnerSelectedRef.current && payload.payload) {
-          onWinnerSelectedRef.current(payload.payload as WinnerSelectedPayload);
+          const data = payload.payload as WinnerSelectedPayload;
+          // Filter by season if seasonId is specified
+          if (seasonIdRef.current && data.seasonId !== seasonIdRef.current) {
+            if (isDev) console.log('[Broadcast] Ignoring winner-selected for different season');
+            return;
+          }
+          onWinnerSelectedRef.current(data);
         }
       })
       .on('broadcast', { event: 'season-reset' }, (payload) => {
         if (isDev) console.log('[Broadcast] Season reset event received');
         if (onSeasonResetRef.current && payload.payload) {
-          onSeasonResetRef.current(payload.payload as SeasonResetPayload);
+          const data = payload.payload as SeasonResetPayload;
+          // Filter by season if seasonId is specified
+          if (seasonIdRef.current && data.seasonId !== seasonIdRef.current) {
+            if (isDev) console.log('[Broadcast] Ignoring season-reset for different season');
+            return;
+          }
+          onSeasonResetRef.current(data);
         }
       })
       .subscribe((status, err) => {

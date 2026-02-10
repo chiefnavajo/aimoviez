@@ -564,7 +564,8 @@ export async function PATCH(req: NextRequest) {
  * Automatically lock a slot with the highest voted clip
  *
  * Body: {
- *   slot_position: number
+ *   slot_position: number,
+ *   season_id?: string  // Optional - required when multiple seasons are active
  * }
  */
 export async function POST(req: NextRequest) {
@@ -580,7 +581,7 @@ export async function POST(req: NextRequest) {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();
 
-    const { slot_position } = body;
+    const { slot_position, season_id } = body;
 
     if (!slot_position) {
       return NextResponse.json(
@@ -589,19 +590,34 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get active season
-    const { data: activeSeason } = await supabase
-      .from('seasons')
-      .select('id')
-      .eq('status', 'active')
-      .single();
+    // Get active season(s)
+    let targetSeasonId = season_id;
 
-    if (!activeSeason) {
-      return NextResponse.json(
-        { error: 'No active season found' },
-        { status: 404 }
-      );
+    if (!targetSeasonId) {
+      // No season_id provided - check for active seasons
+      const { data: activeSeasons } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active');
+
+      if (!activeSeasons || activeSeasons.length === 0) {
+        return NextResponse.json(
+          { error: 'No active season found' },
+          { status: 404 }
+        );
+      }
+
+      if (activeSeasons.length > 1) {
+        return NextResponse.json(
+          { error: 'Multiple active seasons found. Please specify season_id.' },
+          { status: 400 }
+        );
+      }
+
+      targetSeasonId = activeSeasons[0].id;
     }
+
+    const activeSeason = { id: targetSeasonId };
 
     // Get the slot
     const { data: slot } = await supabase
