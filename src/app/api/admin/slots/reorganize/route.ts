@@ -14,6 +14,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 interface ReorganizeRequest {
   action: 'delete_and_shift' | 'swap_slots';
   season_id?: string;
+  genre?: string;
   // For delete_and_shift
   slot_positions_to_delete?: number[];
   // For swap_slots
@@ -49,13 +50,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get active season if not specified
+    // Get active season if not specified (genre-aware for multi-genre)
+    const genreParam = body.genre?.toLowerCase();
     let targetSeasonId = season_id;
     if (!targetSeasonId) {
-      const { data: activeSeason } = await supabase
+      let seasonQuery = supabase
         .from('seasons')
         .select('id')
-        .eq('status', 'active')
+        .eq('status', 'active');
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
+      const { data: activeSeason } = await seasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (!activeSeason) {
@@ -265,11 +273,18 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid positions' }, { status: 400 });
       }
 
-      // Get active season
-      const { data: activeSeason } = await supabase
+      // Get active season (genre-aware for multi-genre)
+      const genrePreview = searchParams.get('genre')?.toLowerCase();
+      let previewSeasonQuery = supabase
         .from('seasons')
         .select('id')
-        .eq('status', 'active')
+        .eq('status', 'active');
+      if (genrePreview) {
+        previewSeasonQuery = previewSeasonQuery.eq('genre', genrePreview);
+      }
+      const { data: activeSeason } = await previewSeasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (!activeSeason) {

@@ -53,14 +53,20 @@ export async function GET(request: NextRequest) {
 
     // FIX: Filter by season - default to active season if none provided
     // This prevents returning clips from all seasons which can cause confusion
+    const genreParam = searchParams.get('genre')?.toLowerCase();
+
     if (seasonId) {
       query = query.eq('season_id', seasonId);
     } else {
-      // Get active season as default
-      const { data: activeSeason } = await supabase
+      // Get active season as default (genre-aware for multi-genre)
+      let seasonQuery = supabase
         .from('seasons')
         .select('id')
-        .eq('status', 'active')
+        .eq('status', 'active');
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
+      const { data: activeSeason } = await seasonQuery
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();

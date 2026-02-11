@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { slotPosition, newStatus } = body;
+    const { slotPosition, newStatus, season_id: seasonIdParam, genre: genreBody } = body;
 
     // 2. Validate inputs
     if (
@@ -76,12 +76,33 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. Fetch active season
-    const { data: season, error: seasonError } = await supabase
-      .from('seasons')
-      .select('id, status, total_slots')
-      .eq('status', 'active')
-      .maybeSingle();
+    // 3. Fetch active season (genre-aware for multi-genre)
+    let season: { id: string; status: string; total_slots: number } | null = null;
+    let seasonError: { message: string } | null = null;
+    if (seasonIdParam) {
+      const result = await supabase
+        .from('seasons')
+        .select('id, status, total_slots')
+        .eq('id', seasonIdParam)
+        .maybeSingle();
+      season = result.data;
+      seasonError = result.error;
+    } else {
+      const genreParam = typeof genreBody === 'string' ? genreBody.toLowerCase() : undefined;
+      let seasonQuery = supabase
+        .from('seasons')
+        .select('id, status, total_slots')
+        .eq('status', 'active');
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
+      const result = await seasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      season = result.data;
+      seasonError = result.error;
+    }
 
     if (seasonError) {
       console.error('[update-slot-status] seasonError:', seasonError);

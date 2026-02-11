@@ -36,6 +36,8 @@ export async function GET(req: NextRequest) {
     // Get target season - either by ID or first active season
     let targetSeason = null;
 
+    const genreParam = searchParams.get('genre')?.toLowerCase();
+
     if (season_id) {
       // Fetch specific season by ID
       const { data } = await supabase
@@ -45,11 +47,15 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
       targetSeason = data;
     } else {
-      // Fallback to first active season
-      const { data } = await supabase
+      // Fallback to first active season (genre-aware for multi-genre)
+      let seasonQuery = supabase
         .from('seasons')
         .select('id, status, total_slots')
-        .eq('status', 'active')
+        .eq('status', 'active');
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
+      const { data } = await seasonQuery
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -639,31 +645,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get active season(s)
+    // Get active season (genre-aware for multi-genre)
+    const genreBody = body.genre?.toLowerCase();
     let targetSeasonId = season_id;
 
     if (!targetSeasonId) {
-      // No season_id provided - check for active seasons
-      const { data: activeSeasons } = await supabase
+      let seasonQuery = supabase
         .from('seasons')
         .select('id')
         .eq('status', 'active');
+      if (genreBody) {
+        seasonQuery = seasonQuery.eq('genre', genreBody);
+      }
+      const { data: activeSeason } = await seasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
 
-      if (!activeSeasons || activeSeasons.length === 0) {
+      if (!activeSeason) {
         return NextResponse.json(
-          { error: 'No active season found' },
+          { error: 'No active season found. Specify season_id or genre.' },
           { status: 404 }
         );
       }
 
-      if (activeSeasons.length > 1) {
-        return NextResponse.json(
-          { error: 'Multiple active seasons found. Please specify season_id.' },
-          { status: 400 }
-        );
-      }
-
-      targetSeasonId = activeSeasons[0].id;
+      targetSeasonId = activeSeason.id;
     }
 
     const activeSeason = { id: targetSeasonId };

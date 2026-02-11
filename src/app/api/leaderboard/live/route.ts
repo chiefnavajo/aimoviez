@@ -60,6 +60,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const genreParam = req.nextUrl.searchParams.get('genre')?.toLowerCase();
+
+    // Resolve season for genre-aware filtering
+    let resolvedSeasonId: string | null = null;
+    if (genreParam) {
+      const { data: genreSeason } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active')
+        .eq('genre', genreParam)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      resolvedSeasonId = genreSeason?.id || null;
+    }
 
     // --- Redis-first path ---
     const { data: redisFlag } = await supabase
@@ -69,12 +84,15 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (redisFlag?.enabled) {
-      // Get active slot position (use first active slot for live leaderboard)
-      // Multi-genre: In future, could accept genre param to filter
-      const { data: activeSlot } = await supabase
+      // Get active slot position (genre-aware for multi-genre)
+      let slotQuery = supabase
         .from('story_slots')
         .select('slot_position, season_id')
-        .eq('status', 'voting')
+        .eq('status', 'voting');
+      if (resolvedSeasonId) {
+        slotQuery = slotQuery.eq('season_id', resolvedSeasonId);
+      }
+      const { data: activeSlot } = await slotQuery
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -213,11 +231,15 @@ export async function GET(req: NextRequest) {
       // Redis returned null — fall through to DB
     }
 
-    // Get active season for DB fallback path (multi-genre aware)
-    const { data: fallbackSeason } = await supabase
+    // Get active season for DB fallback path (genre-aware for multi-genre)
+    let fallbackSeasonQuery = supabase
       .from('seasons')
       .select('id')
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (genreParam) {
+      fallbackSeasonQuery = fallbackSeasonQuery.eq('genre', genreParam);
+    }
+    const { data: fallbackSeason } = await fallbackSeasonQuery
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();

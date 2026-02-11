@@ -181,12 +181,16 @@ export async function POST(request: NextRequest) {
     const storageProvider = await getStorageProvider(r2Flag?.enabled ?? false);
     const publicUrl = getPublicVideoUrl(gen.storage_key, storageProvider);
 
-    // 8. Get active season
-    const { data: season, error: seasonError } = await supabase
+    // 8. Get active season (genre-aware for multi-genre)
+    let seasonQuery = supabase
       .from('seasons')
       .select('id, total_slots')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+      .eq('status', 'active');
+    if (genre) {
+      seasonQuery = seasonQuery.eq('genre', genre.toLowerCase());
+    }
+    const { data: season, error: seasonError } = await seasonQuery
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 

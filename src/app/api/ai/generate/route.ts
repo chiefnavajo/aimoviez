@@ -240,11 +240,17 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (pinFlag?.enabled) {
-        // Get active season
-        const { data: activeSeason } = await supabase
+        // Get active season (genre-aware for multi-genre)
+        let seasonQuery = supabase
           .from('seasons')
           .select('id')
-          .eq('status', 'active')
+          .eq('status', 'active');
+        if (validated.genre) {
+          seasonQuery = seasonQuery.eq('genre', validated.genre.toLowerCase());
+        }
+        const { data: activeSeason } = await seasonQuery
+          .order('created_at', { ascending: true })
+          .limit(1)
           .maybeSingle();
 
         if (activeSeason) {

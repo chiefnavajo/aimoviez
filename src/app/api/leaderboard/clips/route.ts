@@ -76,11 +76,23 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const genreParam = searchParams.get('genre')?.toLowerCase();
+
+    // Resolve season for genre-aware filtering
+    let resolvedSeasonId: string | null = null;
+    if (genreParam) {
+      const { data: genreSeason } = await supabase
+        .from('seasons')
+        .select('id')
+        .eq('status', 'active')
+        .eq('genre', genreParam)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      resolvedSeasonId = genreSeason?.id || null;
+    }
 
     // --- Redis-first path (when redis_leaderboards enabled, 'all' timeframe) ---
-    // Redis leaderboards are keyed by slot_position, so we need the active slot
-    // For the clips route we serve all clips (no slot filter), so Redis path
-    // works best when we know the active slot. Fall through to DB for filtered queries.
     const { data: redisFlag } = await supabase
       .from('feature_flags')
       .select('enabled')
@@ -88,12 +100,15 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (redisFlag?.enabled && timeframe === 'all') {
-      // Get active slot position for Redis lookup
-      // Multi-genre: Use first active slot for now
-      const { data: activeSlot } = await supabase
+      // Get active slot position for Redis lookup (genre-aware for multi-genre)
+      let slotQuery = supabase
         .from('story_slots')
         .select('slot_position, season_id')
-        .eq('status', 'voting')
+        .eq('status', 'voting');
+      if (resolvedSeasonId) {
+        slotQuery = slotQuery.eq('season_id', resolvedSeasonId);
+      }
+      const { data: activeSlot } = await slotQuery
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -169,11 +184,15 @@ export async function GET(req: NextRequest) {
       // Redis returned null or no active slot — fall through to DB
     }
 
-    // Get active season for DB fallback path (multi-genre aware)
-    const { data: fallbackSeason } = await supabase
+    // Get active season for DB fallback path (genre-aware for multi-genre)
+    let fallbackSeasonQuery = supabase
       .from('seasons')
       .select('id')
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (genreParam) {
+      fallbackSeasonQuery = fallbackSeasonQuery.eq('genre', genreParam);
+    }
+    const { data: fallbackSeason } = await fallbackSeasonQuery
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();

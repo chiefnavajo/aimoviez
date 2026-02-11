@@ -76,6 +76,33 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const { searchParams } = new URL(req.url);
+    const seasonIdParam = searchParams.get('season_id');
+    const genreParam = searchParams.get('genre')?.toLowerCase();
+
+    // Resolve target season (genre-aware for multi-genre)
+    let activeSeason: { id: string; name: string; total_slots: number } | null = null;
+    if (seasonIdParam) {
+      const { data } = await supabase
+        .from('seasons')
+        .select('id, name, total_slots')
+        .eq('id', seasonIdParam)
+        .maybeSingle();
+      activeSeason = data;
+    } else {
+      let seasonQuery = supabase
+        .from('seasons')
+        .select('id, name, total_slots')
+        .eq('status', 'active');
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
+      const { data } = await seasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      activeSeason = data;
+    }
 
     // Time ranges
     const now = new Date();
@@ -97,8 +124,6 @@ export async function GET(req: NextRequest) {
       // Yesterday counts
       yesterdayVotesResult,
       yesterdayClipsResult,
-      // Active season
-      { data: activeSeason },
       // Slot status counts
       lockedSlotsResult,
       votingSlotsResult,
@@ -126,8 +151,6 @@ export async function GET(req: NextRequest) {
       supabase.from('tournament_clips').select('id', { count: 'exact', head: true })
         .gte('created_at', yesterday.toISOString())
         .lt('created_at', today.toISOString()),
-      // Active season
-      supabase.from('seasons').select('id, name, total_slots').eq('status', 'active').maybeSingle(),
       // Slot counts by status
       supabase.from('story_slots').select('id', { count: 'exact', head: true }).eq('status', 'locked'),
       supabase.from('story_slots').select('id', { count: 'exact', head: true }).eq('status', 'voting'),

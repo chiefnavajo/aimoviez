@@ -41,11 +41,17 @@ export async function GET(req: NextRequest) {
   const voterKey = generateDeviceKey(req);
   const supabase = getSupabase();
 
-  // Get active season
-  const { data: activeSeason } = await supabase
+  // Get active season (genre-aware for multi-genre)
+  const genreParam = req.nextUrl.searchParams.get('genre')?.toLowerCase();
+  let seasonQuery = supabase
     .from('seasons')
     .select('id')
-    .eq('status', 'active')
+    .eq('status', 'active');
+  if (genreParam) {
+    seasonQuery = seasonQuery.eq('genre', genreParam);
+  }
+  const { data: activeSeason } = await seasonQuery
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 

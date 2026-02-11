@@ -43,13 +43,19 @@ export async function GET(req: NextRequest) {
 
   const supabase = getSupabase();
 
-  // If no season_id provided, get the active season
+  // If no season_id provided, get the active season (genre-aware for multi-genre)
+  const genreParam = searchParams.get('genre')?.toLowerCase();
   let targetSeasonId = seasonId;
   if (!targetSeasonId) {
-    const { data: activeSeason } = await supabase
+    let seasonQuery = supabase
       .from('seasons')
       .select('id')
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (genreParam) {
+      seasonQuery = seasonQuery.eq('genre', genreParam);
+    }
+    const { data: activeSeason } = await seasonQuery
+      .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
 

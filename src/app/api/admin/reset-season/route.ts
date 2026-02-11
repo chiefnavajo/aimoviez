@@ -71,11 +71,18 @@ export async function POST(req: NextRequest) {
       // Reset specific season by ID (any status)
       seasonQuery = seasonQuery.eq('id', season_id);
     } else {
-      // Backwards compatible: reset active season
+      // Backwards compatible: reset active season (genre-aware for multi-genre)
       seasonQuery = seasonQuery.eq('status', 'active');
+      const genreParam = typeof body.genre === 'string' ? body.genre.toLowerCase() : undefined;
+      if (genreParam) {
+        seasonQuery = seasonQuery.eq('genre', genreParam);
+      }
     }
 
-    const { data: season, error: seasonError } = await seasonQuery.maybeSingle();
+    const { data: season, error: seasonError } = await seasonQuery
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
     if (seasonError) {
       console.error('[reset-season] seasonError:', seasonError);

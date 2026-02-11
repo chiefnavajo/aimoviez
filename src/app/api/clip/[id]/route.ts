@@ -124,22 +124,14 @@ export async function GET(
       userVote = voteData;
     }
 
-    // 3. Get slot info (filter by active season to avoid cross-season collisions)
-    const { data: activeSeason } = await supabase
-      .from('seasons')
-      .select('id')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
+    // 3. Get slot info (use clip's season_id for multi-genre correctness)
     const slotQuery = supabase
       .from('story_slots')
       .select('id, slot_position, status, voting_ends_at, winner_tournament_clip_id, season_id')
       .eq('slot_position', clip.slot_position);
 
-    if (activeSeason) {
-      slotQuery.eq('season_id', activeSeason.id);
+    if (clip.season_id) {
+      slotQuery.eq('season_id', clip.season_id);
     }
 
     const { data: slot } = await slotQuery.maybeSingle();
@@ -164,7 +156,7 @@ export async function GET(
 
     // 6. Get rank in slot (how many clips have more votes)
     // FIX: Include season_id filter to prevent cross-season ranking pollution
-    const seasonIdForRank = clip.season_id || slot?.season_id || activeSeason?.id;
+    const seasonIdForRank = clip.season_id || slot?.season_id;
 
     let rankQuery = supabase
       .from('tournament_clips')

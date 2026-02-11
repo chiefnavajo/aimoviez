@@ -85,10 +85,15 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     // Get active season for multi-genre filtering
-    const { data: activeSeason } = await supabase
+    const genreParam = searchParams.get('genre')?.toLowerCase();
+    let seasonQuery = supabase
       .from('seasons')
       .select('id')
-      .eq('status', 'active')
+      .eq('status', 'active');
+    if (genreParam) {
+      seasonQuery = seasonQuery.eq('genre', genreParam);
+    }
+    const { data: activeSeason } = await seasonQuery
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();

@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
     // 5. Look up generation (verify ownership, include model for audio merge)
     const { data: gen, error: genError } = await supabase
       .from('ai_generations')
-      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at, clip_id, model')
+      .select('id, status, video_url, completed_at, storage_key, complete_initiated_at, clip_id, model, genre')
       .eq('id', generationId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -136,12 +136,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 8. Check for active season (use .limit(1) not .single())
-    const { data: seasons } = await supabase
+    // 8. Check for active season (genre-aware for multi-genre)
+    let seasonQuery = supabase
       .from('seasons')
       .select('id')
-      .eq('status', 'active')
-      .order('created_at', { ascending: false })
+      .eq('status', 'active');
+    if (gen.genre) {
+      seasonQuery = seasonQuery.eq('genre', gen.genre.toLowerCase());
+    }
+    const { data: seasons } = await seasonQuery
+      .order('created_at', { ascending: true })
       .limit(1);
 
     if (!seasons?.length) {
