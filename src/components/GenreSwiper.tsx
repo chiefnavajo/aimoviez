@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { ActiveSeason } from '@/hooks/useGenreSwiper';
 import { getGenreEmoji } from '@/lib/genres';
 
@@ -118,7 +118,9 @@ export function GenreSwiper({
 }
 
 /**
- * GenreHeader - Shows genre tabs (desktop) or dots (mobile)
+ * GenreHeader - Shows genre navigation
+ * Mobile: iOS-style dynamic dots that scale based on distance from current
+ * Desktop: Scrollable pill bar with fade edges
  */
 interface GenreHeaderProps {
   genres: ActiveSeason[];
@@ -131,27 +133,17 @@ export function GenreHeader({ genres, currentIndex, onSelectIndex }: GenreHeader
 
   return (
     <div className="bg-black/40 backdrop-blur-sm border-b border-white/10">
-      {/* Mobile: Dots + Current Genre Name */}
+      {/* Mobile: iOS-style dynamic dots + current genre name */}
       <div className="md:hidden text-center py-3 px-4">
-        {/* Dot indicators */}
-        <div className="flex justify-center gap-1.5 mb-2">
-          {genres.map((g, i) => (
-            <button
-              key={g.id}
-              onClick={() => onSelectIndex(i)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                i === currentIndex
-                  ? 'bg-white scale-110'
-                  : 'bg-white/30 hover:bg-white/50'
-              }`}
-              aria-label={`Switch to ${g.label}`}
-            />
-          ))}
-        </div>
-        {/* Current genre */}
+        <DynamicDots
+          count={genres.length}
+          currentIndex={currentIndex}
+          onSelect={onSelectIndex}
+          labels={genres.map(g => g.label)}
+        />
         {currentGenre && (
           <>
-            <div className="text-lg font-bold text-white">
+            <div className="text-lg font-bold text-white mt-2">
               {currentGenre.emoji} {currentGenre.label}
             </div>
             <div className="text-xs text-white/60">
@@ -164,25 +156,211 @@ export function GenreHeader({ genres, currentIndex, onSelectIndex }: GenreHeader
         )}
       </div>
 
-      {/* Desktop: Clickable Tabs */}
-      <div className="hidden md:flex items-center gap-1 px-4 py-2">
+      {/* Desktop: Scrollable pill bar */}
+      <ScrollablePillBar
+        genres={genres}
+        currentIndex={currentIndex}
+        onSelectIndex={onSelectIndex}
+      />
+    </div>
+  );
+}
+
+/**
+ * DynamicDots - iOS-style page indicator that scales dots based on proximity
+ * Shows max 7 dots at a time. Current dot is largest, nearby dots progressively
+ * smaller, distant dots hidden. The visible window slides with the current index.
+ */
+function DynamicDots({
+  count,
+  currentIndex,
+  onSelect,
+  labels,
+}: {
+  count: number;
+  currentIndex: number;
+  onSelect: (index: number) => void;
+  labels: string[];
+}) {
+  const MAX_VISIBLE = 7;
+
+  // For <= 7 items, show all dots with size scaling only
+  if (count <= MAX_VISIBLE) {
+    return (
+      <div className="flex justify-center items-center gap-1.5">
+        {Array.from({ length: count }, (_, i) => {
+          const distance = Math.abs(i - currentIndex);
+          const scale = distance === 0 ? 1 : distance === 1 ? 0.75 : 0.5;
+          const opacity = distance === 0 ? 1 : distance === 1 ? 0.6 : 0.3;
+          return (
+            <button
+              key={i}
+              onClick={() => onSelect(i)}
+              className="rounded-full bg-white transition-all duration-200"
+              style={{
+                width: `${8 * scale}px`,
+                height: `${8 * scale}px`,
+                opacity,
+                minWidth: '4px',
+                minHeight: '4px',
+              }}
+              aria-label={`Switch to ${labels[i]}`}
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // For > 7 items, show a sliding window of dots
+  const halfWindow = Math.floor(MAX_VISIBLE / 2); // 3
+  // Clamp the window so it doesn't go out of bounds
+  let windowStart = currentIndex - halfWindow;
+  let windowEnd = currentIndex + halfWindow;
+
+  if (windowStart < 0) {
+    windowStart = 0;
+    windowEnd = MAX_VISIBLE - 1;
+  }
+  if (windowEnd >= count) {
+    windowEnd = count - 1;
+    windowStart = count - MAX_VISIBLE;
+  }
+
+  return (
+    <div className="flex justify-center items-center gap-1.5">
+      {/* Left overflow indicator */}
+      {windowStart > 0 && (
+        <button
+          onClick={() => onSelect(windowStart - 1)}
+          className="rounded-full bg-white/20 transition-all duration-200"
+          style={{ width: '3px', height: '3px' }}
+          aria-label="Previous genres"
+        />
+      )}
+
+      {Array.from({ length: windowEnd - windowStart + 1 }, (_, idx) => {
+        const i = windowStart + idx;
+        const distance = Math.abs(i - currentIndex);
+        const scale = distance === 0 ? 1 : distance === 1 ? 0.75 : distance === 2 ? 0.55 : 0.4;
+        const opacity = distance === 0 ? 1 : distance === 1 ? 0.6 : distance === 2 ? 0.35 : 0.2;
+        return (
+          <button
+            key={i}
+            onClick={() => onSelect(i)}
+            className="rounded-full bg-white transition-all duration-200"
+            style={{
+              width: `${8 * scale}px`,
+              height: `${8 * scale}px`,
+              opacity,
+              minWidth: '3px',
+              minHeight: '3px',
+            }}
+            aria-label={`Switch to ${labels[i]}`}
+          />
+        );
+      })}
+
+      {/* Right overflow indicator */}
+      {windowEnd < count - 1 && (
+        <button
+          onClick={() => onSelect(windowEnd + 1)}
+          className="rounded-full bg-white/20 transition-all duration-200"
+          style={{ width: '3px', height: '3px' }}
+          aria-label="More genres"
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * ScrollablePillBar - Horizontally scrollable genre pills for desktop
+ * Auto-scrolls to keep active pill centered. Gradient fades on edges
+ * indicate more content in that direction.
+ */
+function ScrollablePillBar({
+  genres,
+  currentIndex,
+  onSelectIndex,
+}: {
+  genres: ActiveSeason[];
+  currentIndex: number;
+  onSelectIndex: (index: number) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [showLeftFade, setShowLeftFade] = useState(false);
+  const [showRightFade, setShowRightFade] = useState(false);
+
+  // Check if fades are needed based on scroll position
+  const updateFades = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setShowLeftFade(el.scrollLeft > 4);
+    setShowRightFade(el.scrollLeft < el.scrollWidth - el.clientWidth - 4);
+  }, []);
+
+  // Auto-scroll to keep active pill visible and roughly centered
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const activeBtn = el.children[currentIndex] as HTMLElement | undefined;
+    if (!activeBtn) return;
+
+    const containerCenter = el.clientWidth / 2;
+    const btnCenter = activeBtn.offsetLeft + activeBtn.offsetWidth / 2;
+    el.scrollTo({ left: btnCenter - containerCenter, behavior: 'smooth' });
+  }, [currentIndex]);
+
+  // Listen for scroll to update fades
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateFades();
+    el.addEventListener('scroll', updateFades, { passive: true });
+    // Also update on resize
+    window.addEventListener('resize', updateFades);
+    return () => {
+      el.removeEventListener('scroll', updateFades);
+      window.removeEventListener('resize', updateFades);
+    };
+  }, [updateFades, genres.length]);
+
+  return (
+    <div className="hidden md:block relative">
+      {/* Left fade */}
+      {showLeftFade && (
+        <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-black/60 to-transparent z-10 pointer-events-none" />
+      )}
+
+      {/* Scrollable pills */}
+      <div
+        ref={scrollRef}
+        className="flex items-center gap-1.5 px-4 py-2 overflow-x-auto scrollbar-hide"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         {genres.map((g, i) => (
           <button
             key={g.id}
             onClick={() => onSelectIndex(i)}
-            className={`px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`flex-shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-all duration-200 whitespace-nowrap ${
               i === currentIndex
-                ? 'bg-white/20 text-white border-b-2 border-cyan-400'
+                ? 'bg-cyan-500/20 text-white ring-1 ring-cyan-400/60'
                 : 'text-white/60 hover:text-white hover:bg-white/10'
             }`}
           >
             {g.emoji} {g.label}
-            <span className="ml-2 text-xs opacity-60">
+            <span className="ml-1.5 text-xs opacity-50">
               {g.currentSlot}/{g.totalSlots}
             </span>
           </button>
         ))}
       </div>
+
+      {/* Right fade */}
+      {showRightFade && (
+        <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-black/60 to-transparent z-10 pointer-events-none" />
+      )}
     </div>
   );
 }
