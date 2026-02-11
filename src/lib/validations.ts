@@ -306,6 +306,18 @@ export type PublishBriefRequest = z.infer<typeof PublishBriefSchema>;
 // AI MOVIE GENERATION VALIDATION
 // =============================================================================
 
+export const MovieScriptPreviewSchema = z.object({
+  source_text: z
+    .string()
+    .min(100, 'Source text must be at least 100 characters')
+    .max(100000, 'Source text must be 100,000 characters or less'),
+  model: z.enum(AI_MODELS).default('kling-2.6'),
+  style: z.enum(AI_STYLES).optional(),
+  target_duration_minutes: z.number().int().min(1, 'Minimum 1 minute').max(10, 'Maximum 10 minutes').default(10),
+}).strict();
+
+export type MovieScriptPreviewRequest = z.infer<typeof MovieScriptPreviewSchema>;
+
 export const MovieProjectCreateSchema = z.object({
   title: z
     .string()
@@ -326,6 +338,14 @@ export const MovieProjectCreateSchema = z.object({
   voice_id: z.string().max(100).optional().nullable(),
   aspect_ratio: z.enum(['16:9', '9:16', '1:1']).default('16:9'),
   target_duration_minutes: z.number().int().min(1, 'Minimum 1 minute').max(10, 'Maximum 10 minutes').default(10),
+  // Optional pre-generated scenes (from preview-script endpoint)
+  scenes: z.array(z.object({
+    scene_number: z.number().int().min(1),
+    scene_title: z.string().max(200),
+    video_prompt: z.string().min(10).max(2000),
+    narration_text: z.string().max(500).optional().nullable(),
+  })).optional(),
+  script_data: z.any().optional(),
 }).strict();
 
 export type MovieProjectCreateRequest = z.infer<typeof MovieProjectCreateSchema>;

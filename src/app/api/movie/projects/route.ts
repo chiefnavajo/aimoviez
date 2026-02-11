@@ -165,15 +165,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const { title, description, source_text, model, style, voice_id, aspect_ratio, target_duration_minutes } = parsed.data;
+    const { title, description, source_text, model, style, voice_id, aspect_ratio, target_duration_minutes, scenes: preGeneratedScenes, script_data } = parsed.data;
 
-    // Estimate scene count and credits
+    // If scenes are pre-generated, use their count; otherwise estimate
+    const hasPreGeneratedScenes = preGeneratedScenes && preGeneratedScenes.length > 0;
     const sceneDuration = MODEL_DURATION_SECONDS[model] || 5;
     const totalSeconds = target_duration_minutes * 60;
-    const estimatedScenes = Math.ceil(totalSeconds / sceneDuration);
+    const estimatedScenes = hasPreGeneratedScenes ? preGeneratedScenes.length : Math.ceil(totalSeconds / sceneDuration);
     const estimatedCredits = estimateMovieCredits(estimatedScenes, model, !!voice_id);
 
-    // Create project
+    // Create project — if scenes provided, start in script_ready status
     const { data: project, error: insertError } = await supabase
       .from('movie_projects')
       .insert({
@@ -186,9 +187,10 @@ export async function POST(req: NextRequest) {
         voice_id: voice_id || null,
         aspect_ratio,
         target_duration_minutes,
-        status: 'draft',
+        status: hasPreGeneratedScenes ? 'script_ready' : 'draft',
         estimated_credits: estimatedCredits,
         total_scenes: estimatedScenes,
+        script_data: script_data || null,
       })
       .select('id, title, status, estimated_credits, total_scenes, created_at')
       .single();
@@ -196,6 +198,29 @@ export async function POST(req: NextRequest) {
     if (insertError) {
       console.error('[POST /api/movie/projects] Insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
+    }
+
+    // Insert pre-generated scenes if provided
+    if (hasPreGeneratedScenes) {
+      const scenesToInsert = preGeneratedScenes.map((scene) => ({
+        project_id: project.id,
+        scene_number: scene.scene_number,
+        scene_title: scene.scene_title,
+        video_prompt: scene.video_prompt,
+        narration_text: scene.narration_text || null,
+        status: 'pending',
+      }));
+
+      const { error: sceneInsertError } = await supabase
+        .from('movie_scenes')
+        .insert(scenesToInsert);
+
+      if (sceneInsertError) {
+        console.error('[POST /api/movie/projects] Scene insert error:', sceneInsertError);
+        // Clean up the project if scene insert fails
+        await supabase.from('movie_projects').delete().eq('id', project.id);
+        return NextResponse.json({ error: 'Failed to save scenes' }, { status: 500 });
+      }
     }
 
     return NextResponse.json({

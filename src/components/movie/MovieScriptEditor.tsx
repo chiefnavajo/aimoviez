@@ -85,12 +85,14 @@ export default function MovieScriptEditor({ projectId, scenes, onSaved }: MovieS
           }`}
         >
           {/* Scene Header */}
-          <button
+          <div
             onClick={() => {
               if (editingScene === scene.scene_number) return;
               setExpandedScene(expandedScene === scene.scene_number ? null : scene.scene_number);
             }}
-            className="w-full flex items-center gap-3 px-4 py-3"
+            className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer"
+            role="button"
+            tabIndex={0}
           >
             <span className="text-xs font-mono text-white/40 w-8">#{scene.scene_number}</span>
             <span className="flex-1 text-sm text-left truncate">
@@ -111,7 +113,7 @@ export default function MovieScriptEditor({ projectId, scenes, onSaved }: MovieS
                 )}
               </>
             )}
-          </button>
+          </div>
 
           {/* Expanded View (read-only) */}
           {expandedScene === scene.scene_number && editingScene !== scene.scene_number && (
