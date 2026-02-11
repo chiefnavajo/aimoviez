@@ -6,8 +6,8 @@
 // Redirects to /upload if ai_video_generation flag is disabled.
 // ============================================================================
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Sparkles, BookOpen, Heart, Trophy, User, Plus, Play } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
@@ -18,9 +18,12 @@ import BriefBanner from '@/components/BriefBanner';
 
 function CreatePageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlGenre = searchParams.get('genre')?.toLowerCase() || null;
   const { enabled: aiEnabled, isLoading } = useFeature('ai_video_generation');
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
   const [externalPrompt, setExternalPrompt] = useState('');
+  const [multiGenreEnabled, setMultiGenreEnabled] = useState(false);
 
   // Redirect if AI is not enabled
   useEffect(() => {
@@ -29,21 +32,27 @@ function CreatePageContent() {
     }
   }, [isLoading, aiEnabled, router]);
 
-  // Fetch last frame for story continuity
-  useEffect(() => {
-    async function fetchLastFrame() {
-      try {
-        const res = await fetch('/api/story/last-frame');
-        const data = await res.json();
-        if (data.lastFrameUrl) {
-          setLastFrameUrl(data.lastFrameUrl);
-        }
-      } catch {
-        // Non-critical
+  // Fetch last frame for story continuity (genre-aware)
+  const fetchLastFrame = useCallback(async (genreForFrame?: string | null) => {
+    try {
+      const url = genreForFrame
+        ? `/api/story/last-frame?genre=${genreForFrame}`
+        : '/api/story/last-frame';
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.lastFrameUrl) {
+        setLastFrameUrl(data.lastFrameUrl);
+      } else if (data.reason === 'genre_required') {
+        setMultiGenreEnabled(true);
       }
+    } catch {
+      // Non-critical
     }
-    fetchLastFrame();
   }, []);
+
+  useEffect(() => {
+    fetchLastFrame(urlGenre);
+  }, [fetchLastFrame, urlGenre]);
 
   if (isLoading) {
     return (
@@ -87,7 +96,7 @@ function CreatePageContent() {
               <p className="text-white/60">Describe your scene and let AI generate an 8-second video clip</p>
             </div>
             <BriefBanner onSelectPrompt={setExternalPrompt} />
-            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} />
+            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => { if (!lastFrameUrl) fetchLastFrame(g); } : undefined} />
           </div>
         </div>
       </div>
@@ -104,7 +113,7 @@ function CreatePageContent() {
             <p className="text-sm text-white/60">Describe your scene and let AI create it</p>
           </div>
           <BriefBanner onSelectPrompt={setExternalPrompt} />
-          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} />
+          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => { if (!lastFrameUrl) fetchLastFrame(g); } : undefined} />
         </div>
         <BottomNavigation />
       </div>
@@ -115,7 +124,9 @@ function CreatePageContent() {
 export default function CreatePage() {
   return (
     <AuthGuard>
-      <CreatePageContent />
+      <Suspense fallback={<div className="min-h-screen bg-black" />}>
+        <CreatePageContent />
+      </Suspense>
     </AuthGuard>
   );
 }

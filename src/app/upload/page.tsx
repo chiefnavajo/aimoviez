@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef, useEffect, useCallback, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { Upload, Check, Loader2, AlertCircle, BookOpen, User, Volume2, VolumeX, Plus, Heart, Trophy, LogIn, Play, Sparkles, Film, Zap } from 'lucide-react';
@@ -52,13 +52,15 @@ function _generateFilename(originalName: string): string {
 
 function UploadPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlGenre = searchParams.get('genre')?.toLowerCase() || null;
   const { isLoading: authLoading, isAuthenticated } = useAuth();
   const { post: csrfPost, ensureToken } = useCsrf();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [video, setVideo] = useState<File | null>(null);
-  const [genre, setGenre] = useState('');
+  const [genre, setGenre] = useState(urlGenre || '');
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [videoDuration, setVideoDuration] = useState<number>(0);
   const [errors, setErrors] = useState<string[]>([]);
@@ -77,6 +79,25 @@ function UploadPageContent() {
   // Continuation mode
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null);
   const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
+  const [multiGenreEnabled, setMultiGenreEnabled] = useState(false);
+
+  // Fetch last frame for a specific genre (or no genre for single-season mode)
+  const fetchLastFrame = useCallback(async (genreForFrame?: string | null) => {
+    try {
+      const url = genreForFrame
+        ? `/api/story/last-frame?genre=${genreForFrame}`
+        : '/api/story/last-frame';
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.lastFrameUrl) {
+        setLastFrameUrl(data.lastFrameUrl);
+      } else if (data.reason === 'genre_required') {
+        setMultiGenreEnabled(true);
+      }
+    } catch {
+      // Non-critical — just skip continuation option
+    }
+  }, []);
 
   // Check season status + last frame on mount
   useEffect(() => {
@@ -98,21 +119,16 @@ function UploadPageContent() {
       }
     }
 
-    async function fetchLastFrame() {
-      try {
-        const res = await fetch('/api/story/last-frame');
-        const data = await res.json();
-        if (data.lastFrameUrl) {
-          setLastFrameUrl(data.lastFrameUrl);
-        }
-      } catch {
-        // Non-critical — just skip continuation option
-      }
-    }
-
     checkSeasonStatus();
-    fetchLastFrame();
-  }, []);
+    fetchLastFrame(urlGenre);
+  }, [fetchLastFrame, urlGenre]);
+
+  // Re-fetch last frame when genre is selected in multi-genre mode
+  useEffect(() => {
+    if (genre && multiGenreEnabled && !lastFrameUrl) {
+      fetchLastFrame(genre);
+    }
+  }, [genre, multiGenreEnabled, lastFrameUrl, fetchLastFrame]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -575,6 +591,28 @@ function UploadPageContent() {
               ))}
             </div>
 
+            {/* Late continuation prompt (multi-genre: shown after genre selection) */}
+            {lastFrameUrl && continuationMode === null && multiGenreEnabled && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                <div className="text-center">
+                  <p className="text-sm text-white/60">The previous scene in this genre ended with:</p>
+                </div>
+                <div className="relative aspect-video max-w-xs mx-auto rounded-xl overflow-hidden border border-white/20">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={lastFrameUrl} alt="Last frame from previous clip" className="w-full h-full object-cover" />
+                  <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-white/80">Previous scene</div>
+                </div>
+                <div className="flex gap-3">
+                  <motion.button whileTap={{ scale: 0.98 }} onClick={() => setContinuationMode('continue')} className="flex-1 py-3 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-xl font-bold flex items-center justify-center gap-2">
+                    <Film className="w-4 h-4" /> Continue
+                  </motion.button>
+                  <motion.button whileTap={{ scale: 0.98 }} onClick={() => setContinuationMode('fresh')} className="flex-1 py-3 bg-white/10 border border-white/20 rounded-xl font-bold flex items-center justify-center gap-2">
+                    <Zap className="w-4 h-4" /> Fresh
+                  </motion.button>
+                </div>
+              </motion.div>
+            )}
+
             {/* Debug log - only visible during upload errors in development */}
             {process.env.NODE_ENV === 'development' && debugLog.length > 0 && (
               <div className="mt-4 p-3 bg-black/50 rounded-lg border border-white/10 max-h-60 overflow-y-auto">
@@ -672,11 +710,13 @@ function UploadPageContent() {
   );
 }
 
-// Wrap with AuthGuard for protected route
+// Wrap with AuthGuard + Suspense (for useSearchParams)
 export default function UploadPage() {
   return (
     <AuthGuard>
-      <UploadPageContent />
+      <Suspense fallback={<div className="min-h-screen bg-black" />}>
+        <UploadPageContent />
+      </Suspense>
     </AuthGuard>
   );
 }

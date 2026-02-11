@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { rateLimit } from '@/lib/rate-limit';
+import { isValidGenre } from '@/lib/genres';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,22 +25,45 @@ export async function GET(req: NextRequest) {
   const supabase = getSupabase();
 
   try {
-    // Check feature flag
-    const { data: flag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'last_frame_continuation')
-      .maybeSingle();
+    const genreParam = req.nextUrl.searchParams.get('genre')?.toLowerCase();
 
-    if (!flag?.enabled) {
+    // Check feature flags
+    const { data: flags } = await supabase
+      .from('feature_flags')
+      .select('key, enabled')
+      .in('key', ['last_frame_continuation', 'multi_genre_enabled']);
+
+    const flagMap = Object.fromEntries((flags || []).map(f => [f.key, f.enabled]));
+
+    if (!flagMap['last_frame_continuation']) {
       return NextResponse.json({ lastFrameUrl: null, reason: 'feature_disabled' });
     }
 
-    // Get active season
-    const { data: season } = await supabase
+    const multiGenreEnabled = flagMap['multi_genre_enabled'] ?? false;
+
+    // Validate genre param
+    if (genreParam && !isValidGenre(genreParam)) {
+      return NextResponse.json({ lastFrameUrl: null, reason: 'invalid_genre' });
+    }
+
+    // When multi-genre is ON, require a genre param to identify the correct season
+    if (multiGenreEnabled && !genreParam) {
+      return NextResponse.json({ lastFrameUrl: null, reason: 'genre_required' });
+    }
+
+    // Get active season (genre-aware when multi-genre is on)
+    let seasonQuery = supabase
       .from('seasons')
-      .select('id')
-      .eq('status', 'active')
+      .select('id, genre')
+      .eq('status', 'active');
+
+    if (multiGenreEnabled && genreParam) {
+      seasonQuery = seasonQuery.eq('genre', genreParam);
+    }
+
+    const { data: season } = await seasonQuery
+      .order('created_at', { ascending: true })
+      .limit(1)
       .maybeSingle();
 
     if (!season) {
@@ -90,6 +114,7 @@ export async function GET(req: NextRequest) {
       lastFrameUrl: clip.last_frame_url,
       slotPosition: previousPosition,
       clipTitle: clip.title || null,
+      genre: season.genre || null,
     });
   } catch (err) {
     console.error('[story/last-frame] Error:', err);

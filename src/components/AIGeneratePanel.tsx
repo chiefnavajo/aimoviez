@@ -42,6 +42,7 @@ interface AIGeneratePanelProps {
   compact?: boolean;
   lastFrameUrl?: string | null;
   initialPrompt?: string;
+  onGenreChange?: (genre: string) => void;
 }
 
 interface VoiceOption {
@@ -112,6 +113,7 @@ export default function AIGeneratePanel({
   compact = false,
   lastFrameUrl,
   initialPrompt,
+  onGenreChange,
 }: AIGeneratePanelProps) {
   const router = useRouter();
   const { post: csrfPost, ensureToken } = useCsrf();
@@ -209,6 +211,13 @@ export default function AIGeneratePanel({
   const [model, setModel] = useState('kling-2.6');
   const [genre, setGenre] = useState(preselectedGenre || '');
   const [title, setTitle] = useState('');
+
+  // Notify parent when genre changes (for multi-genre last frame fetching)
+  useEffect(() => {
+    if (genre && onGenreChange) {
+      onGenreChange(genre);
+    }
+  }, [genre, onGenreChange]);
 
   // Persist auto-suggest toggle to localStorage
   useEffect(() => {
