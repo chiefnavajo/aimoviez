@@ -444,8 +444,8 @@ function ProfilePageContent() {
             <Link href="/settings"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><SettingsIcon className="w-5 h-5 text-white/60" /><span>Settings & Privacy</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
           </div>
 
-          {/* Movie Studio - Only visible to users with access */}
-          {hasMovieAccess && (
+          {/* Movie Studio - Only visible to users with access or admins */}
+          {(hasMovieAccess || isAdmin) && (
             <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl">
               <h3 className="font-bold text-purple-400 mb-3 flex items-center gap-2">
                 <Film className="w-5 h-5" />
