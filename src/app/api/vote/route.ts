@@ -1231,6 +1231,22 @@ async function handleVoteRedis(
     );
   }
 
+  // SECURITY FIX #12: Prevent self-voting (Redis path)
+  if (loggedInUserId) {
+    const { data: clipOwner } = await supabase
+      .from('tournament_clips')
+      .select('user_id')
+      .eq('id', clipId)
+      .maybeSingle();
+
+    if (clipOwner?.user_id === loggedInUserId) {
+      return NextResponse.json(
+        { success: false, error: 'You cannot vote on your own clip', code: 'SELF_VOTE_NOT_ALLOWED' },
+        { status: 403 }
+      );
+    }
+  }
+
   const seasonId = clipData.season_id;
   const slotPosition = clipData.slot_position ?? 1;
 
@@ -1425,6 +1441,22 @@ export async function POST(req: NextRequest) {
     const effectiveVoterKey = loggedInUserId ? `user_${loggedInUserId}` : voterKey;
     debugLog('[POST /api/vote] Auth type:', loggedInUserId ? 'authenticated' : 'device');
 
+    // SECURITY FIX #8: Check if user is banned before allowing vote
+    if (loggedInUserId) {
+      const { data: voterUser } = await supabase
+        .from('users')
+        .select('is_banned')
+        .eq('id', loggedInUserId)
+        .maybeSingle();
+
+      if (voterUser?.is_banned) {
+        return NextResponse.json(
+          { success: false, error: 'Your account has been suspended', code: 'USER_BANNED' },
+          { status: 403 }
+        );
+      }
+    }
+
     // 1. Check multi-vote mode feature flag (from cached feature flags)
     const multiVoteEnabled = featureFlags['multi_vote_mode'] ?? false;
     debugLog('[POST /api/vote] multiVoteEnabled:', multiVoteEnabled);
@@ -1521,6 +1553,26 @@ export async function POST(req: NextRequest) {
         { success: false, error: 'Clip not found' },
         { status: 404 }
       );
+    }
+
+    // SECURITY FIX #12: Prevent self-voting
+    if (loggedInUserId) {
+      const { data: clipOwnerData } = await supabase
+        .from('tournament_clips')
+        .select('user_id')
+        .eq('id', clipId)
+        .maybeSingle();
+
+      if (clipOwnerData?.user_id === loggedInUserId) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'You cannot vote on your own clip',
+            code: 'SELF_VOTE_NOT_ALLOWED',
+          },
+          { status: 403 }
+        );
+      }
     }
 
     // SECURITY: Validate clip status - only allow voting on active clips
@@ -1767,6 +1819,17 @@ export async function POST(req: NextRequest) {
           code: 'ALREADY_VOTED',
         },
         { status: 409 }
+      );
+    }
+
+    if (result?.error_code === 'SELF_VOTE_NOT_ALLOWED') {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'You cannot vote on your own clip',
+          code: 'SELF_VOTE_NOT_ALLOWED',
+        },
+        { status: 403 }
       );
     }
 

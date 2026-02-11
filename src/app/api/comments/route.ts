@@ -406,6 +406,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // SECURITY FIX #9: Check if user is banned before allowing comment
+    if (userInfo.userId) {
+      const { data: commenterUser } = await supabase
+        .from('users')
+        .select('is_banned')
+        .eq('id', userInfo.userId)
+        .maybeSingle();
+
+      if (commenterUser?.is_banned) {
+        return NextResponse.json(
+          { error: 'Your account has been suspended' },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await req.json();
 
     // Validate request body with Zod
@@ -426,6 +442,27 @@ export async function POST(req: NextRequest) {
         { error: 'Comment text cannot be empty' },
         { status: 400 }
       );
+    }
+
+    // SECURITY FIX #14: Enforce maximum nesting depth of 5 levels
+    if (parent_comment_id) {
+      let depth = 0;
+      let currentParentId = parent_comment_id;
+      while (currentParentId && depth < 6) {
+        depth++;
+        const { data: parentComment } = await supabase
+          .from('comments')
+          .select('parent_comment_id')
+          .eq('id', currentParentId)
+          .maybeSingle();
+        currentParentId = parentComment?.parent_comment_id || null;
+      }
+      if (depth > 5) {
+        return NextResponse.json(
+          { error: 'Maximum reply depth reached' },
+          { status: 400 }
+        );
+      }
     }
 
     const now = new Date().toISOString();
