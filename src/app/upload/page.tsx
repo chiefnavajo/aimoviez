@@ -123,12 +123,12 @@ function UploadPageContent() {
     fetchLastFrame(urlGenre);
   }, [fetchLastFrame, urlGenre]);
 
-  // Re-fetch last frame when genre is selected in multi-genre mode
+  // Re-fetch last frame when genre is selected/changed in multi-genre mode
   useEffect(() => {
-    if (genre && multiGenreEnabled && !lastFrameUrl) {
+    if (genre && multiGenreEnabled) {
       fetchLastFrame(genre);
     }
-  }, [genre, multiGenreEnabled, lastFrameUrl, fetchLastFrame]);
+  }, [genre, multiGenreEnabled, fetchLastFrame]);
 
   // Cleanup interval on unmount
   useEffect(() => {

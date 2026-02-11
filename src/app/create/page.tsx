@@ -96,7 +96,7 @@ function CreatePageContent() {
               <p className="text-white/60">Describe your scene and let AI generate an 8-second video clip</p>
             </div>
             <BriefBanner onSelectPrompt={setExternalPrompt} />
-            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => { if (!lastFrameUrl) fetchLastFrame(g); } : undefined} />
+            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
           </div>
         </div>
       </div>
@@ -113,7 +113,7 @@ function CreatePageContent() {
             <p className="text-sm text-white/60">Describe your scene and let AI create it</p>
           </div>
           <BriefBanner onSelectPrompt={setExternalPrompt} />
-          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => { if (!lastFrameUrl) fetchLastFrame(g); } : undefined} />
+          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
         </div>
         <BottomNavigation />
       </div>
