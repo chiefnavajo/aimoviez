@@ -303,6 +303,54 @@ export const PublishBriefSchema = z.object({
 export type PublishBriefRequest = z.infer<typeof PublishBriefSchema>;
 
 // =============================================================================
+// AI MOVIE GENERATION VALIDATION
+// =============================================================================
+
+export const MovieProjectCreateSchema = z.object({
+  title: z
+    .string()
+    .min(1, 'Title is required')
+    .max(200, 'Title must be 200 characters or less')
+    .transform((t) => t.trim()),
+  description: z
+    .string()
+    .max(1000, 'Description must be 1000 characters or less')
+    .optional()
+    .transform((d) => d?.trim() || ''),
+  source_text: z
+    .string()
+    .min(100, 'Source text must be at least 100 characters')
+    .max(100000, 'Source text must be 100,000 characters or less'),
+  model: z.enum(AI_MODELS).default('kling-2.6'),
+  style: z.enum(AI_STYLES).optional(),
+  voice_id: z.string().max(100).optional().nullable(),
+  aspect_ratio: z.enum(['16:9', '9:16', '1:1']).default('16:9'),
+  target_duration_minutes: z.number().int().min(1, 'Minimum 1 minute').max(10, 'Maximum 10 minutes').default(10),
+}).strict();
+
+export type MovieProjectCreateRequest = z.infer<typeof MovieProjectCreateSchema>;
+
+export const MovieSceneUpdateSchema = z.object({
+  scenes: z.array(z.object({
+    scene_number: z.number().int().min(1),
+    video_prompt: z.string().min(10, 'Video prompt must be at least 10 characters').max(2000).optional(),
+    narration_text: z.string().max(500).optional().nullable(),
+    scene_title: z.string().max(200).optional(),
+  })).min(1, 'At least one scene update is required').max(200, 'Cannot update more than 200 scenes at once'),
+}).strict();
+
+export type MovieSceneUpdateRequest = z.infer<typeof MovieSceneUpdateSchema>;
+
+export const MovieAccessGrantSchema = z.object({
+  user_id: z.string().uuid('Invalid user ID'),
+  max_projects: z.number().int().min(1).max(100).default(5),
+  max_scenes_per_project: z.number().int().min(10).max(300).default(150),
+  expires_at: z.string().datetime().optional().nullable(),
+}).strict();
+
+export type MovieAccessGrantRequest = z.infer<typeof MovieAccessGrantSchema>;
+
+// =============================================================================
 // HELPER: Parse and validate with friendly error
 // =============================================================================
 

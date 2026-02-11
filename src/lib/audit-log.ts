@@ -50,7 +50,10 @@ export type AuditAction =
   | 'publish_brief'
   | 'unpublish_brief'
   | 'update_brief'
-  | 'score_submission';
+  | 'score_submission'
+  // AI Movie Generation actions
+  | 'movie_access_grant'
+  | 'movie_access_revoke';
 
 export type ResourceType =
   | 'clip'
@@ -66,7 +69,10 @@ export type ResourceType =
   | 'direction_option'
   | 'direction_vote'
   | 'slot_brief'
-  | 'submission_score';
+  | 'submission_score'
+  // AI Movie Generation resources
+  | 'movie_access'
+  | 'movie_project';
 
 export interface AuditLogEntry {
   action: AuditAction;
