@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
 
     const { data: projects, error } = await supabase
       .from('movie_projects')
-      .select('id, title, description, model, status, total_scenes, completed_scenes, estimated_credits, spent_credits, created_at, updated_at, completed_at')
+      .select('id, title, description, model, status, total_scenes, completed_scenes, estimated_credits, spent_credits, target_duration_minutes, created_at, updated_at, completed_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50);

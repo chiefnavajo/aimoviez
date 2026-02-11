@@ -68,7 +68,8 @@ export async function POST(
     await supabase
       .from('movie_projects')
       .update({ status: 'paused' })
-      .eq('id', projectId);
+      .eq('id', projectId)
+      .eq('status', 'generating');
 
     return NextResponse.json({
       success: true,

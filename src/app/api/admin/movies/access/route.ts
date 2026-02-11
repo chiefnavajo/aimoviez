@@ -92,18 +92,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: 400 });
     }
 
-    const { user_id, max_projects, max_scenes_per_project, expires_at } = parsed.data;
+    const { email, max_projects, max_scenes_per_project, expires_at } = parsed.data;
 
-    // Verify target user exists
+    // Look up user by email
     const { data: targetUser } = await supabase
       .from('users')
       .select('id, email, username')
-      .eq('id', user_id)
+      .eq('email', email)
       .single();
 
     if (!targetUser) {
-      return NextResponse.json({ error: 'Target user not found' }, { status: 404 });
+      return NextResponse.json({ error: 'User not found with that email' }, { status: 404 });
     }
+
+    const user_id = targetUser.id;
 
     // Upsert access record
     const { data: accessRecord, error: upsertError } = await supabase

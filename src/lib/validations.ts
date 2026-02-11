@@ -342,7 +342,7 @@ export const MovieSceneUpdateSchema = z.object({
 export type MovieSceneUpdateRequest = z.infer<typeof MovieSceneUpdateSchema>;
 
 export const MovieAccessGrantSchema = z.object({
-  user_id: z.string().uuid('Invalid user ID'),
+  email: z.string().email('Invalid email address'),
   max_projects: z.number().int().min(1).max(100).default(5),
   max_scenes_per_project: z.number().int().min(10).max(300).default(150),
   expires_at: z.string().datetime().optional().nullable(),

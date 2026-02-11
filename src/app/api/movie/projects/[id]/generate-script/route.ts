@@ -68,11 +68,19 @@ export async function POST(
       );
     }
 
-    // Update status to script_generating
-    await supabase
+    // Update status to script_generating (atomic — prevents double-submit)
+    const { count: updated } = await supabase
       .from('movie_projects')
       .update({ status: 'script_generating' })
-      .eq('id', projectId);
+      .eq('id', projectId)
+      .in('status', ['draft', 'script_ready']);
+
+    if (!updated || updated === 0) {
+      return NextResponse.json(
+        { error: 'Script generation already in progress' },
+        { status: 409 }
+      );
+    }
 
     // Generate script with Claude
     const result = await generateMovieScript(project.source_text, {
@@ -97,6 +105,20 @@ export async function POST(
     }
 
     const { script } = result;
+
+    // Enforce max scenes per project
+    const { data: access } = await supabase
+      .from('movie_access')
+      .select('max_scenes_per_project')
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .single();
+
+    const maxScenes = access?.max_scenes_per_project || 150;
+    if (script.scenes.length > maxScenes) {
+      script.scenes = script.scenes.slice(0, maxScenes);
+      script.total_scenes = maxScenes;
+    }
 
     // Calculate credit estimate
     const estimatedCredits = estimateMovieCredits(

@@ -29,7 +29,7 @@ export default function BottomNavigation() {
       {/* Safe area spacer for devices with home indicator */}
       <div className="flex justify-around items-center h-14 md:h-16 px-1 pb-safe">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/'));
           const Icon = item.icon;
 
           return (

@@ -66,18 +66,19 @@ export async function POST(
       );
     }
 
-    // Mark pending scenes as skipped
+    // Mark non-completed scenes as skipped
     await supabase
       .from('movie_scenes')
       .update({ status: 'skipped' })
       .eq('project_id', projectId)
-      .eq('status', 'pending');
+      .in('status', ['pending', 'generating', 'narrating', 'merging']);
 
-    // Update project status
+    // Update project status (atomic check)
     await supabase
       .from('movie_projects')
       .update({ status: 'cancelled' })
-      .eq('id', projectId);
+      .eq('id', projectId)
+      .in('status', ['generating', 'paused']);
 
     return NextResponse.json({
       success: true,

@@ -101,15 +101,16 @@ export async function POST(
       );
     }
 
-    // Start generation: set status and current_scene to 1
-    const { error: updateError } = await supabase
+    // Start generation: set status and current_scene to 1 (atomic check)
+    const { error: updateError, count: updated } = await supabase
       .from('movie_projects')
       .update({
         status: 'generating',
         current_scene: 1,
         error_message: null,
       })
-      .eq('id', projectId);
+      .eq('id', projectId)
+      .eq('status', 'script_ready');
 
     if (updateError) {
       console.error('[start] Update error:', updateError);

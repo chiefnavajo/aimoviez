@@ -16,6 +16,7 @@ import BottomNavigation from '@/components/BottomNavigation';
 import ReferralSection from '@/components/ReferralSection';
 import { useAuth, AuthGuard } from '@/hooks/useAuth';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
+import { useMovieAccess } from '@/hooks/useMovieProject';
 
 // ============================================================================
 // TYPES
@@ -94,6 +95,7 @@ function formatNumber(num: number): string {
 function ProfilePageContent() {
   const { user, session } = useAuth();
   const { isAdmin } = useAdminAuth();
+  const { hasAccess: hasMovieAccess } = useMovieAccess();
   const [activeTab, setActiveTab] = useState<'stats' | 'clips' | 'history' | 'settings'>('stats');
   const [stats, setStats] = useState<UserStats | null>(null);
   const [clips, setClips] = useState<UserClip[]>([]);
@@ -441,6 +443,25 @@ function ProfilePageContent() {
             <Link href="/leaderboard"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><Trophy className="w-5 h-5 text-yellow-500" /><span>Leaderboard</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
             <Link href="/settings"><div className="flex items-center justify-between p-4 bg-white/5 rounded-xl hover:bg-white/10 transition"><div className="flex items-center gap-3"><SettingsIcon className="w-5 h-5 text-white/60" /><span>Settings & Privacy</span></div><ChevronRight className="w-5 h-5 text-white/60" /></div></Link>
           </div>
+
+          {/* Movie Studio - Only visible to users with access */}
+          {hasMovieAccess && (
+            <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl">
+              <h3 className="font-bold text-purple-400 mb-3 flex items-center gap-2">
+                <Film className="w-5 h-5" />
+                Movie Studio
+              </h3>
+              <Link href="/movie">
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 rounded-lg font-bold flex items-center justify-center gap-2 transition-all"
+                >
+                  <Film className="w-5 h-5" />
+                  Open Movie Studio
+                </motion.button>
+              </Link>
+            </div>
+          )}
 
           {/* Admin Section - Only visible to admins */}
           {isAdmin && (

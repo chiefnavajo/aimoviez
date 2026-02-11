@@ -290,6 +290,21 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
     return { processed: true };
   } catch (err) {
     console.error(`[process-movie-scenes] Generation submit error for scene ${scene.scene_number}:`, err);
+
+    // Refund credits since generation was never submitted
+    try {
+      const { error: refundErr } = await supabase.rpc('refund_credits', {
+        p_user_id: project.user_id,
+        p_amount: creditCost,
+      });
+      if (refundErr) {
+        // If refund RPC doesn't exist, manually increment balance
+        await supabase.rpc('increment_credits', { p_user_id: project.user_id, p_amount: creditCost });
+      }
+    } catch {
+      // Best-effort refund
+    }
+
     await supabase
       .from('movie_scenes')
       .update({ status: 'failed', error_message: err instanceof Error ? err.message : 'Generation submit failed' })
@@ -554,7 +569,55 @@ async function checkProjectCompletion(supabase: ReturnType<typeof getSupabase>, 
     .eq('status', 'completed');
 
   if ((count || 0) >= project.total_scenes) {
-    // All scenes done — mark project completed (concatenation is Phase 3)
+    console.log(`[process-movie-scenes] Project ${project.id} all scenes done (${count}). Starting concatenation...`);
+
+    // Try to concatenate all scene videos into one final MP4
+    try {
+      const { concatenateScenes } = await import('@/lib/movie-concat');
+
+      // Get all completed scenes ordered
+      const { data: completedScenes } = await supabase
+        .from('movie_scenes')
+        .select('scene_number, public_video_url, video_url, duration_seconds')
+        .eq('project_id', project.id)
+        .eq('status', 'completed')
+        .order('scene_number', { ascending: true });
+
+      if (completedScenes && completedScenes.length > 0) {
+        const scenesForConcat = completedScenes.map(s => ({
+          scene_number: s.scene_number,
+          video_url: s.public_video_url || s.video_url,
+        }));
+
+        const concatResult = await concatenateScenes(project.id, scenesForConcat);
+
+        if (concatResult.ok) {
+          const totalDuration = completedScenes.reduce(
+            (sum, s) => sum + (Number(s.duration_seconds) || 5), 0
+          );
+
+          await supabase
+            .from('movie_projects')
+            .update({
+              status: 'completed',
+              completed_scenes: count || 0,
+              completed_at: new Date().toISOString(),
+              final_video_url: concatResult.publicUrl,
+              total_duration_seconds: totalDuration,
+            })
+            .eq('id', project.id);
+
+          console.log(`[process-movie-scenes] Project ${project.id} completed with final MP4! ${count} scenes, ${concatResult.fileSizeMb}MB`);
+          return;
+        } else {
+          console.warn(`[process-movie-scenes] Concatenation failed for project ${project.id}: ${concatResult.error}`);
+        }
+      }
+    } catch (concatErr) {
+      console.warn(`[process-movie-scenes] Concatenation error for project ${project.id}:`, concatErr);
+    }
+
+    // Fallback: mark completed without final MP4 (scenes can still be watched individually)
     await supabase
       .from('movie_projects')
       .update({
@@ -563,7 +626,7 @@ async function checkProjectCompletion(supabase: ReturnType<typeof getSupabase>, 
         completed_at: new Date().toISOString(),
       })
       .eq('id', project.id);
-    console.log(`[process-movie-scenes] Project ${project.id} completed! ${count} scenes done.`);
+    console.log(`[process-movie-scenes] Project ${project.id} completed (no final MP4). ${count} scenes done.`);
   }
 }
 

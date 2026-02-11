@@ -74,12 +74,10 @@ export async function GET(
       .from('videos')
       .createSignedUrl(storageKey, 3600); // 1 hour expiry
 
-    return NextResponse.json({
-      download_url: signedUrl?.signedUrl || project.final_video_url,
-      title: project.title,
-      duration_seconds: project.total_duration_seconds,
-      expires_in_seconds: 3600,
-    });
+    const downloadUrl = signedUrl?.signedUrl || project.final_video_url;
+
+    // Redirect to the actual file so <a href> downloads work
+    return NextResponse.redirect(downloadUrl);
   } catch (err) {
     console.error('[GET /api/movie/projects/[id]/download] Error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
