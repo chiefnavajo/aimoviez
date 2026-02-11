@@ -171,7 +171,7 @@ export function GenreHeader({ genres, currentIndex, onSelectIndex }: GenreHeader
  * Shows max 7 dots at a time. Current dot is largest, nearby dots progressively
  * smaller, distant dots hidden. The visible window slides with the current index.
  */
-function DynamicDots({
+export function DynamicDots({
   count,
   currentIndex,
   onSelect,

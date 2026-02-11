@@ -52,6 +52,7 @@ import DirectionVotingModal from '@/components/DirectionVotingModal';
 import { AuthGuard } from '@/hooks/useAuth';
 import { useRealtimeClips, useRealtimeSlots, useStoryBroadcast, ClipUpdate, WinnerSelectedPayload, SeasonResetPayload } from '@/hooks/useRealtimeClips';
 import { useLandscapeVideo } from '@/hooks/useLandscapeVideo';
+import { DynamicDots } from '@/components/GenreSwiper';
 
 // ============================================================================
 // TYPES
@@ -1680,6 +1681,13 @@ function StoryPage() {
   }, [seasons, selectedSeasonId]);
 
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) || seasons[0];
+  const selectedSeasonIndex = seasons.findIndex(s => s.id === selectedSeasonId);
+
+  const goToSeason = useCallback((index: number) => {
+    if (index >= 0 && index < seasons.length) {
+      setSelectedSeasonId(seasons[index].id);
+    }
+  }, [seasons]);
 
   // Show typewriter intro when selecting a season with a description (once per session)
   useEffect(() => {
@@ -2012,6 +2020,18 @@ function StoryPage() {
             onMuteToggle={() => setIsMuted(!isMuted)}
           />
         </div>
+
+        {/* Season dots - top center (hidden in landscape/fullscreen) */}
+        {!isLandscape && !isFullscreen && seasons.length > 1 && (
+          <div className="absolute top-0 left-0 right-0 pt-12 z-20 flex justify-center pointer-events-auto">
+            <DynamicDots
+              count={seasons.length}
+              currentIndex={Math.max(0, selectedSeasonIndex)}
+              onSelect={goToSeason}
+              labels={seasons.map(s => s.name || `Season ${s.number}`)}
+            />
+          </div>
+        )}
 
         {/* Landscape mode controls overlay */}
         {isLandscape && (
