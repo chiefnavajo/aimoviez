@@ -588,12 +588,25 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
-    
-    const { data: clip, error } = await supabase
+
+    // Look up user to enforce ownership check
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .maybeSingle();
+
+    let query = supabase
       .from('tournament_clips')
       .select('id, status, video_url, vote_count')
-      .eq('id', clipId)
-      .single();
+      .eq('id', clipId);
+
+    // Ownership check: only return clip data if user owns it
+    if (userProfile?.id) {
+      query = query.eq('user_id', userProfile.id);
+    }
+
+    const { data: clip, error } = await query.maybeSingle();
 
     if (error || !clip) {
       return NextResponse.json(

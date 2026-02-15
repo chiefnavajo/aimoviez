@@ -61,6 +61,34 @@ export async function POST(req: NextRequest) {
 
   const supabase = createSupabaseServerClient();
 
+  // --- Distributed lock: prevent race with auto-advance cron ---
+  const lockId = `adv_admin_${Date.now()}`;
+  const now = new Date().toISOString();
+  const expiresAt = new Date(Date.now() + 60000).toISOString();
+
+  // Delete expired locks, then try to acquire
+  await supabase
+    .from('cron_locks')
+    .delete()
+    .eq('job_name', 'auto-advance')
+    .lt('expires_at', now);
+
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
+      job_name: 'auto-advance',
+      lock_id: lockId,
+      acquired_at: now,
+      expires_at: expiresAt,
+    });
+
+  if (lockError) {
+    return NextResponse.json(
+      { ok: false, error: 'Slot advancement in progress by another process. Please wait and try again.' },
+      { status: 409 }
+    );
+  }
+
   try {
     // Parse optional season_id or genre from request body (for multi-genre support)
     let targetSeasonId: string | undefined;
@@ -498,5 +526,12 @@ export async function POST(req: NextRequest) {
       { ok: false, error: 'Unexpected error during advance-slot' },
       { status: 500 }
     );
+  } finally {
+    // Release lock
+    await supabase
+      .from('cron_locks')
+      .delete()
+      .eq('job_name', 'auto-advance')
+      .eq('lock_id', lockId);
   }
 }

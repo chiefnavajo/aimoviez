@@ -196,20 +196,29 @@ export async function validateVoteRedis(
 // ============================================================================
 
 /**
- * Record a vote in Redis: dedup marker, daily counter, queue event, active clips set.
- * All operations in a single pipeline (~2ms).
+ * Record a vote in Redis: dedup marker (atomic SETNX), daily counter, queue event, active clips set.
+ * Uses SET NX for the dedup marker to atomically prevent duplicate votes (TOCTOU fix).
+ * Returns true if vote was recorded, false if duplicate detected.
  */
 export async function recordVote(
   voterKey: string,
   clipId: string,
   event: VoteQueueEvent,
   date: string
-): Promise<void> {
+): Promise<boolean> {
   const r = getRedis();
-  const pipeline = r.pipeline();
 
-  // Dedup marker (7-day TTL)
-  pipeline.set(KEYS.voted(voterKey, clipId), '1', { ex: DEDUP_TTL });
+  // Atomic dedup: SET NX returns true only if key didn't exist (first vote wins)
+  const dedupKey = KEYS.voted(voterKey, clipId);
+  const wasSet = await r.set(dedupKey, '1', { ex: DEDUP_TTL, nx: true });
+
+  if (!wasSet) {
+    // Another concurrent request already recorded this vote
+    return false;
+  }
+
+  // Dedup succeeded — record the rest in a pipeline
+  const pipeline = r.pipeline();
 
   // Daily counter (48-hour TTL)
   const dailyKey = KEYS.daily(date, voterKey);
@@ -223,6 +232,7 @@ export async function recordVote(
   pipeline.sadd(KEYS.activeClips(), clipId);
 
   await pipeline.exec();
+  return true;
 }
 
 /**

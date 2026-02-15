@@ -853,28 +853,29 @@ export async function GET(req: NextRequest) {
 
     const activeSlot = storySlot as StorySlotRow;
 
-    // 4. Get user's votes in current slot
-    const slotVotesResult = await getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position);
+    // 4+5. Run independent queries in parallel (~150ms -> ~50ms)
+    const [slotVotesResult, clipCountResult] = await Promise.all([
+      // 4. Get user's votes in current slot
+      getUserVotesInSlot(supabase, effectiveVoterKey, activeSlot.slot_position),
+      // 5. Get total clip count for this slot (lightweight query)
+      supabase
+        .from('tournament_clips')
+        .select('id', { count: 'exact', head: true })
+        .eq('slot_position', activeSlot.slot_position)
+        .eq('season_id', seasonRow.id)
+        .eq('status', 'active'),
+    ]);
+
     // For GET, we can proceed with empty votes if there's an error (graceful degradation)
     const slotVotes = slotVotesResult.votes;
     const votedClipIds = slotVotes.map(v => v.clip_id);
     const votedIdsSet = new Set(votedClipIds);
 
-    // 5. Get total clip count for this slot (lightweight query)
-    // Status can be 'active' or 'competing' (both are valid for voting)
-    // Filter by season_id to ensure correct clips for this season
-    const { count: totalClipCount, error: countError } = await supabase
-      .from('tournament_clips')
-      .select('id', { count: 'exact', head: true })
-      .eq('slot_position', activeSlot.slot_position)
-      .eq('season_id', seasonRow.id)
-      .eq('status', 'active');
-
-    if (countError) {
-      console.error('[GET /api/vote] countError:', countError);
+    if (clipCountResult.error) {
+      console.error('[GET /api/vote] countError:', clipCountResult.error);
     }
 
-    const totalClipsInSlot = totalClipCount ?? 0;
+    const totalClipsInSlot = clipCountResult.count ?? 0;
 
     // 5.5 Client exclusions (passed from frontend for session deduplication)
     // This is the ONLY deduplication needed - no per-user server storage required
@@ -1298,7 +1299,15 @@ async function handleVoteRedis(
     },
   };
 
-  await recordVoteRedis(effectiveVoterKey, clipId, voteEvent, todayDate);
+  const recorded = await recordVoteRedis(effectiveVoterKey, clipId, voteEvent, todayDate);
+
+  // Atomic dedup: if SETNX failed, another concurrent request already recorded this vote
+  if (!recorded) {
+    return NextResponse.json(
+      { success: false, error: 'Already voted on this clip', code: 'ALREADY_VOTED' },
+      { status: 409 }
+    );
+  }
 
   // Read CRDT and respond (~1ms)
   const counts = await getCountAndScore(clipId);
