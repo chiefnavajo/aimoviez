@@ -34,6 +34,21 @@ export async function uploadFrame(
 }
 
 /**
+ * Upload a JPEG frame buffer using an exact storage key (no path/extension modification).
+ * Used by movie pipeline where the caller controls the full storage path.
+ */
+export async function uploadFrameWithKey(
+  storageKey: string,
+  jpegBuffer: Uint8Array,
+  provider: StorageProvider
+): Promise<string> {
+  if (provider === 'r2') {
+    return uploadToR2(storageKey, jpegBuffer);
+  }
+  return uploadToSupabase(storageKey, jpegBuffer);
+}
+
+/**
  * Upload a pinned character frame to storage.
  * Stores under `pinned/{seasonId}/{elementIndex}_{suffix}.jpg`.
  */

@@ -18,7 +18,7 @@ import {
   checkFalStatus,
   MODEL_DURATION_SECONDS,
 } from '@/lib/ai-video';
-import { extractFrameAtTimestamp, uploadFrame } from '@/lib/storage/frame-upload';
+import { extractFrameAtTimestamp, uploadFrameWithKey } from '@/lib/storage/frame-upload';
 import { getStorageProvider, getSignedUploadUrl, getPublicVideoUrl } from '@/lib/storage';
 import { generateNarration } from '@/lib/elevenlabs';
 import type { NarrationConfig } from '@/lib/elevenlabs';
@@ -84,13 +84,13 @@ export async function GET(req: NextRequest) {
   let errors = 0;
 
   try {
-    // 3. Find projects in 'generating' status (max 3 per run)
+    // 3. Find projects in 'generating' status (max 10 per run)
     const { data: projects } = await supabase
       .from('movie_projects')
       .select('id, user_id, model, style, voice_id, current_scene, total_scenes, completed_scenes, spent_credits')
       .eq('status', 'generating')
       .order('updated_at', { ascending: true })
-      .limit(3);
+      .limit(10);
 
     if (!projects || projects.length === 0) {
       return NextResponse.json({ ok: true, message: 'No generating projects', processed: 0 });
@@ -190,35 +190,49 @@ async function processProjectScene(
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, project: ProjectRow, scene: any) {
-  // 1. Deduct credits for this scene
   const modelConfig = getModelConfig(project.model);
   const creditCost = modelConfig ? Math.ceil(modelConfig.costCents / 5) : 7; // Convert cents to credits
 
-  const { data: deductResult } = await supabase.rpc('deduct_credits', {
-    p_user_id: project.user_id,
-    p_amount: creditCost,
-    p_generation_id: null,
-  });
-
-  if (!deductResult?.success) {
-    // Insufficient credits — pause project
+  // If video was already generated (e.g. webhook completed but merging failed),
+  // skip straight to next phase without re-submitting or re-charging
+  if (scene.video_url) {
     await supabase
-      .from('movie_projects')
-      .update({ status: 'paused', error_message: 'Insufficient credits. Add more credits and resume.' })
-      .eq('id', project.id);
-    return { processed: false, error: true };
+      .from('movie_scenes')
+      .update({ status: project.voice_id ? 'narrating' : 'merging' })
+      .eq('id', scene.id);
+    return { processed: true };
   }
 
-  // Update scene credit cost and project spent_credits
-  await supabase
-    .from('movie_scenes')
-    .update({ credit_cost: creditCost })
-    .eq('id', scene.id);
+  // 1. Deduct credits — only on first attempt, not retries
+  const isRetry = (scene.retry_count || 0) > 0;
 
-  await supabase
-    .from('movie_projects')
-    .update({ spent_credits: (project.spent_credits || 0) + creditCost })
-    .eq('id', project.id);
+  if (!isRetry) {
+    const { data: deductResult } = await supabase.rpc('deduct_credits', {
+      p_user_id: project.user_id,
+      p_amount: creditCost,
+      p_generation_id: null,
+    });
+
+    if (!deductResult?.success) {
+      // Insufficient credits — pause project
+      await supabase
+        .from('movie_projects')
+        .update({ status: 'paused', error_message: 'Insufficient credits. Add more credits and resume.' })
+        .eq('id', project.id);
+      return { processed: false, error: true };
+    }
+
+    // Update scene credit cost and project spent_credits
+    await supabase
+      .from('movie_scenes')
+      .update({ credit_cost: creditCost })
+      .eq('id', scene.id);
+
+    await supabase
+      .from('movie_projects')
+      .update({ spent_credits: (project.spent_credits || 0) + creditCost })
+      .eq('id', project.id);
+  }
 
   // 2. Get previous scene's last frame for continuity (scene 2+)
   let previousFrameUrl: string | null = null;
@@ -291,18 +305,21 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
   } catch (err) {
     console.error(`[process-movie-scenes] Generation submit error for scene ${scene.scene_number}:`, err);
 
-    // Refund credits since generation was never submitted
-    try {
-      const { error: refundErr } = await supabase.rpc('refund_credits', {
-        p_user_id: project.user_id,
-        p_amount: creditCost,
-      });
-      if (refundErr) {
-        // If refund RPC doesn't exist, manually increment balance
-        await supabase.rpc('increment_credits', { p_user_id: project.user_id, p_amount: creditCost });
+    // Refund credits since generation was never submitted (only if we deducted on this run)
+    if (!isRetry) {
+      try {
+        await supabase.rpc('admin_grant_credits', {
+          p_user_id: project.user_id,
+          p_amount: creditCost,
+          p_reason: `Refund: movie scene ${scene.scene_number} submission failed`,
+        });
+        await supabase
+          .from('movie_projects')
+          .update({ spent_credits: Math.max(0, (project.spent_credits || 0) - creditCost) })
+          .eq('id', project.id);
+      } catch {
+        console.error('[process-movie-scenes] Credit refund failed for scene', scene.scene_number);
       }
-    } catch {
-      // Best-effort refund
     }
 
     await supabase
@@ -361,8 +378,8 @@ async function handleGeneratingScene(supabase: ReturnType<typeof getSupabase>, p
   // Still processing — poll fal.ai status as fallback
   if (gen.status === 'pending' || gen.status === 'processing') {
     try {
-      const falStatus = await checkFalStatus(gen.fal_request_id, project.model);
-      if (falStatus.status === 'completed' && falStatus.videoUrl) {
+      const falStatus = await checkFalStatus(project.model, gen.fal_request_id);
+      if (falStatus.status === 'COMPLETED' && falStatus.videoUrl) {
         // Webhook may have been missed — update directly
         await supabase
           .from('ai_generations')
@@ -489,7 +506,7 @@ async function handleMergingScene(supabase: ReturnType<typeof getSupabase>, proj
     try {
       const frameData = await extractFrameAtTimestamp(scene.video_url, frameTimestamp);
       const frameKey = `movies/${project.id}/frames/scene_${String(scene.scene_number).padStart(3, '0')}.jpg`;
-      lastFrameUrl = await uploadFrame(frameKey, frameData, storageProvider);
+      lastFrameUrl = await uploadFrameWithKey(frameKey, frameData, storageProvider);
     } catch (frameErr) {
       console.warn(`[process-movie-scenes] Frame extraction failed for scene ${scene.scene_number}:`, frameErr);
       // Non-critical — next scene will fall back to text-to-video
