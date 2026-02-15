@@ -2,13 +2,18 @@
 // ============================================================================
 // Intercepts /api/vote POST requests and rate limits at Cloudflare's edge
 // network (200+ locations). Invalid requests never reach the origin server.
-// Uses Cloudflare KV for distributed counters with 60-second expiry.
+// Uses Cloudflare KV for distributed counters with TTL-based expiry.
 // ============================================================================
 
 export interface Env {
   RATE_LIMITS: KVNamespace;
-  ORIGIN_URL?: string; // e.g., "https://aimoviez.vercel.app"
 }
+
+// Allowed origins for CORS
+const ALLOWED_ORIGINS = [
+  'https://aimoviez.app',
+  'https://www.aimoviez.app',
+];
 
 // Rate limit configuration
 const LIMITS: Record<string, { maxRequests: number; windowSeconds: number }> = {
@@ -23,8 +28,13 @@ function getRateLimitKey(method: string, pathname: string): string | null {
   return null;
 }
 
+function getCorsOrigin(request: Request): string {
+  const origin = request.headers.get('Origin') || '';
+  return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];
+}
+
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const method = request.method;
 
@@ -35,10 +45,17 @@ export default {
       const config = LIMITS[limitKey];
       const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
       const kvKey = `rate:${limitKey}:${ip}`;
+      const corsOrigin = getCorsOrigin(request);
 
       // Check current count
-      const currentStr = await env.RATE_LIMITS.get(kvKey);
-      const current = currentStr ? parseInt(currentStr, 10) : 0;
+      let current = 0;
+      try {
+        const currentStr = await env.RATE_LIMITS.get(kvKey);
+        current = currentStr ? (parseInt(currentStr, 10) || 0) : 0;
+      } catch {
+        // KV unavailable — fail open (allow request)
+        current = 0;
+      }
 
       if (current >= config.maxRequests) {
         return new Response(
@@ -55,39 +72,45 @@ export default {
               'X-RateLimit-Limit': String(config.maxRequests),
               'X-RateLimit-Remaining': '0',
               'X-RateLimit-Reset': String(config.windowSeconds),
-              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Origin': corsOrigin,
             },
           }
         );
       }
 
-      // M9 + L6: Only set TTL when creating new key (counter == 0).
-      // For existing keys, increment without resetting the expiry window.
-      // This prevents TTL reset on every request and ensures the window
-      // expires correctly even under steady traffic.
-      if (current === 0) {
-        await env.RATE_LIMITS.put(kvKey, '1', {
+      // Increment counter — ALWAYS pass expirationTtl to prevent permanent keys.
+      // KV does NOT preserve TTL on put() — omitting it makes the key permanent.
+      try {
+        await env.RATE_LIMITS.put(kvKey, String(current + 1), {
           expirationTtl: config.windowSeconds,
         });
-      } else {
-        // KV doesn't support atomic increment, but by not resetting TTL
-        // we at least fix the sliding window problem. The burst bypass
-        // is inherent to KV's eventual consistency — acceptable trade-off.
-        await env.RATE_LIMITS.put(kvKey, String(current + 1), {
-          // Preserve existing TTL by not setting expirationTtl.
-          // KV entries retain their original TTL when updated without it.
-        });
+      } catch {
+        // KV write failed — continue without rate limiting
       }
 
-      // Add rate limit headers to the proxied response
-      const response = await fetch(request);
-      const newResponse = new Response(response.body, response);
-      newResponse.headers.set('X-RateLimit-Limit', String(config.maxRequests));
-      newResponse.headers.set('X-RateLimit-Remaining', String(Math.max(0, config.maxRequests - current - 1)));
-      return newResponse;
+      // Proxy to origin with rate limit headers
+      try {
+        const response = await fetch(request);
+        const newResponse = new Response(response.body, response);
+        newResponse.headers.set('X-RateLimit-Limit', String(config.maxRequests));
+        newResponse.headers.set('X-RateLimit-Remaining', String(Math.max(0, config.maxRequests - current - 1)));
+        return newResponse;
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'ORIGIN_UNREACHABLE', message: 'Service temporarily unavailable' }),
+          { status: 502, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': corsOrigin } }
+        );
+      }
     }
 
     // Non-rate-limited requests: pass through to origin
-    return fetch(request);
+    try {
+      return await fetch(request);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'ORIGIN_UNREACHABLE', message: 'Service temporarily unavailable' }),
+        { status: 502, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
   },
 };

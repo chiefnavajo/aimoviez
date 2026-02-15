@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import { createClient } from '@supabase/supabase-js';
 import { getStorageProvider } from '@/lib/storage';
 import { uploadFrame } from '@/lib/storage/frame-upload';
@@ -29,16 +30,8 @@ function getSupabase() {
 
 export async function POST(req: NextRequest) {
   // Auth: require CRON_SECRET
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   let body: { clipId?: string };
   try {

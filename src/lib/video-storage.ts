@@ -142,6 +142,7 @@ async function uploadToCloudinary(file: File, fileId: string): Promise<{ url: st
       {
         method: 'POST',
         body: formData,
+        signal: AbortSignal.timeout(60_000),
       }
     );
 

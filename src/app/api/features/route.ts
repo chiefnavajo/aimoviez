@@ -61,10 +61,25 @@ export async function GET(request: NextRequest) {
     const features: Record<string, boolean> = {};
     const configs: Record<string, Record<string, unknown>> = {};
 
+    // Sensitive config keys that should not be exposed to unauthenticated clients
+    const SENSITIVE_CONFIG_KEYS = new Set([
+      'daily_cost_limit_cents', 'monthly_cost_limit_cents', 'keyword_blocklist',
+      'max_daily_free', 'cost_per_generation_cents', 'admin_emails',
+    ]);
+
     (flags || []).forEach((flag) => {
       features[flag.key] = flag.enabled;
       if (flag.enabled && flag.config) {
-        configs[flag.key] = flag.config;
+        // Strip sensitive keys from public config
+        const safeConfig: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(flag.config)) {
+          if (!SENSITIVE_CONFIG_KEYS.has(k)) {
+            safeConfig[k] = v;
+          }
+        }
+        if (Object.keys(safeConfig).length > 0) {
+          configs[flag.key] = safeConfig;
+        }
       }
     });
 

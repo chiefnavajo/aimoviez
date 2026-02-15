@@ -164,7 +164,7 @@ function checkEnvironment(): HealthCheck {
     return {
       name,
       status: 'fail',
-      message: `Missing: ${missing.join(', ')}`,
+      message: `Missing ${missing.length} required environment variable(s)`,
     };
   }
 

@@ -6,12 +6,14 @@
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { MODELS, checkFalStatus } from '@/lib/ai-video';
 import { getStorageProvider, deleteFiles } from '@/lib/storage';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -21,30 +23,17 @@ function getSupabase() {
 }
 
 export async function GET(req: NextRequest) {
-  // Verify CRON_SECRET
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  if (!cronSecret) {
-    if (isProduction) {
-      console.error('[ai-timeout] CRITICAL: CRON_SECRET not configured in production');
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-    console.warn('[ai-timeout] DEV MODE: Running without auth');
-  }
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Verify CRON_SECRET (timing-safe)
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   const supabase = getSupabase();
+  const lockId = `ai-timeout-${Date.now()}`;
 
   try {
     // ========================================================================
     // DISTRIBUTED LOCK
     // ========================================================================
-    const lockId = `ai-timeout-${Date.now()}`;
     const lockExpiry = new Date(Date.now() + 60 * 1000).toISOString();
     const now = new Date().toISOString();
 
@@ -257,12 +246,6 @@ export async function GET(req: NextRequest) {
 
     results.storage_cleaned = storageCleanedCount;
 
-    // Release lock
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'ai-generation-timeout');
-
     return NextResponse.json({
       ok: true,
       results,
@@ -271,19 +254,21 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[ai-timeout] Unexpected error:', error);
 
-    try {
-      await supabase
-        .from('cron_locks')
-        .delete()
-        .eq('job_name', 'ai-generation-timeout');
-    } catch {
-      // Ignore cleanup errors
-    }
-
     return NextResponse.json(
       { ok: false, error: 'Unexpected error during AI timeout check' },
       { status: 500 }
     );
+  } finally {
+    // Always release OUR lock (scoped by lock_id to prevent releasing another instance's lock)
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'ai-generation-timeout')
+        .eq('lock_id', lockId);
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 }
 

@@ -71,7 +71,7 @@ export async function POST(
     // Update status to script_generating (atomic — prevents double-submit)
     const { count: updated } = await supabase
       .from('movie_projects')
-      .update({ status: 'script_generating' })
+      .update({ status: 'script_generating' }, { count: 'exact' })
       .eq('id', projectId)
       .in('status', ['draft', 'script_ready']);
 
@@ -158,7 +158,7 @@ export async function POST(
     }
 
     // Update project with script data and new status
-    await supabase
+    const { error: finalUpdateError } = await supabase
       .from('movie_projects')
       .update({
         status: 'script_ready',
@@ -168,6 +168,15 @@ export async function POST(
         error_message: null,
       })
       .eq('id', projectId);
+
+    if (finalUpdateError) {
+      console.error('[generate-script] Final update failed:', finalUpdateError);
+      await supabase
+        .from('movie_projects')
+        .update({ status: 'draft', error_message: 'Failed to save script data' })
+        .eq('id', projectId);
+      return NextResponse.json({ error: 'Failed to save script' }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,
@@ -179,6 +188,18 @@ export async function POST(
     });
   } catch (err) {
     console.error('[POST /api/movie/projects/[id]/generate-script] Error:', err);
+    // Revert status to draft on unexpected errors to prevent zombie state
+    try {
+      const supabase = getSupabase();
+      const { id: projectId } = await params;
+      await supabase
+        .from('movie_projects')
+        .update({ status: 'draft', error_message: 'Unexpected error during script generation' })
+        .eq('id', projectId)
+        .eq('status', 'script_generating');
+    } catch {
+      // Best-effort revert
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

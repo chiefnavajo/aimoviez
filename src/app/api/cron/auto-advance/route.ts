@@ -6,6 +6,7 @@
 // ============================================
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +14,7 @@ import { createClient } from '@supabase/supabase-js';
 import { forceSyncCounters } from '@/lib/counter-sync';
 import { clearClips } from '@/lib/crdt-vote-counter';
 import { setSlotState, setVotingFrozen } from '@/lib/vote-validation-redis';
+import { verifyCronAuth } from '@/lib/cron-auth';
 
 function createSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -27,38 +29,17 @@ function createSupabaseClient() {
 
 
 export async function GET(req: NextRequest) {
-  // Verify request is from Vercel Cron
-  // Vercel sends this header automatically for cron jobs
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  // SECURITY: In production, CRON_SECRET is MANDATORY
-  if (!cronSecret) {
-    if (isProduction) {
-      console.error('[auto-advance] CRITICAL: CRON_SECRET not configured in production');
-      return NextResponse.json(
-        { error: 'Server misconfiguration' },
-        { status: 500 }
-      );
-    }
-    // Only allow no-auth in development
-    console.warn('[auto-advance] DEV MODE: Running without auth (not allowed in production)');
-  }
-
-  // Verify the secret matches (when configured)
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    console.error('[auto-advance] Invalid CRON_SECRET provided');
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  // Verify CRON_SECRET (timing-safe)
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   const supabase = createSupabaseClient();
+  const lockId = `auto-advance-${Date.now()}`;
 
   try {
     // ========================================================================
     // DISTRIBUTED LOCK - Prevent multiple instances from running simultaneously
     // ========================================================================
-    const lockId = `auto-advance-${Date.now()}`;
     const lockExpiry = new Date(Date.now() + 60 * 1000).toISOString(); // 60 second lock
 
     // Atomic lock: delete expired, then insert (unique constraint prevents duplicates)
@@ -177,7 +158,8 @@ export async function GET(req: NextRequest) {
       await supabase
         .from('cron_locks')
         .delete()
-        .eq('job_name', 'auto-advance');
+        .eq('job_name', 'auto-advance')
+        .eq('lock_id', lockId);
 
       return NextResponse.json({
         ok: true,
@@ -471,12 +453,6 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Release lock after completion
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'auto-advance');
-
     return NextResponse.json({
       ok: true,
       processed: results.length,
@@ -487,21 +463,22 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error('[auto-advance] Unexpected error:', error);
 
-    // Release lock even on error
-    try {
-      const supabase = createSupabaseClient();
-      await supabase
-        .from('cron_locks')
-        .delete()
-        .eq('job_name', 'auto-advance');
-    } catch {
-      // Ignore cleanup errors
-    }
-
     return NextResponse.json({
       ok: false,
       error: 'Unexpected error during auto-advance'
     }, { status: 500 });
+  } finally {
+    // Always release OUR lock (scoped by lock_id to prevent releasing another instance's lock)
+    try {
+      const sb = createSupabaseClient();
+      await sb
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'auto-advance')
+        .eq('lock_id', lockId);
+    } catch {
+      // Ignore cleanup errors
+    }
   }
 }
 

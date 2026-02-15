@@ -445,7 +445,7 @@ export async function extractVisualFeaturesFromVideo(
 export async function extractVisualFeatures(imageUrl: string): Promise<VisualFeatures | null> {
   try {
     // Fetch image and convert to base64
-    const imageResponse = await fetch(imageUrl);
+    const imageResponse = await fetch(imageUrl, { signal: AbortSignal.timeout(15_000) });
     if (!imageResponse.ok) {
       console.error('[visual-learning] Failed to fetch image:', imageUrl);
       return null;

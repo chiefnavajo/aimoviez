@@ -77,6 +77,14 @@ export async function POST(request: NextRequest) {
 
     const hasNarration = typeof narrationAudioBase64 === 'string' && narrationAudioBase64.length > 0;
 
+    // Prevent DoS: limit base64 audio to ~10MB decoded (13.3MB base64)
+    if (hasNarration && (narrationAudioBase64 as string).length > 15_000_000) {
+      return NextResponse.json(
+        { success: false, error: 'Narration audio too large (max 10MB)' },
+        { status: 413 }
+      );
+    }
+
     const supabase = getSupabase();
 
     // 4. Look up user

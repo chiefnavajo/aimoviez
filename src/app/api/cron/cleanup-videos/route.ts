@@ -7,9 +7,11 @@
 // ============================================
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120;
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import { createClient } from '@supabase/supabase-js';
 import { extractStorageKey, deleteFiles } from '@/lib/storage';
 
@@ -23,21 +25,8 @@ function createSupabaseClient() {
 const BATCH_SIZE = 50;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const isProduction = process.env.NODE_ENV === 'production';
-
-  if (!cronSecret) {
-    if (isProduction) {
-      console.error('[cleanup-videos] CRITICAL: CRON_SECRET not configured in production');
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-    console.warn('[cleanup-videos] DEV MODE: Running without auth');
-  }
-
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   const supabase = createSupabaseClient();
 

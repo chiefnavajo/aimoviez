@@ -211,12 +211,15 @@ function checkInMemoryLimit(
  * Get unique identifier for rate limiting from request
  */
 export function getIdentifier(req: NextRequest): string {
-  // Try to get IP from various headers
+  // Prefer Vercel's verified IP (trustworthy, set by the proxy layer).
+  // Falls back to standard headers for non-Vercel deployments.
+  // Note: x-forwarded-for and cf-connecting-ip can be spoofed by clients
+  // unless the reverse proxy strips them, so req.ip is preferred.
+  const vercelIp = (req as unknown as { ip?: string }).ip;
   const forwarded = req.headers.get('x-forwarded-for');
   const realIp = req.headers.get('x-real-ip');
-  const cfConnectingIp = req.headers.get('cf-connecting-ip');
 
-  const ip = cfConnectingIp ||
+  const ip = vercelIp ||
              (forwarded ? forwarded.split(',')[0].trim() : null) ||
              realIp ||
              'unknown';

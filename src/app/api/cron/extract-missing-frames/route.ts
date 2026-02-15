@@ -10,6 +10,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 300; // 5 sequential extraction calls at ~55s each
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabase() {
@@ -22,16 +23,8 @@ function getSupabase() {
 const BATCH_SIZE = 5;
 
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret) {
-    if (process.env.NODE_ENV === 'production') {
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-  } else if (authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   const supabase = getSupabase();
 
@@ -94,7 +87,7 @@ export async function GET(req: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${cronSecret}`,
+            Authorization: `Bearer ${process.env.CRON_SECRET}`,
           },
           body: JSON.stringify({ clipId: clip.id }),
           signal: AbortSignal.timeout(55_000),

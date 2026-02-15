@@ -292,7 +292,8 @@ export async function GET(req: NextRequest) {
     const { data: userLikes } = await supabase
       .from('comment_likes')
       .select('comment_id')
-      .eq('user_key', userInfo.userKey);
+      .eq('user_key', userInfo.userKey)
+      .limit(500);
 
     const likedCommentIds = new Set(userLikes?.map((l) => l.comment_id) || []);
 
@@ -305,7 +306,8 @@ export async function GET(req: NextRequest) {
       .select('id, clip_id, user_key, username, avatar_url, comment_text, likes_count, parent_comment_id, created_at, updated_at')
       .in('parent_comment_id', commentIds)
       .eq('is_deleted', false)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(500);
 
     // Group replies by parent comment ID and track totals
     const repliesByParent = new Map<string, typeof allReplies>();

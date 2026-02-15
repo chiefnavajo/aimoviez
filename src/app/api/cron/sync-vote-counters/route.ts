@@ -6,9 +6,11 @@
 // ============================================================================
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyCronAuth } from '@/lib/cron-auth';
 import { createClient } from '@supabase/supabase-js';
 import { Redis } from '@upstash/redis';
 import { forceSyncCounters } from '@/lib/counter-sync';
@@ -44,22 +46,8 @@ function getRedis(): Redis {
 
 export async function GET(req: NextRequest) {
   // --- 1. CRON_SECRET validation ---
-  const authHeader = req.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (process.env.NODE_ENV === 'production') {
-    if (!cronSecret) {
-      console.error('[sync-vote-counters] CRON_SECRET not set in production');
-      return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
-    }
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  } else {
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-  }
+  const authError = verifyCronAuth(req.headers.get('authorization'));
+  if (authError) return authError;
 
   const supabase = createSupabaseClient();
 
