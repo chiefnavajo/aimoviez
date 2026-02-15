@@ -1035,6 +1035,26 @@ export default function AIGeneratePanel({
         </div>
       )}
 
+      {/* Switch-back banner when in fresh mode but last frame is available */}
+      {continuationMode === 'fresh' && lastFrameUrl && (
+        <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/10 rounded-xl">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={lastFrameUrl} alt="Reference frame" className="w-10 h-10 rounded-lg object-cover flex-shrink-0 opacity-50" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-white/40">Starting fresh (ignoring previous scene)</p>
+          </div>
+          <button
+            onClick={() => {
+              setContinuationMode('continue');
+              if (!I2V_SUPPORTED_MODELS.has(model)) setModel('kling-2.6');
+            }}
+            className="text-xs text-white/40 hover:text-white/60 flex-shrink-0"
+          >
+            Switch
+          </button>
+        </div>
+      )}
+
       {/* Pinned characters browser */}
       {pinnedCharacters.length > 0 && (
         <div className="border border-yellow-500/20 rounded-xl overflow-hidden bg-yellow-500/5">
