@@ -301,7 +301,7 @@ export async function GET(req: NextRequest) {
           max_tokens: 256,
           messages: [{
             role: 'user',
-            content: `Generate a video prompt for the NEXT scene in this story.
+            content: `Generate a DRAMATIC, ACTION-PACKED video prompt for the NEXT scene in this story.
 
 ${lastClipContext}
 
@@ -309,20 +309,24 @@ ${storyBeat ? `CO-DIRECTOR'S GUIDANCE FOR NEXT SCENE:
 - What happens: ${storyBeat.next_action}
 - Scene description: ${storyBeat.scene_description}
 - Must include: ${storyBeat.key_elements.join(', ')}
-- Avoid: ${storyBeat.avoid.join(', ')}` : 'Advance the story with something new happening.'}
+- Avoid: ${storyBeat.avoid.join(', ')}` : 'Advance the story with a dramatic twist, confrontation, or high-stakes moment.'}
 
 ${characterContext ? `Main characters: ${characterContext}` : ''}
 AI Model: ${model}
 ${visualTerms.length > 0 ? `Visual style: ${visualTerms.slice(0, 5).join(', ')}` : ''}
 ${patternTexts.length > 0 ? `Prompt patterns: ${patternTexts.slice(0, 3).join(', ')}` : ''}
 
-Write a video prompt (50-80 words) that:
-1. Follows the co-director's guidance for what happens next
-2. Uses the SAME characters (same gender, same appearance)
-3. ADVANCES the story - don't just continue the same action
-4. Matches the visual style
+Write a CINEMATIC video prompt (80-150 words) that:
+1. Starts with a DYNAMIC camera movement (tracking shot, crane up, whip pan, handheld chase, dolly zoom)
+2. Characters must be IN ACTION — running, fighting, reaching, turning sharply, reacting with shock. NEVER standing still or just talking
+3. Include dramatic lighting — harsh shadows, neon reflections, lightning, silhouettes, golden hour, or flickering fire
+4. Describe specific motion — wind blowing hair, debris flying, doors slamming, rain pouring, sparks scattering
+5. Use STRONG action verbs: "slams", "bursts through", "whips around", "dives", "races", "crashes"
+6. End the scene on a visual cliffhanger or dramatic beat
+7. Keep the SAME character appearances (gender, clothing, features)
+8. ADVANCE the story — don't repeat the previous scene
 
-Return ONLY the prompt text.`
+Return ONLY the prompt text. No quotes, no explanation.`
           }]
         });
 

@@ -92,11 +92,11 @@ const GENRES = [
 ];
 
 const SUGGESTION_CHIPS = [
-  'A lone astronaut discovers a glowing artifact on Mars',
-  'A cat becomes a street samurai in a cyberpunk city',
-  'Time-lapse of a city being reclaimed by nature',
-  'A dancer performs on the edge of a volcano at sunset',
-  'An ancient library where books come alive',
+  'Tracking shot — an astronaut sprints through a collapsing Mars base, explosions behind',
+  'Handheld chase — a cyberpunk samurai cat leaps across neon rooftops, sparks flying',
+  'Crane shot — a city crumbles as massive vines burst through skyscrapers at dawn',
+  'Whip pan — a dancer spins on a volcano edge as lava erupts behind her, golden hour',
+  'Dolly zoom — ancient books fly off shelves forming a tornado of glowing pages',
 ];
 
 const STORAGE_KEY = 'ai_active_generation_id';
@@ -1216,17 +1216,43 @@ export default function AIGeneratePanel({
               </span>
             )}
           </div>
-          <button
-            onClick={() => setAutoSuggestEnabled(!autoSuggestEnabled)}
-            className={`relative w-11 h-6 rounded-full transition-colors ${
-              autoSuggestEnabled ? 'bg-purple-600' : 'bg-white/20'
-            }`}
-            aria-label={autoSuggestEnabled ? 'Disable AI prompt suggestions' : 'Enable AI prompt suggestions'}
-          >
-            <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-              autoSuggestEnabled ? 'left-6' : 'left-1'
-            }`} />
-          </button>
+          <div className="flex items-center gap-2">
+            {autoSuggestEnabled && (
+              <button
+                onClick={async () => {
+                  setIsLoadingSuggestion(true);
+                  try {
+                    const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      if (data.ok && data.prompt) {
+                        setPrompt(data.prompt);
+                        setSuggestionBasis(data.based_on || null);
+                      }
+                    }
+                  } catch { /* non-critical */ } finally {
+                    setIsLoadingSuggestion(false);
+                  }
+                }}
+                disabled={isLoadingSuggestion}
+                className="px-2.5 py-1 bg-purple-500/20 border border-purple-500/40 rounded-lg text-xs text-purple-300 hover:bg-purple-500/30 transition flex items-center gap-1 disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3 h-3 ${isLoadingSuggestion ? 'animate-spin' : ''}`} />
+                Regenerate
+              </button>
+            )}
+            <button
+              onClick={() => setAutoSuggestEnabled(!autoSuggestEnabled)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                autoSuggestEnabled ? 'bg-purple-600' : 'bg-white/20'
+              }`}
+              aria-label={autoSuggestEnabled ? 'Disable AI prompt suggestions' : 'Enable AI prompt suggestions'}
+            >
+              <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                autoSuggestEnabled ? 'left-6' : 'left-1'
+              }`} />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1240,15 +1266,15 @@ export default function AIGeneratePanel({
         <textarea
           value={prompt}
           onChange={(e) => {
-            setPrompt(e.target.value.slice(0, 500));
+            setPrompt(e.target.value.slice(0, 800));
             // Clear suggestion basis when user edits
             if (suggestionBasis) setSuggestionBasis(null);
           }}
-          placeholder="Describe your 8-second video clip..."
-          rows={compact ? 3 : 4}
+          placeholder="Describe a dramatic scene — include camera movement, action, and lighting..."
+          rows={compact ? 3 : 5}
           className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"
         />
-        <p className="text-xs text-white/40 mt-1 text-right">{prompt.length}/500</p>
+        <p className="text-xs text-white/40 mt-1 text-right">{prompt.length}/800</p>
       </div>
 
       {/* Suggestion chips */}
