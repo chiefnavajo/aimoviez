@@ -381,6 +381,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
     } else {
       // Same URL (navigated back to same clip) — rewind and play from cache
       video.currentTime = 0;
+      setVideoLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, season.id]);
@@ -640,6 +641,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             muted={isMuted}
             playsInline
             preload="auto"
+            loop={completedSegments.length <= 1}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onCanPlay={() => {
