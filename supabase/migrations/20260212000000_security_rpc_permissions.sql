@@ -4,69 +4,42 @@
 -- Multiple RPC functions were callable by any role (including anon/authenticated)
 -- because no explicit GRANT/REVOKE was set. This migration restricts sensitive
 -- functions to service_role only, preventing direct PostgREST exploitation.
+--
+-- All blocks are idempotent: functions that don't exist are silently skipped.
 -- =============================================================================
 
--- CREDIT FUNCTIONS (service_role only)
-REVOKE ALL ON FUNCTION public.admin_grant_credits(uuid, integer, text) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.admin_grant_credits(uuid, integer, text) FROM anon;
-REVOKE ALL ON FUNCTION public.admin_grant_credits(uuid, integer, text) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.admin_grant_credits(uuid, integer, text) TO service_role;
-
-REVOKE ALL ON FUNCTION public.deduct_credits(uuid, integer, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.deduct_credits(uuid, integer, uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.deduct_credits(uuid, integer, uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.deduct_credits(uuid, integer, uuid) TO service_role;
-
-REVOKE ALL ON FUNCTION public.refund_credits(uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.refund_credits(uuid, uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.refund_credits(uuid, uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.refund_credits(uuid, uuid) TO service_role;
-
-REVOKE ALL ON FUNCTION public.add_credits(uuid, integer, text, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.add_credits(uuid, integer, text, uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.add_credits(uuid, integer, text, uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.add_credits(uuid, integer, text, uuid) TO service_role;
-
--- ADMIN FUNCTIONS (service_role only)
-REVOKE ALL ON FUNCTION public.assign_winner_atomic(uuid, uuid, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.assign_winner_atomic(uuid, uuid, uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.assign_winner_atomic(uuid, uuid, uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.assign_winner_atomic(uuid, uuid, uuid) TO service_role;
-
--- SLOT REORGANIZATION (service_role only)
-REVOKE ALL ON FUNCTION public.reorganize_slots_delete_and_shift(uuid, integer[]) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.reorganize_slots_delete_and_shift(uuid, integer[]) FROM anon;
-REVOKE ALL ON FUNCTION public.reorganize_slots_delete_and_shift(uuid, integer[]) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.reorganize_slots_delete_and_shift(uuid, integer[]) TO service_role;
-
-REVOKE ALL ON FUNCTION public.reorganize_slots_swap(uuid, integer, integer) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.reorganize_slots_swap(uuid, integer, integer) FROM anon;
-REVOKE ALL ON FUNCTION public.reorganize_slots_swap(uuid, integer, integer) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.reorganize_slots_swap(uuid, integer, integer) TO service_role;
-
--- COMMENT MODERATION (service_role only — was granted to authenticated)
-REVOKE ALL ON FUNCTION public.approve_comment(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.approve_comment(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.approve_comment(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.approve_comment(uuid) TO service_role;
-
-REVOKE ALL ON FUNCTION public.reject_comment(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.reject_comment(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.reject_comment(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.reject_comment(uuid) TO service_role;
-
-REVOKE ALL ON FUNCTION public.flag_comment(uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION public.flag_comment(uuid) FROM anon;
-REVOKE ALL ON FUNCTION public.flag_comment(uuid) FROM authenticated;
-GRANT EXECUTE ON FUNCTION public.flag_comment(uuid) TO service_role;
-
--- XP (service_role only)
+-- Helper: lock down a function to service_role only (skip if not found)
 DO $$
+DECLARE
+  fn TEXT;
+  fns TEXT[] := ARRAY[
+    'admin_grant_credits',
+    'deduct_credits',
+    'refund_credits',
+    'add_credits',
+    'assign_winner_atomic',
+    'reorganize_slots_delete_and_shift',
+    'reorganize_slots_swap',
+    'approve_comment',
+    'reject_comment',
+    'flag_comment',
+    'add_user_xp'
+  ];
+  oid_val OID;
 BEGIN
-  IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'add_user_xp') THEN
-    EXECUTE 'REVOKE ALL ON FUNCTION public.add_user_xp FROM PUBLIC';
-    EXECUTE 'REVOKE ALL ON FUNCTION public.add_user_xp FROM anon';
-    EXECUTE 'REVOKE ALL ON FUNCTION public.add_user_xp FROM authenticated';
-    EXECUTE 'GRANT EXECUTE ON FUNCTION public.add_user_xp TO service_role';
-  END IF;
+  FOREACH fn IN ARRAY fns LOOP
+    -- Find any overload of this function in the public schema
+    FOR oid_val IN
+      SELECT p.oid
+      FROM pg_proc p
+      JOIN pg_namespace n ON p.pronamespace = n.oid
+      WHERE n.nspname = 'public' AND p.proname = fn
+    LOOP
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', oid_val::regprocedure);
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM anon', oid_val::regprocedure);
+      EXECUTE format('REVOKE ALL ON FUNCTION %s FROM authenticated', oid_val::regprocedure);
+      EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO service_role', oid_val::regprocedure);
+      RAISE NOTICE 'Locked down function: %', oid_val::regprocedure;
+    END LOOP;
+  END LOOP;
 END $$;
