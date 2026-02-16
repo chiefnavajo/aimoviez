@@ -507,8 +507,8 @@ function VotingArena() {
   const PULL_THRESHOLD = 80;
 
   // BUG 3 FIX: Refs to store timeout IDs for proper cleanup on unmount
-  const heartTimeoutRef = useRef<NodeJS.Timeout>();
-  const tapTimeoutRef = useRef<NodeJS.Timeout>();
+  const heartTimeoutRef = useRef<NodeJS.Timeout>(null);
+  const tapTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   // BUG 5 FIX: Keep pullDistanceRef in sync with state
   useEffect(() => {

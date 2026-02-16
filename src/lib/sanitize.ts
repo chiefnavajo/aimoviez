@@ -158,7 +158,7 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
 export function sanitizeComment(input: string | null | undefined): string {
   if (!input) return '';
 
-  let result = input
+  const result = input
     // Decode HTML entities that could hide malicious content
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))

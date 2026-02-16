@@ -168,7 +168,7 @@ export async function GET(req: NextRequest) {
         });
         const clipIds = [...new Set(successfulEvents.map(e => e.clipId))];
         if (clipIds.length > 0) {
-          await redis.sadd('clips_active', ...clipIds);
+          await redis.sadd('clips_active', ...clipIds as [string, ...string[]]);
         }
       } catch (redisErr) {
         console.warn('[process-vote-queue] Failed to mark clips as active in Redis:', redisErr);
