@@ -81,7 +81,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION batch_update_vote_counts(JSONB) TO authenticated;
+REVOKE EXECUTE ON FUNCTION batch_update_vote_counts(JSONB) FROM authenticated;
 GRANT EXECUTE ON FUNCTION batch_update_vote_counts(JSONB) TO service_role;
 
 NOTIFY pgrst, 'reload schema';

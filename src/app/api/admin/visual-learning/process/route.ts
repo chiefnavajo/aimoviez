@@ -64,7 +64,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: false,
       error: 'Failed to process clips',
-      details: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 500 });
   }
 }

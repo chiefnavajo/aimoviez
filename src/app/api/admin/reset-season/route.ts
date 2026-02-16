@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
     if (seasonError) {
       console.error('[reset-season] seasonError:', seasonError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to fetch season', details: seasonError.message },
+        { ok: false, error: 'Failed to fetch season' },
         { status: 500 }
       );
     }
@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       if (reactivateError) {
         console.error('[reset-season] reactivateError:', reactivateError);
         return NextResponse.json(
-          { ok: false, error: 'Failed to reactivate season', details: reactivateError.message },
+          { ok: false, error: 'Failed to reactivate season' },
           { status: 500 }
         );
       }
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
     if (resetSlotsError) {
       console.error('[reset-season] resetSlotsError:', resetSlotsError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to reset slots', details: resetSlotsError.message },
+        { ok: false, error: 'Failed to reset slots' },
         { status: 500 }
       );
     }
@@ -187,7 +187,7 @@ export async function POST(req: NextRequest) {
     if (setVotingError) {
       console.error('[reset-season] setVotingError:', setVotingError);
       return NextResponse.json(
-        { ok: false, error: 'Failed to set voting slot', details: setVotingError.message },
+        { ok: false, error: 'Failed to set voting slot' },
         { status: 500 }
       );
     }

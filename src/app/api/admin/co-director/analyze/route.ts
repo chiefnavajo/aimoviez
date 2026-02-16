@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       console.error('[analyze] Claude error:', result.error);
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json({ error: 'Story analysis failed' }, { status: 500 });
     }
 
     // Store the analysis

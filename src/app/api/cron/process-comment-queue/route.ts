@@ -276,11 +276,15 @@ export async function GET(req: NextRequest) {
     }, { status: 500 });
   } finally {
     // --- Release lock ---
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'process_comment_queue')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'process_comment_queue')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[process-comment-queue] Failed to release lock:', lockReleaseError);
+    }
   }
 }
 

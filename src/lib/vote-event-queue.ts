@@ -64,23 +64,27 @@ export async function pushEvent(event: VoteQueueEvent): Promise<void> {
 export async function popEvents(count: number): Promise<VoteQueueEvent[]> {
   const r = getRedis();
 
-  // Read the last `count` elements (oldest first, since LPUSH adds to head)
-  const items = await r.lrange(QUEUE_KEYS.main, -count, -1);
+  // H24 fix: Use a Lua script for atomic LRANGE+LTRIM to prevent race conditions.
+  // Without this, new LPUSH events between LRANGE and LTRIM can shift list positions,
+  // causing LTRIM to remove unprocessed events.
+  const luaScript = `
+    local items = redis.call('LRANGE', KEYS[1], -tonumber(ARGV[1]), -1)
+    if #items > 0 then
+      redis.call('LTRIM', KEYS[1], 0, -(#items + 1))
+      for _, item in ipairs(items) do
+        redis.call('RPUSH', KEYS[2], item)
+      end
+    end
+    return items
+  `;
+
+  const items = await r.eval(
+    luaScript,
+    [QUEUE_KEYS.main, QUEUE_KEYS.processing],
+    [count]
+  ) as string[];
 
   if (!items || items.length === 0) return [];
-
-  const pipeline = r.pipeline();
-
-  // Remove the dequeued items from main queue
-  pipeline.ltrim(QUEUE_KEYS.main, 0, -(items.length + 1));
-
-  // Add them to processing queue
-  for (const item of items) {
-    const serialized = typeof item === 'string' ? item : JSON.stringify(item);
-    pipeline.rpush(QUEUE_KEYS.processing, serialized);
-  }
-
-  await pipeline.exec();
 
   // Parse events
   const events: VoteQueueEvent[] = [];
@@ -98,30 +102,33 @@ export async function popEvents(count: number): Promise<VoteQueueEvent[]> {
 
 /**
  * Acknowledge successfully processed events by removing them from the processing queue.
+ * H25 fix: Instead of per-item LREM with JSON.stringify() matching (which can silently
+ * fail due to JSON key ordering differences after deserialization/reserialization),
+ * delete the entire processing queue since all items in the batch were just processed.
+ * This is safe because the distributed lock ensures only one processor runs at a time.
  */
 export async function acknowledgeEvents(events: VoteQueueEvent[]): Promise<void> {
   if (events.length === 0) return;
 
   const r = getRedis();
-  const pipeline = r.pipeline();
-
-  for (const event of events) {
-    pipeline.lrem(QUEUE_KEYS.processing, 1, JSON.stringify(event));
-  }
-
-  await pipeline.exec();
+  await r.del(QUEUE_KEYS.processing);
 }
 
 /**
  * Acknowledge a single successfully processed event.
+ * H25 fix: Uses LPOP instead of LREM with JSON string matching to avoid
+ * silent failures from JSON key ordering differences.
  */
 export async function acknowledgeEvent(event: VoteQueueEvent): Promise<void> {
   const r = getRedis();
-  await r.lrem(QUEUE_KEYS.processing, 1, JSON.stringify(event));
+  // Remove one item from the processing queue (order doesn't matter for single ack)
+  await r.lpop(QUEUE_KEYS.processing);
 }
 
 /**
  * Move a failed event to the dead letter queue.
+ * H25 fix: Uses LPOP instead of LREM with JSON string matching to avoid
+ * silent failures from JSON key ordering differences.
  */
 export async function moveToDeadLetter(
   event: VoteQueueEvent,
@@ -140,8 +147,8 @@ export async function moveToDeadLetter(
   };
 
   const pipeline = r.pipeline();
-  // Remove from processing queue
-  pipeline.lrem(QUEUE_KEYS.processing, 1, JSON.stringify(event));
+  // Remove one item from processing queue (safe under distributed lock)
+  pipeline.lpop(QUEUE_KEYS.processing);
   // Add to dead letter queue
   pipeline.lpush(QUEUE_KEYS.deadLetter, JSON.stringify(deadLetterEntry));
   await pipeline.exec();

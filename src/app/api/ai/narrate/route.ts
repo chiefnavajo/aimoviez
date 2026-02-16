@@ -219,9 +219,8 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[AI_NARRATE] Error:', error);
-    const message = error instanceof Error ? error.message : 'Narration failed';
     return NextResponse.json(
-      { success: false, error: message },
+      { success: false, error: 'Narration failed' },
       { status: 500 }
     );
   }

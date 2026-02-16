@@ -94,7 +94,8 @@ export async function PATCH(
         .eq('scene_number', sceneUpdate.scene_number);
 
       if (updateError) {
-        errors.push(`Scene ${sceneUpdate.scene_number}: ${updateError.message}`);
+        console.error(`[PATCH /api/movie/projects/[id]/scenes] Scene ${sceneUpdate.scene_number} update error:`, updateError.message);
+        errors.push(`Scene ${sceneUpdate.scene_number}: update failed`);
       } else {
         updated++;
       }
@@ -102,7 +103,7 @@ export async function PATCH(
 
     if (errors.length > 0 && updated === 0) {
       return NextResponse.json(
-        { error: 'Failed to update scenes', details: errors },
+        { error: 'Failed to update scenes' },
         { status: 500 }
       );
     }

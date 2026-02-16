@@ -196,36 +196,32 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
     return { processed: true };
   }
 
-  // 1. Deduct credits — only on first attempt, not retries
-  const isRetry = (scene.retry_count || 0) > 0;
+  // 1. Deduct credits — always deduct (retries need to re-deduct since prior failure was refunded)
+  const { data: deductResult } = await supabase.rpc('deduct_credits', {
+    p_user_id: project.user_id,
+    p_amount: creditCost,
+    p_generation_id: null,
+  });
 
-  if (!isRetry) {
-    const { data: deductResult } = await supabase.rpc('deduct_credits', {
-      p_user_id: project.user_id,
-      p_amount: creditCost,
-      p_generation_id: null,
-    });
-
-    if (!deductResult?.success) {
-      // Insufficient credits — pause project
-      await supabase
-        .from('movie_projects')
-        .update({ status: 'paused', error_message: 'Insufficient credits. Add more credits and resume.' })
-        .eq('id', project.id);
-      return { processed: false, error: true };
-    }
-
-    // Update scene credit cost and project spent_credits
-    await supabase
-      .from('movie_scenes')
-      .update({ credit_cost: creditCost })
-      .eq('id', scene.id);
-
+  if (!deductResult?.success) {
+    // Insufficient credits — pause project
     await supabase
       .from('movie_projects')
-      .update({ spent_credits: (project.spent_credits || 0) + creditCost })
+      .update({ status: 'paused', error_message: 'Insufficient credits. Add more credits and resume.' })
       .eq('id', project.id);
+    return { processed: false, error: true };
   }
+
+  // Update scene credit cost and project spent_credits
+  await supabase
+    .from('movie_scenes')
+    .update({ credit_cost: creditCost })
+    .eq('id', scene.id);
+
+  await supabase
+    .from('movie_projects')
+    .update({ spent_credits: (project.spent_credits || 0) + creditCost })
+    .eq('id', project.id);
 
   // 2. Get previous scene's last frame for continuity (scene 2+)
   let previousFrameUrl: string | null = null;
@@ -298,21 +294,19 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
   } catch (err) {
     console.error(`[process-movie-scenes] Generation submit error for scene ${scene.scene_number}:`, err);
 
-    // Refund credits since generation was never submitted (only if we deducted on this run)
-    if (!isRetry) {
-      try {
-        await supabase.rpc('admin_grant_credits', {
-          p_user_id: project.user_id,
-          p_amount: creditCost,
-          p_reason: `Refund: movie scene ${scene.scene_number} submission failed`,
-        });
-        await supabase
-          .from('movie_projects')
-          .update({ spent_credits: Math.max(0, (project.spent_credits || 0) - creditCost) })
-          .eq('id', project.id);
-      } catch {
-        console.error('[process-movie-scenes] Credit refund failed for scene', scene.scene_number);
-      }
+    // Refund credits since generation was never submitted
+    try {
+      await supabase.rpc('admin_grant_credits', {
+        p_user_id: project.user_id,
+        p_amount: creditCost,
+        p_reason: `Refund: movie scene ${scene.scene_number} submission failed`,
+      });
+      await supabase
+        .from('movie_projects')
+        .update({ spent_credits: Math.max(0, (project.spent_credits || 0) - creditCost) })
+        .eq('id', project.id);
+    } catch {
+      console.error('[process-movie-scenes] Credit refund failed for scene', scene.scene_number);
     }
 
     await supabase

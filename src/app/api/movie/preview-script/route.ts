@@ -92,8 +92,9 @@ export async function POST(req: NextRequest) {
     });
 
     if (!result.ok) {
+      console.error('[POST /api/movie/preview-script] Script generation error:', result.error);
       return NextResponse.json(
-        { error: `Script generation failed: ${result.error}` },
+        { error: 'Script generation failed' },
         { status: 500 }
       );
     }

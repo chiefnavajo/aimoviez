@@ -17,6 +17,7 @@ if (!ANTHROPIC_API_KEY && process.env.NODE_ENV === 'production') {
 
 const anthropic = new Anthropic({
   apiKey: ANTHROPIC_API_KEY || 'dummy-key-for-dev',
+  timeout: 60_000,
 });
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
@@ -480,7 +481,7 @@ export async function generateQuickStoryBeat(
     .join('\n');
 
   try {
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, timeout: 60_000 });
     const response = await client.messages.create({
       model: 'claude-3-haiku-20240307',
       max_tokens: 300,

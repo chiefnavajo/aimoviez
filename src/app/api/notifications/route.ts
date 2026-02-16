@@ -3,6 +3,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import { requireAdmin } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
@@ -10,11 +12,19 @@ import { rateLimit } from '@/lib/rate-limit';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-function getUserKey(req: NextRequest): string {
+function getDeviceFingerprintKey(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
   const ua = req.headers.get('user-agent') || 'unknown';
   return crypto.createHash('sha256').update(ip + ua).digest('hex');
+}
+
+async function getUserKey(req: NextRequest): Promise<string> {
+  const session = await getServerSession(authOptions);
+  if (session?.user?.userId) {
+    return `user_${session.user.userId}`;
+  }
+  return getDeviceFingerprintKey(req);
 }
 
 type NotificationType = 
@@ -65,7 +75,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userKey = await getUserKey(req);
     const { searchParams } = new URL(req.url);
     
     const filter = searchParams.get('filter') || 'all';
@@ -213,7 +223,7 @@ export async function PATCH(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userKey = await getUserKey(req);
     const body = await req.json();
 
     const { notification_ids, mark_all_read } = body;
@@ -277,7 +287,7 @@ export async function DELETE(req: NextRequest) {
 
   try {
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+    const userKey = await getUserKey(req);
     const body = await req.json();
 
     const { notification_ids } = body;

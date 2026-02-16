@@ -16,6 +16,7 @@ if (!ANTHROPIC_API_KEY && process.env.NODE_ENV === 'production') {
 
 const anthropic = new Anthropic({
   apiKey: ANTHROPIC_API_KEY || 'dummy-key-for-dev',
+  timeout: 60_000,
 });
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';

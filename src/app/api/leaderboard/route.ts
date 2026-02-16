@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
     // Get active season (only needed fields)
     const { data: seasons, error: seasonError } = await supabase
       .from('seasons')
-      .select('id, name, status, total_slots, start_date, end_date')
+      .select('id, label, status, total_slots')
       .eq('status', 'active')
       .limit(1);
 

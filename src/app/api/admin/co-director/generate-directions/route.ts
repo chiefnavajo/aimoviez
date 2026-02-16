@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     if (!result.ok) {
       console.error('[generate-directions] Claude error:', result.error);
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json({ error: 'Direction generation failed' }, { status: 500 });
     }
 
     // Store existing directions before deleting (for recovery)

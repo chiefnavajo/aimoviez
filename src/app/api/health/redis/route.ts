@@ -5,7 +5,8 @@
 // Used by uptime monitoring and the circuit breaker (Phase 1)
 // ============================================================================
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { rateLimit } from '@/lib/rate-limit';
 
 // ============================================================================
 // TYPES
@@ -134,7 +135,10 @@ async function checkMemory(): Promise<HealthCheck> {
 // GET - Redis Health Check
 // ============================================================================
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const rateLimitResponse = await rateLimit(req, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
   const timestamp = new Date().toISOString();
 
   const checks = await Promise.all([

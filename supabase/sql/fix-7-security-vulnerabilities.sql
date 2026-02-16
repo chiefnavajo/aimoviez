@@ -289,6 +289,7 @@ DECLARE
   v_new_vote_count INTEGER;
   v_new_weighted_score INTEGER;
   v_clip_owner_id UUID;
+  v_constraint_name TEXT;
 BEGIN
   -- SECURITY FIX #12: Prevent self-voting
   IF v_user_uuid IS NOT NULL THEN
@@ -373,14 +374,19 @@ BEGIN
 
   EXCEPTION
     WHEN unique_violation THEN
-      -- Already voted - return error (only happens if multi_vote_mode is FALSE)
-      RETURN QUERY SELECT
-        NULL::UUID,
-        FALSE,
-        0,
-        0,
-        0,
-        'ALREADY_VOTED'::TEXT;
+      -- Identify which constraint was violated for specific error codes
+      GET STACKED DIAGNOSTICS v_constraint_name = CONSTRAINT_NAME;
+
+      IF v_constraint_name = 'idx_votes_one_super_per_slot' THEN
+        RETURN QUERY SELECT
+          NULL::UUID, FALSE, 0, 0, 0, 'SUPER_LIMIT_EXCEEDED'::TEXT;
+      ELSIF v_constraint_name = 'idx_votes_one_mega_per_slot' THEN
+        RETURN QUERY SELECT
+          NULL::UUID, FALSE, 0, 0, 0, 'MEGA_LIMIT_EXCEEDED'::TEXT;
+      ELSE
+        RETURN QUERY SELECT
+          NULL::UUID, FALSE, 0, 0, 0, 'ALREADY_VOTED'::TEXT;
+      END IF;
   END;
 END;
 $$ LANGUAGE plpgsql;

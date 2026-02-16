@@ -317,11 +317,15 @@ export async function GET(req: NextRequest) {
     }, { status: 500 });
   } finally {
     // --- Release lock ---
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'sync_leaderboards')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'sync_leaderboards')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[sync-leaderboards] Failed to release lock:', lockReleaseError);
+    }
   }
 }
 

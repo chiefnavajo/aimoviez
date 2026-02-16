@@ -113,10 +113,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   } finally {
     // Release the lock
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'extract_missing_frames')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'extract_missing_frames')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[extract-missing-frames] Failed to release lock:', lockReleaseError);
+    }
   }
 }

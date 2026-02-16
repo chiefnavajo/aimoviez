@@ -20,7 +20,7 @@ import {
   shouldFlagVote,
 } from '@/lib/device-fingerprint';
 import { createRequestLogger, logAudit } from '@/lib/logger';
-import { incrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
+import { incrementVote, decrementVote, getCountAndScore } from '@/lib/crdt-vote-counter';
 import { validateVoteRedis, recordVote as recordVoteRedis, removeVoteRecord, isVotingFrozen, seedDailyVoteCount } from '@/lib/vote-validation-redis';
 import { CircuitBreaker } from '@/lib/circuit-breaker';
 import type { VoteQueueEvent } from '@/types/vote-queue';
@@ -1279,10 +1279,8 @@ async function handleVoteRedis(
     );
   }
 
-  // CRDT counter update (~1ms)
-  await incrementVote(clipId, weight);
-
   // Record vote + queue event (~2ms pipeline)
+  // H23-FIX: Moved CRDT increment AFTER dedup check to prevent phantom votes on duplicates
   const todayDate = new Date().toISOString().split('T')[0];
   const voteEvent: VoteQueueEvent = {
     voteId: _crypto.randomUUID(),
@@ -1308,6 +1306,9 @@ async function handleVoteRedis(
       { status: 409 }
     );
   }
+
+  // CRDT counter update (~1ms) — only after dedup confirmed vote is unique
+  await incrementVote(clipId, weight);
 
   // Read CRDT and respond (~1ms)
   const counts = await getCountAndScore(clipId);
@@ -2044,6 +2045,13 @@ export async function DELETE(req: NextRequest) {
     } catch (redisErr) {
       // Non-fatal: Redis cleanup failure doesn't affect the DB deletion
       console.warn('[DELETE /api/vote] Redis cleanup failed (non-fatal):', redisErr);
+    }
+
+    // C1-FIX: Decrement CRDT counter on unvote (was missing — caused permanent phantom votes)
+    try {
+      await decrementVote(clipId, deletedVote.vote_weight ?? 1);
+    } catch (crdtErr) {
+      console.warn('[DELETE /api/vote] CRDT decrement failed (non-fatal):', crdtErr);
     }
 
     // 5. Calculate remaining votes (vote is now restored)

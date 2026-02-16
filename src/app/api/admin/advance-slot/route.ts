@@ -206,6 +206,7 @@ export async function POST(req: NextRequest) {
       .eq('status', 'active')
       .order('weighted_score', { ascending: false, nullsFirst: false })
       .order('vote_count', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: true })  // tiebreaker: first submitted wins
       .limit(1)
       .maybeSingle();
 

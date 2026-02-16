@@ -158,10 +158,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Unexpected error' }, { status: 500 });
   } finally {
     // Release the lock
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'cleanup_videos')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'cleanup_videos')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[cleanup-videos] Failed to release lock:', lockReleaseError);
+    }
   }
 }

@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -23,6 +24,10 @@ export async function POST(req: NextRequest) {
     if (!session?.user?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+
+    // CSRF protection
+    const csrfError = await requireCsrf(req);
+    if (csrfError) return csrfError;
 
     const supabase = createClient(supabaseUrl, supabaseKey);
     const body = await req.json();

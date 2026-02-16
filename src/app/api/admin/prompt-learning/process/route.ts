@@ -61,7 +61,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       ok: false,
       error: 'Failed to process prompts',
-      details: error instanceof Error ? error.message : 'Unknown error',
     }, { status: 500 });
   }
 }

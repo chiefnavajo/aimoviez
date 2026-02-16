@@ -7,7 +7,7 @@
 
 CREATE TABLE IF NOT EXISTS contact_submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES users(id) ON DELETE SET NULL,
   reason VARCHAR(50) NOT NULL,
   email VARCHAR(255) NOT NULL,
   subject VARCHAR(255) NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS contact_submissions (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
-  resolved_by UUID REFERENCES profiles(id)
+  resolved_by UUID REFERENCES users(id)
 );
 
 -- Index for querying by status
@@ -33,11 +33,11 @@ CREATE INDEX IF NOT EXISTS idx_contact_submissions_user_id ON contact_submission
 
 CREATE TABLE IF NOT EXISTS content_reports (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  reporter_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  reporter_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
   -- What is being reported (one of these will be set)
   clip_id UUID REFERENCES tournament_clips(id) ON DELETE CASCADE,
-  reported_user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  reported_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   comment_id UUID REFERENCES comments(id) ON DELETE CASCADE,
 
   -- Report details
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS content_reports (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   resolved_at TIMESTAMPTZ,
-  resolved_by UUID REFERENCES profiles(id),
+  resolved_by UUID REFERENCES users(id),
 
   -- Ensure at least one target is specified
   CONSTRAINT report_has_target CHECK (
@@ -83,8 +83,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_user_report
 
 CREATE TABLE IF NOT EXISTS user_blocks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  blocker_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
-  blocked_id UUID NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+  blocker_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  blocked_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
 
   -- Prevent self-blocking and duplicate blocks
@@ -111,7 +111,7 @@ CREATE POLICY "Admins can view contact submissions"
   ON contact_submissions FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
+      SELECT 1 FROM users
       WHERE id = auth.uid() AND is_admin = true
     )
   );
@@ -120,7 +120,7 @@ CREATE POLICY "Admins can update contact submissions"
   ON contact_submissions FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
+      SELECT 1 FROM users
       WHERE id = auth.uid() AND is_admin = true
     )
   );
@@ -137,7 +137,7 @@ CREATE POLICY "Users can view their own reports"
   USING (
     auth.uid() = reporter_id OR
     EXISTS (
-      SELECT 1 FROM profiles
+      SELECT 1 FROM users
       WHERE id = auth.uid() AND is_admin = true
     )
   );
@@ -146,7 +146,7 @@ CREATE POLICY "Admins can update reports"
   ON content_reports FOR UPDATE
   USING (
     EXISTS (
-      SELECT 1 FROM profiles
+      SELECT 1 FROM users
       WHERE id = auth.uid() AND is_admin = true
     )
   );

@@ -29,7 +29,6 @@ RETURNS TABLE (
   slot_position INTEGER,
   vote_count INTEGER,
   weighted_score NUMERIC(10,2),
-  hype_score NUMERIC(10,2),
   view_count INTEGER,
   created_at TIMESTAMPTZ
 ) AS $$
@@ -50,7 +49,6 @@ BEGIN
     tc.slot_position,
     tc.vote_count,
     tc.weighted_score,
-    tc.hype_score,
     tc.view_count,
     tc.created_at
   FROM tournament_clips tc

@@ -237,6 +237,8 @@ export async function recordVote(
 
 /**
  * Remove a vote record from Redis (for unvote).
+ * Uses a Lua script to atomically decrement the daily counter and clamp to 0,
+ * preventing negative values that could allow vote limit bypass (H3 fix).
  */
 export async function removeVoteRecord(
   voterKey: string,
@@ -244,12 +246,24 @@ export async function removeVoteRecord(
   date: string
 ): Promise<void> {
   const r = getRedis();
-  const pipeline = r.pipeline();
+  const dailyKey = KEYS.daily(date, voterKey);
 
-  pipeline.del(KEYS.voted(voterKey, clipId));
-  pipeline.decr(KEYS.daily(date, voterKey));
+  // Delete the dedup marker
+  await r.del(KEYS.voted(voterKey, clipId));
 
-  await pipeline.exec();
+  // Atomically decrement daily counter and clamp to 0 via Lua script.
+  // This prevents race conditions where concurrent unvotes could push
+  // the counter negative, allowing extra votes beyond the daily limit.
+  const luaScript = `
+    local key = KEYS[1]
+    local val = redis.call('DECR', key)
+    if val < 0 then
+      redis.call('SET', key, 0)
+      return 0
+    end
+    return val
+  `;
+  await r.eval(luaScript, [dailyKey], []);
 }
 
 // ============================================================================
@@ -282,6 +296,19 @@ export async function setVotingFrozen(
 ): Promise<void> {
   const r = getRedis();
   await r.set(KEYS.frozen(seasonId, slotPos), '1', { ex: FROZEN_TTL });
+}
+
+/**
+ * Clear the voting freeze flag for a slot.
+ * Called by auto-advance cron after a slot transition completes
+ * to prevent stale freeze keys from rejecting votes on the old slot.
+ */
+export async function clearVotingFrozen(
+  seasonId: string,
+  slotPos: number
+): Promise<void> {
+  const r = getRedis();
+  await r.del(KEYS.frozen(seasonId, slotPos));
 }
 
 /**

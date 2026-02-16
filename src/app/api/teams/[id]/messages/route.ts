@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeText } from '@/lib/sanitize';
+import { requireCsrf } from '@/lib/csrf';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -108,6 +109,10 @@ export async function POST(req: NextRequest, context: RouteContext) {
     if (!session?.user?.userId) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
+
+    // CSRF protection
+    const csrfError = await requireCsrf(req);
+    if (csrfError) return csrfError;
 
     const { id: teamId } = await context.params;
     const supabase = createClient(supabaseUrl, supabaseKey);

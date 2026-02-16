@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
           );
         }
         return NextResponse.json(
-          { error: rpcError.message || 'Failed to reorganize slots' },
+          { error: 'Failed to reorganize slots' },
           { status: 500 }
         );
       }
@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
           );
         }
         return NextResponse.json(
-          { error: rpcError.message || 'Failed to swap slots' },
+          { error: 'Failed to swap slots' },
           { status: 500 }
         );
       }

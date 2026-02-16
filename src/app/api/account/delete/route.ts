@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { createClient } from '@supabase/supabase-js';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 import { extractStorageKey, deleteFiles } from '@/lib/storage';
 
 function getSupabaseClient() {
@@ -34,6 +35,10 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // CSRF protection
+    const csrfError = await requireCsrf(request);
+    if (csrfError) return csrfError;
 
     let body;
     try {

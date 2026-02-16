@@ -123,11 +123,15 @@ export async function GET(req: NextRequest) {
     }, { status: 500 });
   } finally {
     // --- Release lock ---
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'sync_vote_counters')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'sync_vote_counters')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[sync-vote-counters] Failed to release lock:', lockReleaseError);
+    }
   }
 }
 

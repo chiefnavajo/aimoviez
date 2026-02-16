@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { forceSyncCounters } from '@/lib/counter-sync';
 import { clearClips } from '@/lib/crdt-vote-counter';
-import { setSlotState, setVotingFrozen } from '@/lib/vote-validation-redis';
+import { setSlotState, setVotingFrozen, clearVotingFrozen } from '@/lib/vote-validation-redis';
 import { verifyCronAuth } from '@/lib/cron-auth';
 
 function createSupabaseClient() {
@@ -205,6 +205,7 @@ export async function GET(req: NextRequest) {
           .eq('status', 'active')
           .order('weighted_score', { ascending: false, nullsFirst: false })
           .order('vote_count', { ascending: false, nullsFirst: false })
+          .order('created_at', { ascending: true })  // tiebreaker: first submitted wins
           .limit(1)
           .maybeSingle();
 
@@ -254,6 +255,14 @@ export async function GET(req: NextRequest) {
           .from('tournament_clips')
           .update({ status: 'locked' })
           .eq('id', topClip.id);
+
+        // Clear freeze key for the transitioned slot so stale freeze doesn't
+        // reject votes with "frozen" instead of the correct "slot not voting" error
+        try {
+          await clearVotingFrozen(slot.season_id, slot.slot_position);
+        } catch (e) {
+          console.warn('[auto-advance] Failed to clear freeze key:', e);
+        }
 
         // Fire-and-forget: extract last frame for story continuity
         fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/internal/extract-frame`, {

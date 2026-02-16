@@ -158,6 +158,23 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // --- 7b. H4-FIX: Mark clips as active so sync-vote-counters cron updates their counts ---
+    if (successfulEvents.length > 0) {
+      try {
+        const { Redis } = await import('@upstash/redis');
+        const redis = new Redis({
+          url: process.env.UPSTASH_REDIS_REST_URL!,
+          token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+        });
+        const clipIds = [...new Set(successfulEvents.map(e => e.clipId))];
+        if (clipIds.length > 0) {
+          await redis.sadd('clips_active', ...clipIds);
+        }
+      } catch (redisErr) {
+        console.warn('[process-vote-queue] Failed to mark clips as active in Redis:', redisErr);
+      }
+    }
+
     // --- 8. DELETE for down-votes (unvotes) ---
     for (const event of downVotes) {
       const { error } = await supabase
@@ -213,15 +230,19 @@ export async function GET(req: NextRequest) {
     console.error('[process-vote-queue] Unexpected error:', error);
     return NextResponse.json({
       ok: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: 'Vote queue processing failed',
     }, { status: 500 });
   } finally {
     // --- Release lock ---
-    await supabase
-      .from('cron_locks')
-      .delete()
-      .eq('job_name', 'process_vote_queue')
-      .eq('lock_id', lockId);
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'process_vote_queue')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[process-vote-queue] Failed to release lock:', lockReleaseError);
+    }
   }
 }
 

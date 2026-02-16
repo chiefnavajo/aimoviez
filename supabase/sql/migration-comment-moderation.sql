@@ -25,12 +25,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_pending_moderation
   WHERE moderation_status = 'pending';
 
 -- Comment moderation settings (enable/disable auto-approve)
-INSERT INTO feature_flags (key, value, description)
-VALUES (
-  'comment_moderation_enabled',
-  'false',
-  'When enabled, new comments require admin approval before being visible'
-) ON CONFLICT (key) DO NOTHING;
+INSERT INTO feature_flags (key, name, description, enabled, category)
+VALUES ('comment_moderation_enabled', 'Comment Moderation', 'When enabled, new comments require admin approval before being visible', false, 'safety')
+ON CONFLICT (key) DO NOTHING;
 
 -- View for moderation queue
 CREATE OR REPLACE VIEW comment_moderation_queue AS
@@ -116,8 +113,11 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Grant execute permissions
-GRANT EXECUTE ON FUNCTION approve_comment(UUID, UUID) TO authenticated;
-GRANT EXECUTE ON FUNCTION reject_comment(UUID, UUID, TEXT) TO authenticated;
-GRANT EXECUTE ON FUNCTION flag_comment(UUID, TEXT) TO authenticated;
+REVOKE EXECUTE ON FUNCTION approve_comment(UUID, UUID) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION reject_comment(UUID, UUID, TEXT) FROM authenticated;
+REVOKE EXECUTE ON FUNCTION flag_comment(UUID, TEXT) FROM authenticated;
+GRANT EXECUTE ON FUNCTION approve_comment(UUID, UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION reject_comment(UUID, UUID, TEXT) TO service_role;
+GRANT EXECUTE ON FUNCTION flag_comment(UUID, TEXT) TO service_role;
 
 COMMENT ON COLUMN comments.moderation_status IS 'pending=awaiting review, approved=visible, rejected=hidden, flagged=reported by users';

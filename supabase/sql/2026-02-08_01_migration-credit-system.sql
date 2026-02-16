@@ -265,6 +265,11 @@ DECLARE
   v_current_balance INTEGER;
   v_new_balance INTEGER;
 BEGIN
+  -- Validate that amount is positive to prevent accidental or malicious negative grants
+  IF p_amount <= 0 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Amount must be positive');
+  END IF;
+
   SELECT balance_credits INTO v_current_balance
   FROM users WHERE id = p_user_id FOR UPDATE;
 

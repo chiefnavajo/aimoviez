@@ -20,7 +20,7 @@ async function isFeatureEnabled(key: string): Promise<boolean> {
     .from('feature_flags')
     .select('enabled')
     .eq('key', key)
-    .single();
+    .maybeSingle();
   return data?.enabled ?? false;
 }
 

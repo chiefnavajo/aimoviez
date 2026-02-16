@@ -82,7 +82,8 @@ export async function POST(req: NextRequest) {
       .select('*')
       .eq('season_id', season_id)
       .eq('slot_position', slot_position)
-      .order('vote_count', { ascending: false });
+      .order('vote_count', { ascending: false })
+      .order('created_at', { ascending: true });  // tiebreaker: first submitted wins
 
     if (directionsError) {
       console.error('[close-direction-vote] Failed to fetch directions:', directionsError);
