@@ -48,7 +48,9 @@ const severityLevels: Record<LogLevel, number> = {
 };
 
 // Minimum level to log (can be configured via env)
-const minLogLevel = (process.env.LOG_LEVEL as LogLevel) || 'info';
+const validLevels = ['debug', 'info', 'warn', 'error', 'fatal'];
+const rawLevel = process.env.LOG_LEVEL;
+const minLogLevel: LogLevel = rawLevel && validLevels.includes(rawLevel) ? rawLevel as LogLevel : 'info';
 
 function shouldLog(level: LogLevel): boolean {
   return severityLevels[level] >= severityLevels[minLogLevel];

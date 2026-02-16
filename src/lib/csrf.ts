@@ -206,7 +206,8 @@ export function getCsrfTokenFromCookie(): string | null {
 
   const cookies = document.cookie.split(';');
   for (const cookie of cookies) {
-    const [name, value] = cookie.trim().split('=');
+    const [name, ...valueParts] = cookie.trim().split('=');
+    const value = valueParts.join('=');
     if (name === CSRF_TOKEN_COOKIE) {
       return value;
     }

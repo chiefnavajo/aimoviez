@@ -389,18 +389,25 @@ export async function batchUpdateCreatorScores(
 
 /**
  * Parse ZREVRANGE response with scores into LeaderboardEntry array.
- * Upstash returns alternating [member, score, member, score, ...] when withScores is true.
+ * Handles both Upstash SDK formats:
+ * - Newer SDK: array of objects { value/member, score }
+ * - Legacy: alternating [member, score, member, score, ...]
  */
 function parseZRevRangeWithScores(raw: unknown): LeaderboardEntry[] {
-  if (!raw || !Array.isArray(raw)) return [];
+  if (!raw || !Array.isArray(raw) || raw.length === 0) return [];
 
-  const entries: LeaderboardEntry[] = [];
-
-  for (let i = 0; i < raw.length; i += 2) {
-    const member = String(raw[i]);
-    const score = Number(raw[i + 1]) || 0;
-    entries.push({ member, score });
+  // Upstash newer SDK returns objects
+  if (typeof raw[0] === 'object' && raw[0] !== null) {
+    return raw.map((item: any) => ({
+      member: String(item.value ?? item.member ?? ''),
+      score: Number(item.score) || 0,
+    }));
   }
 
+  // Fallback: alternating [member, score, member, score, ...]
+  const entries: LeaderboardEntry[] = [];
+  for (let i = 0; i < raw.length; i += 2) {
+    entries.push({ member: String(raw[i]), score: Number(raw[i + 1]) || 0 });
+  }
   return entries;
 }

@@ -2,7 +2,7 @@
 // NextAuth configuration options - shared between route handler and server functions
 
 import GoogleProvider from "next-auth/providers/google";
-import { createClient } from "@supabase/supabase-js";
+import { getServiceClient } from "@/lib/supabase-client";
 import type { NextAuthOptions } from "next-auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -97,7 +97,7 @@ export const authOptions: NextAuthOptions = {
 
       if (needsRefresh && token.email && supabaseUrl && supabaseKey) {
         try {
-          const supabase = createClient(supabaseUrl, supabaseKey);
+          const supabase = getServiceClient();
 
           const { data, error } = await supabase
             .from("users")

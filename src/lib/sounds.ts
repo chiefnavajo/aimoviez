@@ -6,6 +6,18 @@ type SoundType = 'vote' | 'milestone' | 'error';
 class SoundManager {
   private audioContext: AudioContext | null = null;
   private enabled: boolean = true;
+  private initializedFromStorage: boolean = false;
+
+  private initFromStorage(): void {
+    if (this.initializedFromStorage) return;
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('soundEffectsEnabled');
+      if (stored !== null) {
+        this.enabled = stored === 'true';
+      }
+      this.initializedFromStorage = true;
+    }
+  }
 
   private getContext(): AudioContext | null {
     if (typeof window === 'undefined') return null;
@@ -23,18 +35,14 @@ class SoundManager {
 
   setEnabled(enabled: boolean) {
     this.enabled = enabled;
+    this.initializedFromStorage = true;
     if (typeof window !== 'undefined') {
       localStorage.setItem('soundEffectsEnabled', String(enabled));
     }
   }
 
   isEnabled(): boolean {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('soundEffectsEnabled');
-      if (stored !== null) {
-        this.enabled = stored === 'true';
-      }
-    }
+    this.initFromStorage();
     return this.enabled;
   }
 

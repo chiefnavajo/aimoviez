@@ -219,7 +219,7 @@ function sumHashValues(hash: Record<string, string> | null): number {
   if (!hash) return 0;
   let total = 0;
   for (const value of Object.values(hash)) {
-    const num = parseInt(String(value), 10);
+    const num = parseFloat(String(value));
     if (!isNaN(num)) {
       total += num;
     }

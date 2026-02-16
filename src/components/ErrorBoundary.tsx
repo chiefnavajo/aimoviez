@@ -42,7 +42,7 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   handleGoHome = () => {
-    window.location.href = '/dashboard';
+    window.location.href = '/story';
   };
 
   render() {
@@ -97,7 +97,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 className="flex items-center justify-center gap-2 px-6 py-3 text-white/60 hover:text-white transition-colors"
               >
                 <Home className="w-4 h-4" />
-                Go to Dashboard
+                Go Home
               </button>
             </div>
 

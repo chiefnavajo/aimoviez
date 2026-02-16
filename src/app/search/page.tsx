@@ -27,6 +27,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import BottomNavigation from '@/components/BottomNavigation';
+import { AuthGuard } from '@/hooks/useAuth';
 
 // ============================================================================
 // TYPES
@@ -83,7 +84,7 @@ function useDebounce<T>(value: T, delay: number): T {
 // MAIN COMPONENT
 // ============================================================================
 
-export default function SearchPage() {
+function SearchPageContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [selectedGenre, setSelectedGenre] = useState('All');
@@ -543,6 +544,15 @@ export default function SearchPage() {
         <BottomNavigation />
       </div>
     </div>
+  );
+}
+
+// Wrap with AuthGuard for protected route
+export default function SearchPage() {
+  return (
+    <AuthGuard>
+      <SearchPageContent />
+    </AuthGuard>
   );
 }
 

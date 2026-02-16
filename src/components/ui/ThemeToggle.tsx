@@ -79,6 +79,12 @@ export function useTheme() {
 // Theme toggle button component
 export function ThemeToggle({ className = '' }: { className?: string }) {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  // Suppress rendering until client-side to prevent hydration flash
+  if (!mounted) return null;
 
   const cycleTheme = () => {
     if (theme === 'dark') setTheme('light');

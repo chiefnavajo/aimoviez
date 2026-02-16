@@ -5,7 +5,7 @@
 // Shows scene description, visual requirements, and example prompts
 // ============================================================================
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -28,6 +28,16 @@ export default function BriefBanner({ onSelectPrompt }: BriefBannerProps) {
   const { data, isLoading } = useBrief();
   const [expanded, setExpanded] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Clean up copy timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Don't render if no brief or feature disabled
   if (isLoading || !data?.has_brief || !data?.brief) {
@@ -39,7 +49,10 @@ export default function BriefBanner({ onSelectPrompt }: BriefBannerProps) {
   const handleCopyPrompt = (prompt: string, index: number) => {
     navigator.clipboard.writeText(prompt);
     setCopiedIndex(index);
-    setTimeout(() => setCopiedIndex(null), 2000);
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
+    copyTimeoutRef.current = setTimeout(() => setCopiedIndex(null), 2000);
   };
 
   const handleUsePrompt = (prompt: string) => {

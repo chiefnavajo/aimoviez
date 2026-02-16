@@ -158,13 +158,26 @@ export function sanitizeUrl(input: string | null | undefined): string | null {
 export function sanitizeComment(input: string | null | undefined): string {
   if (!input) return '';
 
-  return input
+  let result = input
     // Decode HTML entities that could hide malicious content
     .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)))
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"')
     // Remove HTML tags (including unclosed/malformed tags)
-    .replace(/<[^>]*>?/g, '')
+    .replace(/<[^>]*>?/g, '');
+
+  // Prevent double-encoding bypass: loop until stable
+  let previous = '';
+  let current = result;
+  while (current !== previous) {
+    previous = current;
+    current = current.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    current = current.replace(/&#(\d+);/g, (_, dec) => String.fromCharCode(parseInt(dec, 10)));
+    current = current.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/&quot;/g, '"');
+    current = current.replace(/<[^>]*>/g, '');
+  }
+
+  return current
     // Strip javascript: and data: protocol handlers
     .replace(/(?:javascript|data|vbscript)\s*:/gi, '')
     // Remove event handler patterns (e.g. onerror=, onclick=)

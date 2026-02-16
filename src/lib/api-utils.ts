@@ -254,10 +254,6 @@ export function parseQueryParams(
     else if (value === 'true' || value === 'false') {
       params[key] = value === 'true';
     }
-    // Parse arrays (comma-separated)
-    else if (value.includes(',')) {
-      params[key] = value.split(',').map(v => v.trim());
-    }
     // Keep as string
     else {
       params[key] = value;
@@ -343,11 +339,21 @@ export async function executeQuery<T>(
  */
 class SimpleCache {
   private cache: Map<string, { data: any; expires: number }> = new Map();
-  
+  private maxSize: number;
+
+  constructor(maxSize: number = 1000) {
+    this.maxSize = maxSize;
+  }
+
   /**
    * Set cache entry
    */
   set(key: string, data: any, ttlSeconds: number): void {
+    // Evict oldest if at capacity
+    if (this.cache.size >= this.maxSize && !this.cache.has(key)) {
+      const oldestKey = this.cache.keys().next().value;
+      if (oldestKey) this.cache.delete(oldestKey);
+    }
     const expires = Date.now() + (ttlSeconds * 1000);
     this.cache.set(key, { data, expires });
   }

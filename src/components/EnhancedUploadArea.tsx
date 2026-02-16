@@ -122,8 +122,9 @@ export default function EnhancedUploadArea({
     });
   };
 
-  const validateFile = async (file: File): Promise<ValidationError[]> => {
+  const validateFile = async (file: File): Promise<{ errors: ValidationError[]; meta: VideoMetadata | null }> => {
     const validationErrors: ValidationError[] = [];
+    let meta: VideoMetadata | null = null;
 
     // Format check
     if (!acceptedFormats.includes(file.type)) {
@@ -144,7 +145,7 @@ export default function EnhancedUploadArea({
 
     // Get and validate metadata
     try {
-      const meta = await getVideoMetadata(file);
+      meta = await getVideoMetadata(file);
       setMetadata(meta);
 
       // Duration check
@@ -178,7 +179,7 @@ export default function EnhancedUploadArea({
       });
     }
 
-    return validationErrors;
+    return { errors: validationErrors, meta };
   };
 
   // ============================================================================
@@ -189,8 +190,8 @@ export default function EnhancedUploadArea({
     setErrors([]);
     setIsValidating(true);
 
-    // Validate
-    const validationErrors = await validateFile(selectedFile);
+    // Validate - returns both errors and metadata to avoid stale closure
+    const { errors: validationErrors, meta } = await validateFile(selectedFile);
     setIsValidating(false);
 
     if (validationErrors.length > 0) {
@@ -214,9 +215,11 @@ export default function EnhancedUploadArea({
     const previewUrl = URL.createObjectURL(selectedFile);
     setVideoPreview(previewUrl);
     setFile(selectedFile);
-    
-    if (metadata) {
-      onFileSelect(selectedFile, metadata);
+
+    // Use the local `meta` variable directly instead of `metadata` state,
+    // because setMetadata is async and the state would be stale here
+    if (meta) {
+      onFileSelect(selectedFile, meta);
     }
   };
 
@@ -226,7 +229,7 @@ export default function EnhancedUploadArea({
       handleFileProcessing(selectedFile);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleFileProcessing]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -237,7 +240,7 @@ export default function EnhancedUploadArea({
       handleFileProcessing(droppedFile);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [handleFileProcessing]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();

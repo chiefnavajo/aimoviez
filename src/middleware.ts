@@ -20,6 +20,10 @@ const PROTECTED_ROUTES = [
   '/story',
   '/watch',
   '/leaderboard',
+  '/create',
+  '/team',
+  '/movie',
+  '/settings',
 ];
 
 // Routes that require admin access
@@ -34,9 +38,6 @@ const ALLOWED_ORIGINS = [
   'https://aimoviez.app',
   'https://www.aimoviez.app',
 ].filter(Boolean);
-
-// Session timeout in seconds (30 minutes)
-const SESSION_TIMEOUT = 30 * 60;
 
 // CSRF configuration
 // In production, CSRF_SECRET or NEXTAUTH_SECRET must be set - no fallback for security
@@ -227,13 +228,12 @@ async function addCsrfToken(response: NextResponse, request: NextRequest): Promi
  * Constant-time string comparison for Edge Runtime (no crypto.timingSafeEqual)
  */
 function constantTimeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  const encoder = new TextEncoder();
-  const bufA = encoder.encode(a);
-  const bufB = encoder.encode(b);
-  let result = 0;
-  for (let i = 0; i < bufA.length; i++) {
-    result |= bufA[i] ^ bufB[i];
+  const maxLen = Math.max(a.length, b.length);
+  const paddedA = a.padEnd(maxLen, '\0');
+  const paddedB = b.padEnd(maxLen, '\0');
+  let result = a.length ^ b.length; // length difference contributes to mismatch
+  for (let i = 0; i < maxLen; i++) {
+    result |= paddedA.charCodeAt(i) ^ paddedB.charCodeAt(i);
   }
   return result === 0;
 }
@@ -316,13 +316,15 @@ export async function middleware(request: NextRequest) {
     secret: process.env.NEXTAUTH_SECRET,
   });
 
-  // Check session timeout - only for protected routes to avoid redirect loops
-  // Skip timeout check on home page and other public routes
+  // Check session expiration - only for protected routes to avoid redirect loops
+  // Uses token.exp set by NextAuth (maxAge: 24h, updateAge: 1h) instead of
+  // custom timeout against iat, which incorrectly kicked users after 30 min
+  // regardless of activity since iat is set once at token creation.
   if (token && (isProtectedRoute || isAdminRoute)) {
-    const tokenIssuedAt = token.iat as number | undefined;
+    const tokenExp = token.exp as number | undefined;
     const now = Math.floor(Date.now() / 1000);
 
-    if (tokenIssuedAt && (now - tokenIssuedAt) > SESSION_TIMEOUT) {
+    if (tokenExp && now > tokenExp) {
       // Session expired - redirect to home page
       const loginUrl = new URL('/', request.url);
       loginUrl.searchParams.set('expired', 'true');

@@ -340,6 +340,21 @@ function WatchMoviePageContent() {
     };
   }, [handleTimeUpdate, handleLoadedMetadata, handleEnded, handlePlay, handlePause]);
 
+  // BUG 4 FIX: Sync fullscreen state when exiting via Escape key
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
+
+  // BUG 5 FIX: Load video when currentSlotIndex changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !currentSlot?.clip?.video_url) return;
+    video.load();
+    video.play().catch(() => {});
+  }, [currentSlotIndex]);
+
   // Auto-hide controls
   useEffect(() => {
     if (isPlaying) {

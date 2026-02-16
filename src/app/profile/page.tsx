@@ -226,7 +226,7 @@ function ProfilePageContent() {
     };
 
     fetchData();
-  }, [retryCount]);
+  }, [retryCount, username]);
 
   // Retry function for error state
   const handleRetry = () => {

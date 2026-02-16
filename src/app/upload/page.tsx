@@ -173,6 +173,13 @@ function UploadPageContent() {
     });
   };
 
+  // Cleanup videoPreview Object URL on unmount or when it changes
+  useEffect(() => {
+    return () => {
+      if (videoPreview) URL.revokeObjectURL(videoPreview);
+    };
+  }, [videoPreview]);
+
   const handleFileSelect = async (file: File) => {
     const validationErrors = await validateVideo(file);
     if (validationErrors.length > 0) {
@@ -181,6 +188,8 @@ function UploadPageContent() {
     }
     setErrors([]);
     setVideo(file);
+    // Revoke old Object URL before creating a new one to prevent memory leak
+    if (videoPreview) URL.revokeObjectURL(videoPreview);
     setVideoPreview(URL.createObjectURL(file));
   };
 

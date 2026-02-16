@@ -88,7 +88,7 @@ export async function getCachedVoteCounts(
       if (vc !== null && vc !== undefined) {
         map.set(clipIds[i], {
           voteCount: Number(vc) || 0,
-          weightedScore: ws !== null && ws !== undefined ? Number(ws) || 0 : Number(vc) || 0,
+          weightedScore: Number(ws ?? 0),
         });
       }
     }

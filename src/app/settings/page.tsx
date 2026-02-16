@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -35,19 +35,29 @@ export default function SettingsPage() {
   const [deleteConfirmation, setDeleteConfirmation] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const exportTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Redirect if not logged in
-  if (status === 'loading') {
+  // BUG 6 FIX: Move redirect into useEffect to avoid router.push during render
+  useEffect(() => {
+    if (status === 'unauthenticated') router.push('/');
+  }, [status, router]);
+
+  // BUG 9 FIX: Clean up export success timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (exportTimeoutRef.current) {
+        clearTimeout(exportTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Show loading state while auth is resolving or user is unauthenticated
+  if (status === 'loading' || !session) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-cyan-400" />
       </div>
     );
-  }
-
-  if (!session) {
-    router.push('/');
-    return null;
   }
 
   const handleExportData = async () => {
@@ -73,7 +83,7 @@ export default function SettingsPage() {
       document.body.removeChild(a);
 
       setExportSuccess(true);
-      setTimeout(() => setExportSuccess(false), 3000);
+      exportTimeoutRef.current = setTimeout(() => setExportSuccess(false), 3000);
     } catch (error) {
       console.error('Export error:', error);
       alert('Failed to export data. Please try again.');

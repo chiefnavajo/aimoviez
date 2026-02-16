@@ -59,7 +59,7 @@ export async function concatenateScenes(
 
     // 2. Create ffmpeg concat list
     const concatContent = scenePaths
-      .map(p => `file '${p}'`)
+      .map(p => `file '${p.replace(/'/g, "'\\''")}'`)
       .join('\n');
     await writeFile(concatListPath, concatContent);
 

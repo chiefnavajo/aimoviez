@@ -14,10 +14,10 @@
 // ============================================================================
 
 import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
-import { useQuery, useMutation, useQueryClient, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
-import { toast, Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MessageCircle, Share2, Volume2, VolumeX, HelpCircle, BookOpen, Plus, Sparkles, Trophy, User, Play } from 'lucide-react';
@@ -500,10 +500,28 @@ function VotingArena() {
 
   // Pull-to-refresh
   const [pullDistance, setPullDistance] = useState(0);
+  const pullDistanceRef = useRef(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pullStartY = useRef<number>(0);
   const isPulling = useRef<boolean>(false);
   const PULL_THRESHOLD = 80;
+
+  // BUG 3 FIX: Refs to store timeout IDs for proper cleanup on unmount
+  const heartTimeoutRef = useRef<NodeJS.Timeout>();
+  const tapTimeoutRef = useRef<NodeJS.Timeout>();
+
+  // BUG 5 FIX: Keep pullDistanceRef in sync with state
+  useEffect(() => {
+    pullDistanceRef.current = pullDistance;
+  }, [pullDistance]);
+
+  // BUG 3 FIX: Clean up timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (heartTimeoutRef.current) clearTimeout(heartTimeoutRef.current);
+      if (tapTimeoutRef.current) clearTimeout(tapTimeoutRef.current);
+    };
+  }, []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const queryClient = useQueryClient();
@@ -1125,8 +1143,8 @@ function VotingArena() {
   const handleTouchEnd = async () => {
     if (showComments) return;
 
-    // Check for pull-to-refresh trigger
-    if (isPulling.current && pullDistance >= PULL_THRESHOLD && !isRefreshing) {
+    // Check for pull-to-refresh trigger (BUG 5 FIX: read from ref to avoid stale closure)
+    if (isPulling.current && pullDistanceRef.current >= PULL_THRESHOLD && !isRefreshing) {
       setIsRefreshing(true);
       setPullDistance(PULL_THRESHOLD);
 
@@ -1336,8 +1354,8 @@ function VotingArena() {
         // Trigger vote
         handleVote();
 
-        // Hide heart after animation
-        setTimeout(() => {
+        // Hide heart after animation (BUG 3 FIX: store timeout for cleanup)
+        heartTimeoutRef.current = setTimeout(() => {
           setShowHeartAnimation(false);
           setDoubleTapPosition(null);
         }, 1000);
@@ -1351,8 +1369,8 @@ function VotingArena() {
     // Single tap - set timer to toggle play/pause
     setLastTapTime(now);
 
-    // Use timeout to wait for potential second tap
-    setTimeout(() => {
+    // Use timeout to wait for potential second tap (BUG 3 FIX: store timeout for cleanup)
+    tapTimeoutRef.current = setTimeout(() => {
       // Only pause/play if this was a single tap (no double tap occurred)
       if (Date.now() - now >= DOUBLE_TAP_DELAY - 20) {
         if (!videoRef.current) return;
@@ -1715,8 +1733,6 @@ function VotingArena() {
       onTouchEnd={handleTouchEnd}
       onClick={isLandscape ? handleScreenTap : undefined}
     >
-      <Toaster position="top-center" />
-
       {/* Mobile genre switcher - shown when multi-genre enabled */}
       {!isDesktop && !isLandscape && multiGenreEnabled && genres.length > 1 && (
         <div className="absolute top-0 left-0 right-0 z-40">
@@ -2177,21 +2193,10 @@ function VotingArena() {
 // PAGE WRAPPER
 // ============================================================================
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: 2,
-    },
-  },
-});
-
 export default function DashboardPage() {
   return (
     <AuthGuard>
-      <QueryClientProvider client={queryClient}>
-        <VotingArena />
-      </QueryClientProvider>
+      <VotingArena />
     </AuthGuard>
   );
 }

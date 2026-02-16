@@ -4,7 +4,7 @@
 
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useId } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -53,6 +53,10 @@ export function Modal({
   className,
   showHeader = true,
 }: ModalProps) {
+  // Generate unique IDs to avoid conflicts with multiple modals
+  const titleId = useId();
+  const descId = useId();
+
   // Focus trap for accessibility
   const containerRef = useFocusTrap<HTMLDivElement>({
     isActive: isOpen,
@@ -109,8 +113,8 @@ export function Modal({
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
-              aria-labelledby="modal-title"
-              aria-describedby={description ? 'modal-description' : undefined}
+              aria-labelledby={titleId}
+              aria-describedby={description ? descId : undefined}
               tabIndex={-1}
               className={cn(
                 'relative w-full bg-gray-900 rounded-2xl border border-white/20 shadow-2xl',
@@ -123,14 +127,14 @@ export function Modal({
                 <div className="flex items-center justify-between p-4 border-b border-white/10">
                   <div>
                     <h2
-                      id="modal-title"
+                      id={titleId}
                       className="text-lg font-semibold text-white"
                     >
                       {title}
                     </h2>
                     {description && (
                       <p
-                        id="modal-description"
+                        id={descId}
                         className="text-sm text-white/60 mt-1"
                       >
                         {description}

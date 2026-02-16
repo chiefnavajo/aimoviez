@@ -126,7 +126,7 @@ export async function refreshSession(
 
   try {
     const pipeline = r.pipeline();
-    pipeline.set(KEYS.session(userId), JSON.stringify(data), { ex: SESSION_TTL });
+    pipeline.set(KEYS.session(userId), data, { ex: SESSION_TTL });
 
     if (data.email) {
       pipeline.set(KEYS.emailMap(data.email), userId, { ex: EMAIL_MAP_TTL });
