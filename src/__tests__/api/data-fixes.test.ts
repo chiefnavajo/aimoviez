@@ -191,7 +191,7 @@ describe('DF-2: Season reset deletes votes by clip_id', () => {
       { data: [], error: null, count: 0 },                  // clips in slot
     ]);
     const mockChannel = {
-      subscribe: jest.fn((cb: Function) => { cb('SUBSCRIBED'); return mockChannel; }),
+      subscribe: jest.fn((cb: (...args: unknown[]) => void) => { cb('SUBSCRIBED'); return mockChannel; }),
       send: jest.fn().mockResolvedValue('ok'),
       unsubscribe: jest.fn().mockResolvedValue(undefined),
     };
