@@ -423,8 +423,9 @@ export async function generateSmartPrompt(params: {
     framing?: string;
   };
   useVisualLearning?: boolean;
+  genre?: string;
 }): Promise<PromptSuggestion> {
-  const { brief, analysis, model, seasonId, pinnedCharacters, visualContext, useVisualLearning } = params;
+  const { brief, analysis, model, seasonId, pinnedCharacters, visualContext, useVisualLearning, genre } = params;
 
   // Get learned patterns for this model
   const modelPatterns = await getTopModelPatterns(model, 5);
@@ -479,7 +480,7 @@ export async function generateSmartPrompt(params: {
     const anthropic = getAnthropicClient();
     const response = await anthropic.messages.create({
       model: EXTRACTION_MODEL,
-      max_tokens: 512,
+      max_tokens: 120,
       messages: [{
         role: 'user',
         content: `Generate a ready-to-use video generation prompt for the following scene.
@@ -512,14 +513,14 @@ ${visualPrompts.map(p => `- ${p.prompt}`).join('\n')}` : ''}
 ${winningPrompts.length > 0 ? `Example successful prompts:
 ${winningPrompts.map(p => `- ${p.prompt}`).join('\n')}` : ''}
 
-Write a single, detailed video prompt (50-150 words) that:
-1. Captures the scene description and visual requirements
-2. Uses successful patterns when appropriate
-3. Matches the tone and atmosphere
-4. Incorporates winning visual style elements
-5. Is ready to paste directly into the AI video generator
+${genre ? `Genre: ${genre}` : ''}
 
-Return ONLY the prompt text, nothing else.`
+Write a short video prompt (20-40 words) that:
+1. Starts with a camera movement and captures the scene
+2. Matches the tone${genre ? ` of ${genre}` : ''} and uses strong action verbs
+3. Is ready to paste directly into the AI video generator
+
+Return ONLY the prompt text.`
       }]
     });
 

@@ -451,7 +451,8 @@ export interface QuickStoryBeat {
 export async function generateQuickStoryBeat(
   previousClips: Array<{ slot_position: number; prompt: string }>,
   characters?: string[],
-  totalSlots?: number
+  totalSlots?: number,
+  genre?: string,
 ): Promise<{ ok: true; beat: QuickStoryBeat } | { ok: false; error: string }> {
   if (previousClips.length === 0) {
     return {
@@ -489,6 +490,7 @@ export async function generateQuickStoryBeat(
         role: 'user',
         content: `You are a story director. Based on the story so far, decide what should happen NEXT to advance the plot.
 
+${genre ? `GENRE: ${genre}` : ''}
 STORY SO FAR:
 ${storyContext}
 

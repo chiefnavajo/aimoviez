@@ -91,13 +91,62 @@ const GENRES = [
   { id: 'drama', label: 'Drama' },
 ];
 
-const SUGGESTION_CHIPS = [
-  'Tracking shot — an astronaut sprints through a collapsing Mars base, explosions behind',
-  'Handheld chase — a cyberpunk samurai cat leaps across neon rooftops, sparks flying',
-  'Crane shot — a city crumbles as massive vines burst through skyscrapers at dawn',
-  'Whip pan — a dancer spins on a volcano edge as lava erupts behind her, golden hour',
-  'Dolly zoom — ancient books fly off shelves forming a tornado of glowing pages',
-];
+const SUGGESTION_CHIPS: Record<string, string[]> = {
+  '': [
+    'Tracking shot — figure sprints through flames',
+    'Crane shot — city skyline at golden hour',
+    'Dolly zoom — books fly off shelves in a storm',
+    'Whip pan — dancer spins on edge of a volcano',
+  ],
+  action: [
+    'Tracking shot — hero sprints through exploding bridge',
+    'Whip pan — motorcycle smashes through glass wall',
+    'Crane shot — rooftop sword fight at sunset',
+    'Dolly in — fist slams table, glass shatters',
+  ],
+  comedy: [
+    'Dolly zoom — cat knocks wedding cake off table',
+    'Whip pan — man slips on banana into a pool',
+    'Tracking shot — toddler chases terrified clown',
+    'Crane shot — pigeons steal a hot dog stand',
+  ],
+  thriller: [
+    'Dolly zoom — shadowy figure appears in mirror',
+    'Tracking shot — detective runs through fog',
+    'Handheld — suspect bolts through crowded market',
+    'Crane shot — car chase on rain-soaked highway',
+  ],
+  'sci-fi': [
+    'Tracking shot — astronaut floats through wreckage',
+    'Crane shot — alien ship rises from the ocean',
+    'Dolly in — robot opens its eyes for first time',
+    'Whip pan — portal rips open above the city',
+  ],
+  romance: [
+    'Dolly in — two hands reach across a rainy bridge',
+    'Crane shot — couple dances alone on a rooftop',
+    'Tracking shot — lovers run through cherry blossoms',
+    'Whip pan — eyes meet across a crowded ballroom',
+  ],
+  animation: [
+    'Crane shot — paper birds burst from a storybook',
+    'Tracking shot — paint splatters form a dragon',
+    'Dolly zoom — tiny fox discovers a glowing forest',
+    'Whip pan — origami city unfolds under starlight',
+  ],
+  horror: [
+    'Dolly zoom — door creaks open to empty hallway',
+    'Tracking shot — shadow follows her down stairs',
+    'Handheld — something moves under the bed sheets',
+    'Crane shot — fog rolls over abandoned hospital',
+  ],
+  drama: [
+    'Dolly in — tears fall as she reads the letter',
+    'Crane shot — soldier returns to an empty home',
+    'Tracking shot — father watches son walk away',
+    'Handheld — hands tremble holding a photograph',
+  ],
+};
 
 const STORAGE_KEY = 'ai_active_generation_id';
 const STORAGE_TIMESTAMP_KEY = 'ai_active_generation_ts';
@@ -234,7 +283,8 @@ export default function AIGeneratePanel({
     async function fetchSuggestedPrompt() {
       setIsLoadingSuggestion(true);
       try {
-        const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}`);
+        const genreQuery = genre ? `&genre=${encodeURIComponent(genre)}` : '';
+        const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}${genreQuery}`);
         if (!res.ok) {
           setIsLoadingSuggestion(false);
           return;
@@ -253,7 +303,7 @@ export default function AIGeneratePanel({
 
     fetchSuggestedPrompt();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [promptLearningEnabled, autoSuggestEnabled, model]);
+  }, [promptLearningEnabled, autoSuggestEnabled, model, genre]);
 
   // Update prompt when initialPrompt changes (from BriefBanner)
   useEffect(() => {
@@ -1242,7 +1292,8 @@ export default function AIGeneratePanel({
                 onClick={async () => {
                   setIsLoadingSuggestion(true);
                   try {
-                    const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}`);
+                    const genreQ = genre ? `&genre=${encodeURIComponent(genre)}` : '';
+                    const res = await fetch(`/api/clip/suggest-prompt?model=${encodeURIComponent(model)}${genreQ}`);
                     if (res.ok) {
                       const data = await res.json();
                       if (data.ok && data.prompt) {
@@ -1300,7 +1351,7 @@ export default function AIGeneratePanel({
       {/* Suggestion chips */}
       {!compact && (
         <div className="flex flex-wrap gap-2">
-          {SUGGESTION_CHIPS.map((chip, i) => (
+          {(SUGGESTION_CHIPS[genre] || SUGGESTION_CHIPS['']).map((chip, i) => (
             <button
               key={i}
               onClick={() => setPrompt(chip)}

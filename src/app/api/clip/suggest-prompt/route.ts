@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
   const genreParam = searchParams.get('genre')?.toLowerCase();
   let seasonQuery = supabase
     .from('seasons')
-    .select('id, label')
+    .select('id, label, genre')
     .eq('status', 'active');
   if (genreParam) {
     seasonQuery = seasonQuery.eq('genre', genreParam);
@@ -263,10 +263,12 @@ export async function GET(req: NextRequest) {
     const characterList = pinnedCharacters.map(c => c.label).filter(Boolean);
 
     // Generate story beat using co-director (what should happen next)
+    const seasonGenre = activeSeason.genre || genreParam || 'action';
     const storyBeatResult = await generateQuickStoryBeat(
       clipsForBeat,
       characterList.length > 0 ? characterList : undefined,
-      10 // total slots estimate
+      10, // total slots estimate
+      seasonGenre,
     );
 
     const storyBeat = storyBeatResult.ok ? storyBeatResult.beat : null;
@@ -296,37 +298,43 @@ export async function GET(req: NextRequest) {
       const apiKey = process.env.ANTHROPIC_API_KEY;
       if (apiKey) {
         const anthropic = new Anthropic({ apiKey });
+        // Genre-aware tone mapping
+        const genreToneMap: Record<string, string> = {
+          action: 'intense, high-energy',
+          comedy: 'funny, absurd, surprising',
+          thriller: 'tense, suspenseful',
+          'sci-fi': 'futuristic, awe-inspiring',
+          romance: 'emotional, intimate',
+          animation: 'colorful, fantastical',
+          horror: 'eerie, unsettling, dark',
+          drama: 'emotional, grounded, powerful',
+        };
+        const genreTone = genreToneMap[seasonGenre] || 'cinematic';
+
         const response = await anthropic.messages.create({
           model: 'claude-3-haiku-20240307',
-          max_tokens: 256,
+          max_tokens: 120,
           messages: [{
             role: 'user',
-            content: `Generate a DRAMATIC, ACTION-PACKED video prompt for the NEXT scene in this story.
+            content: `Generate a short, vivid video prompt for the NEXT scene in this ${seasonGenre} story.
 
 ${lastClipContext}
 
-${storyBeat ? `CO-DIRECTOR'S GUIDANCE FOR NEXT SCENE:
-- What happens: ${storyBeat.next_action}
-- Scene description: ${storyBeat.scene_description}
-- Must include: ${storyBeat.key_elements.join(', ')}
-- Avoid: ${storyBeat.avoid.join(', ')}` : 'Advance the story with a dramatic twist, confrontation, or high-stakes moment.'}
+${storyBeat ? `NEXT: ${storyBeat.next_action}
+Scene: ${storyBeat.scene_description}
+Include: ${storyBeat.key_elements.join(', ')}` : 'Advance the story with a dramatic twist.'}
 
-${characterContext ? `Main characters: ${characterContext}` : ''}
-AI Model: ${model}
+${characterContext ? `Characters: ${characterContext}` : ''}
+Genre: ${seasonGenre} (tone: ${genreTone})
 ${visualTerms.length > 0 ? `Visual style: ${visualTerms.slice(0, 5).join(', ')}` : ''}
-${patternTexts.length > 0 ? `Prompt patterns: ${patternTexts.slice(0, 3).join(', ')}` : ''}
 
-Write a CINEMATIC video prompt (80-150 words) that:
-1. Starts with a DYNAMIC camera movement (tracking shot, crane up, whip pan, handheld chase, dolly zoom)
-2. Characters must be IN ACTION — running, fighting, reaching, turning sharply, reacting with shock. NEVER standing still or just talking
-3. Include dramatic lighting — harsh shadows, neon reflections, lightning, silhouettes, golden hour, or flickering fire
-4. Describe specific motion — wind blowing hair, debris flying, doors slamming, rain pouring, sparks scattering
-5. Use STRONG action verbs: "slams", "bursts through", "whips around", "dives", "races", "crashes"
-6. End the scene on a visual cliffhanger or dramatic beat
-7. Keep the SAME character appearances (gender, clothing, features)
-8. ADVANCE the story — don't repeat the previous scene
+Write a video prompt (20-40 words) that:
+1. Starts with a camera movement (tracking shot, crane, whip pan, dolly zoom)
+2. Shows characters IN ACTION with strong verbs
+3. Matches the ${seasonGenre} genre tone
+4. Advances the story — don't repeat the previous scene
 
-Return ONLY the prompt text. No quotes, no explanation.`
+Return ONLY the prompt text.`
           }]
         });
 
@@ -375,6 +383,7 @@ Return ONLY the prompt text. No quotes, no explanation.`
     pinnedCharacters: pinnedCharacters.length > 0 ? pinnedCharacters : undefined,
     useVisualLearning: visualLearningEnabled,
     visualContext,
+    genre: activeSeason.genre || genreParam,
   });
 
   return NextResponse.json({

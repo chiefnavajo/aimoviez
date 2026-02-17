@@ -86,11 +86,12 @@ interface VoteResponse {
  * Hook to fetch the published creative brief for the current slot
  * Used in BriefBanner on the /create page
  */
-export function useBrief() {
+export function useBrief(genre?: string | null) {
   return useQuery<BriefResponse>({
-    queryKey: ['co-director', 'brief'],
+    queryKey: ['co-director', 'brief', genre],
     queryFn: async () => {
-      const res = await fetch('/api/co-director/brief');
+      const genreQuery = genre ? `?genre=${encodeURIComponent(genre)}` : '';
+      const res = await fetch(`/api/co-director/brief${genreQuery}`);
       if (!res.ok) {
         if (res.status === 404) {
           return { ok: true, has_brief: false };

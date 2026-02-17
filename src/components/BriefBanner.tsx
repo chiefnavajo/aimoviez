@@ -22,10 +22,11 @@ import { useBrief } from '@/hooks/useCoDirector';
 
 interface BriefBannerProps {
   onSelectPrompt?: (prompt: string) => void;
+  genre?: string | null;
 }
 
-export default function BriefBanner({ onSelectPrompt }: BriefBannerProps) {
-  const { data, isLoading } = useBrief();
+export default function BriefBanner({ onSelectPrompt, genre }: BriefBannerProps) {
+  const { data, isLoading } = useBrief(genre);
   const [expanded, setExpanded] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);

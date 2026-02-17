@@ -95,8 +95,8 @@ function CreatePageContent() {
               <h1 className="text-3xl font-black mb-2">Create with AI</h1>
               <p className="text-white/60">Describe your scene and let AI generate an 8-second video clip</p>
             </div>
-            <BriefBanner onSelectPrompt={setExternalPrompt} />
-            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
+            <BriefBanner onSelectPrompt={setExternalPrompt} genre={urlGenre} />
+            <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} preselectedGenre={urlGenre || undefined} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
           </div>
         </div>
       </div>
@@ -112,8 +112,8 @@ function CreatePageContent() {
             <h1 className="text-2xl font-black mb-1">Create with AI</h1>
             <p className="text-sm text-white/60">Describe your scene and let AI create it</p>
           </div>
-          <BriefBanner onSelectPrompt={setExternalPrompt} />
-          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
+          <BriefBanner onSelectPrompt={setExternalPrompt} genre={urlGenre} />
+          <AIGeneratePanel compact={false} lastFrameUrl={lastFrameUrl} initialPrompt={externalPrompt} preselectedGenre={urlGenre || undefined} onGenreChange={multiGenreEnabled ? (g) => fetchLastFrame(g) : undefined} />
         </div>
         <BottomNavigation />
       </div>
