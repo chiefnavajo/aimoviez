@@ -249,9 +249,11 @@ interface VideoPlayerProps {
   // Mute control - lifted to parent for landscape overlay access
   isMuted?: boolean;
   onMuteToggle?: () => void;
+  // Mobile: use preload="metadata" instead of "auto" for bandwidth savings
+  isMobile?: boolean;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle }: VideoPlayerProps) {
+function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   // Use prop if provided, otherwise use internal state (backwards compatible)
@@ -273,9 +275,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const lastVideoUrlRef = useRef<string | null>(null);
   // Ref for completedSegments length to use in persistent event handlers
   const segmentsLengthRef = useRef(0);
-  // Swipe tracking for segment navigation
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [touchEndY, setTouchEndY] = useState<number | null>(null);
+  // Swipe tracking for segment navigation (refs to avoid re-renders on touch)
+  const touchStartYRef = useRef<number | null>(null);
+  const touchEndYRef = useRef<number | null>(null);
+  // Throttle timeupdate to ~4Hz (250ms) to reduce re-renders during playback
+  const lastTimeUpdateRef = useRef(0);
 
   const completedSegments = useMemo(
     () => season.slots.filter(s => s.status === 'locked' && s.winning_clip),
@@ -507,8 +511,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
     }
   };
 
-  // Progress bar handlers
+  // Progress bar handlers (throttled to ~4Hz to reduce re-renders)
   const handleTimeUpdate = () => {
+    const now = Date.now();
+    if (now - lastTimeUpdateRef.current < 250) return;
+    lastTimeUpdateRef.current = now;
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
     }
@@ -533,23 +540,22 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   const handleTouchStart = (e: React.TouchEvent) => {
     // Don't track swipe if comments or contributors panel is open
     if (showComments || showContributors) return;
-    setTouchEndY(null);
-    setTouchStartY(e.targetTouches[0].clientY);
+    touchEndYRef.current = null;
+    touchStartYRef.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (showComments || showContributors) return;
-    setTouchEndY(e.targetTouches[0].clientY);
+    touchEndYRef.current = e.targetTouches[0].clientY;
   };
 
   const handleTouchEnd = () => {
-    if (!touchStartY || !touchEndY) return;
+    if (!touchStartYRef.current || !touchEndYRef.current) return;
     if (showComments || showContributors) return;
     if (completedSegments.length <= 1) return;
 
-    const distance = touchStartY - touchEndY;
+    const distance = touchStartYRef.current - touchEndYRef.current;
     const isSwipeUp = distance > minSwipeDistance;
-    const isSwipeDown = distance < -minSwipeDistance;
 
     if (isSwipeUp) {
       // Swipe up - go to next segment (loop to first at end)
@@ -558,11 +564,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       setCurrentTime(0);
       if (videoRef.current) videoRef.current.currentTime = 0;
     }
-    // Swipe down does nothing - only swipe up to navigate
 
     // Reset touch state
-    setTouchStartY(null);
-    setTouchEndY(null);
+    touchStartYRef.current = null;
+    touchEndYRef.current = null;
   };
 
   // Coming Soon View
@@ -609,30 +614,29 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   return (
     <div
       className="relative h-full bg-black overflow-hidden"
+      style={{ contain: 'layout style paint' }}
       onClick={handleTap}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Blurred background - animated fade on segment change */}
-      <AnimatePresence mode="wait">
-        <motion.div key={currentIndex} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0">
-          {currentSegment?.winning_clip?.thumbnail_url &&
-           !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
-            <img
-              src={currentSegment.winning_clip.thumbnail_url}
-              className="absolute inset-0 w-full h-full object-cover scale-110 blur-2xl opacity-60"
-              aria-hidden="true"
-              alt=""
-            />
-          ) : (
-            <div
-              className="absolute inset-0 w-full h-full scale-110 blur-2xl opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
-              aria-hidden="true"
-            />
-          )}
-        </motion.div>
-      </AnimatePresence>
+      {/* Background ambient layer (no blur for mobile GPU perf) */}
+      <div className="absolute inset-0">
+        {currentSegment?.winning_clip?.thumbnail_url &&
+         !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
+          <img
+            src={currentSegment.winning_clip.thumbnail_url}
+            className="absolute inset-0 w-full h-full object-cover opacity-40"
+            aria-hidden="true"
+            alt=""
+          />
+        ) : (
+          <div
+            className="absolute inset-0 w-full h-full opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
+            aria-hidden="true"
+          />
+        )}
+      </div>
 
       {/* Persistent video element — never remounted, src swapped via useEffect */}
       {/* This avoids re-downloading video data on every segment change */}
@@ -642,9 +646,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             ref={videoRef}
             poster={currentSegment.winning_clip.thumbnail_url || undefined}
             className="absolute inset-0 w-full h-full object-contain"
+            style={{ willChange: 'transform', contain: 'strict' }}
             muted={isMuted}
             playsInline
-            preload="auto"
+            preload={isMobile ? "metadata" : "auto"}
             loop={completedSegments.length <= 1}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
@@ -679,7 +684,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
           {/* Play button overlay when paused */}
           {!isPlaying && videoLoaded && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-              <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-white/30 flex items-center justify-center">
                 <Play className="w-8 h-8 text-white ml-1" fill="white" />
               </div>
             </div>
@@ -699,7 +704,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         <motion.button
           whileTap={{ scale: 0.9 }}
           onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
-          className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center border border-white/20"
+          className="w-9 h-9 rounded-full bg-black/70 flex items-center justify-center border border-white/20"
         >
           {isFullscreen ? (
             <Minimize2 className="w-4 h-4 text-white" />
@@ -713,7 +718,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       <div className={`absolute top-0 left-0 pt-12 px-3 z-10 ${isLandscape ? 'hidden' : ''}`}>
         <div className="flex flex-col gap-1.5">
           {/* Progress pill - larger for better visibility */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 backdrop-blur-sm border border-white/20">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/75 border border-white/20">
             <div className="w-2 h-2 rounded-full bg-cyan-400" />
             <span className="text-white text-sm font-bold">
               {currentSegment?.slot_position || 1}/{season.total_slots}
@@ -732,7 +737,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             <motion.div
               initial={{ opacity: 0, y: -5 }}
               animate={{ opacity: 1, y: 0 }}
-              className="px-3 py-1.5 rounded-full bg-orange-500/90 backdrop-blur-sm flex items-center gap-2 w-fit"
+              className="px-3 py-1.5 rounded-full bg-orange-500/95 flex items-center gap-2 w-fit"
             >
               <div className="w-2 h-2 rounded-full bg-white animate-pulse" />
               <span className="text-white text-sm font-bold">
@@ -748,7 +753,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       <AnimatePresence>
         {!isPlaying && !showContributors && !showComments && (
           <motion.div initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-white/30 border border-white/30 flex items-center justify-center">
               <Play className="w-10 h-10 text-white ml-1" />
             </div>
           </motion.div>
@@ -785,17 +790,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
           {/* Glowing vote button */}
           <div className="relative w-16 h-16 flex items-center justify-center">
             {/* Outer glow animation */}
-            <motion.div
-              className="absolute inset-[-4px] rounded-full"
-              animate={{
-                boxShadow: [
-                  '0 0 15px rgba(56, 189, 248, 0.5)',
-                  '0 0 25px rgba(168, 85, 247, 0.6)',
-                  '0 0 15px rgba(56, 189, 248, 0.5)',
-                ],
-              }}
-              transition={{ duration: 2.5, repeat: Infinity }}
-            />
+            <div className="absolute inset-[-4px] rounded-full animate-vote-glow" />
 
             {/* Progress ring SVG */}
             <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 56 56">
@@ -818,14 +813,12 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             </svg>
 
             {/* Infinity symbol */}
-            <motion.span
-              className="relative z-10 text-3xl font-black text-white"
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity }}
+            <span
+              className="relative z-10 text-3xl font-black text-white animate-infinity-pulse"
               style={{ textShadow: '0 0 20px rgba(56, 189, 248, 0.8)' }}
             >
               ∞
-            </motion.span>
+            </span>
           </div>
         </motion.button>
 
@@ -889,7 +882,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === 0}
@@ -919,7 +912,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
-            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/10 backdrop-blur-md
+            className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
                      transition-all shadow-lg ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === completedSegments.length - 1}
@@ -1037,7 +1030,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         {showContributors && (
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 z-40" onClick={() => setShowContributors(false)} />
-            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }} className="absolute inset-x-0 bottom-0 top-16 z-50 bg-black/70 backdrop-blur-md rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
+            <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25 }} className="absolute inset-x-0 bottom-0 top-16 z-50 bg-black/90 rounded-t-3xl" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-center pt-3 pb-2"><div className="w-10 h-1 rounded-full bg-white/30" /></div>
               <div className="flex items-center justify-between px-4 pb-3 border-b border-white/10">
                 <div className="flex items-center gap-2">
@@ -1055,7 +1048,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
                       {segment.winning_clip?.thumbnail_url && !segment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                         <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
                       ) : (
-                        <video src={segment.winning_clip?.video_url} className="w-full h-full object-cover" muted playsInline preload="metadata" poster={segment.winning_clip?.thumbnail_url || undefined} />
+                        <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/30 via-[#A020F0]/30 to-[#FF00C7]/30" />
                       )}
                       <div className="absolute inset-0 flex items-center justify-center bg-black/30">
                         <Play className="w-4 h-4 text-white" />
@@ -1278,13 +1271,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
 
                 if (isVideo) {
                   return (
-                    <video
-                      src={mediaUrl}
-                      className="w-full h-full object-cover"
-                      muted
-                      playsInline
-                      preload="metadata"
-                    />
+                    <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/30 via-[#A020F0]/30 to-[#FF00C7]/30" />
                   );
                 } else {
                   return (
@@ -1434,7 +1421,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
               if (isActualImage) {
                 return <Image src={thumbUrl} alt="" fill sizes="64px" className="object-cover" />;
               } else if (videoUrl) {
-                return <video src={videoUrl} className="w-full h-full object-cover" muted playsInline preload="metadata" />;
+                return <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/30 via-[#A020F0]/30 to-[#FF00C7]/30" />;
               } else {
                 return <div className="w-full h-full bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20" />;
               }
@@ -1566,11 +1553,11 @@ function StoryPage() {
   // Landscape video mode - auto-fill screen when phone rotates
   const { isLandscape, showControls, handleScreenTap } = useLandscapeVideo();
 
-  // Horizontal swipe for season switching on mobile
-  const [seasonTouchStartX, setSeasonTouchStartX] = useState<number | null>(null);
-  const [seasonTouchEndX, setSeasonTouchEndX] = useState<number | null>(null);
-  const [seasonTouchStartY, setSeasonTouchStartY] = useState<number | null>(null);
-  const [seasonTouchEndY, setSeasonTouchEndY] = useState<number | null>(null);
+  // Horizontal swipe for season switching on mobile (refs to avoid re-renders on touch)
+  const seasonTouchStartXRef = useRef<number | null>(null);
+  const seasonTouchEndXRef = useRef<number | null>(null);
+  const seasonTouchStartYRef = useRef<number | null>(null);
+  const seasonTouchEndYRef = useRef<number | null>(null);
 
   // Detect desktop vs mobile to render only ONE VideoPlayer (CSS hidden still plays audio)
   useEffect(() => {
@@ -1589,7 +1576,7 @@ function StoryPage() {
     queryFn: () => fetchSeasons(true), // Always fetch fresh to catch any missed realtime events
     staleTime: 30000, // 30 seconds - shorter to catch missed broadcasts faster
     refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchInterval: 30000, // Poll every 30s as fallback for missed realtime events
+    refetchInterval: isDesktop ? 30000 : 60000, // Desktop: 30s, Mobile: 60s (less jank)
     refetchIntervalInBackground: false, // Don't poll when tab is hidden (saves API calls)
   });
 
@@ -1750,26 +1737,26 @@ function StoryPage() {
     }
   }, [seasons, selectedSeasonId]);
 
-  // Horizontal swipe handlers for season switching on mobile
+  // Horizontal swipe handlers for season switching on mobile (refs avoid re-renders)
   const handleSeasonTouchStart = useCallback((e: React.TouchEvent) => {
-    setSeasonTouchStartX(e.touches[0].clientX);
-    setSeasonTouchStartY(e.touches[0].clientY);
-    setSeasonTouchEndX(null);
-    setSeasonTouchEndY(null);
+    seasonTouchStartXRef.current = e.touches[0].clientX;
+    seasonTouchStartYRef.current = e.touches[0].clientY;
+    seasonTouchEndXRef.current = null;
+    seasonTouchEndYRef.current = null;
   }, []);
 
   const handleSeasonTouchMove = useCallback((e: React.TouchEvent) => {
-    setSeasonTouchEndX(e.touches[0].clientX);
-    setSeasonTouchEndY(e.touches[0].clientY);
+    seasonTouchEndXRef.current = e.touches[0].clientX;
+    seasonTouchEndYRef.current = e.touches[0].clientY;
   }, []);
 
   const handleSeasonTouchEnd = useCallback(() => {
-    if (seasonTouchStartX === null || seasonTouchEndX === null) return;
+    if (seasonTouchStartXRef.current === null || seasonTouchEndXRef.current === null) return;
     if (seasons.length <= 1) return;
 
-    const deltaX = seasonTouchStartX - seasonTouchEndX;
-    const deltaY = seasonTouchStartY !== null && seasonTouchEndY !== null
-      ? seasonTouchStartY - seasonTouchEndY
+    const deltaX = seasonTouchStartXRef.current - seasonTouchEndXRef.current;
+    const deltaY = seasonTouchStartYRef.current !== null && seasonTouchEndYRef.current !== null
+      ? seasonTouchStartYRef.current - seasonTouchEndYRef.current
       : 0;
 
     // Only handle if swipe is more horizontal than vertical
@@ -1789,11 +1776,11 @@ function StoryPage() {
     }
 
     // Reset
-    setSeasonTouchStartX(null);
-    setSeasonTouchEndX(null);
-    setSeasonTouchStartY(null);
-    setSeasonTouchEndY(null);
-  }, [seasonTouchStartX, seasonTouchEndX, seasonTouchStartY, seasonTouchEndY, seasons.length, goToNextSeason, goToPrevSeason]);
+    seasonTouchStartXRef.current = null;
+    seasonTouchEndXRef.current = null;
+    seasonTouchStartYRef.current = null;
+    seasonTouchEndYRef.current = null;
+  }, [seasons.length, goToNextSeason, goToPrevSeason]);
 
   // Loading state
   if (isLoading) {
@@ -2024,6 +2011,7 @@ function StoryPage() {
             showLandscapeControls={showControls}
             isMuted={isMuted}
             onMuteToggle={() => setIsMuted(!isMuted)}
+            isMobile={true}
           />
         </div>
 
@@ -2048,12 +2036,12 @@ function StoryPage() {
                 e.stopPropagation();
                 setIsMuted(!isMuted);
               }}
-              className="absolute bottom-4 left-4 w-12 h-12 bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center"
+              className="absolute bottom-4 left-4 w-12 h-12 bg-black/75 rounded-full flex items-center justify-center"
             >
               {isMuted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-white" />}
             </button>
             {/* Rotate hint - bottom center */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/50 backdrop-blur-md rounded-full text-white/60 text-sm">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/75 rounded-full text-white/60 text-sm">
               Rotate to exit fullscreen
             </div>
           </div>

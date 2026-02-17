@@ -212,6 +212,26 @@ video::cue {
   }
 }
 
+/* Vote button outer glow - replaces Framer Motion infinite JS animation */
+@keyframes vote-glow {
+  0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
+  50% { box-shadow: 0 0 25px rgba(168, 85, 247, 0.6); }
+}
+
+/* Infinity symbol pulse - replaces Framer Motion infinite JS animation */
+@keyframes infinity-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.animate-vote-glow {
+  animation: vote-glow 2.5s ease-in-out infinite;
+}
+
+.animate-infinity-pulse {
+  animation: infinity-pulse 2s ease-in-out infinite;
+}
+
 /* ============================================================================
    PREMIUM UTILITY CLASSES
    ============================================================================ */
