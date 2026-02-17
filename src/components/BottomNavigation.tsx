@@ -25,7 +25,7 @@ export default function BottomNavigation() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-transparent md:bg-black/50 backdrop-blur-sm border-t border-fuchsia-500/30 safe-area-bottom" data-tour="bottom-nav">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 md:bg-black/50 md:backdrop-blur-sm border-t border-fuchsia-500/30 safe-area-bottom" data-tour="bottom-nav">
       {/* Safe area spacer for devices with home indicator */}
       <div className="flex justify-around items-center h-14 md:h-16 px-1 pb-safe">
         {navItems.map((item) => {
@@ -38,7 +38,7 @@ export default function BottomNavigation() {
               href={item.href}
               className={`flex flex-col items-center justify-center flex-1 py-1.5 min-w-0 transition-colors ${
                 isActive
-                  ? 'text-fuchsia-400 drop-shadow-[0_0_8px_rgba(232,121,249,0.7)]'
+                  ? 'text-fuchsia-400'
                   : 'text-cyan-300/60 active:text-cyan-300 hover:text-cyan-300'
               }`}
             >

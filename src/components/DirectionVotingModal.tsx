@@ -141,18 +141,11 @@ export default function DirectionVotingModal({ className = '' }: DirectionVoting
               </>
             ) : (
               <>
-                <motion.div
-                  animate={{ scale: [1, 1.2, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                >
+                <div className="animate-infinity-pulse">
                   <Vote className="w-5 h-5 text-white" />
-                </motion.div>
+                </div>
                 <span className="text-white text-sm font-semibold">Vote on Direction</span>
-                <motion.div
-                  className="w-2 h-2 rounded-full bg-white"
-                  animate={{ opacity: [1, 0.5, 1] }}
-                  transition={{ duration: 1, repeat: Infinity }}
-                />
+                <div className="w-2 h-2 rounded-full bg-white animate-soft-pulse" />
               </>
             )}
           </motion.button>

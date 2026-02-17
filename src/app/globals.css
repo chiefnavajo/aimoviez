@@ -240,9 +240,18 @@ video::cue {
 }
 
 .animate-vote-glow {
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 20px rgba(168, 85, 247, 0.5);
+  position: relative;
   animation: vote-glow 2.5s ease-in-out infinite;
   will-change: opacity;
+}
+
+.animate-vote-glow::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(56,189,248,0.5) 0%, rgba(168,85,247,0.5) 50%, transparent 70%);
+  z-index: -1;
 }
 
 .animate-infinity-pulse {

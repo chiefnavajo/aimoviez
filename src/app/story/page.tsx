@@ -207,12 +207,12 @@ const TypewriterIntro = memo(function TypewriterIntro({ text, seasonNumber, onCo
 
 function _ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?: string | number; onClick?: (e: React.MouseEvent) => void }) {
   return (
-    <motion.button whileTap={{ scale: 0.9 }} onClick={onClick} className="flex flex-col items-center gap-0.5">
+    <button onClick={onClick} className="flex flex-col items-center gap-0.5 transition-transform active:scale-90">
       <div className="w-10 h-10 rounded-full flex items-center justify-center">{icon}</div>
       {label !== undefined && (
         <span className="text-white text-[10px] font-semibold text-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{label}</span>
       )}
-    </motion.button>
+    </button>
   );
 }
 
@@ -259,8 +259,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   const isMuted = isMutedProp !== undefined ? isMutedProp : isMutedInternal;
   const [showContributors, setShowContributors] = useState(false);
   const [showComments, setShowComments] = useState(false);
-  const [lastTap, setLastTap] = useState(0);
-  const [_duration, setDuration] = useState(0);
+  const lastTapRef = useRef(0);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [clipDurations, setClipDurations] = useState<number[]>([]);
   const [commentCount, setCommentCount] = useState(0);
@@ -299,7 +298,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
     }
     elapsedTime += time;
     const overallProgress = totalDuration > 0 ? (elapsedTime / totalDuration) * 100 : 0;
-    progressBarRef.current.style.width = `${Math.min(100, overallProgress)}%`;
+    progressBarRef.current.style.transform = `scaleX(${Math.min(100, overallProgress) / 100})`;
   }, [completedSegments, clipDurations, currentIndex]);
 
   // Sync progress bar on segment/duration changes (non-timeupdate triggers)
@@ -469,7 +468,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 300;
 
-    if (now - lastTap < DOUBLE_TAP_DELAY) {
+    if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
       // Double tap detected - toggle fullscreen
       // Clear pending single-tap timer
       if (tapTimerRef.current) {
@@ -477,10 +476,10 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
         tapTimerRef.current = null;
       }
       onToggleFullscreen();
-      setLastTap(0);
+      lastTapRef.current = 0;
     } else {
       // Single tap - wait to see if it's a double tap
-      setLastTap(now);
+      lastTapRef.current = now;
       // Clear any existing timer before setting new one
       if (tapTimerRef.current) {
         clearTimeout(tapTimerRef.current);
@@ -574,7 +573,6 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       const clipDuration = videoRef.current.duration;
-      setDuration(clipDuration);
       // Track duration for each clip for accurate timeline seeking
       setClipDurations(prev => {
         const newDurations = [...prev];
@@ -651,9 +649,9 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
           </span>
           <h2 className="text-white text-xl font-bold mt-4">Season {season.number}</h2>
           <p className="text-white/50 text-sm mt-1">Be the first to contribute!</p>
-          <motion.button whileTap={{ scale: 0.95 }} onClick={onVote} className="mt-6 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 text-white font-bold">
+          <button onClick={onVote} className="mt-6 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 text-white font-bold transition-transform active:scale-95">
             Start Voting
-          </motion.button>
+          </button>
         </div>
       </div>
     );
@@ -704,16 +702,10 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onCanPlay={() => {
+              // Only set state if not already loaded (avoids unnecessary re-render)
+              if (!videoRef.current?.readyState) return;
               setVideoLoaded(true);
-              if (isPlaying && videoRef.current) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const v = videoRef.current as any;
-                if (typeof v.decode === 'function') {
-                  v.decode().then(() => videoRef.current?.play().catch(() => {})).catch(() => videoRef.current?.play().catch(() => {}));
-                } else {
-                  videoRef.current.play().catch(() => {});
-                }
-              }
+              // Playback is managed exclusively by the useEffect at line ~442
             }}
             onEnded={() => {
               // Use refs to avoid stale closures — video element is persistent
@@ -726,7 +718,6 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
                 safeSetIndex(0, 'onEnded-loop');
               }
             }}
-            onPlay={() => setIsPlaying(true)}
             onPause={() => {
               // Only set to false if we didn't just finish (avoid pause during transition)
             }}
@@ -758,17 +749,16 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
 
       {/* Top Right: Fullscreen toggle (hidden in landscape) */}
       <div className={`absolute top-0 right-0 pt-12 pr-4 z-30 ${isLandscape ? 'hidden' : ''}`}>
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={(e) => { e.stopPropagation(); onToggleFullscreen(); }}
-          className="w-9 h-9 rounded-full bg-black/70 flex items-center justify-center border border-white/20"
+          className="w-9 h-9 rounded-full bg-black/70 flex items-center justify-center border border-white/20 transition-transform active:scale-90"
         >
           {isFullscreen ? (
             <Minimize2 className="w-4 h-4 text-white" />
           ) : (
             <Maximize2 className="w-4 h-4 text-white" />
           )}
-        </motion.button>
+        </button>
       </div>
 
       {/* Top Left: Compact progress info (hidden in landscape) */}
@@ -838,10 +828,9 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
         )}
 
         {/* Vote Button - Dashboard style with infinity symbol */}
-        <motion.button
-          whileTap={{ scale: 0.9 }}
+        <button
           onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
-          className="flex flex-col items-center gap-1 relative"
+          className="flex flex-col items-center gap-1 relative transition-transform active:scale-90"
           aria-label="Vote now"
         >
           {/* Glowing vote button */}
@@ -877,21 +866,20 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
               ∞
             </span>
           </div>
-        </motion.button>
+        </button>
 
         {/* Rankings Button (Completed seasons only) */}
         {isCompleted && (
-          <motion.button
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={() => { window.location.href = '/leaderboard'; }}
-            className="flex flex-col items-center gap-1"
+            className="flex flex-col items-center gap-1 transition-transform active:scale-90"
             aria-label="View rankings"
           >
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
               <Trophy className="w-7 h-7 text-white" />
             </div>
             <span className="text-white text-[11px] font-semibold text-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Rankings</span>
-          </motion.button>
+          </button>
         )}
 
         {/* Comments - Using shared ActionButton */}
@@ -928,9 +916,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
       {completedSegments.length > 1 && !hideInternalNav && !isLandscape && (
         <div className="absolute left-3 md:left-8 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-4 md:gap-6">
           {/* Previous Segment Arrow */}
-          <motion.button
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={(e) => {
               e.stopPropagation();
               if (currentIndex > 0) {
@@ -941,14 +927,14 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             }}
             className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
-                     transition-opacity shadow-lg ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
+                     transition-[opacity,transform] shadow-lg hover:scale-110 active:scale-90 ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === 0}
             aria-label="Previous segment"
           >
             <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
             </svg>
-          </motion.button>
+          </button>
 
           {/* Segment Counter - Matching dashboard style */}
           <div className="text-center">
@@ -958,9 +944,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
           </div>
 
           {/* Next Segment Arrow */}
-          <motion.button
-            whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-            whileTap={{ scale: 0.9 }}
+          <button
             onClick={(e) => {
               e.stopPropagation();
               if (currentIndex < completedSegments.length - 1) {
@@ -971,14 +955,14 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             }}
             className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
-                     transition-opacity shadow-lg ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
+                     transition-[opacity,transform] shadow-lg hover:scale-110 active:scale-90 ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === completedSegments.length - 1}
             aria-label="Next segment"
           >
             <svg className="w-5 h-5 md:w-7 md:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
             </svg>
-          </motion.button>
+          </button>
         </div>
       )}
 
@@ -1038,10 +1022,10 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             <div className="w-full h-0.5 group-hover:h-1 rounded-full bg-white/20 overflow-hidden transition-[height]">
               <div
                 ref={progressBarRef}
-                className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500"
+                className="h-full w-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 origin-left"
                 style={{
-                  width: '0%',
-                  transition: 'width 0.1s linear',
+                  transform: 'scaleX(0)',
+                  transition: 'transform 0.1s linear',
                 }}
               />
             </div>
@@ -1086,7 +1070,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
               </div>
               <div className="overflow-y-auto h-[calc(100%-60px)] px-4 py-3">
                 {completedSegments.map((segment, index) => (
-                  <motion.button key={segment.id} whileTap={{ scale: 0.98 }} onClick={() => jumpToSegment(index)} className="w-full flex items-center gap-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 mb-2 border border-white/10">
+                  <button key={segment.id} onClick={() => jumpToSegment(index)} className="w-full flex items-center gap-3 p-2 rounded-xl bg-white/10 hover:bg-white/20 mb-2 border border-white/10 transition-transform active:scale-[0.98]">
                     <div className="relative w-12 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-[#3CF2FF]/20 to-[#FF00C7]/20">
                       {segment.winning_clip?.thumbnail_url && !segment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) ? (
                         <Image src={segment.winning_clip.thumbnail_url} alt="" fill sizes="48px" className="object-cover" />
@@ -1106,7 +1090,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
                       </div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-white/60" />
-                  </motion.button>
+                  </button>
                 ))}
               </div>
             </motion.div>
@@ -1436,10 +1420,9 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
   };
 
   return (
-    <motion.button
-      whileTap={{ scale: 0.98 }}
+    <button
       onClick={onSelect}
-      className={`w-full flex items-center gap-3 p-3 transition-colors ${
+      className={`w-full flex items-center gap-3 p-3 transition-[colors,transform] active:scale-[0.98] ${
         isSelected ? 'bg-white/10' : 'bg-transparent hover:bg-white/5'
       }`}
     >
@@ -1567,7 +1550,7 @@ function SeasonListItem({ season, isSelected, onSelect }: SeasonListItemProps) {
 
       {/* Arrow */}
       <ChevronRight className={`w-5 h-5 flex-shrink-0 ${isSelected ? 'text-white' : 'text-white/60'}`} />
-    </motion.button>
+    </button>
   );
 }
 
@@ -1739,17 +1722,20 @@ function StoryPage() {
     setShowingIntro(false);
   }, [selectedSeason]);
 
-  // Reset segment index when season changes, and pre-compute total segments
+  // Reset segment index when season ID changes (NOT on data refetch — selectedSeason object changes on every poll)
   useEffect(() => {
+    if (!selectedSeasonId) return;
     setCurrentSegmentIndex(0);
     // Pre-compute total segments from the selected season data
-    if (selectedSeason) {
-      const completedSegs = selectedSeason.slots.filter(s => s.status === 'locked' && s.winning_clip);
+    const season = seasons.find(s => s.id === selectedSeasonId);
+    if (season) {
+      const completedSegs = season.slots.filter(s => s.status === 'locked' && s.winning_clip);
       setTotalSegments(completedSegs.length);
     } else {
       setTotalSegments(0);
     }
-  }, [selectedSeasonId, selectedSeason]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeasonId]);
 
   // Callback to sync segment state from VideoPlayer
   const handleSegmentChange = useCallback((index: number, total: number) => {
@@ -1963,33 +1949,29 @@ function StoryPage() {
             {totalSegments > 1 && (
               <div className="flex flex-col items-start gap-2 px-3 pt-4 mt-2">
                 <div className="flex flex-col items-center gap-2 w-6">
-                  <motion.button
-                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-                    whileTap={{ scale: 0.9 }}
+                  <button
                     onClick={() => videoPlayerRef.current?.goPrev()}
-                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-opacity ${
+                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-[opacity,transform] hover:scale-110 active:scale-90 ${
                       currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
                     }`}
                     disabled={currentSegmentIndex === 0}
                   >
                     <ChevronDown className="w-5 h-5 text-white rotate-180" />
-                  </motion.button>
+                  </button>
 
                   <span className="text-white/80 text-sm font-medium text-shadow-lg">
                     {currentSegmentIndex + 1}/{totalSegments}
                   </span>
 
-                  <motion.button
-                    whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
-                    whileTap={{ scale: 0.9 }}
+                  <button
                     onClick={() => videoPlayerRef.current?.goNext()}
-                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-opacity ${
+                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-[opacity,transform] hover:scale-110 active:scale-90 ${
                       currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
                     }`}
                     disabled={currentSegmentIndex >= totalSegments - 1}
                   >
                     <ChevronDown className="w-5 h-5 text-white" />
-                  </motion.button>
+                  </button>
                 </div>
               </div>
             )}
