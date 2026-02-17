@@ -151,10 +151,10 @@ video::cue {
    PREMIUM VISUAL ENHANCEMENTS - Keyframe Animations
    ============================================================================ */
 
-/* Elegant shimmer for progress bars */
+/* Elegant shimmer for progress bars — transform-based (GPU-composited) */
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
 }
 
 /* Subtle breathing glow */
@@ -163,16 +163,16 @@ video::cue {
   50% { opacity: 0.7; transform: scale(1.02); }
 }
 
-/* Soft pulse for highlights */
+/* Soft pulse for highlights — opacity-only (GPU-composited, no repaint) */
 @keyframes soft-pulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(60, 242, 255, 0.15); }
-  50% { box-shadow: 0 0 30px rgba(60, 242, 255, 0.3); }
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
-/* Gold pulse for achievements */
+/* Gold pulse for achievements — opacity-only (GPU-composited, no repaint) */
 @keyframes gold-pulse {
-  0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(234, 179, 8, 0.4); }
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
 }
 
 /* Medal shine sweep */
@@ -200,22 +200,16 @@ video::cue {
   50% { transform: translateY(-4px); }
 }
 
-/* Glow ring breathing */
+/* Glow ring breathing — opacity-only (GPU-composited, no repaint) */
 @keyframes glow-ring {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(60, 242, 255, 0.2),
-                0 0 40px rgba(160, 32, 240, 0.1);
-  }
-  50% {
-    box-shadow: 0 0 30px rgba(60, 242, 255, 0.3),
-                0 0 60px rgba(160, 32, 240, 0.2);
-  }
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
-/* Vote button outer glow - replaces Framer Motion infinite JS animation */
+/* Vote button outer glow — opacity-only (GPU-composited, no repaint) */
 @keyframes vote-glow {
-  0%, 100% { box-shadow: 0 0 15px rgba(56, 189, 248, 0.5); }
-  50% { box-shadow: 0 0 25px rgba(168, 85, 247, 0.6); }
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
 }
 
 /* Infinity symbol pulse - replaces Framer Motion infinite JS animation */
@@ -224,8 +218,31 @@ video::cue {
   50% { transform: scale(1.1); }
 }
 
+/* Cursor blink for typewriter — opacity-only (GPU-composited) */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.animate-cursor-blink {
+  animation: cursor-blink 0.5s step-end infinite;
+}
+
+/* Loading spinner infinity — transform + opacity (GPU-composited) */
+@keyframes infinity-loading {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.2); opacity: 1; }
+}
+
+.animate-infinity-loading {
+  animation: infinity-loading 1.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
 .animate-vote-glow {
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.5), 0 0 20px rgba(168, 85, 247, 0.5);
   animation: vote-glow 2.5s ease-in-out infinite;
+  will-change: opacity;
 }
 
 .animate-infinity-pulse {
@@ -285,16 +302,16 @@ video::cue {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
+  height: 100%;
   background: linear-gradient(
     90deg,
     transparent 0%,
     rgba(255, 255, 255, 0.15) 50%,
     transparent 100%
   );
-  background-size: 200% 100%;
   animation: shimmer 2.5s ease-in-out infinite;
+  will-change: transform;
 }
 
 /* Fade-up animation class */
@@ -350,17 +367,23 @@ video::cue {
 
 /* Breathing glow ring for avatars */
 .avatar-glow-ring {
+  box-shadow: 0 0 30px rgba(60, 242, 255, 0.3), 0 0 60px rgba(160, 32, 240, 0.2);
   animation: glow-ring 3s ease-in-out infinite;
+  will-change: opacity;
 }
 
 /* Soft pulse animation */
 .animate-soft-pulse {
+  box-shadow: 0 0 30px rgba(60, 242, 255, 0.3);
   animation: soft-pulse 2s ease-in-out infinite;
+  will-change: opacity;
 }
 
 /* Gold pulse for special elements */
 .animate-gold-pulse {
+  box-shadow: 0 0 25px rgba(234, 179, 8, 0.4);
   animation: gold-pulse 2s ease-in-out infinite;
+  will-change: opacity;
 }
 
 /* Subtle float */

@@ -17,7 +17,7 @@
 // ✅ Clean thumbnail design (no breathing overlay)
 // ============================================================================
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
@@ -141,7 +141,7 @@ interface TypewriterIntroProps {
   onComplete: () => void;
 }
 
-function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProps) {
+const TypewriterIntro = memo(function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProps) {
   const [displayedText, setDisplayedText] = useState('');
   const [isDone, setIsDone] = useState(false);
 
@@ -185,10 +185,8 @@ function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProp
       <p className="text-white text-lg md:text-xl font-medium leading-relaxed text-center max-w-md">
         {displayedText}
         {!isDone && (
-          <motion.span
-            animate={{ opacity: [1, 0] }}
-            transition={{ duration: 0.5, repeat: Infinity }}
-            className="inline-block w-0.5 h-5 bg-cyan-400 ml-0.5 align-middle"
+          <span
+            className="inline-block w-0.5 h-5 bg-cyan-400 ml-0.5 align-middle animate-cursor-blink"
           />
         )}
       </p>
@@ -201,7 +199,7 @@ function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProp
       </motion.p>
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // ACTION BUTTON
@@ -253,7 +251,7 @@ interface VideoPlayerProps {
   isMobile?: boolean;
 }
 
-function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile = false }: VideoPlayerProps) {
+const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   // Use prop if provided, otherwise use internal state (backwards compatible)
@@ -278,13 +276,28 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
   // Swipe tracking for segment navigation (refs to avoid re-renders on touch)
   const touchStartYRef = useRef<number | null>(null);
   const touchEndYRef = useRef<number | null>(null);
-  // Throttle timeupdate to ~4Hz (250ms) to reduce re-renders during playback
+  // Throttle timeupdate to ~2Hz (500ms) to reduce re-renders during playback
   const lastTimeUpdateRef = useRef(0);
 
   const completedSegments = useMemo(
     () => season.slots.filter(s => s.status === 'locked' && s.winning_clip),
     [season.slots]
   );
+
+  // Memoize progress bar width calculation (was an IIFE inside style={{}}, ran every 250ms)
+  const progressWidth = useMemo(() => {
+    const DEFAULT_CLIP_DURATION = 8;
+    const totalDuration = completedSegments.reduce((sum, _, idx) => {
+      return sum + (clipDurations[idx] || DEFAULT_CLIP_DURATION);
+    }, 0);
+    let elapsedTime = 0;
+    for (let i = 0; i < currentIndex; i++) {
+      elapsedTime += clipDurations[i] || DEFAULT_CLIP_DURATION;
+    }
+    elapsedTime += currentTime;
+    const overallProgress = totalDuration > 0 ? (elapsedTime / totalDuration) * 100 : 0;
+    return `${Math.min(100, overallProgress)}%`;
+  }, [completedSegments, clipDurations, currentIndex, currentTime]);
 
   // Keep segment length ref in sync for persistent event handlers
   segmentsLengthRef.current = completedSegments.length;
@@ -511,10 +524,10 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
     }
   };
 
-  // Progress bar handlers (throttled to ~4Hz to reduce re-renders)
+  // Progress bar handlers (throttled to ~2Hz to reduce re-renders)
   const handleTimeUpdate = () => {
     const now = Date.now();
-    if (now - lastTimeUpdateRef.current < 250) return;
+    if (now - lastTimeUpdateRef.current < 500) return;
     lastTimeUpdateRef.current = now;
     if (videoRef.current) {
       setCurrentTime(videoRef.current.currentTime);
@@ -594,13 +607,11 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         {season.thumbnail_url && !season.thumbnail_url.match(/\.(mp4|webm|mov|quicktime)$/i) && <Image src={season.thumbnail_url} alt="" fill sizes="100vw" className="object-cover opacity-50" />}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/30" />
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <motion.span
-            className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 3, repeat: Infinity }}
+          <span
+            className="text-5xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] animate-infinity-pulse"
           >
             ∞
-          </motion.span>
+          </span>
           <h2 className="text-white text-xl font-bold mt-4">Season {season.number}</h2>
           <p className="text-white/50 text-sm mt-1">Be the first to contribute!</p>
           <motion.button whileTap={{ scale: 0.95 }} onClick={onVote} className="mt-6 px-6 py-3 rounded-full bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 text-white font-bold">
@@ -884,7 +895,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             }}
             className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
-                     transition-all shadow-lg ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
+                     transition-opacity shadow-lg ${currentIndex === 0 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === 0}
             aria-label="Previous segment"
           >
@@ -914,7 +925,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
             }}
             className={`w-10 h-10 md:w-14 md:h-14 rounded-full bg-white/20
                      border border-white/20 flex items-center justify-center
-                     transition-all shadow-lg ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
+                     transition-opacity shadow-lg ${currentIndex === completedSegments.length - 1 ? 'opacity-30' : 'opacity-100'}`}
             disabled={currentIndex === completedSegments.length - 1}
             aria-label="Next segment"
           >
@@ -977,29 +988,13 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
         >
           {/* Invisible touch target for easier tapping */}
           <div className="h-4 flex items-center">
-            <div className="w-full h-0.5 group-hover:h-1 rounded-full bg-white/20 overflow-hidden transition-all">
-              <motion.div
+            <div className="w-full h-0.5 group-hover:h-1 rounded-full bg-white/20 overflow-hidden transition-[height]">
+              <div
                 className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500"
                 style={{
-                  width: (() => {
-                    // Calculate progress based on actual timeline
-                    const DEFAULT_CLIP_DURATION = 8;
-                    const totalDuration = completedSegments.reduce((sum, _, idx) => {
-                      return sum + (clipDurations[idx] || DEFAULT_CLIP_DURATION);
-                    }, 0);
-
-                    // Time elapsed: sum of all previous segments + current time in this segment
-                    let elapsedTime = 0;
-                    for (let i = 0; i < currentIndex; i++) {
-                      elapsedTime += clipDurations[i] || DEFAULT_CLIP_DURATION;
-                    }
-                    elapsedTime += currentTime;
-
-                    const overallProgress = totalDuration > 0 ? (elapsedTime / totalDuration) * 100 : 0;
-                    return `${Math.min(100, overallProgress)}%`;
-                  })(),
+                  width: progressWidth,
+                  transition: 'width 0.1s linear',
                 }}
-                transition={{ duration: 0.1, ease: 'linear' }}
               />
             </div>
           </div>
@@ -1080,7 +1075,7 @@ function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInt
       />
     </div>
   );
-}
+});
 
 // ============================================================================
 // HORIZONTAL SEASON STRIP (Mobile - Swipeable)
@@ -1094,7 +1089,7 @@ interface SeasonStripProps {
   onSwipeRight: () => void;
 }
 
-function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, onSwipeRight }: SeasonStripProps) {
+const SeasonStrip = memo(function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, onSwipeRight }: SeasonStripProps) {
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [touchStartY, setTouchStartY] = useState<number | null>(null);
@@ -1171,7 +1166,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-transparent backdrop-blur-sm border-t border-white/10"
+        className="bg-black/70 border-t border-white/10"
         onClick={() => setIsExpanded(true)}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -1224,7 +1219,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
       ref={containerRef}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="bg-transparent backdrop-blur-sm border-t border-white/10"
+      className="bg-black/70 border-t border-white/10"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -1365,7 +1360,7 @@ function SeasonStrip({ seasons, selectedSeasonId, onSelectSeason, onSwipeLeft, o
       </div>
     </motion.div>
   );
-}
+});
 
 // ============================================================================
 // SEASON LIST ITEM (Desktop only now)
@@ -1786,14 +1781,12 @@ function StoryPage() {
   if (isLoading) {
     return (
       <div className="h-screen bg-black flex items-center justify-center">
-        <motion.span
-          className="text-6xl font-black text-white"
-          animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-          transition={{ duration: 1.5, repeat: Infinity }}
+        <span
+          className="text-6xl font-black text-white animate-infinity-loading"
           style={{ textShadow: '0 0 30px rgba(56, 189, 248, 0.8)' }}
         >
           ∞
-        </motion.span>
+        </span>
       </div>
     );
   }
@@ -1822,13 +1815,11 @@ function StoryPage() {
     return (
       <div className="h-screen bg-black flex items-center justify-center p-6">
         <div className="text-center">
-          <motion.span
-            className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7]"
-            animate={{ scale: [1, 1.05, 1] }}
-            transition={{ duration: 3, repeat: Infinity }}
+          <span
+            className="text-6xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] via-[#A020F0] to-[#FF00C7] animate-infinity-pulse"
           >
             ∞
-          </motion.span>
+          </span>
           <h2 className="text-white text-xl font-bold mt-6 mb-2">No Seasons Yet</h2>
           <p className="text-white/60 mb-6">Be the first to contribute a clip!</p>
           <Link
@@ -1884,7 +1875,7 @@ function StoryPage() {
               </div>
             </Link>
             <Link href="/story">
-              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/30 backdrop-blur-sm text-white border border-white/10">
+              <div className="flex items-center gap-3 px-3 py-3 rounded-lg bg-black/60 text-white border border-white/10">
                 <BookOpen className="w-6 h-6" />
                 <span className="font-semibold">Story</span>
               </div>
@@ -1928,7 +1919,7 @@ function StoryPage() {
                     whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => videoPlayerRef.current?.goPrev()}
-                    className={`w-10 h-10 -ml-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-opacity ${
                       currentSegmentIndex === 0 ? 'opacity-30' : 'opacity-100'
                     }`}
                     disabled={currentSegmentIndex === 0}
@@ -1944,7 +1935,7 @@ function StoryPage() {
                     whileHover={{ scale: 1.1, backgroundColor: 'rgba(255,255,255,0.25)' }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => videoPlayerRef.current?.goNext()}
-                    className={`w-10 h-10 -ml-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center transition-all ${
+                    className={`w-10 h-10 -ml-2 rounded-full bg-black/50 border border-white/20 flex items-center justify-center transition-opacity ${
                       currentSegmentIndex >= totalSegments - 1 ? 'opacity-30' : 'opacity-100'
                     }`}
                     disabled={currentSegmentIndex >= totalSegments - 1}
@@ -1966,7 +1957,7 @@ function StoryPage() {
                   onClick={() => setSelectedSeasonId(season.id)}
                   className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-left transition outline-none ${
                     season.id === selectedSeasonId
-                      ? 'bg-black/30 backdrop-blur-sm text-white border border-white/10'
+                      ? 'bg-black/60 text-white border border-white/10'
                       : 'hover:bg-black/20 text-white/80'
                   }`}
                 >
