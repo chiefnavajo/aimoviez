@@ -260,7 +260,6 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   const [showContributors, setShowContributors] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [lastTap, setLastTap] = useState(0);
-  const [currentTime, setCurrentTime] = useState(0);
   const [_duration, setDuration] = useState(0);
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [clipDurations, setClipDurations] = useState<number[]>([]);
@@ -278,14 +277,18 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   const touchEndYRef = useRef<number | null>(null);
   // Throttle timeupdate to ~2Hz (500ms) to reduce re-renders during playback
   const lastTimeUpdateRef = useRef(0);
+  // Direct DOM ref for progress bar — updated without React re-renders
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const currentTimeRef = useRef(0);
 
   const completedSegments = useMemo(
     () => season.slots.filter(s => s.status === 'locked' && s.winning_clip),
     [season.slots]
   );
 
-  // Memoize progress bar width calculation (was an IIFE inside style={{}}, ran every 250ms)
-  const progressWidth = useMemo(() => {
+  // Update progress bar via direct DOM manipulation — zero React re-renders
+  const updateProgressBar = useCallback((time: number) => {
+    if (!progressBarRef.current) return;
     const DEFAULT_CLIP_DURATION = 8;
     const totalDuration = completedSegments.reduce((sum, _, idx) => {
       return sum + (clipDurations[idx] || DEFAULT_CLIP_DURATION);
@@ -294,10 +297,15 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
     for (let i = 0; i < currentIndex; i++) {
       elapsedTime += clipDurations[i] || DEFAULT_CLIP_DURATION;
     }
-    elapsedTime += currentTime;
+    elapsedTime += time;
     const overallProgress = totalDuration > 0 ? (elapsedTime / totalDuration) * 100 : 0;
-    return `${Math.min(100, overallProgress)}%`;
-  }, [completedSegments, clipDurations, currentIndex, currentTime]);
+    progressBarRef.current.style.width = `${Math.min(100, overallProgress)}%`;
+  }, [completedSegments, clipDurations, currentIndex]);
+
+  // Sync progress bar on segment/duration changes (non-timeupdate triggers)
+  useEffect(() => {
+    updateProgressBar(currentTimeRef.current);
+  }, [updateProgressBar]);
 
   // Keep segment length ref in sync for persistent event handlers
   segmentsLengthRef.current = completedSegments.length;
@@ -385,7 +393,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   // season.id is included to ensure we re-run after season switch completes.
   useEffect(() => {
     setVideoLoaded(false);
-    setCurrentTime(0); // Reset time immediately to prevent progress bar jump
+    currentTimeRef.current = 0; // Reset time immediately to prevent progress bar jump
 
     const video = videoRef.current;
     // Read segments from ref to get latest data without adding to deps
@@ -552,13 +560,14 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
     }
   };
 
-  // Progress bar handlers (throttled to ~2Hz to reduce re-renders)
+  // Progress bar handler — direct DOM update, zero React re-renders
   const handleTimeUpdate = () => {
     const now = Date.now();
     if (now - lastTimeUpdateRef.current < 500) return;
     lastTimeUpdateRef.current = now;
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
+      currentTimeRef.current = videoRef.current.currentTime;
+      updateProgressBar(videoRef.current.currentTime);
     }
   };
 
@@ -602,7 +611,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
       // Swipe up - go to next segment (loop to first at end)
       const nextIndex = (currentIndex + 1) % completedSegments.length;
       safeSetIndex(nextIndex, 'swipeUp');
-      setCurrentTime(0);
+      currentTimeRef.current = 0;
       if (videoRef.current) videoRef.current.currentTime = 0;
     }
 
@@ -926,7 +935,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
               e.stopPropagation();
               if (currentIndex > 0) {
                 safeSetIndex(currentIndex - 1, 'internalPrev');
-                setCurrentTime(0);
+                currentTimeRef.current = 0;
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
@@ -956,7 +965,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
               e.stopPropagation();
               if (currentIndex < completedSegments.length - 1) {
                 safeSetIndex(currentIndex + 1, 'internalNext');
-                setCurrentTime(0);
+                currentTimeRef.current = 0;
                 if (videoRef.current) videoRef.current.currentTime = 0;
               }
             }}
@@ -1017,7 +1026,8 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             if (targetSegment !== currentIndex) {
               safeSetIndex(targetSegment, 'progressBar');
             }
-            setCurrentTime(timeInSegment);
+            currentTimeRef.current = timeInSegment;
+            updateProgressBar(timeInSegment);
             if (videoRef.current) {
               videoRef.current.currentTime = timeInSegment;
             }
@@ -1027,9 +1037,10 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
           <div className="h-4 flex items-center">
             <div className="w-full h-0.5 group-hover:h-1 rounded-full bg-white/20 overflow-hidden transition-[height]">
               <div
+                ref={progressBarRef}
                 className="h-full bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500"
                 style={{
-                  width: progressWidth,
+                  width: '0%',
                   transition: 'width 0.1s linear',
                 }}
               />
@@ -1606,9 +1617,9 @@ function StoryPage() {
   const { data: seasons = [], isLoading, error } = useQuery<Season[]>({
     queryKey: ['story-seasons'],
     queryFn: () => fetchSeasons(true), // Always fetch fresh to catch any missed realtime events
-    staleTime: 30000, // 30 seconds - shorter to catch missed broadcasts faster
+    staleTime: 60000, // 60 seconds
     refetchOnWindowFocus: true, // Refetch when user returns to tab
-    refetchInterval: isDesktop ? 30000 : 60000, // Desktop: 30s, Mobile: 60s (less jank)
+    refetchInterval: isDesktop ? 60000 : 300000, // Desktop: 60s, Mobile: 5min (realtime broadcast handles urgent updates)
     refetchIntervalInBackground: false, // Don't poll when tab is hidden (saves API calls)
   });
 
