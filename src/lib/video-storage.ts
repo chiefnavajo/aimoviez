@@ -88,7 +88,7 @@ async function uploadToSupabase(file: File, fileId: string): Promise<{ url: stri
     const { data: _data, error } = await supabase.storage
       .from('clips')
       .upload(fileName, file, {
-        cacheControl: '3600',
+        cacheControl: '86400',
         upsert: false,
       });
 

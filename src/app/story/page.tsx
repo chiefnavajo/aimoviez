@@ -251,7 +251,7 @@ interface VideoPlayerProps {
   isMobile?: boolean;
 }
 
-const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile = false }: VideoPlayerProps) {
+const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile: _isMobile = false }: VideoPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   // Use prop if provided, otherwise use internal state (backwards compatible)
@@ -407,18 +407,46 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, season.id]);
 
+  // Preload next video segment to prevent buffer stall on auto-advance
+  useEffect(() => {
+    const nextIndex = currentIndex + 1;
+    const nextSegment = completedSegments[nextIndex];
+    const nextUrl = nextSegment?.winning_clip?.video_url;
+    if (!nextUrl) return;
+
+    // Create or update preload link in document head
+    let link = document.getElementById('preload-next-video') as HTMLLinkElement | null;
+    if (!link) {
+      link = document.createElement('link');
+      link.id = 'preload-next-video';
+      link.rel = 'preload';
+      link.as = 'video';
+      document.head.appendChild(link);
+    }
+    link.href = nextUrl;
+
+    return () => {
+      link?.remove();
+    };
+  }, [currentIndex, completedSegments]);
+
   // Consolidated video playback control - prevents race conditions
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
     if (isPlaying && videoLoaded && completedSegments.length > 0) {
-      // Only play when video is loaded and we should be playing
-      const playPromise = video.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(() => {
-          // Autoplay blocked - user needs to interact first
+      // Wait for decoder readiness before playing — prevents initial frame drops
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const vid = video as any;
+      if (typeof vid.decode === 'function') {
+        vid.decode().then(() => {
+          video.play().catch(() => {});
+        }).catch(() => {
+          video.play().catch(() => {});
         });
+      } else {
+        video.play().catch(() => {});
       }
     } else if (!isPlaying) {
       video.pause();
@@ -625,29 +653,31 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
   return (
     <div
       className="relative h-full bg-black overflow-hidden"
-      style={{ contain: 'layout style paint' }}
+      style={{ contain: 'layout style paint', touchAction: 'manipulation' }}
       onClick={handleTap}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
-      {/* Background ambient layer (no blur for mobile GPU perf) */}
-      <div className="absolute inset-0">
-        {currentSegment?.winning_clip?.thumbnail_url &&
-         !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
-          <img
-            src={currentSegment.winning_clip.thumbnail_url}
-            className="absolute inset-0 w-full h-full object-cover opacity-40"
-            aria-hidden="true"
-            alt=""
-          />
-        ) : (
-          <div
-            className="absolute inset-0 w-full h-full opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
-            aria-hidden="true"
-          />
-        )}
-      </div>
+      {/* Background ambient layer — hidden once video is loaded to free GPU compositing layer */}
+      {!videoLoaded && (
+        <div className="absolute inset-0">
+          {currentSegment?.winning_clip?.thumbnail_url &&
+           !currentSegment.winning_clip.thumbnail_url.match(/\.(mp4|webm|mov|m4v|quicktime)(\?|$)/i) ? (
+            <img
+              src={currentSegment.winning_clip.thumbnail_url}
+              className="absolute inset-0 w-full h-full object-cover opacity-40"
+              aria-hidden="true"
+              alt=""
+            />
+          ) : (
+            <div
+              className="absolute inset-0 w-full h-full opacity-60 bg-gradient-to-br from-[#3CF2FF]/40 via-[#A020F0]/40 to-[#FF00C7]/40"
+              aria-hidden="true"
+            />
+          )}
+        </div>
+      )}
 
       {/* Persistent video element — never remounted, src swapped via useEffect */}
       {/* This avoids re-downloading video data on every segment change */}
@@ -660,14 +690,20 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             style={{ willChange: 'transform', contain: 'strict' }}
             muted={isMuted}
             playsInline
-            preload={isMobile ? "metadata" : "auto"}
+            preload="auto"
             loop={completedSegments.length <= 1}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onCanPlay={() => {
               setVideoLoaded(true);
               if (isPlaying && videoRef.current) {
-                videoRef.current.play().catch(() => {});
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const v = videoRef.current as any;
+                if (typeof v.decode === 'function') {
+                  v.decode().then(() => videoRef.current?.play().catch(() => {})).catch(() => videoRef.current?.play().catch(() => {}));
+                } else {
+                  videoRef.current.play().catch(() => {});
+                }
               }
             }}
             onEnded={() => {
