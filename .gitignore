@@ -49,3 +49,6 @@ certificates
 
 # Documentation exports (contain user data)
 Dokumentacja/*.csv
+
+# Claude Code transcript backups (large .jsonl files)
+Dokumentacja/claude-transcripts-backup/
