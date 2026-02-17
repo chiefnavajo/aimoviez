@@ -183,13 +183,26 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { referral_code, new_user_id } = body;
+    const { referral_code } = body;
 
     if (!referral_code) {
       return NextResponse.json({ error: 'Referral code is required' }, { status: 400 });
     }
 
     const supabase = getSupabaseClient();
+
+    // BUG FIX API-1: Derive new_user_id from authenticated session, not request body
+    const { data: sessionUser, error: sessionUserError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .single();
+
+    if (sessionUserError || !sessionUser) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const new_user_id = sessionUser.id;
 
     // Find referrer by code
     const { data: referrer, error: referrerError } = await supabase
@@ -209,26 +222,24 @@ export async function POST(request: NextRequest) {
     }
 
     // Don't allow self-referral
-    if (new_user_id && referrer.id === new_user_id) {
+    if (referrer.id === new_user_id) {
       return NextResponse.json({ error: 'Cannot refer yourself' }, { status: 400 });
     }
 
     // Check if this user was already referred
-    if (new_user_id) {
-      const { data: existingReferral } = await supabase
-        .from('referrals')
-        .select('id')
-        .eq('referred_id', new_user_id)
-        .single();
+    const { data: existingReferral } = await supabase
+      .from('referrals')
+      .select('id')
+      .eq('referred_id', new_user_id)
+      .single();
 
-      if (existingReferral) {
-        return NextResponse.json({ error: 'User already has a referrer' }, { status: 400 });
-      }
+    if (existingReferral) {
+      return NextResponse.json({ error: 'User already has a referrer' }, { status: 400 });
     }
 
-    // Calculate reward based on tier
-    const newCount = (referrer.referral_count || 0) + 1;
-    const tier = getCurrentTier(newCount);
+    // Calculate reward based on current tier (use existing count + 1 for tier calc)
+    const estimatedNewCount = (referrer.referral_count || 0) + 1;
+    const tier = getCurrentTier(estimatedNewCount);
     const rewardAmount = tier?.reward || 50;
 
     // Create referral record
@@ -236,11 +247,11 @@ export async function POST(request: NextRequest) {
       .from('referrals')
       .insert({
         referrer_id: referrer.id,
-        referred_id: new_user_id || null,
+        referred_id: new_user_id,
         referral_code: referral_code.toUpperCase(),
-        status: new_user_id ? 'completed' : 'pending',
+        status: 'completed',
         reward_amount: rewardAmount,
-        completed_at: new_user_id ? new Date().toISOString() : null,
+        completed_at: new Date().toISOString(),
       })
       .select()
       .single();
@@ -250,7 +261,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create referral' }, { status: 500 });
     }
 
-    // Update referrer's count
+    // BUG FIX API-2: Count actual referral records instead of read-then-write increment.
+    // This is immune to race conditions because it counts actual rows.
+    const { count: actualCount } = await supabase
+      .from('referrals')
+      .select('*', { count: 'exact', head: true })
+      .eq('referrer_id', referrer.id);
+
+    const newCount = actualCount || 0;
+
     await supabase
       .from('users')
       .update({
@@ -259,12 +278,10 @@ export async function POST(request: NextRequest) {
       .eq('id', referrer.id);
 
     // Update referred user's referred_by field
-    if (new_user_id) {
-      await supabase
-        .from('users')
-        .update({ referred_by: referrer.id })
-        .eq('id', new_user_id);
-    }
+    await supabase
+      .from('users')
+      .update({ referred_by: referrer.id })
+      .eq('id', new_user_id);
 
     return NextResponse.json({
       success: true,

@@ -287,7 +287,7 @@ export async function GET(req: NextRequest) {
       query = query.gte('created_at', startDate);
     }
 
-    const { data: clips, error } = await query.limit(10000); // Safety limit
+    const { data: clips, error } = await query.limit(2000); // Safety limit
 
     if (error) {
       console.error('[GET /api/leaderboard/creators] error:', error);

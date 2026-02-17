@@ -312,6 +312,13 @@ export async function PATCH(req: NextRequest) {
       );
     }
 
+    if (clip_ids.length > 100) {
+      return NextResponse.json(
+        { error: 'Maximum 100 clips per batch' },
+        { status: 400 }
+      );
+    }
+
     if (action !== 'approve' && action !== 'reject') {
       return NextResponse.json(
         { error: 'action must be "approve" or "reject"' },

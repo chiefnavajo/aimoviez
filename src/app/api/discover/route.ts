@@ -87,7 +87,8 @@ export async function GET(req: NextRequest) {
     if (type === 'clips' || type === 'all') {
       let clipsQuery = supabase
         .from('tournament_clips')
-        .select('id, thumbnail_url, video_url, username, avatar_url, genre, vote_count, slot_position, created_at', { count: 'exact' });
+        .select('id, thumbnail_url, video_url, username, avatar_url, genre, vote_count, slot_position, created_at', { count: 'exact' })
+        .eq('status', 'active');
 
       // FIX: Filter by season_id to prevent cross-season data pollution
       if (activeSeason?.id) {

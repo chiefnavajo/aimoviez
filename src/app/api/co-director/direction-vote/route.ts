@@ -209,58 +209,47 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      // If changing vote, delete old and insert new atomically
-      // Store old vote info in case we need to restore
-      const oldVoteData = {
-        direction_option_id: existingVote.direction_option_id,
-        voter_key: voterKey,
-        user_id: existingVote.user_id,
-        season_id: direction.season_id,
-        slot_position: direction.slot_position,
-      };
+      // BUG FIX API-4: Use atomic upsert instead of non-atomic delete-then-insert.
+      // The UNIQUE(season_id, slot_position, voter_key) constraint enables upsert.
+      // Note: The vote_count trigger only fires on INSERT/DELETE, not UPDATE,
+      // so we manually adjust vote counts for the old and new direction options.
+      const oldDirectionOptionId = existingVote.direction_option_id;
 
-      // Delete old vote first
-      const { error: deleteError } = await supabase
+      const { data: updatedVote, error: upsertError } = await supabase
         .from('direction_votes')
-        .delete()
-        .eq('id', existingVote.id);
-
-      if (deleteError) {
-        console.error('[POST direction-vote] Delete error:', deleteError);
-        return NextResponse.json({ error: 'Failed to change vote' }, { status: 500 });
-      }
-
-      // Insert new vote
-      const { data: newVote, error: insertError } = await supabase
-        .from('direction_votes')
-        .insert({
+        .upsert({
+          id: existingVote.id,
           direction_option_id,
           voter_key: voterKey,
           user_id: userId,
           season_id: direction.season_id,
           slot_position: direction.slot_position,
+        }, {
+          onConflict: 'season_id,slot_position,voter_key',
         })
         .select()
         .single();
 
-      if (insertError) {
-        // Try to restore old vote to prevent data loss
-        console.error('[POST direction-vote] Insert error after delete, restoring:', insertError);
-        const { error: restoreError } = await supabase.from('direction_votes').insert(oldVoteData);
-        if (restoreError) {
-          console.error('[POST direction-vote] CRITICAL: Failed to restore vote:', restoreError);
-          return NextResponse.json(
-            { error: 'Vote data may have been lost. Please try again.' },
-            { status: 500 }
-          );
-        }
+      if (upsertError) {
+        console.error('[POST direction-vote] Upsert error:', upsertError);
         return NextResponse.json({ error: 'Failed to change vote' }, { status: 500 });
       }
+
+      // Manually adjust vote counts since the trigger only fires on INSERT/DELETE, not UPDATE.
+      // Recount actual votes from records for both the old and new direction options.
+      const [oldCount, newCount] = await Promise.all([
+        supabase.from('direction_votes').select('*', { count: 'exact', head: true }).eq('direction_option_id', oldDirectionOptionId),
+        supabase.from('direction_votes').select('*', { count: 'exact', head: true }).eq('direction_option_id', direction_option_id),
+      ]);
+      await Promise.all([
+        supabase.from('direction_options').update({ vote_count: oldCount.count || 0 }).eq('id', oldDirectionOptionId),
+        supabase.from('direction_options').update({ vote_count: newCount.count || 0 }).eq('id', direction_option_id),
+      ]);
 
       return NextResponse.json({
         ok: true,
         message: 'Vote changed',
-        vote_id: newVote.id,
+        vote_id: updatedVote.id,
         voted_for: direction_option_id,
         changed: true,
       });

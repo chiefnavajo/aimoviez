@@ -1,7 +1,7 @@
 // hooks/useRealtimeClips.ts
 // Supabase Realtime subscription for live clip updates
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { getRealtimeClient } from '@/lib/supabase-client';
 
@@ -52,7 +52,8 @@ export function useRealtimeClips({
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
-      channelRef.current.unsubscribe();
+      const client = getRealtimeClient();
+      client.removeChannel(channelRef.current);
       channelRef.current = null;
     }
     isSubscribingRef.current = false;
@@ -123,20 +124,23 @@ export function useRealtimeClips({
           }
         }
       )
-      .subscribe((status, err) => {
+    channelRef.current = channel; // Set BEFORE subscribing
+    channel.subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           if (isDev) console.log('[Realtime] Connected to clips channel');
-          channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
           if (err) {
             console.error('[Realtime] Error connecting to clips channel:', err);
           }
+          channelRef.current = null;
           isSubscribingRef.current = false;
         } else if (status === 'TIMED_OUT') {
           console.error('[Realtime] Clips channel timed out');
+          channelRef.current = null;
           isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
           if (isDev) console.log('[Realtime] Clips channel closed');
+          channelRef.current = null;
           isSubscribingRef.current = false;
         }
       });
@@ -183,9 +187,9 @@ export function useRealtimeSlots({
 
     const client = getRealtimeClient();
 
-    // Build season filter if seasonId provided
-    const seasonFilter = seasonIdRef.current ? `season_id=eq.${seasonIdRef.current}` : undefined;
-    const channelName = seasonIdRef.current ? `slots-realtime-${seasonIdRef.current}` : 'slots-realtime';
+    // Build season filter if seasonId provided — use seasonId directly (not ref) to avoid stale values
+    const seasonFilter = seasonId ? `season_id=eq.${seasonId}` : undefined;
+    const channelName = seasonId ? `slots-realtime-${seasonId}` : 'slots-realtime';
 
     const channel = client
       .channel(channelName)
@@ -203,25 +207,28 @@ export function useRealtimeSlots({
             onSlotUpdateRef.current(payload.new as { id: string; status?: string; winner_tournament_clip_id?: string | null });
           }
         }
-      )
-      .subscribe((status, err) => {
+      );
+
+    channelRef.current = channel; // Set BEFORE subscribing
+    channel.subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           if (isDev) console.log('[Realtime] Connected to slots channel');
-          channelRef.current = channel;
         } else if (status === 'CHANNEL_ERROR') {
           if (err) {
             console.error('[Realtime] Error connecting to slots channel:', err);
           }
+          channelRef.current = null;
           isSubscribingRef.current = false;
         } else if (status === 'CLOSED') {
           if (isDev) console.log('[Realtime] Slots channel closed');
+          channelRef.current = null;
           isSubscribingRef.current = false;
         }
       });
 
     return () => {
       if (channelRef.current) {
-        channelRef.current.unsubscribe();
+        client.removeChannel(channelRef.current);
         channelRef.current = null;
       }
       isSubscribingRef.current = false;
@@ -244,36 +251,38 @@ export function useRealtimeVotes({
   const channelRef = useRef<RealtimeChannel | null>(null);
   const isSubscribingRef = useRef(false);
   const onVoteUpdateRef = useRef(onVoteUpdate);
-  const clipIdsRef = useRef(clipIds);
+
+  // HS-2: Serialize clipIds so changes trigger resubscription
+  const clipIdsKey = useMemo(() => (clipIds ?? []).join(','), [clipIds]);
 
   useEffect(() => {
     onVoteUpdateRef.current = onVoteUpdate;
-    clipIdsRef.current = clipIds;
-  }, [onVoteUpdate, clipIds]);
+  }, [onVoteUpdate]);
 
   useEffect(() => {
     if (!enabled || !onVoteUpdateRef.current) {
       return;
     }
 
-    // Prevent duplicate subscriptions from StrictMode double-mount
-    if (channelRef.current || isSubscribingRef.current) {
-      return;
+    // Use the shared singleton realtime client
+    const client = getRealtimeClient();
+
+    // HS-2: Clean up old channel when clipIds change (don't early-return)
+    if (channelRef.current) {
+      client.removeChannel(channelRef.current);
+      channelRef.current = null;
     }
 
     isSubscribingRef.current = true;
 
-    // Use the shared singleton realtime client
-    const client = getRealtimeClient();
-
-    // Build filter if clipIds provided
-    const filter = clipIdsRef.current?.length
-      ? `id=in.(${clipIdsRef.current.join(',')})`
+    // Build filter if clipIds provided — use clipIds directly
+    const filter = clipIds?.length
+      ? `id=in.(${clipIds.join(',')})`
       : undefined;
 
     // Subscribe to vote count updates on tournament_clips
     const channel = client
-      .channel('votes-realtime')
+      .channel(`votes-realtime-${clipIdsKey || 'all'}`)
       .on(
         'postgres_changes',
         {
@@ -292,25 +301,27 @@ export function useRealtimeVotes({
             onVoteUpdateRef.current(newData.id, newData.vote_count || 0, newData.weighted_score || 0);
           }
         }
-      )
-      .subscribe((status) => {
+      );
+
+    channelRef.current = channel; // Set BEFORE subscribing
+    channel.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           if (isDev) console.log('[Realtime] Connected to votes channel');
-          channelRef.current = channel;
         } else if (status === 'CLOSED') {
           if (isDev) console.log('[Realtime] Votes channel closed');
+          channelRef.current = null;
           isSubscribingRef.current = false;
         }
       });
 
     return () => {
       if (channelRef.current) {
-        channelRef.current.unsubscribe();
+        client.removeChannel(channelRef.current);
         channelRef.current = null;
       }
       isSubscribingRef.current = false;
     };
-  }, [enabled]);
+  }, [enabled, clipIdsKey, clipIds]);
 }
 
 // Hook for subscribing to story broadcasts (more reliable than postgres_changes)
@@ -361,6 +372,9 @@ export function useStoryBroadcast({
     seasonIdRef.current = seasonId;
   }, [onWinnerSelected, onSeasonReset, seasonId]);
 
+  // HS-1: Use a ref for subscribe to break circular dependency with scheduleReconnect
+  const subscribeRef = useRef<() => void>(() => {});
+
   // Subscribe function that can be called for initial connection and reconnection
   const subscribe = useCallback(() => {
     if (!mountedRef.current || !enabled) {
@@ -403,11 +417,12 @@ export function useStoryBroadcast({
           }
           onSeasonResetRef.current(data);
         }
-      })
-      .subscribe((status, err) => {
+      });
+
+    channelRef.current = channel; // Set BEFORE subscribing
+    channel.subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           if (isDev) console.log('[Broadcast] Connected to story-updates channel');
-          channelRef.current = channel;
           isSubscribingRef.current = false;
           reconnectAttemptsRef.current = 0; // Reset on successful connection
         } else if (status === 'CHANNEL_ERROR') {
@@ -428,6 +443,9 @@ export function useStoryBroadcast({
         }
       });
   }, [enabled]);
+
+  // Keep subscribeRef in sync with latest subscribe
+  useEffect(() => { subscribeRef.current = subscribe; }, [subscribe]);
 
   // Schedule a reconnection attempt with exponential backoff
   const scheduleReconnect = useCallback(() => {
@@ -452,11 +470,11 @@ export function useStoryBroadcast({
     if (isDev) console.log(`[Broadcast] Scheduling reconnect attempt ${reconnectAttemptsRef.current}/${MAX_RECONNECT_ATTEMPTS} in ${delay}ms`);
 
     reconnectTimeoutRef.current = setTimeout(() => {
-      if (mountedRef.current && enabled) {
-        subscribe();
+      if (mountedRef.current) {
+        subscribeRef.current(); // HS-1: Always calls latest subscribe via ref
       }
     }, delay);
-  }, [enabled, subscribe]);
+  }, [enabled]); // HS-1: Remove subscribe from deps — uses ref instead
 
   // Initial subscription
   useEffect(() => {
@@ -472,7 +490,8 @@ export function useStoryBroadcast({
         clearTimeout(reconnectTimeoutRef.current);
       }
       if (channelRef.current) {
-        channelRef.current.unsubscribe();
+        const client = getRealtimeClient();
+        client.removeChannel(channelRef.current);
         channelRef.current = null;
       }
       isSubscribingRef.current = false;

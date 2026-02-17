@@ -145,6 +145,10 @@ function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProp
   const [displayedText, setDisplayedText] = useState('');
   const [isDone, setIsDone] = useState(false);
 
+  // HS-10: Store onComplete in a ref to prevent animation restart when callback identity changes
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
   useEffect(() => {
     let index = 0;
     const interval = setInterval(() => {
@@ -155,12 +159,12 @@ function TypewriterIntro({ text, seasonNumber, onComplete }: TypewriterIntroProp
         clearInterval(interval);
         setIsDone(true);
         // Auto-dismiss after 2s pause
-        setTimeout(onComplete, 2000);
+        setTimeout(() => onCompleteRef.current(), 2000);
       }
     }, 50);
 
     return () => clearInterval(interval);
-  }, [text, onComplete]);
+  }, [text]); // HS-10: Remove onComplete from deps — use ref instead
 
   return (
     <motion.div

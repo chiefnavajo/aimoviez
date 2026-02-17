@@ -96,6 +96,10 @@ export async function POST(req: NextRequest) {
     // Continue without user ID if session fails
   }
 
+  if (!userId) {
+    return NextResponse.json({ ok: true, recorded: false });
+  }
+
   const supabase = getServiceClient();
 
   // Get season ID from slot

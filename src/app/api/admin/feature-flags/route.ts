@@ -102,7 +102,15 @@ export async function PUT(request: NextRequest) {
     // Build update object
     const updateData: Record<string, unknown> = {};
     if (typeof enabled === 'boolean') updateData.enabled = enabled;
-    if (config !== undefined) updateData.config = config;
+    if (config !== undefined) {
+      if (typeof config !== 'object' || config === null || Array.isArray(config)) {
+        return NextResponse.json({ error: 'config must be a JSON object' }, { status: 400 });
+      }
+      if (JSON.stringify(config).length > 10000) {
+        return NextResponse.json({ error: 'config too large' }, { status: 400 });
+      }
+      updateData.config = config;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'No update data provided' }, { status: 400 });

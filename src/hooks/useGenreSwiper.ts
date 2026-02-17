@@ -56,12 +56,12 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
   const isInitialLoadRef = useRef(true);
 
   // Fetch active seasons from API
-  const fetchGenres = useCallback(async () => {
+  const fetchGenres = useCallback(async (signal?: AbortSignal) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const res = await fetch('/api/seasons/active');
+      const res = await fetch('/api/seasons/active', { signal });
       if (!res.ok) {
         throw new Error('Failed to fetch genres');
       }
@@ -89,6 +89,8 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
         isInitialLoadRef.current = false;
       }
     } catch (err) {
+      // HS-5: Ignore abort errors — they're expected on cleanup
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       console.error('[useGenreSwiper] Error fetching genres:', err);
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -96,9 +98,11 @@ export function useGenreSwiper(): UseGenreSwiperReturn {
     }
   }, []);  // No dependencies - ref doesn't trigger re-render
 
-  // Fetch on mount
+  // Fetch on mount with abort controller
   useEffect(() => {
-    fetchGenres();
+    const controller = new AbortController();
+    fetchGenres(controller.signal);
+    return () => controller.abort();
   }, [fetchGenres]);
 
   // Current genre derived from index

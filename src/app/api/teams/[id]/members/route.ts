@@ -169,6 +169,20 @@ export async function DELETE(req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to kick member' }, { status: 500 });
     }
 
+    // Decrement member_count on the team
+    const { data: team } = await supabase
+      .from('teams')
+      .select('member_count')
+      .eq('id', teamId)
+      .single();
+
+    if (team) {
+      await supabase
+        .from('teams')
+        .update({ member_count: Math.max(0, (team.member_count || 1) - 1) })
+        .eq('id', teamId);
+    }
+
     const targetUsername = (targetMembership.users as unknown as { username: string } | null)?.username || 'Member';
     return NextResponse.json({
       ok: true,

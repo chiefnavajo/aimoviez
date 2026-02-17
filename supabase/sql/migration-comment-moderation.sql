@@ -45,7 +45,7 @@ SELECT
   tc.title as clip_title,
   tc.thumbnail_url as clip_thumbnail
 FROM comments c
-LEFT JOIN tournament_clips tc ON c.clip_id = tc.id::text
+LEFT JOIN tournament_clips tc ON c.clip_id::uuid = tc.id
 WHERE c.moderation_status IN ('pending', 'flagged')
   AND c.is_deleted = false
 ORDER BY

@@ -169,22 +169,29 @@ export function useCaptchaRequired() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     async function checkCaptchaRequired() {
       try {
-        const res = await fetch('/api/captcha/status');
+        const res = await fetch('/api/captcha/status', { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           setIsRequired(data.required);
         }
-      } catch {
+      } catch (err) {
+        // HS-8: Ignore abort errors on cleanup
+        if (err instanceof DOMException && err.name === 'AbortError') return;
         // Default to not required if check fails
         setIsRequired(false);
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) {
+          setIsLoading(false);
+        }
       }
     }
 
     checkCaptchaRequired();
+    return () => controller.abort();
   }, []);
 
   return { isRequired, isLoading };

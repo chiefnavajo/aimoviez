@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
         const { error: clearVotesError } = await supabase
           .from('votes')
           .delete()
-          .in('tournament_clip_id', clipIds);
+          .in('clip_id', clipIds);
 
         if (clearVotesError) {
           console.error('[reset-season] clearVotesError:', clearVotesError);

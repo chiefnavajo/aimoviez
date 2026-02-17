@@ -111,13 +111,16 @@ export function useRealtimeComments(
           if (onCommentDeletedRef.current && payload.payload) {
             onCommentDeletedRef.current(payload.payload as CommentDeletedPayload);
           }
-        })
-        .subscribe((status) => {
+        });
+
+      // HS-9: Set channelRef BEFORE subscribing so cleanup can find it
+      channelRef.current = channel;
+      channel.subscribe((status) => {
           if (status === 'SUBSCRIBED') {
-            channelRef.current = channel;
             isSubscribingRef.current = false;
           } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             console.warn('[RealtimeComments] Subscription failed:', status);
+            channelRef.current = null;
             isSubscribingRef.current = false;
           }
         });

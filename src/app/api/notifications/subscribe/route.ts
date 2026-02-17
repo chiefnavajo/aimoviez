@@ -5,16 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-function getUserKey(req: NextRequest): string {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded ? forwarded.split(',')[0] : req.headers.get('x-real-ip') || 'unknown';
-  const ua = req.headers.get('user-agent') || 'unknown';
-  return crypto.createHash('sha256').update(ip + ua).digest('hex');
-}
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function POST(req: NextRequest) {
   // Rate limit: prevent subscription spam
@@ -22,8 +17,22 @@ export async function POST(req: NextRequest) {
   if (rateLimitResponse) return rateLimitResponse;
 
   try {
+    // BUG FIX API-3: Require authentication to prevent anonymous flooding
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = getUserKey(req);
+
+    // Look up user ID from session
+    const { data: sessionUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .single();
+
+    const userId = sessionUser?.id || null;
     const body = await req.json();
 
     const { subscription } = body;
@@ -61,13 +70,13 @@ export async function POST(req: NextRequest) {
     // Create a unique ID for this subscription based on endpoint
     const subscriptionId = crypto.createHash('sha256').update(endpoint).digest('hex');
 
-    // Upsert the subscription
+    // Upsert the subscription (using authenticated user ID as user_key)
     const { data: _data, error } = await supabase
       .from('push_subscriptions')
       .upsert(
         {
           id: subscriptionId,
-          user_key: userKey,
+          user_key: userId || session.user.email,
           endpoint,
           p256dh,
           auth,

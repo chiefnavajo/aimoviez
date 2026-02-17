@@ -7,16 +7,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 function createSupabaseServerClient() {
   const supabaseUrl =
     process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
-    process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error(
-      '[genres] Missing SUPABASE_URL / SUPABASE_ANON_KEY environment variables'
+      '[genres] Missing SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY environment variables'
     );
   }
 
@@ -95,7 +96,8 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from('genre_votes')
       .select('genre_code, voter_key')
-      .eq('season_number', seasonNumber);
+      .eq('season_number', seasonNumber)
+      .limit(10000);
 
     if (error) {
       console.error('[GET /api/genres] error:', error);
@@ -163,6 +165,10 @@ export async function POST(req: NextRequest) {
   // Rate limit
   const rateLimitResponse = await rateLimit(req, 'vote');
   if (rateLimitResponse) return rateLimitResponse;
+
+  // CSRF protection
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   const supabase = createSupabaseServerClient();
   const voterKey = getVoterKey(req);

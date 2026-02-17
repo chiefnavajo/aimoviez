@@ -226,12 +226,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // --- 11. Acknowledge successful events ---
-    if (successfulEvents.length > 0) {
-      await acknowledgeCommentEvents(successfulEvents);
-    }
-
-    // --- 12. Handle failures ---
+    // --- 11. Handle failures (before acknowledging, since acknowledge deletes entire processing queue) ---
     for (const { event, error } of failedEvents) {
       const attempts = ((event.metadata?.retryCount as number) || 0) + 1;
       if (attempts >= MAX_RETRIES) {
@@ -246,6 +241,11 @@ export async function GET(req: NextRequest) {
         await acknowledgeCommentEvent(event);
         await pushCommentEvent(retriedEvent);
       }
+    }
+
+    // --- 12. Acknowledge successful events (deletes processing queue — must be after failure handling) ---
+    if (successfulEvents.length > 0) {
+      await acknowledgeCommentEvents(successfulEvents);
     }
 
     // --- 13. Update last processed timestamp ---

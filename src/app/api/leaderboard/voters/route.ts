@@ -243,7 +243,7 @@ export async function GET(req: NextRequest) {
 
     // Get all voter_keys with their vote counts using a subquery approach
     // We load voter_key and vote_weight, then aggregate in JS (limited to reasonable size)
-    const { data: votes, error } = await query.limit(50000); // Safety limit
+    const { data: votes, error } = await query.limit(5000); // Safety limit
 
     if (error) {
       console.error('[GET /api/leaderboard/voters] error:', error);

@@ -218,9 +218,15 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
     .update({ credit_cost: creditCost })
     .eq('id', scene.id);
 
+  // Refetch project to avoid stale read-modify-write on spent_credits
+  const { data: freshProject } = await supabase
+    .from('movie_projects')
+    .select('spent_credits')
+    .eq('id', project.id)
+    .single();
   await supabase
     .from('movie_projects')
-    .update({ spent_credits: (project.spent_credits || 0) + creditCost })
+    .update({ spent_credits: (freshProject?.spent_credits || 0) + creditCost })
     .eq('id', project.id);
 
   // 2. Get previous scene's last frame for continuity (scene 2+)
@@ -511,8 +517,13 @@ async function handleMergingScene(supabase: ReturnType<typeof getSupabase>, proj
       })
       .eq('id', scene.id);
 
-    // 4. Update project progress
-    const newCompleted = (project.completed_scenes || 0) + 1;
+    // 4. Update project progress (refetch to avoid stale read-modify-write)
+    const { data: freshProjectForCompletion } = await supabase
+      .from('movie_projects')
+      .select('completed_scenes')
+      .eq('id', project.id)
+      .single();
+    const newCompleted = (freshProjectForCompletion?.completed_scenes || 0) + 1;
     await supabase
       .from('movie_projects')
       .update({ completed_scenes: newCompleted })

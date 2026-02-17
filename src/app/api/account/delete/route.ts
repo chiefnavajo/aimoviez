@@ -182,11 +182,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 6b. Delete user's viewing history (GDPR)
+    const { error: viewerError } = await supabase
+      .from('clip_views')
+      .delete()
+      .eq('voter_key', userKey);
+    if (viewerError) errors.push(`clip_views_viewer: ${viewerError.message}`);
+
     // 7. Delete notifications for this user
     const { data: deletedNotifications, error: notifError } = await supabase
       .from('notifications')
       .delete()
-      .eq('user_id', userId)
+      .eq('user_key', userKey)
       .select('id');
     if (notifError) errors.push(`notifications: ${notifError.message}`);
     deletionResults.notifications = deletedNotifications?.length || 0;

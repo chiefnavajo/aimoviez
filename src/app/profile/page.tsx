@@ -226,7 +226,8 @@ function ProfilePageContent() {
     };
 
     fetchData();
-  }, [retryCount, username]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryCount]); // HS-6: Remove username — it's set from the API response, causing double-fetch
 
   // Retry function for error state
   const handleRetry = () => {

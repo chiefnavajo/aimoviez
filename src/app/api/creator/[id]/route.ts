@@ -58,6 +58,7 @@ export async function GET(
       .from('tournament_clips')
       .select('id, video_url, thumbnail_url, vote_count, status, slot_position, username, created_at')
       .eq('username', username)
+      .in('status', ['active', 'locked'])
       .order('created_at', { ascending: false })
       .limit(50);
 

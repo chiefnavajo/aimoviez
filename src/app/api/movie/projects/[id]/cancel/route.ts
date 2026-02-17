@@ -78,7 +78,7 @@ export async function POST(
       .from('movie_projects')
       .update({ status: 'cancelled' })
       .eq('id', projectId)
-      .in('status', ['generating', 'paused']);
+      .in('status', ['generating', 'paused', 'script_generating', 'script_ready']);
 
     return NextResponse.json({
       success: true,

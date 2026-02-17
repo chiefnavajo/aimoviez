@@ -227,12 +227,18 @@ export function useTeamChatFull(teamId: string | null) {
   const sendMessageMutation = useSendMessage();
   const realtimeStatus = useTeamChat({ teamId, enabled: !!teamId });
 
+  // HS-7: Use a ref for mutateAsync to stabilize sendMessage reference
+  const sendMutateRef = useRef(sendMessageMutation.mutateAsync);
+  useEffect(() => {
+    sendMutateRef.current = sendMessageMutation.mutateAsync;
+  }, [sendMessageMutation.mutateAsync]);
+
   const sendMessage = useCallback(
     async (message: string) => {
       if (!teamId) return;
-      await sendMessageMutation.mutateAsync({ teamId, message });
+      await sendMutateRef.current({ teamId, message });
     },
-    [teamId, sendMessageMutation]
+    [teamId]
   );
 
   return {

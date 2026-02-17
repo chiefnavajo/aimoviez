@@ -254,6 +254,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    if (commentIds.length > 200) {
+      return NextResponse.json(
+        { error: 'Maximum 200 comments per bulk delete' },
+        { status: 400 }
+      );
+    }
+
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get admin user ID

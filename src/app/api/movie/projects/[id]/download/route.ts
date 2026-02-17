@@ -76,6 +76,19 @@ export async function GET(
 
     const downloadUrl = signedUrl?.signedUrl || project.final_video_url;
 
+    // Validate redirect URL to prevent open redirect
+    try {
+      const parsedUrl = new URL(downloadUrl);
+      const allowedHostSuffixes = ['.supabase.co', '.supabase.in', '.r2.cloudflarestorage.com', '.r2.dev'];
+      const isAllowed = allowedHostSuffixes.some(suffix => parsedUrl.hostname.endsWith(suffix));
+      if (!isAllowed) {
+        console.error('[GET /api/movie/projects/[id]/download] Blocked redirect to untrusted host:', parsedUrl.hostname);
+        return NextResponse.json({ error: 'Download URL not available' }, { status: 500 });
+      }
+    } catch {
+      return NextResponse.json({ error: 'Invalid download URL' }, { status: 500 });
+    }
+
     // Redirect to the actual file so <a href> downloads work
     return NextResponse.redirect(downloadUrl);
   } catch (err) {

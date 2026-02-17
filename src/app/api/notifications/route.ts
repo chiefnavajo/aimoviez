@@ -299,6 +299,13 @@ export async function DELETE(req: NextRequest) {
       );
     }
 
+    if (notification_ids.length > 500) {
+      return NextResponse.json(
+        { error: 'Maximum 500 notifications per delete' },
+        { status: 400 }
+      );
+    }
+
     const { error } = await supabase
       .from('notifications')
       .delete()

@@ -108,6 +108,15 @@ export async function GET(req: NextRequest) {
       console.warn(`[sync-vote-counters] ${result.errors.length} sync errors:`, result.errors);
     }
 
+    // --- 6. Clean up synced clip IDs from the active set to prevent unbounded growth ---
+    if (clipIds.length > 0) {
+      try {
+        await redis.srem('clips_active', ...clipIds as [string, ...string[]]);
+      } catch (cleanupErr) {
+        console.warn('[sync-vote-counters] Failed to clean clips_active set:', cleanupErr);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       synced: result.synced,

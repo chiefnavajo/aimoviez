@@ -234,14 +234,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate rankings and percentages
-    // Note: For accurate percentages across all clips, we'd need a separate aggregate query
-    // For now, percentage is relative to this page (acceptable for leaderboard display)
-    const pageVotes = clips?.reduce((sum, clip) => sum + (clip.vote_count || 0), 0) || 0;
+    // Query total votes across ALL clips in this season for accurate percentages
+    const { data: totalVotesResult } = await supabase
+      .from('tournament_clips')
+      .select('vote_count')
+      .eq('status', 'active')
+      .eq('season_id', activeSeason.id);
+    const totalVotesAll = totalVotesResult?.reduce((sum, c) => sum + (c.vote_count || 0), 0) || 0;
 
     const rankedClips = (clips || []).map((clip, index) => ({
       ...clip,
       rank: offset + index + 1, // Global rank based on offset
-      percentage: pageVotes > 0 ? (clip.vote_count / pageVotes) * 100 : 0,
+      percentage: totalVotesAll > 0 ? (clip.vote_count / totalVotesAll) * 100 : 0,
       trend: 'same' as const, // Can be enhanced with historical data
     }));
 
@@ -249,7 +253,7 @@ export async function GET(request: NextRequest) {
       success: true,
       clips: rankedClips,
       season: activeSeason,
-      totalVotes: pageVotes,
+      totalVotes: totalVotesAll,
       totalClips: totalClips || 0,
       // Pagination info
       pagination: {

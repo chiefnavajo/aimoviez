@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
         locked_in_count: 0,
         competing_count: 0,
         pending_count: 0,
-      } satisfies ProfileClipsResponse);
+      } satisfies ProfileClipsResponse, { status: 401 });
     }
 
     // PERFORMANCE FIX: Select only needed columns instead of SELECT *

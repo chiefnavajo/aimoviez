@@ -10,6 +10,9 @@ import { requireAdmin, checkAdminAuth } from '@/lib/admin-auth';
 import { logAdminAction } from '@/lib/audit-log';
 import { rateLimit } from '@/lib/rate-limit';
 import { clearSlotLeaderboard } from '@/lib/leaderboard-redis';
+import { setSlotState, clearVotingFrozen } from '@/lib/vote-validation-redis';
+import { clearClips } from '@/lib/crdt-vote-counter';
+import { forceSyncCounters } from '@/lib/counter-sync';
 
 function createSupabaseServerClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -197,6 +200,24 @@ export async function POST(req: NextRequest) {
 
     const storySlot = slot as StorySlotRow;
 
+    // 2b. Pre-winner sync: sync CRDT counters to PostgreSQL before winner selection
+    try {
+      const { data: slotClips } = await supabase
+        .from('tournament_clips')
+        .select('id')
+        .eq('slot_position', storySlot.slot_position)
+        .eq('season_id', seasonRow.id)
+        .eq('status', 'active');
+
+      if (slotClips && slotClips.length > 0) {
+        const clipIds = slotClips.map(c => c.id);
+        const syncResult = await forceSyncCounters(supabase, clipIds);
+        console.log(`[advance-slot] Pre-winner sync: ${syncResult.synced} clips synced for slot ${storySlot.slot_position}`);
+      }
+    } catch (syncErr) {
+      console.warn('[advance-slot] Pre-winner sync failed (using existing DB values):', syncErr);
+    }
+
     // 3. OPTIMIZED: Get winner directly from database (single query, no JS loop)
     const { data: winner, error: winnerError } = await supabase
       .from('tournament_clips')
@@ -247,6 +268,13 @@ export async function POST(req: NextRequest) {
 
     // Clear Redis leaderboard for this slot (prevents stale data in next round)
     await clearSlotLeaderboard(seasonRow.id, storySlot.slot_position);
+
+    // Clear voting freeze flag for the transitioned slot
+    try {
+      await clearVotingFrozen(seasonRow.id, storySlot.slot_position);
+    } catch (e) {
+      console.warn('[advance-slot] Failed to clear freeze key:', e);
+    }
 
     // 5b. Mark the winning clip as 'locked' (winner status)
     // IMPORTANT: This must succeed before moving other clips to prevent race conditions
@@ -367,6 +395,15 @@ export async function POST(req: NextRequest) {
 
     const clipsEliminatedCount = eliminatedClips?.length ?? 0;
     console.log(`[advance-slot] Eliminated ${clipsEliminatedCount} losing clips from slot ${storySlot.slot_position}`);
+
+    // Clear CRDT keys for the locked slot's clips
+    try {
+      const allSlotClipIds = [winner.id, ...(eliminatedClips?.map(c => c.id) ?? [])];
+      await clearClips(allSlotClipIds);
+      console.log(`[advance-slot] Cleared CRDT keys for ${allSlotClipIds.length} clips in slot ${storySlot.slot_position}`);
+    } catch (clearErr) {
+      console.warn('[advance-slot] Failed to clear CRDT keys (non-fatal):', clearErr);
+    }
 
     // Notify eliminated clip owners (fire-and-forget)
     if (eliminatedClips && eliminatedClips.length > 0) {
@@ -492,6 +529,17 @@ export async function POST(req: NextRequest) {
         },
         { status: 500 }
       );
+    }
+
+    // Update Redis slot state cache for the new voting slot
+    try {
+      await setSlotState(seasonRow.id, {
+        slotPosition: nextPosition,
+        status: 'voting',
+        votingEndsAt: votingEndsAt.toISOString(),
+      });
+    } catch (stateErr) {
+      console.warn('[advance-slot] Failed to set Redis slot state (non-fatal):', stateErr);
     }
 
     // Audit log the slot advance
