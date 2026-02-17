@@ -210,7 +210,7 @@ function _ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?
     <motion.button whileTap={{ scale: 0.9 }} onClick={onClick} className="flex flex-col items-center gap-0.5">
       <div className="w-10 h-10 rounded-full flex items-center justify-center">{icon}</div>
       {label !== undefined && (
-        <span className="text-white text-[10px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{label}</span>
+        <span className="text-white text-[10px] font-semibold text-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{label}</span>
       )}
     </motion.button>
   );
@@ -687,7 +687,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             ref={videoRef}
             poster={currentSegment.winning_clip.thumbnail_url || undefined}
             className="absolute inset-0 w-full h-full object-contain"
-            style={{ willChange: 'transform', contain: 'strict' }}
+            style={{ contain: 'layout' }}
             muted={isMuted}
             playsInline
             preload="auto"
@@ -743,8 +743,9 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
         </div>
       )}
 
-      {/* Gradient */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-black/50 pointer-events-none" />
+      {/* Top/bottom gradients — small strips instead of full-screen overlay to reduce GPU compositing at 120Hz */}
+      <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-black/50 to-transparent pointer-events-none" />
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
 
       {/* Top Right: Fullscreen toggle (hidden in landscape) */}
       <div className={`absolute top-0 right-0 pt-12 pr-4 z-30 ${isLandscape ? 'hidden' : ''}`}>
@@ -878,15 +879,15 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
             aria-label="View rankings"
           >
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 flex items-center justify-center shadow-lg">
-              <Trophy className="w-7 h-7 text-white drop-shadow-lg" />
+              <Trophy className="w-7 h-7 text-white" />
             </div>
-            <span className="text-white text-[11px] font-semibold drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Rankings</span>
+            <span className="text-white text-[11px] font-semibold text-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">Rankings</span>
           </motion.button>
         )}
 
         {/* Comments - Using shared ActionButton */}
         <ActionButton
-          icon={<MessageCircle className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          icon={<MessageCircle className="w-7 h-7 text-white" />}
           label={formatNumber(commentCount)}
           onClick={(e) => { e.stopPropagation(); setShowComments(true); }}
           ariaLabel="Open comments"
@@ -894,7 +895,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
 
         {/* Share - Using shared ActionButton */}
         <ActionButton
-          icon={<Share2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />}
+          icon={<Share2 className="w-7 h-7 text-white" />}
           onClick={handleShare}
           ariaLabel="Share this video"
         />
@@ -903,9 +904,9 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
         <ActionButton
           icon={
             isMuted ? (
-              <VolumeX className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+              <VolumeX className="w-7 h-7 text-white" />
             ) : (
-              <Volume2 className="w-7 h-7 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+              <Volume2 className="w-7 h-7 text-white" />
             )
           }
           onClick={toggleMute}
@@ -942,7 +943,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
 
           {/* Segment Counter - Matching dashboard style */}
           <div className="text-center">
-            <span className="text-white/80 text-xs md:text-sm font-medium drop-shadow-lg">
+            <span className="text-white/80 text-xs md:text-sm font-medium text-shadow-lg">
               {currentIndex + 1}/{completedSegments.length}
             </span>
           </div>
@@ -1041,11 +1042,11 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
       {currentSegment?.winning_clip && !isLandscape && (
         <div className="absolute bottom-28 md:bottom-12 left-4 md:left-60 right-16 z-20">
           <div className="flex items-center gap-2">
-            <p className="text-white font-semibold text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
+            <p className="text-white font-semibold text-sm text-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">
               @{currentSegment.winning_clip.username}
             </p>
             <span className="text-white/60">·</span>
-            <p className="text-white/80 text-sm drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{currentSegment.winning_clip.genre}</p>
+            <p className="text-white/80 text-sm text-shadow-[0_1px_3px_rgba(0,0,0,0.9)]">{currentSegment.winning_clip.genre}</p>
             {isCompleted && (
               <div className="px-1.5 py-0.5 rounded bg-gradient-to-r from-yellow-400 to-orange-500 flex items-center gap-0.5 ml-1">
                 <Trophy className="w-3 h-3 text-white" />
@@ -1963,7 +1964,7 @@ function StoryPage() {
                     <ChevronDown className="w-5 h-5 text-white rotate-180" />
                   </motion.button>
 
-                  <span className="text-white/80 text-sm font-medium drop-shadow-lg">
+                  <span className="text-white/80 text-sm font-medium text-shadow-lg">
                     {currentSegmentIndex + 1}/{totalSegments}
                   </span>
 
