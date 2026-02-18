@@ -3,6 +3,7 @@
 // Server-only — never import from client code
 
 import { fal } from '@fal-ai/client';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 // =============================================================================
 // RETRY HELPER (exponential backoff for transient failures)
@@ -101,6 +102,96 @@ export const MODEL_DURATION_SECONDS: Record<string, number> = {
   'sora-2': 8,
   'kling-o1-ref': 5,
 };
+
+// =============================================================================
+// DYNAMIC PRICING — DB-backed cost source with in-memory cache
+// The model_pricing table is the single source of truth for costs.
+// MODELS.costCents above are hardcoded fallbacks used only when DB is unreachable.
+// =============================================================================
+
+export interface ModelCosts {
+  fal_cost_cents: number;
+  credit_cost: number;
+}
+
+// Fallback defaults (match MODELS.costCents + model_pricing seeds)
+const COST_DEFAULTS: Record<string, ModelCosts> = {
+  'kling-2.6':    { fal_cost_cents: 35, credit_cost: 7 },
+  'hailuo-2.3':   { fal_cost_cents: 49, credit_cost: 10 },
+  'veo3-fast':    { fal_cost_cents: 80, credit_cost: 15 },
+  'sora-2':       { fal_cost_cents: 80, credit_cost: 15 },
+  'kling-o1-ref': { fal_cost_cents: 56, credit_cost: 11 },
+};
+
+const COST_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+let costCache: { data: Record<string, ModelCosts>; expires: number } | null = null;
+
+/**
+ * Get model costs from the model_pricing DB table (cached for 5 min).
+ * Falls back to hardcoded COST_DEFAULTS if DB is unreachable.
+ * Pass an existing Supabase client, or omit to create one from env vars.
+ */
+export async function getModelCosts(supabase?: SupabaseClient): Promise<Record<string, ModelCosts>> {
+  // Return cached data if still fresh
+  if (costCache && Date.now() < costCache.expires) {
+    return costCache.data;
+  }
+
+  try {
+    const client = supabase ?? createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data, error } = await client
+      .from('model_pricing')
+      .select('model_key, fal_cost_cents, credit_cost')
+      .eq('is_active', true);
+
+    if (error || !data || data.length === 0) {
+      console.warn('[AI_VIDEO] Failed to fetch model_pricing, using defaults:', error?.message);
+      return { ...COST_DEFAULTS };
+    }
+
+    const costs: Record<string, ModelCosts> = {};
+    for (const row of data) {
+      costs[row.model_key] = {
+        fal_cost_cents: row.fal_cost_cents,
+        credit_cost: row.credit_cost,
+      };
+    }
+
+    // Fill any missing models from defaults
+    for (const [key, defaults] of Object.entries(COST_DEFAULTS)) {
+      if (!costs[key]) {
+        costs[key] = defaults;
+      }
+    }
+
+    costCache = { data: costs, expires: Date.now() + COST_CACHE_TTL_MS };
+    return costs;
+  } catch (err) {
+    console.warn('[AI_VIDEO] getModelCosts exception, using defaults:', err);
+    return { ...COST_DEFAULTS };
+  }
+}
+
+/** Invalidate the cost cache (call after admin updates pricing). */
+export function invalidateCostCache(): void {
+  costCache = null;
+}
+
+/** Get fal.ai cost in cents for a model (from cache/DB, with fallback). */
+export async function getFalCostCents(modelKey: string, supabase?: SupabaseClient): Promise<number> {
+  const costs = await getModelCosts(supabase);
+  return costs[modelKey]?.fal_cost_cents ?? COST_DEFAULTS[modelKey]?.fal_cost_cents ?? 100;
+}
+
+/** Get credit cost for a model (from cache/DB, with fallback). */
+export async function getCreditCost(modelKey: string, supabase?: SupabaseClient): Promise<number> {
+  const costs = await getModelCosts(supabase);
+  return costs[modelKey]?.credit_cost ?? COST_DEFAULTS[modelKey]?.credit_cost ?? 10;
+}
 
 // =============================================================================
 // STYLE PREFIXES (prepended to user prompt)

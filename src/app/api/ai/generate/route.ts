@@ -12,7 +12,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
 import { AIGenerateSchema, parseBody } from '@/lib/validations';
 import crypto from 'crypto';
-import { sanitizePrompt, getModelConfig, startGeneration, supportsImageToVideo, startImageToVideoGeneration, getImageToVideoModelConfig, startReferenceToVideoGeneration, MODELS } from '@/lib/ai-video';
+import { sanitizePrompt, getModelConfig, startGeneration, supportsImageToVideo, startImageToVideoGeneration, getImageToVideoModelConfig, startReferenceToVideoGeneration, MODELS, getModelCosts } from '@/lib/ai-video';
 import type { ReferenceElement } from '@/lib/ai-video';
 
 // =============================================================================
@@ -371,24 +371,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Use the effective model's cost (may have switched to kling-o1-ref)
-    const effectiveModelConfig = getModelConfig(effectiveModel);
+    // Use the effective model's cost from DB (may have switched to kling-o1-ref)
+    const modelCosts = await getModelCosts(supabase);
     const effectiveCostCents = isImageToVideo
-      ? (getImageToVideoModelConfig(validated.model)?.costCents ?? modelConfig.costCents)
-      : (effectiveModelConfig?.costCents ?? modelConfig.costCents);
+      ? (modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents)
+      : (modelCosts[effectiveModel]?.fal_cost_cents ?? modelConfig.costCents);
 
     // 10d. Credit system: get model credit cost and check balance
     let creditCost = 0;
     if (creditSystemEnabled) {
-      // Get credit cost from model_pricing table
-      const { data: pricingData } = await supabase
-        .from('model_pricing')
-        .select('credit_cost')
-        .eq('model_key', effectiveModel)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      creditCost = pricingData?.credit_cost ?? 10; // Fallback to 10 credits
+      // Get credit cost from cached model_pricing (already fetched above)
+      creditCost = modelCosts[effectiveModel]?.credit_cost ?? 10; // Fallback to 10 credits
 
       // Check if user has enough credits
       const userBalance = userData.balance_credits ?? 0;

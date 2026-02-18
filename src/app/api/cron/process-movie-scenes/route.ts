@@ -18,6 +18,7 @@ import {
   getModelConfig,
   checkFalStatus,
   MODEL_DURATION_SECONDS,
+  getCreditCost,
 } from '@/lib/ai-video';
 import { extractFrameAtTimestamp, uploadFrameWithKey } from '@/lib/storage/frame-upload';
 import { getStorageProvider, getSignedUploadUrl, getPublicVideoUrl } from '@/lib/storage';
@@ -184,7 +185,7 @@ async function processProjectScene(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, project: ProjectRow, scene: any) {
   const modelConfig = getModelConfig(project.model);
-  const creditCost = modelConfig ? Math.ceil(modelConfig.costCents / 5) : 7; // Convert cents to credits
+  const creditCost = await getCreditCost(project.model, supabase); // From model_pricing DB table
 
   // If video was already generated (e.g. webhook completed but merging failed),
   // skip straight to next phase without re-submitting or re-charging

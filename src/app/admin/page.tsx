@@ -2046,6 +2046,16 @@ export default function AdminDashboard() {
                 Movies
               </motion.button>
             </Link>
+            <Link href="/admin/pricing">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                className="px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 whitespace-nowrap bg-white/10 text-white/70 hover:bg-white/20"
+                type="button"
+              >
+                <DollarSign className="w-4 h-4" />
+                Pricing
+              </motion.button>
+            </Link>
           </div>
         </div>
       </header>
