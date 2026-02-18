@@ -1,9 +1,10 @@
 // =============================================================================
 // CRON: Analyze Costs
-// Runs every 6 hours. Analyzes actual generation costs from ai_generations,
-// detects fal.ai cost drift, calculates real margins per model, and uses
-// Claude Haiku to generate pricing recommendations. Can auto-adjust or
-// create pricing_alerts for admin review.
+// Runs every 6 hours. Pulls LIVE pricing from fal.ai's pricing API,
+// detects cost changes, auto-updates model_pricing.fal_cost_cents,
+// calculates real margins per model, and uses Claude Haiku to generate
+// pricing recommendations. Can auto-adjust credit costs or create
+// pricing_alerts for admin review.
 // =============================================================================
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/cron-auth';
 import { createClient } from '@supabase/supabase-js';
 import Anthropic from '@anthropic-ai/sdk';
-import { invalidateCostCache } from '@/lib/ai-video';
+import { invalidateCostCache, getFalEndpointIds } from '@/lib/ai-video';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,6 +25,80 @@ function getSupabase() {
 }
 
 const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+
+// =============================================================================
+// FAL.AI LIVE PRICING
+// =============================================================================
+
+interface FalPrice {
+  endpoint_id: string;
+  unit_price: number;
+  unit: string;
+  currency: string;
+}
+
+/**
+ * Fetch live pricing from fal.ai's pricing API.
+ * GET https://api.fal.ai/v1/models/pricing?endpoint_id=...
+ */
+async function fetchFalLivePricing(): Promise<Record<string, number>> {
+  const falKey = process.env.FAL_KEY;
+  if (!falKey) {
+    console.warn('[ANALYZE_COSTS] FAL_KEY not set, skipping live pricing');
+    return {};
+  }
+
+  const endpoints = getFalEndpointIds();
+  const endpointIds = Object.values(endpoints);
+
+  // Query fal.ai pricing API with all endpoint IDs
+  const params = new URLSearchParams();
+  for (const id of endpointIds) {
+    params.append('endpoint_id', id);
+  }
+
+  try {
+    const res = await fetch(`https://api.fal.ai/v1/models/pricing?${params.toString()}`, {
+      headers: { Authorization: `Key ${falKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+
+    if (!res.ok) {
+      console.warn(`[ANALYZE_COSTS] fal.ai pricing API returned ${res.status}`);
+      return {};
+    }
+
+    const data = await res.json();
+    const prices: FalPrice[] = data.prices || [];
+
+    // Map fal.ai endpoint_id -> cost in cents
+    // fal.ai returns unit_price in USD (e.g. 0.35 = 35 cents)
+    const costMap: Record<string, number> = {};
+
+    // Build reverse map: modelId -> modelKey
+    const reverseMap: Record<string, string> = {};
+    for (const [key, modelId] of Object.entries(endpoints)) {
+      reverseMap[modelId] = key;
+    }
+
+    for (const price of prices) {
+      const modelKey = reverseMap[price.endpoint_id];
+      if (modelKey && price.currency === 'USD') {
+        costMap[modelKey] = Math.round(price.unit_price * 100); // Convert USD to cents
+      }
+    }
+
+    console.info(`[ANALYZE_COSTS] Fetched live pricing for ${Object.keys(costMap).length} models`);
+    return costMap;
+  } catch (err) {
+    console.warn('[ANALYZE_COSTS] Failed to fetch fal.ai live pricing:', err);
+    return {};
+  }
+}
+
+// =============================================================================
+// ROUTE HANDLER
+// =============================================================================
 
 export async function GET(request: NextRequest) {
   // Auth
@@ -52,7 +127,7 @@ export async function GET(request: NextRequest) {
     const targetMarginMax = config?.pricing_target_margin_max ?? 40;
     const driftThreshold = config?.pricing_drift_threshold_percent ?? 10;
 
-    // 2. Get current model pricing
+    // 2. Get current model pricing from DB
     const { data: models, error: modelsError } = await supabase
       .from('model_pricing')
       .select('*')
@@ -62,7 +137,44 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, message: 'No active models to analyze' });
     }
 
-    // 3. Get actual costs from last 7 days
+    // 3. Fetch LIVE pricing from fal.ai
+    const livePricing = await fetchFalLivePricing();
+    const livePricingUpdates: Array<{ model_key: string; old_cents: number; new_cents: number }> = [];
+
+    // Auto-update fal_cost_cents if live pricing differs
+    for (const model of models) {
+      const liveCostCents = livePricing[model.model_key];
+      if (liveCostCents && liveCostCents !== model.fal_cost_cents) {
+        livePricingUpdates.push({
+          model_key: model.model_key,
+          old_cents: model.fal_cost_cents,
+          new_cents: liveCostCents,
+        });
+
+        // Update DB with live price
+        await supabase
+          .from('model_pricing')
+          .update({
+            fal_cost_cents: liveCostCents,
+            cost_drift_detected: true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('model_key', model.model_key);
+
+        // Update in-memory model object for analysis below
+        model.fal_cost_cents = liveCostCents;
+
+        console.info(`[ANALYZE_COSTS] ${model.model_key}: fal.ai price changed ${livePricingUpdates[livePricingUpdates.length - 1].old_cents}¢ → ${liveCostCents}¢`);
+      }
+    }
+
+    // If any live prices changed, recalculate min_credit_costs immediately
+    if (livePricingUpdates.length > 0) {
+      await supabase.rpc('recalculate_all_pricing');
+      invalidateCostCache();
+    }
+
+    // 4. Get actual generation costs from last 7 days
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const { data: generations } = await supabase
       .from('ai_generations')
@@ -83,7 +195,7 @@ export async function GET(request: NextRequest) {
       data.avgCents = data.count > 0 ? Math.round(data.totalCents / data.count) : 0;
     }
 
-    // 4. Get worst-case $/credit from active packages
+    // 5. Get worst-case $/credit from active packages
     const { data: packages } = await supabase
       .from('credit_packages')
       .select('credits, price_cents, bonus_percent')
@@ -102,7 +214,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: true, message: 'No active packages, cannot calculate margins' });
     }
 
-    // 5. Analyze each model
+    // 6. Analyze each model
     const alerts: Array<{
       model_key: string;
       alert_type: string;
@@ -114,6 +226,7 @@ export async function GET(request: NextRequest) {
     const modelAnalysis: Array<{
       model_key: string;
       fal_cost_cents: number;
+      live_cost_cents: number | null;
       credit_cost: number;
       actual_avg_cost_7d: number | null;
       margin_percent: number;
@@ -123,32 +236,37 @@ export async function GET(request: NextRequest) {
     for (const model of models) {
       const actual = actualCosts[model.model_key];
       const revenuePerGen = model.credit_cost * worstCaseCentsPerCredit;
-      const costForMargin = actual?.avgCents ?? model.fal_cost_cents;
+      const costForMargin = model.fal_cost_cents; // Use live-updated cost
       const margin = revenuePerGen > 0
         ? Math.round((1 - costForMargin / revenuePerGen) * 10000) / 100
         : 0;
 
-      // Detect cost drift
-      const driftDetected = actual
+      // Detect cost drift (live pricing vs what was stored before this run)
+      const priceUpdate = livePricingUpdates.find(u => u.model_key === model.model_key);
+      const driftDetected = !!priceUpdate;
+
+      // Also check actual generation costs vs DB cost
+      const genDrift = actual
         ? Math.abs(actual.avgCents - model.fal_cost_cents) / model.fal_cost_cents * 100 > driftThreshold
         : false;
 
-      // Update last_cost_check_at and cost_drift_detected
+      // Update last_cost_check_at
       await supabase
         .from('model_pricing')
         .update({
           last_cost_check_at: new Date().toISOString(),
-          cost_drift_detected: driftDetected,
+          cost_drift_detected: driftDetected || genDrift,
         })
         .eq('model_key', model.model_key);
 
       modelAnalysis.push({
         model_key: model.model_key,
         fal_cost_cents: model.fal_cost_cents,
+        live_cost_cents: livePricing[model.model_key] ?? null,
         credit_cost: model.credit_cost,
         actual_avg_cost_7d: actual?.avgCents ?? null,
         margin_percent: margin,
-        cost_drift: driftDetected,
+        cost_drift: driftDetected || genDrift,
       });
 
       // Flag if margin is outside target range
@@ -172,13 +290,13 @@ export async function GET(request: NextRequest) {
         alerts.push({
           model_key: model.model_key,
           alert_type: 'cost_drift',
-          severity: 'warning',
+          severity: priceUpdate && priceUpdate.new_cents > priceUpdate.old_cents ? 'warning' : 'info',
           current_margin: margin,
         });
       }
     }
 
-    // 6. If there are issues, ask Claude Haiku for recommendations
+    // 7. If there are issues, ask Claude Haiku for recommendations
     let aiAnalysis: string | null = null;
     let recommendations: Array<{ model_key: string; current_credit_cost: number; recommended_credit_cost: number; reason: string }> = [];
 
@@ -189,10 +307,15 @@ export async function GET(request: NextRequest) {
           timeout: 30_000,
         });
 
+        const priceChangeSummary = livePricingUpdates.length > 0
+          ? `\n\nfal.ai PRICE CHANGES DETECTED:\n${livePricingUpdates.map(u => `- ${u.model_key}: ${u.old_cents}¢ → ${u.new_cents}¢ (${u.new_cents > u.old_cents ? '+' : ''}${Math.round((u.new_cents - u.old_cents) / u.old_cents * 100)}%)`).join('\n')}`
+          : '';
+
         const analysisPrompt = `You are a pricing analyst for AIMoviez, a video generation platform. Analyze these cost metrics and recommend pricing adjustments.
 
 Current model pricing:
-${modelAnalysis.map(m => `- ${m.model_key}: fal_cost=${m.fal_cost_cents}¢, credit_cost=${m.credit_cost}, actual_avg_7d=${m.actual_avg_cost_7d ?? 'no data'}¢, margin=${m.margin_percent}%, drift=${m.cost_drift}`).join('\n')}
+${modelAnalysis.map(m => `- ${m.model_key}: fal_cost=${m.fal_cost_cents}¢${m.live_cost_cents !== null ? ` (live: ${m.live_cost_cents}¢)` : ''}, credit_cost=${m.credit_cost}, actual_avg_7d=${m.actual_avg_cost_7d ?? 'no data'}¢, margin=${m.margin_percent}%, drift=${m.cost_drift}`).join('\n')}
+${priceChangeSummary}
 
 Credit package worst-case ¢/credit: ${worstCaseCentsPerCredit.toFixed(2)}¢
 
@@ -228,7 +351,7 @@ Return ONLY valid JSON (no markdown): { "analysis": "brief summary", "recommenda
       }
     }
 
-    // 7. Take action: auto-adjust or create alerts
+    // 8. Take action: auto-adjust or create alerts
     if (autoAdjust && recommendations.length > 0) {
       // Auto-apply recommendations
       for (const rec of recommendations) {
@@ -278,6 +401,8 @@ Return ONLY valid JSON (no markdown): { "analysis": "brief summary", "recommenda
     return NextResponse.json({
       ok: true,
       models_analyzed: modelAnalysis.length,
+      live_pricing_fetched: Object.keys(livePricing).length,
+      price_changes: livePricingUpdates,
       alerts_created: autoAdjust ? 0 : alerts.length,
       auto_adjustments: autoAdjust ? recommendations.length : 0,
       analysis: modelAnalysis,

@@ -193,6 +193,15 @@ export async function getCreditCost(modelKey: string, supabase?: SupabaseClient)
   return costs[modelKey]?.credit_cost ?? COST_DEFAULTS[modelKey]?.credit_cost ?? 10;
 }
 
+/** Get fal.ai endpoint IDs for all models (used by pricing API calls). */
+export function getFalEndpointIds(): Record<string, string> {
+  const endpoints: Record<string, string> = {};
+  for (const [key, config] of Object.entries(MODELS)) {
+    endpoints[key] = config.modelId;
+  }
+  return endpoints;
+}
+
 // =============================================================================
 // STYLE PREFIXES (prepended to user prompt)
 // =============================================================================
