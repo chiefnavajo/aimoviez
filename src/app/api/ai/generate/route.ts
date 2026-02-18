@@ -408,13 +408,37 @@ export async function POST(request: NextRequest) {
       let requestId: string;
 
       if (isReferenceToVideo) {
-        const result = await startReferenceToVideoGeneration(
-          augmentedPrompt,
-          refElements,
-          validated.style,
-          webhookUrl
-        );
-        requestId = result.requestId;
+        try {
+          const result = await startReferenceToVideoGeneration(
+            augmentedPrompt,
+            refElements,
+            validated.style,
+            webhookUrl
+          );
+          requestId = result.requestId;
+        } catch (refError) {
+          // Reference-to-video failed — fallback to normal text-to-video with user's selected model
+          console.warn('[AI_GENERATE] Reference-to-video failed, falling back to text-to-video:', refError instanceof Error ? refError.message : refError);
+
+          const fallbackResult = await startGeneration(
+            validated.model,
+            sanitizedPrompt,
+            validated.style,
+            webhookUrl
+          );
+          requestId = fallbackResult.requestId;
+
+          // Update generation row to reflect the fallback
+          await supabase
+            .from('ai_generations')
+            .update({
+              model: validated.model,
+              generation_mode: 'text-to-video',
+              prompt: sanitizedPrompt,
+              cost_cents: modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents,
+            })
+            .eq('id', generation.id);
+        }
       } else if (isImageToVideo) {
         const result = await startImageToVideoGeneration(
           validated.model,

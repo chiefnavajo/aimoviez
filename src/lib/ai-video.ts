@@ -426,9 +426,15 @@ export function buildReferenceToVideoInput(
     ? `${STYLE_PREFIXES[style]} ${rawPrompt}`
     : rawPrompt;
 
+  // Clean elements: only include reference_image_urls if non-empty
+  const cleanedElements = elements.map(el => ({
+    frontal_image_url: el.frontal_image_url,
+    ...(el.reference_image_urls?.length ? { reference_image_urls: el.reference_image_urls } : {}),
+  }));
+
   return {
     prompt: styledPrompt,
-    elements,
+    elements: cleanedElements,
     ...(imageUrls?.length ? { image_urls: imageUrls } : {}),
     duration: '5',
     aspect_ratio: '9:16',
