@@ -394,6 +394,9 @@ function ProfilePageContent() {
             </div>
           )}
 
+          {/* Character Reference Suggestions */}
+          <MyReferenceSuggestions />
+
           {/* Referral Section */}
           <ReferralSection />
         </div>
@@ -880,6 +883,65 @@ function ProfileStatsSkeleton() {
           <div className="h-2 w-12 mx-auto bg-white/10 rounded animate-pulse" />
         </div>
       ))}
+    </div>
+  );
+}
+
+function MyReferenceSuggestions() {
+  const [suggestions, setSuggestions] = useState<Array<{
+    id: string;
+    status: 'pending' | 'approved' | 'rejected';
+    image_url: string;
+    admin_notes: string | null;
+    created_at: string;
+    character: { label: string | null; element_index: number; frontal_image_url: string };
+  }>>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/story/pinned-characters/suggestions')
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.suggestions?.length > 0) {
+          setSuggestions(data.suggestions);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded || suggestions.length === 0) return null;
+
+  const statusColors: Record<string, string> = {
+    pending: 'bg-yellow-500/20 text-yellow-400',
+    approved: 'bg-green-500/20 text-green-400',
+    rejected: 'bg-red-500/20 text-red-400',
+  };
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-sm font-semibold text-white/60 flex items-center gap-2">
+        <Sparkles className="w-4 h-4 text-purple-400" />
+        My Reference Suggestions ({suggestions.length})
+      </h3>
+      <div className="grid grid-cols-3 gap-2">
+        {suggestions.slice(0, 9).map(s => (
+          <div key={s.id} className="relative bg-white/5 rounded-lg overflow-hidden border border-white/10">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={s.image_url} alt="" className="w-full aspect-square object-cover" />
+            <div className="absolute top-1 right-1">
+              <span className={`text-[8px] px-1.5 py-0.5 rounded-full font-medium ${statusColors[s.status] || ''}`}>
+                {s.status}
+              </span>
+            </div>
+            <div className="p-1.5">
+              <p className="text-[10px] text-white/50 truncate">
+                {s.character.label || `Element ${s.character.element_index}`}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

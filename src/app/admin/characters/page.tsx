@@ -80,6 +80,20 @@ export default function CharacterPinningPage() {
   const [pinning, setPinning] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
 
+  // Suggestion queue state
+  const [suggestions, setSuggestions] = useState<Array<{
+    id: string;
+    status: string;
+    image_url: string;
+    source_clip_id: string;
+    created_at: string;
+    character: { id: string; label: string | null; element_index: number; frontal_image_url: string; current_refs: number };
+    user: { id: string; username: string | null; avatar_url: string | null };
+  }>>([]);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [rejectNotes, setRejectNotes] = useState('');
+  const [showRejectInput, setShowRejectInput] = useState<string | null>(null);
+
   // Angle modal state
   const [showAngleModal, setShowAngleModal] = useState(false);
   const [angleCharId, setAngleCharId] = useState<string | null>(null);
@@ -104,6 +118,7 @@ export default function CharacterPinningPage() {
     if (selectedSeason) {
       fetchCharacters(selectedSeason);
       fetchWinnerClips(selectedSeason);
+      fetchSuggestions(selectedSeason);
     }
   }, [selectedSeason]);
 
@@ -159,9 +174,70 @@ export default function CharacterPinningPage() {
     }
   }
 
+  async function fetchSuggestions(seasonId: string) {
+    try {
+      const res = await fetch(`/api/admin/pinned-characters/suggestions?season_id=${seasonId}&status=pending`, {
+        headers: await getHeaders(),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSuggestions(data.suggestions || []);
+      }
+    } catch {
+      console.error('Failed to fetch suggestions');
+    }
+  }
+
   // ============================================================================
   // ACTIONS
   // ============================================================================
+
+  async function handleApproveSuggestion(suggestionId: string) {
+    setReviewingId(suggestionId);
+    try {
+      const res = await fetch('/api/admin/pinned-characters/suggestions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await getHeaders()) },
+        body: JSON.stringify({ suggestion_id: suggestionId }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to approve');
+        return;
+      }
+      if (selectedSeason) {
+        fetchCharacters(selectedSeason);
+        fetchSuggestions(selectedSeason);
+      }
+    } catch {
+      alert('Network error');
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  async function handleRejectSuggestion(suggestionId: string, notes?: string) {
+    setReviewingId(suggestionId);
+    try {
+      const res = await fetch('/api/admin/pinned-characters/suggestions', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(await getHeaders()) },
+        body: JSON.stringify({ suggestion_id: suggestionId, admin_notes: notes || undefined }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to reject');
+        return;
+      }
+      setShowRejectInput(null);
+      setRejectNotes('');
+      if (selectedSeason) fetchSuggestions(selectedSeason);
+    } catch {
+      alert('Network error');
+    } finally {
+      setReviewingId(null);
+    }
+  }
 
   async function handlePin() {
     if (!pinClipId || !selectedSeason) return;
@@ -428,6 +504,118 @@ export default function CharacterPinningPage() {
                 </div>
               )}
             </section>
+
+            {/* Suggested References (moderation queue) */}
+            {suggestions.length > 0 && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    Suggested References
+                    <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 rounded-full text-xs">
+                      {suggestions.length} pending
+                    </span>
+                  </h2>
+                </div>
+
+                <div className="grid gap-3">
+                  {suggestions.map(s => (
+                    <div key={s.id} className="bg-white/5 border border-purple-500/20 rounded-xl p-4">
+                      <div className="flex items-start gap-4">
+                        {/* Suggested image */}
+                        <div className="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-purple-500/30">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={s.image_url} alt="Suggested angle" className="w-full h-full object-cover" />
+                        </div>
+
+                        {/* Info */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">
+                              For: {s.character.label || `Element ${s.character.element_index}`}
+                            </span>
+                            <span className="text-xs text-white/40">
+                              ({s.character.current_refs}/6 refs)
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-white/50">
+                            {s.user.avatar_url && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={s.user.avatar_url} alt="" className="w-4 h-4 rounded-full" />
+                            )}
+                            <span>{s.user.username || 'Unknown user'}</span>
+                            <span className="text-white/30">·</span>
+                            <span>{new Date(s.created_at).toLocaleDateString()}</span>
+                          </div>
+
+                          {/* Character frontal for comparison */}
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className="text-[10px] text-white/30">Current frontal:</span>
+                            <div className="w-8 h-8 rounded overflow-hidden border border-yellow-500/20">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={s.character.frontal_image_url} alt="" className="w-full h-full object-cover" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-col gap-2 flex-shrink-0">
+                          <button
+                            onClick={() => handleApproveSuggestion(s.id)}
+                            disabled={reviewingId === s.id || s.character.current_refs >= 6}
+                            className="px-3 py-1.5 text-xs bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg hover:bg-green-500/30 transition disabled:opacity-50 flex items-center gap-1"
+                            type="button"
+                          >
+                            {reviewingId === s.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Check className="w-3 h-3" />
+                            )}
+                            Approve
+                          </button>
+                          {showRejectInput === s.id ? (
+                            <div className="space-y-1">
+                              <input
+                                value={rejectNotes}
+                                onChange={(e) => setRejectNotes(e.target.value)}
+                                placeholder="Reason (optional)"
+                                className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs"
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleRejectSuggestion(s.id, rejectNotes)}
+                                  disabled={reviewingId === s.id}
+                                  className="flex-1 px-2 py-1 text-[10px] bg-red-500/20 text-red-400 rounded hover:bg-red-500/30 transition disabled:opacity-50"
+                                  type="button"
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  onClick={() => { setShowRejectInput(null); setRejectNotes(''); }}
+                                  className="px-2 py-1 text-[10px] bg-white/10 rounded hover:bg-white/20 transition"
+                                  type="button"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setShowRejectInput(s.id)}
+                              disabled={reviewingId === s.id}
+                              className="px-3 py-1.5 text-xs bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500/30 transition disabled:opacity-50 flex items-center gap-1"
+                              type="button"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Reject
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
 
             {/* Winner Clips (source material) */}
             <section>

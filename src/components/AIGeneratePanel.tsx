@@ -31,6 +31,7 @@ import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import { useCredits } from '@/hooks/useCredits';
 import CreditPurchaseModal from './CreditPurchaseModal';
+import CharacterReferenceSuggestModal from './CharacterReferenceSuggestModal';
 
 // ============================================================================
 // TYPES
@@ -210,6 +211,14 @@ export default function AIGeneratePanel({
     element_index: number;
     reference_count: number;
   } | null>(null);
+  const [pinnedSeasonId, setPinnedSeasonId] = useState<string | null>(null);
+  const [suggestingForCharacter, setSuggestingForCharacter] = useState<{
+    id: string;
+    label: string | null;
+    frontal_image_url: string;
+    element_index: number;
+    reference_count: number;
+  } | null>(null);
 
   // AI Prompt Suggestion state
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState<boolean>(() => {
@@ -234,6 +243,7 @@ export default function AIGeneratePanel({
           setPinnedCharacters(data.characters);
           // Default: all characters selected
           setSelectedCharacterIds(new Set(data.characters.map((c: { id: string }) => c.id)));
+          if (data.season_id) setPinnedSeasonId(data.season_id);
         }
       } catch {
         // Non-critical
@@ -1285,7 +1295,7 @@ export default function AIGeneratePanel({
                         toggleCharacter(previewCharacter.id);
                         setPreviewCharacter(null);
                       }}
-                      className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
+                      className={`flex-1 py-3 rounded-xl font-medium transition-colors text-sm ${
                         selectedCharacterIds.has(previewCharacter.id)
                           ? 'bg-white/10 text-white/70 hover:bg-white/20'
                           : 'bg-yellow-500 text-black hover:bg-yellow-400'
@@ -1293,15 +1303,49 @@ export default function AIGeneratePanel({
                     >
                       {selectedCharacterIds.has(previewCharacter.id) ? 'Deselect' : 'Select'}
                     </button>
+                    {pinnedSeasonId && (
+                      <button
+                        onClick={() => {
+                          const charForSuggest = previewCharacter;
+                          setPreviewCharacter(null);
+                          setSuggestingForCharacter(charForSuggest);
+                        }}
+                        className="flex-1 py-3 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30 hover:bg-purple-500/30 transition-colors text-sm"
+                      >
+                        Suggest Ref
+                      </button>
+                    )}
                     <button
                       onClick={() => setPreviewCharacter(null)}
-                      className="flex-1 py-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors"
+                      className="flex-1 py-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors text-sm"
                     >
                       Close
                     </button>
                   </div>
                 </motion.div>
               </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Character Reference Suggest Modal */}
+          <AnimatePresence>
+            {suggestingForCharacter && pinnedSeasonId && (
+              <CharacterReferenceSuggestModal
+                character={suggestingForCharacter}
+                seasonId={pinnedSeasonId}
+                onClose={() => setSuggestingForCharacter(null)}
+                onSubmitted={() => {
+                  // Refresh pinned characters to update reference counts
+                  fetch('/api/story/pinned-characters')
+                    .then(r => r.json())
+                    .then(data => {
+                      if (data.ok && data.characters) {
+                        setPinnedCharacters(data.characters);
+                      }
+                    })
+                    .catch(() => {});
+                }}
+              />
             )}
           </AnimatePresence>
         </div>

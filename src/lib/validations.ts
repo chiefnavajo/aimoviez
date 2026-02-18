@@ -371,6 +371,24 @@ export const MovieAccessGrantSchema = z.object({
 export type MovieAccessGrantRequest = z.infer<typeof MovieAccessGrantSchema>;
 
 // =============================================================================
+// CHARACTER REFERENCE SUGGESTION VALIDATION
+// =============================================================================
+
+export const SuggestClipFrameSchema = z.object({
+  source_clip_id: z.string().uuid('Invalid clip ID format'),
+  frame_timestamp: z.number().min(0, 'Timestamp must be non-negative').max(30, 'Timestamp exceeds max clip length'),
+}).strict();
+
+export type SuggestClipFrameRequest = z.infer<typeof SuggestClipFrameSchema>;
+
+export const ReviewSuggestionSchema = z.object({
+  suggestion_id: z.string().uuid('Invalid suggestion ID'),
+  admin_notes: z.string().max(500, 'Admin notes must be 500 characters or less').optional(),
+}).strict();
+
+export type ReviewSuggestionRequest = z.infer<typeof ReviewSuggestionSchema>;
+
+// =============================================================================
 // HELPER: Parse and validate with friendly error
 // =============================================================================
 

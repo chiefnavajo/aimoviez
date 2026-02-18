@@ -53,7 +53,10 @@ export type AuditAction =
   | 'score_submission'
   // AI Movie Generation actions
   | 'movie_access_grant'
-  | 'movie_access_revoke';
+  | 'movie_access_revoke'
+  // Character reference suggestion actions
+  | 'approve_reference_suggestion'
+  | 'reject_reference_suggestion';
 
 export type ResourceType =
   | 'clip'
@@ -72,7 +75,9 @@ export type ResourceType =
   | 'submission_score'
   // AI Movie Generation resources
   | 'movie_access'
-  | 'movie_project';
+  | 'movie_project'
+  // Character reference suggestions
+  | 'character_reference_suggestion';
 
 export interface AuditLogEntry {
   action: AuditAction;
