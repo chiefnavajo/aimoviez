@@ -335,6 +335,9 @@ export default function AIGeneratePanel({
     }
   }, [initialPrompt]);
 
+  // Cooldown state (for free gen gating)
+  const [cooldownEndsAt, setCooldownEndsAt] = useState<string | null>(null);
+
   // Generation state
   const [stage, setStage] = useState<Stage>('idle');
   const [generationId, setGenerationId] = useState<string | null>(null);
@@ -485,24 +488,48 @@ export default function AIGeneratePanel({
       const skipCharacterIds = getSkipCharacterIds();
       const skipAll = pinnedCharacters.length > 0 && skipCharacterIds.length === pinnedCharacters.length;
 
-      const result = await csrfPost<{
-        success: boolean;
-        generationId?: string;
-        error?: string;
-      }>('/api/ai/generate', {
-        prompt: prompt.trim(),
-        model,
-        style: style || undefined,
-        genre: genre || undefined,
-        ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
-        // If all characters are skipped, use skip_pinned for backwards compatibility
-        // Otherwise, pass the specific IDs to skip
-        ...(skipAll ? { skip_pinned: true } : {}),
-        ...(skipCharacterIds.length > 0 && !skipAll ? { skip_character_ids: skipCharacterIds } : {}),
+      const res = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '' },
+        credentials: 'include',
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          model,
+          style: style || undefined,
+          genre: genre || undefined,
+          ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
+          ...(skipAll ? { skip_pinned: true } : {}),
+          ...(skipCharacterIds.length > 0 && !skipAll ? { skip_character_ids: skipCharacterIds } : {}),
+        }),
       });
 
-      if (!result.success || !result.generationId) {
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        // Handle specific error codes from the API
+        if (result.code === 'INSUFFICIENT_CREDITS') {
+          setPurchaseModalOpen(true);
+          setError(`Insufficient credits (need ${result.required}, have ${result.current})`);
+          setStage('failed');
+          return;
+        }
+        if (result.code === 'COOLDOWN_ACTIVE') {
+          const hrs = Math.ceil(result.hours_remaining || 0);
+          setError(`Free generation available in ${hrs} hour${hrs !== 1 ? 's' : ''}. Buy credits for instant access.`);
+          setCooldownEndsAt(result.next_free_at || null);
+          setStage('failed');
+          return;
+        }
+        if (result.code === 'FREE_MODEL_ONLY') {
+          setError(result.error || 'Free generations are limited to Kling 2.6');
+          setStage('failed');
+          return;
+        }
         throw new Error(result.error || 'Failed to start generation');
+      }
+
+      if (!result.generationId) {
+        throw new Error('Failed to start generation');
       }
 
       setGenerationId(result.generationId);
@@ -510,10 +537,6 @@ export default function AIGeneratePanel({
       localStorage.setItem(STORAGE_TIMESTAMP_KEY, String(Date.now()));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
-      // Open purchase modal on insufficient credits
-      if (message === 'Insufficient credits') {
-        setPurchaseModalOpen(true);
-      }
       setError(message);
       setStage('failed');
     }
@@ -1427,11 +1450,18 @@ export default function AIGeneratePanel({
                       : 'bg-white/5 border border-white/10 hover:bg-white/10'
                   }`}
                 >
-                  <p className="font-bold text-sm">{m.label}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-bold text-sm">{m.label}</p>
+                    {!creditSystemEnabled && m.id === 'kling-2.6' && (
+                      <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] font-bold rounded">FREE</span>
+                    )}
+                  </div>
                   <p className="text-xs text-white/40">{m.desc}</p>
-                  {creditSystemEnabled && creditCost && (
+                  {creditSystemEnabled && creditCost ? (
                     <p className="text-xs text-yellow-400 mt-1">{creditCost} credits</p>
-                  )}
+                  ) : !creditSystemEnabled && m.id !== 'kling-2.6' ? (
+                    <p className="text-xs text-white/30 mt-1">Credits required</p>
+                  ) : null}
                 </button>
               );
             })}
@@ -1463,8 +1493,19 @@ export default function AIGeneratePanel({
 
       {/* Error display */}
       {error && (
-        <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-red-400 text-sm flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+        <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl text-sm space-y-2">
+          <div className="flex items-center gap-2 text-red-400">
+            <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+          </div>
+          {/* Actionable buttons for credit/cooldown errors */}
+          {(error.includes('Insufficient credits') || error.includes('Buy credits')) && (
+            <button
+              onClick={() => setPurchaseModalOpen(true)}
+              className="w-full py-2 bg-gradient-to-r from-yellow-500/20 to-amber-500/20 border border-yellow-500/30 rounded-lg text-yellow-300 text-xs font-medium hover:border-yellow-500/50 transition"
+            >
+              Get Credits
+            </button>
+          )}
         </div>
       )}
 

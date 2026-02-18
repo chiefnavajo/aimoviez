@@ -15,6 +15,7 @@ import { AuthGuard } from '@/hooks/useAuth';
 import { useFeature } from '@/hooks/useFeatureFlags';
 import AIGeneratePanel from '@/components/AIGeneratePanel';
 import BriefBanner from '@/components/BriefBanner';
+import CreditBalance from '@/components/CreditBalance';
 
 function CreatePageContent() {
   const router = useRouter();
@@ -70,9 +71,12 @@ function CreatePageContent() {
       <div className="hidden md:flex h-screen">
         {/* Left Sidebar */}
         <div className="w-56 h-full flex flex-col py-4 px-3 border-r border-white/10">
-          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-4">
+          <Link href="/dashboard" className="flex items-center gap-2 px-3 py-2 mb-2">
             <span className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[#3CF2FF] to-[#FF00C7]">AiMoviez</span>
           </Link>
+          <div className="px-3 mb-3">
+            <CreditBalance />
+          </div>
           <nav className="flex-1 space-y-1">
             <Link href="/dashboard"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><Heart className="w-6 h-6" /><span>Vote Now</span></div></Link>
             <Link href="/story"><div className="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-white/5 text-white/70 transition"><BookOpen className="w-6 h-6" /><span>Story</span></div></Link>

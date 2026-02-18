@@ -13,8 +13,9 @@
 // ✅ ~95% video visibility
 // ============================================================================
 
-import { useState, useRef, useCallback, useEffect, useMemo, memo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, memo, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -536,6 +537,22 @@ function VotingArena() {
   // Use the appropriate tour based on feature flag
   const activeTour = useSpotlightTourFlag ? spotlightTour : modalTour;
   const { showTour, completeTour, skipTour, resetTour } = activeTour;
+
+  // Handle Stripe purchase redirect query params
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  useEffect(() => {
+    const purchase = searchParams.get('purchase');
+    const credits = searchParams.get('credits');
+    if (purchase === 'success' && credits) {
+      toast.success(`${credits} credits added to your account!`, { duration: 5000 });
+      // Clean up URL params
+      router.replace('/dashboard', { scroll: false });
+    } else if (purchase === 'cancelled') {
+      toast('Purchase cancelled', { icon: '💳', duration: 3000 });
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Feature flag for vote button daily progress fill
   const { enabled: showVoteProgress } = useFeature('vote_button_progress');
@@ -2196,7 +2213,9 @@ function VotingArena() {
 export default function DashboardPage() {
   return (
     <AuthGuard>
-      <VotingArena />
+      <Suspense fallback={<div className="min-h-screen bg-black" />}>
+        <VotingArena />
+      </Suspense>
     </AuthGuard>
   );
 }
