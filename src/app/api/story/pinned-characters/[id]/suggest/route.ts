@@ -33,7 +33,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
   const rateLimitResponse = await rateLimit(req, 'upload');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const csrfError = requireCsrf(req);
+  const csrfError = await requireCsrf(req);
   if (csrfError) return csrfError;
 
   const session = await getServerSession(authOptions);

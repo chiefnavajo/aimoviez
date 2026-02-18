@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const csrfError = requireCsrf(req);
+  const csrfError = await requireCsrf(req);
   if (csrfError) return csrfError;
 
   const authResult = await requireAdminWithAuth();
@@ -225,7 +225,7 @@ export async function DELETE(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
 
-  const csrfError = requireCsrf(req);
+  const csrfError = await requireCsrf(req);
   if (csrfError) return csrfError;
 
   const authResult = await requireAdminWithAuth();
