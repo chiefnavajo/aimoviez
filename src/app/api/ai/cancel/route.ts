@@ -80,10 +80,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5. Look up generation (verify ownership)
+    // 5. Look up generation (verify ownership, include credit fields for refund)
     const { data: gen, error: genError } = await supabase
       .from('ai_generations')
-      .select('id, status, fal_request_id, model, user_id')
+      .select('id, status, fal_request_id, model, user_id, credit_deducted, credit_amount')
       .eq('id', generationId)
       .eq('user_id', user.id)
       .maybeSingle();
@@ -135,6 +135,26 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'Failed to cancel generation' },
         { status: 500 }
       );
+    }
+
+    // 9. Refund credits if applicable
+    if (gen.credit_deducted && gen.credit_amount && gen.user_id) {
+      try {
+        const { data: refundResult, error: refundError } = await supabase.rpc('refund_credits', {
+          p_user_id: gen.user_id,
+          p_generation_id: gen.id,
+        });
+
+        if (refundError) {
+          console.error('[AI_CANCEL] Credit refund error:', refundError.message, 'generation:', gen.id);
+        } else if (refundResult?.success) {
+          console.info(`[AI_CANCEL] Refunded ${refundResult.refunded} credits for cancelled generation:`, gen.id);
+        } else if (refundResult?.error === 'Already refunded') {
+          console.info('[AI_CANCEL] Credits already refunded for generation:', gen.id);
+        }
+      } catch (refundErr) {
+        console.error('[AI_CANCEL] Credit refund failed (non-fatal):', refundErr instanceof Error ? refundErr.message : refundErr);
+      }
     }
 
     console.info('[AI_CANCEL] Generation cancelled:', gen.id);

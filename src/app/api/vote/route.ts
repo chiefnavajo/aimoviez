@@ -302,16 +302,15 @@ async function getUserVotesToday(
 
   debugLog('[getUserVotesToday] Query filter date:', todayDateStr);
 
-  const { data, error } = await supabase
+  // Optimization: only select vote_weight to minimize data transfer
+  // (was selecting 5 columns, only need vote_weight for the sum)
+  const { data, error, count: rowCount } = await supabase
     .from('votes')
-    .select('clip_id, vote_weight, vote_type, created_at, slot_position')
+    .select('vote_weight', { count: 'exact' })
     .eq('voter_key', voterKey)
     .gte('created_at', filterDate);
 
-  debugLog('[getUserVotesToday] Votes found:', data?.length || 0);
-  if (data && data.length > 0) {
-    debugLog('[getUserVotesToday] Sample vote timestamp:', data[0].created_at);
-  }
+  debugLog('[getUserVotesToday] Votes found:', rowCount || 0);
 
   if (error) {
     console.error('[vote] getUserVotesToday error:', error);
@@ -1212,10 +1211,10 @@ async function handleVoteRedis(
   req: NextRequest
 ): Promise<NextResponse> {
   // Still need clip data from DB (lightweight query, ~10ms)
-  // Future optimization: cache clip metadata in Redis during slot activation
+  // Includes user_id to check self-voting in the same query (saves 1 DB round-trip)
   const { data: clipData, error: clipFetchError } = await supabase
     .from('tournament_clips')
-    .select('slot_position, season_id, vote_count, weighted_score, status')
+    .select('slot_position, season_id, vote_count, weighted_score, status, user_id')
     .eq('id', clipId)
     .maybeSingle();
 
@@ -1234,19 +1233,11 @@ async function handleVoteRedis(
   }
 
   // SECURITY FIX #12: Prevent self-voting (Redis path)
-  if (loggedInUserId) {
-    const { data: clipOwner } = await supabase
-      .from('tournament_clips')
-      .select('user_id')
-      .eq('id', clipId)
-      .maybeSingle();
-
-    if (clipOwner?.user_id === loggedInUserId) {
-      return NextResponse.json(
-        { success: false, error: 'You cannot vote on your own clip', code: 'SELF_VOTE_NOT_ALLOWED' },
-        { status: 403 }
-      );
-    }
+  if (loggedInUserId && clipData.user_id === loggedInUserId) {
+    return NextResponse.json(
+      { success: false, error: 'You cannot vote on your own clip', code: 'SELF_VOTE_NOT_ALLOWED' },
+      { status: 403 }
+    );
   }
 
   const seasonId = clipData.season_id;
@@ -1521,7 +1512,7 @@ export async function POST(req: NextRequest) {
       getUserVotesToday(supabase, effectiveVoterKey),
       supabase
         .from('tournament_clips')
-        .select('slot_position, season_id, vote_count, weighted_score, status')
+        .select('slot_position, season_id, vote_count, weighted_score, status, user_id')
         .eq('id', clipId)
         .maybeSingle(),
     ]);
@@ -1569,24 +1560,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // SECURITY FIX #12: Prevent self-voting
-    if (loggedInUserId) {
-      const { data: clipOwnerData } = await supabase
-        .from('tournament_clips')
-        .select('user_id')
-        .eq('id', clipId)
-        .maybeSingle();
-
-      if (clipOwnerData?.user_id === loggedInUserId) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: 'You cannot vote on your own clip',
-            code: 'SELF_VOTE_NOT_ALLOWED',
-          },
-          { status: 403 }
-        );
-      }
+    // SECURITY FIX #12: Prevent self-voting (uses user_id from clip query above)
+    if (loggedInUserId && clipData.user_id === loggedInUserId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'You cannot vote on your own clip',
+          code: 'SELF_VOTE_NOT_ALLOWED',
+        },
+        { status: 403 }
+      );
     }
 
     // SECURITY: Validate clip status - only allow voting on active clips

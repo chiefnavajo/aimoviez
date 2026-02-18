@@ -113,8 +113,11 @@ export interface VisualSimilarityResult {
 // MULTI-FRAME VIDEO EXTRACTION
 // =============================================================================
 
-// Number of frames to sample from each video (0%, 25%, 50%, 75%, 100%)
-const FRAMES_TO_SAMPLE = 5;
+// Number of frames to sample from each video
+// Winners get 3 frames (25%, 50%, 75%) for thorough analysis
+// Non-winners get 1 frame (middle) to reduce Vision API costs (~$36/mo savings)
+const FRAMES_FOR_WINNERS = 3;
+const FRAMES_FOR_ROUTINE = 1;
 
 /**
  * Extract multiple frames from a video at evenly spaced intervals
@@ -122,7 +125,7 @@ const FRAMES_TO_SAMPLE = 5;
  */
 export async function extractFramesFromVideo(
   videoUrl: string,
-  numFrames: number = FRAMES_TO_SAMPLE
+  numFrames: number = FRAMES_FOR_ROUTINE
 ): Promise<{ frames: string[]; duration: number } | null> {
   const { execFile } = await import('child_process');
   const { writeFile, readFile, unlink } = await import('fs/promises');
@@ -400,7 +403,7 @@ function combineFrameFeatures(featuresArray: VisualFeatures[]): VisualFeatures {
  */
 export async function extractVisualFeaturesFromVideo(
   videoUrl: string,
-  numFrames: number = FRAMES_TO_SAMPLE
+  numFrames: number = FRAMES_FOR_ROUTINE
 ): Promise<VisualFeatures | null> {
   console.log(`[visual-learning] Analyzing video with ${numFrames} frames: ${videoUrl.slice(0, 60)}...`);
 
@@ -1005,9 +1008,10 @@ export async function processExistingClipVisuals(
       let features: VisualFeatures | null = null;
 
       if (isVideoUrl) {
-        // Use multi-frame video extraction (5 frames)
-        console.log(`[visual-learning] Processing video clip ${clip.id} with multi-frame extraction...`);
-        features = await extractVisualFeaturesFromVideo(clip.thumbnail_url, FRAMES_TO_SAMPLE);
+        // Use multi-frame video extraction (more frames for winners)
+        const framesToUse = clip.status === 'winner' ? FRAMES_FOR_WINNERS : FRAMES_FOR_ROUTINE;
+        console.log(`[visual-learning] Processing video clip ${clip.id} with ${framesToUse}-frame extraction...`);
+        features = await extractVisualFeaturesFromVideo(clip.thumbnail_url, framesToUse);
       } else {
         // Use single image extraction
         console.log(`[visual-learning] Processing image thumbnail for clip ${clip.id}...`);
@@ -1050,4 +1054,4 @@ export async function processExistingClipVisuals(
 // EXPORTS
 // =============================================================================
 
-export { VISION_MODEL, FRAMES_TO_SAMPLE };
+export { VISION_MODEL, FRAMES_FOR_WINNERS, FRAMES_FOR_ROUTINE };
