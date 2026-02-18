@@ -1,0 +1,250 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=load-test
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:385:28)
+
+  console.warn
+    Vote batch warning: Could not find the 'season_id' column of 'votes' in the schema cache
+
+      177 |     // Ignore duplicate vote errors (user already voted)
+      178 |     if (error && !error.message.includes('duplicate')) {
+    > 179 |       console.warn(`Vote batch warning: ${error.message}`);
+          |               ^
+      180 |     } else {
+      181 |       totalCreated += batch.length;
+      182 |     }
+
+      at createVotesBatch (src/__tests__/integration/admin/load-test-1000-users.test.ts:179:15)
+          at async Promise.all (index 1)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:449:45)
+
+  console.log
+       Query performance: 8 parallel queries in 19ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:541:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/load-test-1000-users.test.ts
+  Load Test: 1000 Users Simulation
+    User Creation
+      ✓ creates 1000 unique users successfully (2 ms)
+      ✓ all users exist in database (13 ms)
+    Mass Upload Simulation
+      ✓ 300 users upload 2 clips each (600 total clips) (202 ms)
+      ✓ clips are properly distributed across 4 seasons (29 ms)
+      ✓ each user has exactly 2 clips (46 ms)
+    Admin Approval Flow
+      ✓ admin approves 100 clips for voting in season 1 (51 ms)
+      ✓ slot status changes to voting (5 ms)
+    Mass Voting Simulation
+      ✕ 700 users vote on active clips (40 ms)
+      ✕ votes are distributed across clips (3 ms)
+      ✕ can identify winning clip by vote count (4 ms)
+    Concurrent Operations
+      ✓ simultaneous uploads and votes across seasons (15 ms)
+      ✓ database maintains integrity under concurrent load (86 ms)
+    Statistics & Reporting
+      ✕ generates accurate user activity report (46 ms)
+      ✓ system handles 1000 users without performance degradation (20 ms)
+    Edge Cases with High User Count
+      ✓ handles user voting for their own clip (7 ms)
+      ✕ handles duplicate vote attempts gracefully (9 ms)
+      ✓ handles max clips per user limit (5 ms)
+
+  ● Load Test: 1000 Users Simulation › Mass Voting Simulation › 700 users vote on active clips
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+      389 |       );
+      390 |
+    > 391 |       expect(votesCreated).toBeGreaterThan(0);
+          |                            ^
+      392 |     }, 30000);
+      393 |
+      394 |     it('votes are distributed across clips', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:391:28)
+
+  ● Load Test: 1000 Users Simulation › Mass Voting Simulation › votes are distributed across clips
+
+    Failed to get votes: column votes.tournament_clip_id does not exist
+
+      196 |
+      197 |   if (error) {
+    > 198 |     throw new Error(`Failed to get votes: ${error.message}`);
+          |           ^
+      199 |   }
+      200 |
+      201 |   const counts = new Map<string, number>();
+
+      at getVoteCounts (src/__tests__/integration/admin/load-test-1000-users.test.ts:198:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:395:26)
+
+  ● Load Test: 1000 Users Simulation › Mass Voting Simulation › can identify winning clip by vote count
+
+    Failed to get votes: column votes.tournament_clip_id does not exist
+
+      196 |
+      197 |   if (error) {
+    > 198 |     throw new Error(`Failed to get votes: ${error.message}`);
+          |           ^
+      199 |   }
+      200 |
+      201 |   const counts = new Map<string, number>();
+
+      at getVoteCounts (src/__tests__/integration/admin/load-test-1000-users.test.ts:198:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:409:26)
+
+  ● Load Test: 1000 Users Simulation › Statistics & Reporting › generates accurate user activity report
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 200
+    Received:   0
+
+      510 |       // Verify stats make sense
+      511 |       expect(stats.totalUsers).toBe(1000);
+    > 512 |       expect(stats.uploadingUsers).toBeGreaterThan(200);
+          |                                    ^
+      513 |       expect(stats.totalClips).toBeGreaterThan(500);
+      514 |       expect(stats.totalVotes).toBeGreaterThan(0);
+      515 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:512:36)
+
+  ● Load Test: 1000 Users Simulation › Edge Cases with High User Count › handles duplicate vote attempts gracefully
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "duplicate"
+    Received string:    "could not find the 'season_id' column of 'votes' in the schema cache"
+
+      599 |         // Should either succeed (if allowed) or fail with duplicate error
+      600 |         if (error) {
+    > 601 |           expect(error.message.toLowerCase()).toContain('duplicate');
+          |                                               ^
+      602 |         }
+      603 |       }
+      604 |     });
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:601:47)
+
+Test Suites: 1 failed, 1 total
+Tests:       5 failed, 12 passed, 17 total
+Snapshots:   0 total
+Time:        1.991 s
+Ran all test suites matching /load-test/i.

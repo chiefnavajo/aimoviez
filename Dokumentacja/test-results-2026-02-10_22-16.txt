@@ -1,0 +1,187 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/operation-combinations.test.ts
+  Operation Combinations
+    Upload Combinations
+      ✓ upload → delete (never approved) (30 ms)
+      ✓ upload → approve → delete (32 ms)
+      ✓ upload → reject → delete (33 ms)
+      ✓ upload → approve → reject → reapprove (18 ms)
+    Winner Combinations
+      ✓ approve → winner → unlock → delete (38 ms)
+      ✓ approve → winner → unlock → re-approve → winner again (34 ms)
+      ✓ two clips → winner clip1 → unlock → winner clip2 (40 ms)
+    Edit Combinations
+      ✓ upload → edit title → approve (20 ms)
+      ✓ approve → edit → still active (15 ms)
+      ✓ locked clip cannot be edited (guard check) (11 ms)
+    Slot Status Combinations
+      ✓ waiting_for_clips → voting → waiting_for_clips (all deleted) (15 ms)
+      ✓ voting → locked → voting (unlock) (19 ms)
+      ✓ slot 1 locked → slot 2 becomes waiting_for_clips (24 ms)
+    Bulk Operation Combinations
+      ✓ bulk approve multiple clips (24 ms)
+      ✓ bulk delete all → slot resets (30 ms)
+      ✓ bulk reject does not affect other clips (29 ms)
+    Edge Case Combinations
+      ✓ delete winner → blocked, unlock → delete → success (22 ms)
+      ✓ multiple operations on same clip rapid succession (26 ms)
+      ✓ all clips rejected → slot stays waiting (no active clips) (22 ms)
+      ✓ mixed statuses in slot: active + pending + rejected (21 ms)
+      ✓ unlock → edit → re-lock with same clip (31 ms)
+    Timer Combinations
+      ✓ timer starts → all clips deleted → timer clears (19 ms)
+      ✕ timer running → add more clips → timer continues (20 ms)
+      ✕ timer running → winner assigned → timer preserved in lock (17 ms)
+
+  ● Operation Combinations › Timer Combinations › timer running → add more clips → timer continues
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-02-11T21:16:11.228Z"
+    Received: "2026-02-11T21:16:11.228+00:00"
+
+      722 |       const slot = await getSlot(1);
+      723 |       expect(slot?.status).toBe('voting');
+    > 724 |       expect(slot?.voting_ends_at).toBe(endsAt.toISOString());
+          |                                    ^
+      725 |     });
+      726 |
+      727 |     it('timer running → winner assigned → timer preserved in lock', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/operation-combinations.test.ts:724:36)
+
+  ● Operation Combinations › Timer Combinations › timer running → winner assigned → timer preserved in lock
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "2026-02-11T21:16:11.257Z"
+    Received: "2026-02-11T21:16:11.257+00:00"
+
+      751 |       const slot = await getSlot(1);
+      752 |       expect(slot?.status).toBe('locked');
+    > 753 |       expect(slot?.voting_ends_at).toBe(endsAt.toISOString());
+          |                                    ^
+      754 |     });
+      755 |   });
+      756 | });
+
+      at Object.<anonymous> (src/__tests__/integration/admin/operation-combinations.test.ts:753:36)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/clip-lifecycle.test.ts
+  Clip Lifecycle
+    Basic Clip Creation
+      ✓ creates a pending clip successfully (8 ms)
+      ✓ creates multiple clips with unique IDs (7 ms)
+    Approve Flow
+      ✓ approving a clip assigns it to the first available slot (12 ms)
+      ✓ approving first clip starts the 24h timer (9 ms)
+    Winner Assignment
+      ✓ assigning winner locks the clip and slot (13 ms)
+      ✓ assigning winner advances to next slot (13 ms)
+    Unlock Flow
+      ✓ unlocking a slot reverts clip status to pending (12 ms)
+    Delete Flow - THE BUG WE FIXED
+      ✓ deleting last clip after unlock resets slot to waiting_for_clips (25 ms)
+      ✓ deleting last active clip clears timer (13 ms)
+      ✓ deleting one of multiple clips does NOT reset slot (14 ms)
+    Safety Checks
+      ✓ cannot delete a clip that is the slot winner (8 ms)
+      ✓ cannot edit a locked clip status (7 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/slot-management.test.ts
+  Slot Management
+    Timer Management
+      ✓ approving first clip starts 24h timer (20 ms)
+      ✓ bulk delete all clips resets slot to waiting_for_clips (28 ms)
+      ✓ deleting pending clips also resets slot (18 ms)
+    Status Transitions
+      ✓ slot transitions: upcoming -> waiting_for_clips -> voting -> locked (19 ms)
+      ✓ unlocking slot clears winner reference (12 ms)
+    Edge Cases
+      ✓ slot with mixed active and pending clips stays in voting (16 ms)
+      ✓ rejected clips do not count towards slot status (18 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/safety-checks.test.ts
+  Safety Checks
+    Winner Protection
+      ✓ winner clip is linked to slot via winner_tournament_clip_id (9 ms)
+      ✓ can detect if clip is a winner before delete (10 ms)
+      ✓ non-winner clips can be deleted (10 ms)
+    Locked Clip Guards
+      ✓ locked clip has status = locked (6 ms)
+      ✓ can detect locked clip before edit (7 ms)
+      ✓ unlocked clip can be edited (9 ms)
+    Unlock Before Modify
+      ✓ unlocking slot clears winner and allows modification (16 ms)
+      ✓ attempting to modify locked slot winner fails safety check (8 ms)
+    Bulk Operation Safety
+      ✓ bulk delete should skip winner clips (15 ms)
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       2 failed, 50 passed, 52 total
+Snapshots:   0 total
+Time:        1.564 s, estimated 2 s
+Ran all test suites.

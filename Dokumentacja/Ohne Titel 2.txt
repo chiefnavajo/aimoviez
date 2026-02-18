@@ -1,0 +1,147 @@
+You still need to update in Vercel (Settings → Environment Variables):                                                                                                              
+  1. CLOUDFLARE_R2_PUBLIC_URL → set to https://cdn.aimoviez.app                                                                                                                       
+  2. CLOUDFLARE_R2_BUCKET → set to aimoviez-videos                                                                                                                                    
+  3. NEXTAUTH_URL → set to https://www.aimoviez.app                                                                                                                                   
+  4. NEXT_PUBLIC_SITE_URL → set to https://www.aimoviez.app    
+
+CLOUDFLARE_R2_ACCESS_KEY_ID
+All Environments
+•••••••••••••••
+
+Updated 
+3h ago
+
+
+ALLOWED_EMAILS
+All Environments
+•••••••••••••••
+
+Updated 
+Jan 21
+
+
+CRON_SECRET
+All Environments
+•••••••••••••••
+
+Added 
+12/11/25
+
+
+NEXT_PUBLIC_PUSHER_CLUSTER
+All Environments
+•••••••••••••••
+
+Added 
+12/4/25
+
+
+PUSHER_SECRET
+All Environments
+•••••••••••••••
+
+Added 
+12/4/25
+
+
+NEXT_PUBLIC_PUSHER_KEY
+All Environments
+•••••••••••••••
+
+Added 
+12/4/25
+
+
+PUSHER_APP_ID
+All Environments
+•••••••••••••••
+
+Added 
+12/4/25
+
+
+UPSTASH_REDIS_REST_TOKEN
+All Environments
+•••••••••••••••
+
+Added 
+11/29/25
+
+
+UPSTASH_REDIS_REST_URL
+All Environments
+•••••••••••••••
+
+Updated 
+11/29/25
+
+
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+All Environments
+•••••••••••••••
+
+Added 
+11/29/25
+
+
+SUPABASE_SERVICE_ROLE_KEY
+All Environments
+•••••••••••••••
+
+Added 
+11/26/25
+
+
+NEXT_PUBLIC_SUPABASE_URL
+All Environments
+•••••••••••••••
+
+Added 
+11/25/25
+
+
+GOOGLE_CLIENT_SECRET
+All Environments
+•••••••••••••••
+
+Updated 
+11/14/25
+
+
+GOOGLE_CLIENT_ID
+All Environments
+•••••••••••••••
+
+Added 
+11/9/25
+
+
+NEXTAUTH_SECRET
+All Environments
+•••••••••••••••
+
+Added 
+11/9/25
+
+
+
+https://www.aimoviez.app                                                                                                                                                          https://aimoviez.vercel.app                                                                                                                                                       http://localhost:3000    
+
+
+ 1. Go to sentry.io → Sign up (free tier: 5,000 errors/month)                                                                                                                        
+  2. Create a new project → select Next.js                                                                                                                                            
+  3. You'll get a DSN (looks like https://abc123@o456.ingest.sentry.io/789)                                                                                                           
+  4. Add these env vars in Vercel (Settings → Environment Variables):                                                                                                                 
+    - NEXT_PUBLIC_SENTRY_DSN → your DSN                                                                                                                                               
+    - SENTRY_DSN → same DSN                                                                                                                                                           
+    - SENTRY_ORG → your Sentry org slug                                                                                                                                               
+    - SENTRY_PROJECT → your Sentry project slug                                                                                                                                       
+    - SENTRY_AUTH_TOKEN → from Sentry Settings → Auth Tokens (needed for source maps upload)      
+
+NEXT_PUBLIC_SENTRY_DSN → https://0c771c744e9d76f901559d5da9d1b676@o4510796790235136.ingest.de.sentry.io/4510796808716368                                                         
+
+SENTRY_DSN → https://0c771c744e9d76f901559d5da9d1b676@o4510796790235136.ingest.de.sentry.io/4510796808716368                                                                     
+
+SENTRY_ORG → aimoviez                                                                                                                                                            
+
+SENTRY_PROJECT → aimoviez      

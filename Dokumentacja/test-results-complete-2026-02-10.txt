@@ -1,0 +1,748 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    
+    ⚡ Concurrent Voting Results (1000 simultaneous):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:249:15)
+
+  console.log
+       Total time: 1008ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:250:15)
+
+  console.log
+       Successful votes: 245
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:251:15)
+
+  console.log
+       Failed votes: 755
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:252:15)
+
+  console.log
+       Success rate: 24.5%
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:253:15)
+
+  console.log
+       Avg vote duration: 462.05ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:254:15)
+
+  console.log
+       Min vote duration: 145ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:255:15)
+
+  console.log
+       Max vote duration: 1012ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:256:15)
+
+  console.log
+       Error breakdown: { 'TypeError: fetch failed': 755 }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:264:17)
+
+  console.log
+       ℹ️  Note: "fetch failed" errors indicate connection pool exhaustion
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:265:17)
+
+  console.log
+       ℹ️  This is expected behavior - use wave voting for better results
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:266:17)
+
+  console.log
+    
+    📊 Vote Distribution:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:294:15)
+
+  console.log
+       Total votes recorded: 245
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:295:15)
+
+  console.log
+       Per clip: {
+      a428421b: 54,
+      f71c43b7: 53,
+      '9340c948': 47,
+      '6bed5422': 46,
+      b46acd8e: 45
+    }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:296:15)
+
+  console.log
+       Duplicate votes detected: 0
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:329:15)
+
+  console.log
+    
+    🌊 Wave Voting Results:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:371:15)
+
+  console.log
+       Wave 1: 100/100 successful in 158ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 2: 100/100 successful in 180ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 3: 100/100 successful in 188ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 4: 100/100 successful in 282ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 5: 100/100 successful in 212ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 6: 100/100 successful in 167ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 7: 100/100 successful in 217ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 8: 100/100 successful in 198ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 9: 100/100 successful in 194ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 10: 100/100 successful in 217ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Total votes after waves: 1000
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:390:15)
+
+  console.log
+    
+    🎯 Single Clip Stress Test (500 concurrent):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:421:15)
+
+  console.log
+       Duration: 622ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:422:15)
+
+  console.log
+       Successful: 250
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:423:15)
+
+  console.log
+       Failed: 250
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:424:15)
+
+  console.log
+       Success rate: 50.0%
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:425:15)
+
+  console.log
+       Actual votes on clip: 250
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:433:15)
+
+  console.log
+       ℹ️  Database accurately recorded all successful votes
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:434:15)
+
+  console.log
+    
+    🔍 Race Condition Check:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:477:15)
+
+  console.log
+       Expected successful: 200
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:478:15)
+
+  console.log
+       Actual in database: 200
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:479:15)
+
+  console.log
+       Lost votes: 0
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:480:15)
+
+  console.log
+       Votes are in chronological order: true
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:516:15)
+
+  console.log
+    
+    📈 Performance Metrics:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:547:15)
+
+  console.log
+       Sequential (100 votes):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:548:15)
+
+  console.log
+         Duration: 232ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:549:15)
+
+  console.log
+         Throughput: 431.03 votes/sec
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:550:15)
+
+  console.log
+       Parallel (100 votes):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:551:15)
+
+  console.log
+         Duration: 151ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:552:15)
+
+  console.log
+         Throughput: 662.25 votes/sec
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:553:15)
+
+  console.log
+       Speedup: 1.54x
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:554:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/concurrent-voting.test.ts (6.302 s)
+  Concurrent Voting Stress Test
+    Setup Verification
+      ✓ created 1000 users for voting (1 ms)
+      ✓ created 5 clips to vote on
+      ✓ slot is in voting status (3 ms)
+    Simultaneous Voting - All at Once
+      ✓ 1000 users vote at the exact same time (1030 ms)
+      ✓ vote counts are accurate after concurrent voting (6 ms)
+      ✓ no duplicate votes from same voter (4 ms)
+    Wave Voting - Bursts of Users
+      ✓ 10 waves of 100 users voting rapidly (2020 ms)
+      ✓ total votes match expected after waves (6 ms)
+    Stress Test - Rapid Fire Single Clip
+      ✓ 500 users vote for the same clip simultaneously (629 ms)
+    Race Condition Detection
+      ✓ detects if votes are lost under heavy load (387 ms)
+      ✓ vote order is preserved (FIFO check) (216 ms)
+    Performance Metrics
+      ✓ measures database throughput (446 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/multi-season.test.ts
+  Multi-Season Operations (8 Seasons)
+    Season Isolation
+      ✓ 8 seasons created independently with correct structure (19 ms)
+      ✓ clips in season 1 do not appear in season 2-8 (33 ms)
+      ✓ slot operations in one season do not affect others (28 ms)
+      ✓ winner in season 1 does not lock season 2-8 slots (33 ms)
+    Parallel Upload Operations
+      ✓ upload clip to each of 8 seasons simultaneously (26 ms)
+      ✓ approve clips in all 8 seasons maintains independent slot status (41 ms)
+      ✓ timers run independently per season (74 ms)
+    Parallel Delete Operations
+      ✓ delete clips from season 1 while seasons 2-8 continue (26 ms)
+      ✓ bulk delete across multiple seasons simultaneously (82 ms)
+      ✓ deleting last clip in season 1 does not affect season 2-8 timers (37 ms)
+    Parallel Winner Operations
+      ✓ assign winner in season 1 while seasons 2-8 are voting (45 ms)
+      ✓ lock season 1 slot 1 does not affect season 2-8 slot 1 (31 ms)
+    Mixed Operations Across Seasons
+      ✓ different operations in each season simultaneously (71 ms)
+      ✓ all 8 seasons at different stages simultaneously (364 ms)
+    Season Status Combinations
+      ✓ operations only work on active seasons (26 ms)
+      ✓ mixed status seasons do not interfere (22 ms)
+    Stress Test: Rapid Multi-Season Operations
+      ✓ 100 clips across 8 seasons with random distribution (408 ms)
+      ✓ parallel random operations across all seasons (65 ms)
+      ✓ verify data integrity after stress operations (31 ms)
+    Cross-Season Data Integrity
+      ✓ season IDs never leak across boundaries (20 ms)
+      ✓ slot positions are independent per season (55 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/edge-cases.test.ts
+  Edge Cases Tests
+    Empty Season Scenarios
+      ✓ season with zero clips is valid (7 ms)
+      ✓ all slots remain in initial state with no clips (8 ms)
+      ✓ deleting all clips returns season to empty state (11 ms)
+    Maximum Clips Scenarios
+      ✓ can create 100 clips in a single slot (235 ms)
+      ✓ can query slot with many clips efficiently (3 ms)
+      ✓ can count votes across many clips (195 ms)
+    Special Characters in Data
+      ✓ handles Unicode characters in title (6 ms)
+      ✓ handles emoji in title (6 ms)
+      ✓ handles HTML/script tags in title (stored as-is) (4 ms)
+      ✓ handles SQL injection attempt in title (6 ms)
+      ✓ handles newlines and tabs in description (6 ms)
+      ✓ handles null bytes in title (3 ms)
+    Slot Position Edge Cases
+      ✓ clips can exist without slot assignment (4 ms)
+      ✓ multiple clips in same slot coexist (9 ms)
+      ✓ clip can move between slots (6 ms)
+      ✓ removing slot assignment works (6 ms)
+    Timing Edge Cases
+      ✓ rapid create-update-delete sequence (8 ms)
+      ✓ simultaneous create operations (10 ms)
+    Season State Edge Cases
+      ✓ finished season still allows reads (9 ms)
+      ✓ draft season clips are accessible (7 ms)
+      ✓ season with all slots locked (11 ms)
+    Data Consistency Checks
+      ✓ clip count matches database count (6 ms)
+      ✓ slot count matches total_slots in season (9 ms)
+      ✓ winner clip exists in slot clips (7 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    
+    📊 Load Test Statistics:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:539:15)
+
+  console.log
+       Total Users: 1000
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:540:15)
+
+  console.log
+       Users Who Uploaded: 350
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:541:15)
+
+  console.log
+       Total Clips: 650
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:542:15)
+
+  console.log
+       Total Votes: 750
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:543:15)
+
+  console.log
+       Clips per Season: { '992558a1': 153, '14d95434': 201, '7fcb7446': 145, '3d5bb7b0': 151 }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:544:15)
+
+  console.log
+       Query performance: 8 parallel queries in 9ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:564:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/load-test-1000-users.test.ts
+  Load Test: 1000 Users Simulation
+    User Creation
+      ✓ creates 1000 unique users successfully
+      ✓ all users exist in database (3 ms)
+    Mass Upload Simulation
+      ✓ 300 users upload 2 clips each (600 total clips) (97 ms)
+      ✓ clips are properly distributed across 4 seasons (19 ms)
+      ✓ each user has exactly 2 clips (31 ms)
+    Admin Approval Flow
+      ✓ admin approves 100 clips for voting in season 1 (26 ms)
+      ✓ slot status changes to voting (2 ms)
+    Mass Voting Simulation
+      ✓ 700 users vote on active clips (249 ms)
+      ✓ votes are distributed across clips (4 ms)
+      ✓ can identify winning clip by vote count (5 ms)
+    Concurrent Operations
+      ✓ simultaneous uploads and votes across seasons (22 ms)
+      ✓ database maintains integrity under concurrent load (60 ms)
+    Statistics & Reporting
+      ✓ generates accurate user activity report (84 ms)
+      ✓ system handles 1000 users without performance degradation (9 ms)
+    Edge Cases with High User Count
+      ✓ handles user voting for their own clip (5 ms)
+      ✓ handles duplicate vote attempts gracefully (5 ms)
+      ✓ handles max clips per user limit (2 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/error-scenarios.test.ts
+  Error Scenarios Tests
+    Invalid Data Handling
+      ✓ rejects clip with missing required title (2 ms)
+      ✓ rejects clip with invalid status value (2 ms)
+      ✓ rejects clip with invalid UUID for season_id (2 ms)
+      ✓ rejects clip with non-existent season_id (2 ms)
+      ✓ rejects clip with non-existent user_id (2 ms)
+      ✓ rejects slot with invalid status (1 ms)
+      ✓ rejects negative slot_position (2 ms)
+      ✓ rejects empty string for required fields (2 ms)
+    Constraint Violations
+      ✓ handles duplicate vote from same voter gracefully (10 ms)
+      ✓ cannot set winner to non-existent clip (4 ms)
+      ✓ cannot delete season with existing clips (4 ms)
+    State Transition Errors
+      ✓ cannot lock slot without winner (11 ms)
+      ✓ deleting winner clip should fail or update slot (9 ms)
+    Concurrent Modification Errors
+      ✓ handles simultaneous updates to same clip (9 ms)
+      ✓ handles simultaneous status transitions (8 ms)
+    Data Type Errors
+      ✓ handles very long title (2 ms)
+      ✓ handles special characters in title (2 ms)
+      ✓ handles null in optional fields (3 ms)
+      ✓ handles invalid URL format (2 ms)
+    Boundary Conditions
+      ✓ slot_position at boundary (0) (2 ms)
+      ✓ slot_position at max int (2 ms)
+      ✓ vote_weight at minimum (1) (8 ms)
+      ✓ vote_weight at maximum (200) (8 ms)
+      ✓ vote_weight over maximum (201) is handled (7 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/timer-expiration.test.ts
+  Timer Expiration Tests
+    Timer States
+      ✓ can set voting timer to past (expired state) (6 ms)
+      ✓ can set voting timer to future (active state) (6 ms)
+      ✓ timer with exactly 0 seconds remaining (6 ms)
+    Winner Determination on Expiration
+      ✓ clip with most votes should win when timer expires (266 ms)
+      ✓ handles tie-breaker scenario (earliest upload wins) (209 ms)
+      ✓ handles single clip scenario (auto-win) (44 ms)
+      ✓ handles zero votes scenario (31 ms)
+    Timer Edge Cases
+      ✓ very long timer (30 days) (7 ms)
+      ✓ very short timer (1 minute) (6 ms)
+      ✓ timer already expired by 7 days (6 ms)
+      ✓ null timer values are handled (3 ms)
+    Slot Transitions on Timer Events
+      ✓ slot should transition from voting to locked when winner assigned (42 ms)
+      ✓ next slot should become waiting_for_clips after current locks (24 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/operation-combinations.test.ts
+  Operation Combinations
+    Upload Combinations
+      ✓ upload → delete (never approved) (15 ms)
+      ✓ upload → approve → delete (22 ms)
+      ✓ upload → reject → delete (14 ms)
+      ✓ upload → approve → reject → reapprove (17 ms)
+    Winner Combinations
+      ✓ approve → winner → unlock → delete (30 ms)
+      ✓ approve → winner → unlock → re-approve → winner again (27 ms)
+      ✓ two clips → winner clip1 → unlock → winner clip2 (37 ms)
+    Edit Combinations
+      ✓ upload → edit title → approve (15 ms)
+      ✓ approve → edit → still active (16 ms)
+      ✓ locked clip cannot be edited (guard check) (11 ms)
+    Slot Status Combinations
+      ✓ waiting_for_clips → voting → waiting_for_clips (all deleted) (16 ms)
+      ✓ voting → locked → voting (unlock) (21 ms)
+      ✓ slot 1 locked → slot 2 becomes waiting_for_clips (21 ms)
+    Bulk Operation Combinations
+      ✓ bulk approve multiple clips (23 ms)
+      ✓ bulk delete all → slot resets (35 ms)
+      ✓ bulk reject does not affect other clips (25 ms)
+    Edge Case Combinations
+      ✓ delete winner → blocked, unlock → delete → success (19 ms)
+      ✓ multiple operations on same clip rapid succession (26 ms)
+      ✓ all clips rejected → slot stays waiting (no active clips) (18 ms)
+      ✓ mixed statuses in slot: active + pending + rejected (21 ms)
+      ✓ unlock → edit → re-lock with same clip (24 ms)
+    Timer Combinations
+      ✓ timer starts → all clips deleted → timer clears (30 ms)
+      ✓ timer running → add more clips → timer continues (15 ms)
+      ✓ timer running → winner assigned → timer preserved in lock (21 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/clip-lifecycle.test.ts
+  Clip Lifecycle
+    Basic Clip Creation
+      ✓ creates a pending clip successfully (21 ms)
+      ✓ creates multiple clips with unique IDs (9 ms)
+    Approve Flow
+      ✓ approving a clip assigns it to the first available slot (23 ms)
+      ✓ approving first clip starts the 24h timer (12 ms)
+    Winner Assignment
+      ✓ assigning winner locks the clip and slot (14 ms)
+      ✓ assigning winner advances to next slot (16 ms)
+    Unlock Flow
+      ✓ unlocking a slot reverts clip status to pending (13 ms)
+    Delete Flow - THE BUG WE FIXED
+      ✓ deleting last clip after unlock resets slot to waiting_for_clips (30 ms)
+      ✓ deleting last active clip clears timer (20 ms)
+      ✓ deleting one of multiple clips does NOT reset slot (20 ms)
+    Safety Checks
+      ✓ cannot delete a clip that is the slot winner (10 ms)
+      ✓ cannot edit a locked clip status (9 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/slot-management.test.ts
+  Slot Management
+    Timer Management
+      ✓ approving first clip starts 24h timer (12 ms)
+      ✓ bulk delete all clips resets slot to waiting_for_clips (37 ms)
+      ✓ deleting pending clips also resets slot (20 ms)
+    Status Transitions
+      ✓ slot transitions: upcoming -> waiting_for_clips -> voting -> locked (21 ms)
+      ✓ unlocking slot clears winner reference (21 ms)
+    Edge Cases
+      ✓ slot with mixed active and pending clips stays in voting (19 ms)
+      ✓ rejected clips do not count towards slot status (18 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/safety-checks.test.ts
+  Safety Checks
+    Winner Protection
+      ✓ winner clip is linked to slot via winner_tournament_clip_id (9 ms)
+      ✓ can detect if clip is a winner before delete (10 ms)
+      ✓ non-winner clips can be deleted (11 ms)
+    Locked Clip Guards
+      ✓ locked clip has status = locked (7 ms)
+      ✓ can detect locked clip before edit (8 ms)
+      ✓ unlocked clip can be edited (12 ms)
+    Unlock Before Modify
+      ✓ unlocking slot clears winner and allows modification (16 ms)
+      ✓ attempting to modify locked slot winner fails safety check (9 ms)
+    Bulk Operation Safety
+      ✓ bulk delete should skip winner clips (16 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/api-endpoints.test.ts
+  API Endpoints Tests
+    Health Check
+      ✓ API server is reachable (2 ms)
+    Clips API - GET
+      ✓ GET /api/admin/clips returns clips list (4 ms)
+      ✓ GET /api/admin/clips/:id returns single clip (3 ms)
+      ✓ GET /api/admin/clips/:id with invalid UUID returns 400 or 404 (1 ms)
+      ✓ GET /api/admin/clips/:id with non-existent ID returns 404 (1 ms)
+    Clips API - POST/PUT
+      ✓ POST to approve clip endpoint (3 ms)
+      ✓ POST to reject clip endpoint (4 ms)
+      ✓ PUT to update clip (3 ms)
+    Clips API - DELETE
+      ✓ DELETE /api/admin/clips/:id removes clip (4 ms)
+      ✓ DELETE with non-existent ID returns 404
+    Slots API
+      ✓ GET /api/admin/slots returns slots list (1 ms)
+      ✓ GET /api/admin/slots/:position returns single slot (1 ms)
+      ✓ POST /api/admin/slots/:position/unlock unlocks slot
+    Seasons API
+      ✓ GET /api/admin/seasons returns seasons list (1 ms)
+      ✓ GET /api/admin/seasons/:id returns single season
+    Response Format Validation
+      ✓ error responses have consistent format (1 ms)
+      ✓ success responses return JSON (1 ms)
+    HTTP Methods
+      ✓ OPTIONS request returns allowed methods
+      ✓ HEAD request works for GET endpoints (1 ms)
+      ✓ unsupported method returns 405 (1 ms)
+    Query Parameters
+      ✓ GET with query params for filtering
+      ✓ GET with pagination params (1 ms)
+      ✓ GET with status filter
+    Content-Type Handling
+      ✓ accepts application/json (3 ms)
+      ✓ rejects invalid content-type for POST (3 ms)
+    Rate Limiting Check
+      ✓ multiple rapid requests are handled (3 ms)
+
+Test Suites: 11 passed, 11 total
+Tests:       189 passed, 189 total
+Snapshots:   0 total
+Time:        12.83 s, estimated 14 s
+Ran all test suites.

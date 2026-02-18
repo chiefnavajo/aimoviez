@@ -1,0 +1,993 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=integration/api
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/api/comments-api.test.ts
+  Comments API Integration Tests
+    Comment Creation
+      ✕ creates a comment successfully (26 ms)
+      ✕ creates multiple comments on same clip (20 ms)
+      ✕ comment has correct metadata (24 ms)
+      ✕ handles special characters in comment text (19 ms)
+      ✕ handles very long comments (27 ms)
+    Comment Replies
+      ✕ creates a reply to a comment (18 ms)
+      ✕ creates nested replies (23 ms)
+      ✕ counts replies correctly (7 ms)
+    Comment Likes
+      ✕ can like a comment (7 ms)
+      ✕ prevents duplicate likes (6 ms)
+      ✕ can unlike a comment (10 ms)
+    Comment Deletion
+      ✕ soft deletes a comment (10 ms)
+      ✕ soft deleted comments not returned in normal query (5 ms)
+      ✕ hard delete removes comment completely (5 ms)
+    Comment Pagination
+      ✕ paginates comments correctly (5 ms)
+      ✕ sorts comments by newest first (4 ms)
+      ✕ can sort by most liked (5 ms)
+    Comment Count
+      ✕ counts comments for a clip (5 ms)
+      ✕ excludes deleted comments from count (4 ms)
+    Comment Integrity
+      ✓ comment foreign key to clip is enforced (2 ms)
+      ✕ deleting clip cascades to comments (4 ms)
+
+  ● Comments API Integration Tests › Comment Creation › creates a comment successfully
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:129:25)
+
+  ● Comments API Integration Tests › Comment Creation › creates multiple comments on same clip
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:140:7)
+
+  ● Comments API Integration Tests › Comment Creation › comment has correct metadata
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:150:25)
+
+  ● Comments API Integration Tests › Comment Creation › handles special characters in comment text
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:163:25)
+
+  ● Comments API Integration Tests › Comment Creation › handles very long comments
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /length|size|long/
+    Received string:  "could not find the 'user_id' column of 'comments' in the schema cache"
+
+      185 |       if (error) {
+      186 |         // Length constraint
+    > 187 |         expect(error.message.toLowerCase()).toMatch(/length|size|long/);
+          |                                             ^
+      188 |       } else {
+      189 |         createdCommentIds.push(data.id);
+      190 |         const comment = await getCommentById(data.id);
+
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:187:45)
+
+  ● Comments API Integration Tests › Comment Replies › creates a reply to a comment
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:199:24)
+
+  ● Comments API Integration Tests › Comment Replies › creates nested replies
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:208:22)
+
+  ● Comments API Integration Tests › Comment Replies › counts replies correctly
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:218:24)
+
+  ● Comments API Integration Tests › Comment Likes › can like a comment
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:236:25)
+
+  ● Comments API Integration Tests › Comment Likes › prevents duplicate likes
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:253:25)
+
+  ● Comments API Integration Tests › Comment Likes › can unlike a comment
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:275:25)
+
+  ● Comments API Integration Tests › Comment Deletion › soft deletes a comment
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:297:25)
+
+  ● Comments API Integration Tests › Comment Deletion › soft deleted comments not returned in normal query
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:313:7)
+
+  ● Comments API Integration Tests › Comment Deletion › hard delete removes comment completely
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:330:25)
+
+  ● Comments API Integration Tests › Comment Pagination › paginates comments correctly
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:350:9)
+
+  ● Comments API Integration Tests › Comment Pagination › sorts comments by newest first
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:390:19)
+
+  ● Comments API Integration Tests › Comment Pagination › can sort by most liked
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:406:24)
+
+  ● Comments API Integration Tests › Comment Count › counts comments for a clip
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:434:9)
+
+  ● Comments API Integration Tests › Comment Count › excludes deleted comments from count
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:450:20)
+
+  ● Comments API Integration Tests › Comment Integrity › deleting clip cascades to comments
+
+    Failed to create comment: Could not find the 'user_id' column of 'comments' in the schema cache
+
+      63 |     .single();
+      64 |
+    > 65 |   if (error) throw new Error(`Failed to create comment: ${error.message}`);
+         |                    ^
+      66 |
+      67 |   createdCommentIds.push(data.id);
+      68 |   return data.id;
+
+      at createComment (src/__tests__/integration/api/comments-api.test.ts:65:20)
+      at Object.<anonymous> (src/__tests__/integration/api/comments-api.test.ts:488:9)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/api/voting-api.test.ts
+  Voting API Integration Tests
+    Vote Creation (Database Level)
+      ✓ creates a vote successfully (14 ms)
+      ✓ increments vote count with multiple votes (59 ms)
+      ✓ prevents duplicate votes from same voter (10 ms)
+      ✓ allows same voter to vote on different clips (16 ms)
+      ✓ vote weight affects total correctly (27 ms)
+    Vote Deletion (Database Level)
+      ✓ deletes a vote successfully (31 ms)
+      ✓ deleting all votes resets clip count to zero (78 ms)
+    Vote Constraints
+      ✓ cannot vote on inactive clips (11 ms)
+      ✓ cannot vote on clips in wrong slot (9 ms)
+      ✓ vote_weight must be positive (8 ms)
+    Daily Vote Limit Simulation
+      ✓ tracks votes per user correctly (312 ms)
+      ✓ can query today's votes for rate limiting (51 ms)
+    Vote Distribution
+      ✓ votes are evenly distributed across clips (135 ms)
+      ✓ can identify winner by vote count (124 ms)
+    Concurrent Voting Scenarios
+      ✓ handles 100 concurrent votes correctly (241 ms)
+      ✓ no duplicate votes under concurrent load (18 ms)
+    Vote Integrity
+      ✓ vote foreign key to clip is enforced (3 ms)
+      ✓ deleting clip cascades to votes (40 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    vote_dead_letter_queue table status: Could not find the table 'public.vote_dead_letter_queue' in the schema cache
+
+      at Object.<anonymous> (src/__tests__/integration/api/cron-jobs.test.ts:252:17)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/api/cron-jobs.test.ts
+  Cron Jobs Integration Tests
+    Distributed Locking
+      ✓ cron_locks table exists (5 ms)
+      ✓ can acquire a lock (5 ms)
+      ✓ prevents duplicate locks (14 ms)
+      ✓ lock can be released and re-acquired (2 ms)
+      ✕ expired locks can be overwritten (7 ms)
+    Feature Flags
+      ✓ feature_flags table exists (4 ms)
+      ✓ can read async_voting flag (3 ms)
+      ✓ feature flags have required fields (4 ms)
+    Vote Queue Processing
+      ✓ vote_dead_letter_queue table exists (5 ms)
+      ✓ can insert into dead letter queue (6 ms)
+    Vote Counter Sync Simulation
+      ✓ can batch update vote counts (12 ms)
+      ✓ handles empty sync batch
+      ✓ handles concurrent sync attempts (5 ms)
+    Vote Queue Batch Processing
+      ✓ simulates batch vote insert (28 ms)
+      ✓ handles batch with duplicates gracefully (14 ms)
+    Cron Health Checks
+      ✓ can check database connectivity (3 ms)
+      ✓ can measure query performance (50 ms)
+    Error Recovery
+      ✓ can retry failed operations (14 ms)
+      ✓ moves failed items to dead letter queue (5 ms)
+
+  ● Cron Jobs Integration Tests › Distributed Locking › expired locks can be overwritten
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      185 |       // Now acquire
+      186 |       const acquired = await acquireLock(lockName);
+    > 187 |       expect(acquired).toBe(true);
+          |                        ^
+      188 |
+      189 |       await releaseLock(lockName);
+      190 |     });
+
+      at Object.<anonymous> (src/__tests__/integration/api/cron-jobs.test.ts:187:24)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/api/ai-generation.test.ts
+  AI Generation Integration Tests
+    Generation Records
+      ✓ ai_generations table exists (3 ms)
+      ✕ creates a generation record (2 ms)
+      ✕ generation has required fields (2 ms)
+      ✕ stores optional style parameter (1 ms)
+    Status Transitions
+      ✕ transitions from pending to generating (2 ms)
+      ✕ transitions from generating to ready (2 ms)
+      ✕ transitions to failed state (2 ms)
+      ✕ queued status for waiting generations (2 ms)
+    Credit Tracking
+      ✕ tracks credit cost per generation (2 ms)
+      ✕ can sum total credits used by user (2 ms)
+      ✕ tracks generations without credit cost (legacy) (2 ms)
+    User Generation Queries
+      ✕ can fetch user generations (2 ms)
+      ✕ can filter by status (2 ms)
+      ✕ can count generations per day (2 ms)
+    Error Handling
+      ✕ stores error messages for failed generations (2 ms)
+      ✕ can retry failed generations (1 ms)
+    Generation Integrity
+      ✓ generation links to valid user (1 ms)
+      ✓ generation links to valid season (2 ms)
+      ✓ deleting user cascades generations
+    Model Pricing Integration
+      ✓ model_pricing table exists (4 ms)
+      ✓ can lookup model cost (3 ms)
+    Generation Performance
+      ✕ handles many concurrent generation inserts (2 ms)
+      ✓ queries are fast with index (3 ms)
+
+  ● AI Generation Integration Tests › Generation Records › creates a generation record
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:102:18)
+
+  ● AI Generation Integration Tests › Generation Records › generation has required fields
+
+    Failed to create generation: Could not find the 'credit_cost' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:111:18)
+
+  ● AI Generation Integration Tests › Generation Records › stores optional style parameter
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:124:18)
+
+  ● AI Generation Integration Tests › Status Transitions › transitions from pending to generating
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:136:18)
+
+  ● AI Generation Integration Tests › Status Transitions › transitions from generating to ready
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:145:18)
+
+  ● AI Generation Integration Tests › Status Transitions › transitions to failed state
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:157:18)
+
+  ● AI Generation Integration Tests › Status Transitions › queued status for waiting generations
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:169:18)
+
+  ● AI Generation Integration Tests › Credit Tracking › tracks credit cost per generation
+
+    Failed to create generation: Could not find the 'credit_cost' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:178:18)
+
+  ● AI Generation Integration Tests › Credit Tracking › can sum total credits used by user
+
+    Failed to create generation: Could not find the 'credit_cost' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:186:7)
+
+  ● AI Generation Integration Tests › Credit Tracking › tracks generations without credit cost (legacy)
+
+    Failed to create generation: Could not find the 'credit_cost' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:201:18)
+
+  ● AI Generation Integration Tests › User Generation Queries › can fetch user generations
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:210:7)
+
+  ● AI Generation Integration Tests › User Generation Queries › can filter by status
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:223:7)
+
+  ● AI Generation Integration Tests › User Generation Queries › can count generations per day
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:239:7)
+
+  ● AI Generation Integration Tests › Error Handling › stores error messages for failed generations
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:254:18)
+
+  ● AI Generation Integration Tests › Error Handling › can retry failed generations
+
+    Failed to create generation: Could not find the 'season_id' column of 'ai_generations' in the schema cache
+
+      35 |     .single();
+      36 |
+    > 37 |   if (error) throw new Error(`Failed to create generation: ${error.message}`);
+         |                    ^
+      38 |
+      39 |   createdGenerationIds.push(data.id);
+      40 |   return data.id;
+
+      at createGeneration (src/__tests__/integration/api/ai-generation.test.ts:37:20)
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:264:18)
+
+  ● AI Generation Integration Tests › Generation Performance › handles many concurrent generation inserts
+
+    expect(received).toBeNull()
+
+    Received: {"code": "PGRST204", "details": null, "hint": null, "message": "Could not find the 'season_id' column of 'ai_generations' in the schema cache"}
+
+      363 |         .select('id');
+      364 |
+    > 365 |       expect(error).toBeNull();
+          |                     ^
+      366 |       expect(data?.length).toBe(20);
+      367 |
+      368 |       // Track for cleanup
+
+      at Object.<anonymous> (src/__tests__/integration/api/ai-generation.test.ts:365:21)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/api/credits-system.test.ts
+  Credits System Integration Tests
+    User Balance Management
+      ✕ new user starts with zero balance (3 ms)
+      ✕ can add credits to user balance (4 ms)
+      ✕ can deduct credits from user balance (3 ms)
+      ✕ balance cannot go negative (3 ms)
+      ✕ tracks lifetime purchased credits separately (3 ms)
+    Credit Packages
+      ✓ credit packages exist in database (4 ms)
+      ✓ packages have required fields (4 ms)
+      ✓ package credits are positive (4 ms)
+    Credit Transactions
+      ✕ can simulate credit purchase (3 ms)
+      ✕ can simulate credit usage (3 ms)
+      ✕ prevents usage when insufficient balance (3 ms)
+      ✕ handles concurrent balance updates safely (2 ms)
+    Model Pricing
+      ✓ model pricing table exists (3 ms)
+      ✓ models have credit costs (3 ms)
+    Balance Calculations
+      ✕ calculates correct balance after multiple operations (3 ms)
+      ✕ large credit amounts handled correctly (3 ms)
+    User Credit State
+      ✕ banned users can still have credits (3 ms)
+      ✕ credits persist across session changes (3 ms)
+
+  ● Credits System Integration Tests › User Balance Management › new user starts with zero balance
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:82:22)
+
+  ● Credits System Integration Tests › User Balance Management › can add credits to user balance
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:90:22)
+
+  ● Credits System Integration Tests › User Balance Management › can deduct credits from user balance
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:99:22)
+
+  ● Credits System Integration Tests › User Balance Management › balance cannot go negative
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:108:22)
+
+  ● Credits System Integration Tests › User Balance Management › tracks lifetime purchased credits separately
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:129:22)
+
+  ● Credits System Integration Tests › Credit Transactions › can simulate credit purchase
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:197:22)
+
+  ● Credits System Integration Tests › Credit Transactions › can simulate credit usage
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:217:22)
+
+  ● Credits System Integration Tests › Credit Transactions › prevents usage when insufficient balance
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:236:22)
+
+  ● Credits System Integration Tests › Credit Transactions › handles concurrent balance updates safely
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:252:22)
+
+  ● Credits System Integration Tests › Balance Calculations › calculates correct balance after multiple operations
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:306:22)
+
+  ● Credits System Integration Tests › Balance Calculations › large credit amounts handled correctly
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:337:22)
+
+  ● Credits System Integration Tests › User Credit State › banned users can still have credits
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:349:22)
+
+  ● Credits System Integration Tests › User Credit State › credits persist across session changes
+
+    Failed to create user: null value in column "username" of relation "users" violates not-null constraint
+
+      29 |   });
+      30 |
+    > 31 |   if (error) throw new Error(`Failed to create user: ${error.message}`);
+         |                    ^
+      32 |
+      33 |   createdUserIds.push(userId);
+      34 |   return userId;
+
+      at createTestUser (src/__tests__/integration/api/credits-system.test.ts:31:20)
+      at Object.<anonymous> (src/__tests__/integration/api/credits-system.test.ts:359:22)
+
+Test Suites: 4 failed, 1 passed, 5 total
+Tests:       50 failed, 49 passed, 99 total
+Snapshots:   0 total
+Time:        3.748 s
+Ran all test suites matching /integration\/api/i.

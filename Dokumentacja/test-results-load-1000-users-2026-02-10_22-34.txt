@@ -1,0 +1,73 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=load-test
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+       Query performance: 8 parallel queries in 12ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:554:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/load-test-1000-users.test.ts
+  Load Test: 1000 Users Simulation
+    User Creation
+      ✓ creates 1000 unique users successfully (2 ms)
+      ✓ all users exist in database (7 ms)
+    Mass Upload Simulation
+      ✓ 300 users upload 2 clips each (600 total clips) (143 ms)
+      ✓ clips are properly distributed across 4 seasons (36 ms)
+      ✓ each user has exactly 2 clips (42 ms)
+    Admin Approval Flow
+      ✓ admin approves 100 clips for voting in season 1 (39 ms)
+      ✓ slot status changes to voting (3 ms)
+    Mass Voting Simulation
+      ✓ 700 users vote on active clips (251 ms)
+      ✓ votes are distributed across clips (8 ms)
+      ✓ can identify winning clip by vote count (6 ms)
+    Concurrent Operations
+      ✓ simultaneous uploads and votes across seasons (20 ms)
+      ✓ database maintains integrity under concurrent load (69 ms)
+    Statistics & Reporting
+      ✕ generates accurate user activity report (35 ms)
+      ✓ system handles 1000 users without performance degradation (16 ms)
+    Edge Cases with High User Count
+      ✓ handles user voting for their own clip (11 ms)
+      ✓ handles duplicate vote attempts gracefully (12 ms)
+      ✓ handles max clips per user limit (3 ms)
+
+  ● Load Test: 1000 Users Simulation › Statistics & Reporting › generates accurate user activity report
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 200
+    Received:   0
+
+      523 |       // Verify stats make sense
+      524 |       expect(stats.totalUsers).toBe(1000);
+    > 525 |       expect(stats.uploadingUsers).toBeGreaterThan(200);
+          |                                    ^
+      526 |       expect(stats.totalClips).toBeGreaterThan(500);
+      527 |       expect(stats.totalVotes).toBeGreaterThan(0);
+      528 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:525:36)
+
+Test Suites: 1 failed, 1 total
+Tests:       1 failed, 16 passed, 17 total
+Snapshots:   0 total
+Time:        1.878 s, estimated 3 s
+Ran all test suites matching /load-test/i.

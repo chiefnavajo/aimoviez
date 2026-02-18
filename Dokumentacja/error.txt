@@ -1,0 +1,343 @@
+23:39:50.090 Running build in Washington, D.C., USA (East) – iad1
+23:39:50.090 Build machine configuration: 4 cores, 8 GB
+23:39:50.198 Cloning github.com/chiefnavajo/aimoviez (Branch: main, Commit: d134e19)
+23:39:52.677 Cloning completed: 2.479s
+23:39:53.786 Restored build cache from previous deployment (AZxPQPm3dSxzdk3FFZBysmVHjjLG)
+23:39:54.090 Warning: "vercel" found in project dependencies and will be ignored.
+23:39:54.094 Running "vercel build"
+23:39:54.633 Vercel CLI 50.18.0
+23:39:55.087 Installing dependencies...
+23:39:57.580 
+23:39:57.580 up to date in 2s
+23:39:57.580 
+23:39:57.580 211 packages are looking for funding
+23:39:57.580   run `npm fund` for details
+23:39:57.612 Detected Next.js version: 15.5.7
+23:39:57.620 Running "npm run build"
+23:39:57.736 
+23:39:57.737 > aimoviez-app@0.1.0 build
+23:39:57.737 > next build
+23:39:57.737 
+23:39:59.286    ▲ Next.js 15.5.7
+23:39:59.286    - Experiments (use with caution):
+23:39:59.286      · clientTraceMetadata
+23:39:59.286 
+23:39:59.431    Creating an optimized production build ...
+23:39:59.890 [@sentry/nextjs] Could not find `onRequestError` hook in instrumentation file. This indicates outdated configuration of the Sentry SDK. Use `Sentry.captureRequestError` to instrument the `onRequestError` hook: https://docs.sentry.io/platforms/javascript/guides/nextjs/manual-setup/#errors-from-nested-react-server-components
+23:40:00.346 [@sentry/nextjs] DEPRECATION WARNING: It is recommended renaming your `sentry.client.config.ts` file, or moving its content to `instrumentation-client.ts`. When using Turbopack `sentry.client.config.ts` will no longer work. Read more about the `instrumentation-client.ts` file: https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
+23:40:39.474  ✓ Compiled successfully in 39.1s
+23:40:39.479    Linting and checking validity of types ...
+23:40:42.715 [baseline-browser-mapping] The data in this module is over two months old.  To ensure accurate Baseline data, please update: `npm i baseline-browser-mapping@latest -D`
+23:41:10.817 
+23:41:10.818 Failed to compile.
+23:41:10.818 
+23:41:10.818 ./src/__tests__/api/cron-fixes.test.ts
+23:41:10.818 52:13  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.818 62:13  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.819 72:13  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.819 76:13  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.819 146:112  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 158:112  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 166:112  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 184:30  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.819 237:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 242:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 261:124  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 295:115  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.819 
+23:41:10.820 ./src/__tests__/api/data-fixes.test.ts
+23:41:10.820 194:31  Error: The `Function` type accepts any function-like value.
+23:41:10.820 Prefer explicitly defining any function parameters and return type.  @typescript-eslint/no-unsafe-function-type
+23:41:10.820 
+23:41:10.820 ./src/__tests__/api/security-fixes.test.ts
+23:41:10.820 189:22  Warning: 'table' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.820 
+23:41:10.820 ./src/__tests__/hooks/context-memoization.test.ts
+23:41:10.820 4:22  Warning: 'act' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.820 39:32  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.820 56:32  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.820 71:41  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.821 75:14  Warning: 'TestConsumer' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.821 112:41  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.821 149:16  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.821 181:16  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.821 
+23:41:10.821 ./src/__tests__/hooks/useRealtimeClips.test.ts
+23:41:10.821 4:22  Warning: 'act' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.821 117:35  Warning: A `require()` style import is forbidden.  @typescript-eslint/no-require-imports
+23:41:10.821 
+23:41:10.821 ./src/__tests__/hooks/useTeamChat.test.ts
+23:41:10.821 4:22  Warning: 'act' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 
+23:41:10.822 ./src/__tests__/integration/admin/auto-advance-counter.test.ts
+23:41:10.822 186:13  Warning: 'clipId' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 264:13  Warning: 'clip2' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 265:13  Warning: 'clip3' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 351:13  Warning: 'clip2' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 587:13  Warning: 'clip2' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 702:13  Warning: 'pendingClip' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.822 
+23:41:10.822 ./src/__tests__/integration/admin/user-behavior-simulation.test.ts
+23:41:10.825 364:7  Warning: 'allActiveClipIds' is never reassigned. Use 'const' instead.  prefer-const
+23:41:10.825 
+23:41:10.825 ./src/__tests__/integration/movie/movie-generation.test.ts
+23:41:10.825 24:7  Warning: 'MOVIE_USER_EMAIL' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.825 
+23:41:10.825 ./src/__tests__/integration/movie/movie-pipeline-bugfixes.test.ts
+23:41:10.825 1101:11  Warning: 'hailuoCost' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 1102:11  Warning: 'soraCost' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 
+23:41:10.826 ./src/__tests__/integration/security/vulnerability-scan.test.ts
+23:41:10.826 31:3  Warning: 'createVote' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 209:15  Warning: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 234:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 257:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 294:15  Warning: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 298:49  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.826 346:15  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.826 548:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 587:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 629:23  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 683:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 809:13  Warning: 'userB' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 827:13  Warning: 'userB' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 858:13  Warning: 'userB' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 893:13  Warning: 'member' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 938:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 978:80  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.827 999:24  Warning: 'totalMs' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.827 1026:79  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1115:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1232:13  Warning: 'succeeded' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.828 1232:80  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1373:15  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.828 1458:31  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1467:15  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.828 1469:41  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1571:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.828 1592:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.828 1598:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1624:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1654:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1676:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1696:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1940:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 1959:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 2038:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 2092:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.829 2097:21  Warning: 'error' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 2259:15  Warning: 'data' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.829 
+23:41:10.830 ./src/__tests__/lib/sounds.test.ts
+23:41:10.830 8:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.830 76:52  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.830 
+23:41:10.830 ./src/app/admin/characters/page.tsx
+23:41:10.830 18:3  Warning: 'RefreshCw' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.830 101:6  Warning: React Hook useEffect has a missing dependency: 'fetchSeasons'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.830 108:6  Warning: React Hook useEffect has missing dependencies: 'fetchCharacters' and 'fetchWinnerClips'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.830 
+23:41:10.831 ./src/app/admin/co-director/page.tsx
+23:41:10.831 153:6  Warning: React Hook useEffect has a missing dependency: 'fetchSeasons'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.831 162:6  Warning: React Hook useEffect has missing dependencies: 'fetchAnalysis', 'fetchBrief', 'fetchDirections', and 'fetchSlotInfo'. Either include them or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.831 
+23:41:10.831 ./src/app/admin/movies/page.tsx
+23:41:10.831 4:43  Warning: 'Search' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.831 
+23:41:10.831 ./src/app/admin/page.tsx
+23:41:10.831 806:5  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+23:41:10.831 
+23:41:10.831 ./src/app/api/admin/moderation/route.ts
+23:41:10.832 136:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 225:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 329:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 
+23:41:10.832 ./src/app/api/ai/generate/route.ts
+23:41:10.832 15:171  Warning: 'MODELS' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.832 
+23:41:10.832 ./src/app/api/ai/webhook/route.ts
+23:41:10.832 17:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 21:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 153:16  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.832 
+23:41:10.836 ./src/app/api/cron/auto-advance/route.ts
+23:41:10.837 275:15  Warning: 'nextSlotPosition' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.837 
+23:41:10.837 ./src/app/api/cron/process-movie-scenes/route.ts
+23:41:10.837 661:3  Warning: 'model' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.837 
+23:41:10.837 ./src/app/api/leaderboard/clips/route.ts
+23:41:10.837 15:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.837 27:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.837 
+23:41:10.837 ./src/app/api/leaderboard/creators/route.ts
+23:41:10.837 16:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.837 28:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.837 229:64  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.837 
+23:41:10.837 ./src/app/api/leaderboard/route.ts
+23:41:10.838 14:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.838 29:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.838 
+23:41:10.838 ./src/app/api/leaderboard/voters/route.ts
+23:41:10.838 181:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.838 204:60  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.838 
+23:41:10.838 ./src/app/api/movie/projects/[id]/start/route.ts
+23:41:10.838 105:40  Warning: 'updated' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.838 
+23:41:10.838 ./src/app/api/notifications/route.ts
+23:41:10.838 47:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.839 
+23:41:10.839 ./src/app/api/seasons/active/route.ts
+23:41:10.839 9:25  Warning: 'getGenreLabel' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.839 34:27  Warning: 'req' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.839 
+23:41:10.839 ./src/app/api/story/route.ts
+23:41:10.839 13:39  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.839 25:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.839 153:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.839 
+23:41:10.839 ./src/app/api/teams/[id]/members/route.ts
+23:41:10.839 104:21  Warning: 'result' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.840 
+23:41:10.840 ./src/app/api/vote/route.ts
+23:41:10.840 56:36  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 57:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 58:37  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 120:61  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 124:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 135:54  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.840 378:16  Warning: 'getVoteOnClip' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.840 607:9  Warning: 'forceNew' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.840 
+23:41:10.840 ./src/app/dashboard/page.tsx
+23:41:10.841 38:26  Warning: 'useKeyboardNavigation' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.841 604:9  Warning: 'isMobile' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.841 1928:15  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+23:41:10.841 
+23:41:10.841 ./src/app/leaderboard/page.tsx
+23:41:10.841 108:63  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.841 124:76  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.841 138:84  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.841 
+23:41:10.841 ./src/app/movie/[id]/page.tsx
+23:41:10.841 21:9  Warning: 'router' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.841 
+23:41:10.842 ./src/app/onboarding/page.tsx
+23:41:10.842 83:58  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.842 98:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.842 
+23:41:10.842 ./src/app/profile/[id]/page.tsx
+23:41:10.842 84:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.842 
+23:41:10.843 ./src/app/profile/page.tsx
+23:41:10.843 163:69  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.843 179:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.843 211:72  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.843 637:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.843 719:66  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.844 736:106  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.844 859:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.844 
+23:41:10.844 ./src/app/story/page.tsx
+23:41:10.844 44:3  Warning: 'X' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.844 667:13  Warning: Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+23:41:10.844 1129:7  Warning: 'SeasonStrip' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.844 
+23:41:10.844 ./src/app/watch/page.tsx
+23:41:10.844 65:3  Warning: 'index' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.844 226:9  Warning: The 'lockedSlots' logical expression could make the dependencies of useEffect Hook (at line 283) change on every render. To fix this, wrap the initialization of 'lockedSlots' in its own useMemo() Hook.  react-hooks/exhaustive-deps
+23:41:10.844 356:6  Warning: React Hook useEffect has a missing dependency: 'currentSlot?.clip?.video_url'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.845 
+23:41:10.845 ./src/components/EnhancedUploadArea.tsx
+23:41:10.845 189:9  Warning: The 'handleFileProcessing' function makes the dependencies of useCallback Hook (at line 232) change on every render. To fix this, wrap the definition of 'handleFileProcessing' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+23:41:10.845 189:9  Warning: The 'handleFileProcessing' function makes the dependencies of useCallback Hook (at line 243) change on every render. To fix this, wrap the definition of 'handleFileProcessing' in its own useCallback() Hook.  react-hooks/exhaustive-deps
+23:41:10.845 231:5  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+23:41:10.845 242:5  Warning: Unused eslint-disable directive (no problems were reported from 'react-hooks/exhaustive-deps').
+23:41:10.845 
+23:41:10.845 ./src/components/GenreSwiper.tsx
+23:41:10.845 3:59  Warning: 'useMemo' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.845 5:10  Warning: 'getGenreEmoji' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.845 103:29  Warning: 'index' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.846 
+23:41:10.846 ./src/components/MiniLeaderboard.tsx
+23:41:10.846 62:85  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.846 
+23:41:10.847 ./src/components/OnboardingTour.tsx
+23:41:10.847 18:3  Warning: 'User' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.847 
+23:41:10.847 ./src/components/team/TeamChat.tsx
+23:41:10.847 46:14  Warning: 'err' is defined but never used.  @typescript-eslint/no-unused-vars
+23:41:10.847 
+23:41:10.847 ./src/components/team/TeamDashboard.tsx
+23:41:10.847 20:10  Warning: 'useUserTeam' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.847 
+23:41:10.847 ./src/components/team/TeamMemberList.tsx
+23:41:10.847 20:3  Warning: 'leaderId' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.847 
+23:41:10.847 ./src/components/ui/Toast.tsx
+23:41:10.848 50:19  Warning: The ref value 'timeoutRefs.current' will likely have changed by the time this effect cleanup function runs. If this ref points to a node rendered by React, copy 'timeoutRefs.current' to a variable inside the effect, and use that variable in the cleanup function.  react-hooks/exhaustive-deps
+23:41:10.848 
+23:41:10.848 ./src/hooks/useAuth.tsx
+23:41:10.848 20:12  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.848 
+23:41:10.848 ./src/hooks/useGenreSwiper.ts
+23:41:10.848 4:10  Warning: 'LAUNCH_GENRES' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.848 4:25  Warning: 'getGenreEmoji' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.848 4:40  Warning: 'getGenreLabel' is defined but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.849 
+23:41:10.849 ./src/hooks/useRealtimeClips.ts
+23:41:10.849 445:6  Warning: React Hook useCallback has a missing dependency: 'scheduleReconnect'. Either include it or remove the dependency array.  react-hooks/exhaustive-deps
+23:41:10.849 
+23:41:10.849 ./src/lib/api-errors.ts
+23:41:10.849 185:55  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 
+23:41:10.849 ./src/lib/api-utils.ts
+23:41:10.849 15:34  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 24:20  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 31:40  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 48:22  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 97:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.849 121:13  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 167:25  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 202:9  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 239:28  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 240:19  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 241:32  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 269:44  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 317:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 341:38  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 351:26  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 364:21  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.850 
+23:41:10.850 ./src/lib/comment-event-queue.ts
+23:41:10.850 152:47  Warning: 'event' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.850 
+23:41:10.850 ./src/lib/leaderboard-redis.ts
+23:41:10.851 401:27  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 
+23:41:10.851 ./src/lib/rate-limit.ts
+23:41:10.851 367:51  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 371:45  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 
+23:41:10.851 ./src/lib/sounds.ts
+23:41:10.851 27:68  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 
+23:41:10.851 ./src/lib/validations.ts
+23:41:10.851 57:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 220:43  Warning: Unexpected any. Specify a different type.  @typescript-eslint/no-explicit-any
+23:41:10.851 
+23:41:10.851 ./src/lib/visual-learning.ts
+23:41:10.852 162:9  Warning: 'duration' is never reassigned. Use 'const' instead.  prefer-const
+23:41:10.852 164:15  Warning: 'stdout' is assigned a value but never used. Allowed unused vars must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.852 
+23:41:10.852 ./src/lib/vote-event-queue.ts
+23:41:10.852 122:40  Warning: 'event' is defined but never used. Allowed unused args must match /^_/u.  @typescript-eslint/no-unused-vars
+23:41:10.852 
+23:41:10.852 info  - Need to disable some ESLint rules? Learn more here: https://nextjs.org/docs/app/api-reference/config/eslint#disabling-rules
+23:41:14.736 Error: Command "npm run build" exited with 1
+
+
+
+can you analyze the cost of FAL.AI in real time ? or pull the cost from from my account ? 

@@ -1,0 +1,519 @@
+ console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+ FAIL   integration  src/__tests__/integration/admin/clip-lifecycle.test.ts
+  Clip Lifecycle
+    Basic Clip Creation
+      ✕ creates a pending clip successfully (1 ms)
+      ✕ creates multiple clips with unique IDs
+    Approve Flow
+      ✕ approving a clip assigns it to the first available slot
+      ✕ approving first clip starts the 24h timer
+    Winner Assignment
+      ✕ assigning winner locks the clip and slot
+      ✕ assigning winner advances to next slot
+    Unlock Flow
+      ✕ unlocking a slot reverts clip status to pending
+    Delete Flow - THE BUG WE FIXED
+      ✕ deleting last clip after unlock resets slot to waiting_for_clips
+      ✕ deleting last active clip clears timer
+      ✕ deleting one of multiple clips does NOT reset slot
+    Safety Checks
+      ✕ cannot delete a clip that is the slot winner
+      ✕ cannot edit a locked clip status
+
+  ● Clip Lifecycle › Basic Clip Creation › creates a pending clip successfully
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Basic Clip Creation › creates multiple clips with unique IDs
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Approve Flow › approving a clip assigns it to the first available slot
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Approve Flow › approving first clip starts the 24h timer
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Winner Assignment › assigning winner locks the clip and slot
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Winner Assignment › assigning winner advances to next slot
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Unlock Flow › unlocking a slot reverts clip status to pending
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Delete Flow - THE BUG WE FIXED › deleting last clip after unlock resets slot to waiting_for_clips
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Delete Flow - THE BUG WE FIXED › deleting last active clip clears timer
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Delete Flow - THE BUG WE FIXED › deleting one of multiple clips does NOT reset slot
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Safety Checks › cannot delete a clip that is the slot winner
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  ● Clip Lifecycle › Safety Checks › cannot edit a locked clip status
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/clip-lifecycle.test.ts:26:5)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+ FAIL   integration  src/__tests__/integration/admin/slot-management.test.ts
+  Slot Management
+    Timer Management
+      ✕ approving first clip starts 24h timer
+      ✕ bulk delete all clips resets slot to waiting_for_clips
+      ✕ deleting pending clips also resets slot
+    Status Transitions
+      ✕ slot transitions: upcoming -> waiting_for_clips -> voting -> locked
+      ✕ unlocking slot clears winner reference
+    Edge Cases
+      ✕ slot with mixed active and pending clips stays in voting
+      ✕ rejected clips do not count towards slot status
+
+  ● Slot Management › Timer Management › approving first clip starts 24h timer
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Timer Management › bulk delete all clips resets slot to waiting_for_clips
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Timer Management › deleting pending clips also resets slot
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Status Transitions › slot transitions: upcoming -> waiting_for_clips -> voting -> locked
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Status Transitions › unlocking slot clears winner reference
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Edge Cases › slot with mixed active and pending clips stays in voting
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  ● Slot Management › Edge Cases › rejected clips do not count towards slot status
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/slot-management.test.ts:20:5)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+ FAIL   integration  src/__tests__/integration/admin/safety-checks.test.ts
+  Safety Checks
+    Winner Protection
+      ✕ winner clip is linked to slot via winner_tournament_clip_id
+      ✕ can detect if clip is a winner before delete
+      ✕ non-winner clips can be deleted
+    Locked Clip Guards
+      ✕ locked clip has status = locked
+      ✕ can detect locked clip before edit
+      ✕ unlocked clip can be edited
+    Unlock Before Modify
+      ✕ unlocking slot clears winner and allows modification
+      ✕ attempting to modify locked slot winner fails safety check
+    Bulk Operation Safety
+      ✕ bulk delete should skip winner clips
+
+  ● Safety Checks › Winner Protection › winner clip is linked to slot via winner_tournament_clip_id
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Winner Protection › can detect if clip is a winner before delete
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Winner Protection › non-winner clips can be deleted
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Locked Clip Guards › locked clip has status = locked
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Locked Clip Guards › can detect locked clip before edit
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Locked Clip Guards › unlocked clip can be edited
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Unlock Before Modify › unlocking slot clears winner and allows modification
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Unlock Before Modify › attempting to modify locked slot winner fails safety check
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+  ● Safety Checks › Bulk Operation Safety › bulk delete should skip winner clips
+
+    Failed to create test season: Could not find the table 'public.seasons' in the schema cache
+
+      188 |
+      189 |   if (seasonError) {
+    > 190 |     throw new Error(`Failed to create test season: ${seasonError.message}`);
+          |           ^
+      191 |   }
+      192 |
+      193 |   // Create slots
+
+      at setupTestSeason (src/__tests__/integration/setup.ts:190:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/safety-checks.test.ts:23:5)
+
+Test Suites: 3 failed, 3 total
+Tests:       28 failed, 28 total
+Snapshots:   0 total
+Time:        0.658 s

@@ -1,0 +1,828 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=timer-expiration|api-endpoints|error-scenarios|edge-cases
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/error-scenarios.test.ts
+  Error Scenarios Tests
+    Invalid Data Handling
+      ✓ rejects clip with missing required title (30 ms)
+      ✓ rejects clip with invalid status value (13 ms)
+      ✓ rejects clip with invalid UUID for season_id (14 ms)
+      ✓ rejects clip with non-existent season_id (15 ms)
+      ✓ rejects clip with non-existent user_id (18 ms)
+      ✓ rejects slot with invalid status (24 ms)
+      ✓ rejects negative slot_position (28 ms)
+      ✓ rejects empty string for required fields (6 ms)
+    Constraint Violations
+      ✕ handles duplicate vote from same voter gracefully (6 ms)
+      ✕ cannot set winner to non-existent clip (8 ms)
+      ✕ cannot delete season with existing clips (5 ms)
+    State Transition Errors
+      ✕ cannot lock slot without winner (4 ms)
+      ✕ deleting winner clip should fail or update slot (5 ms)
+    Concurrent Modification Errors
+      ✕ handles simultaneous updates to same clip (4 ms)
+      ✕ handles simultaneous status transitions (5 ms)
+    Data Type Errors
+      ✓ handles very long title (7 ms)
+      ✓ handles special characters in title (4 ms)
+      ✕ handles null in optional fields (8 ms)
+      ✓ handles invalid URL format (4 ms)
+    Boundary Conditions
+      ✓ slot_position at boundary (0) (4 ms)
+      ✓ slot_position at max int (6 ms)
+      ✕ vote_weight at minimum (1) (4 ms)
+      ✕ vote_weight at maximum (200) (2 ms)
+      ✕ vote_weight over maximum (201) should fail (4 ms)
+
+  ● Error Scenarios Tests › Constraint Violations › handles duplicate vote from same voter gracefully
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      194 |         .single();
+      195 |
+    > 196 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      197 |
+      198 |       const voterKey = `dup_test_${Date.now()}`;
+      199 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:196:33)
+
+  ● Error Scenarios Tests › Constraint Violations › cannot set winner to non-existent clip
+
+    expect(received).not.toBeNull()
+
+    Received: null
+
+      235 |
+      236 |       // Should fail due to foreign key constraint
+    > 237 |       expect(error).not.toBeNull();
+          |                         ^
+      238 |     });
+      239 |
+      240 |     it('cannot delete season with existing clips', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:237:25)
+
+  ● Error Scenarios Tests › Constraint Violations › cannot delete season with existing clips
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      252 |         .single();
+      253 |
+    > 254 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      255 |
+      256 |       // Try to delete the season
+      257 |       const { error } = await testSupabase
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:254:33)
+
+  ● Error Scenarios Tests › State Transition Errors › cannot lock slot without winner
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      281 |         .single();
+      282 |
+    > 283 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      284 |
+      285 |       // Try to lock slot without setting winner
+      286 |       await updateSlot(2, {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:283:33)
+
+  ● Error Scenarios Tests › State Transition Errors › deleting winner clip should fail or update slot
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      313 |         .single();
+      314 |
+    > 315 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      316 |
+      317 |       // Set as winner
+      318 |       await updateSlot(3, {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:315:33)
+
+  ● Error Scenarios Tests › Concurrent Modification Errors › handles simultaneous updates to same clip
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      352 |         .single();
+      353 |
+    > 354 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      355 |
+      356 |       // Simulate concurrent updates
+      357 |       const updates = [
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:354:33)
+
+  ● Error Scenarios Tests › Concurrent Modification Errors › handles simultaneous status transitions
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      385 |         .single();
+      386 |
+    > 387 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      388 |
+      389 |       // Simulate concurrent status changes
+      390 |       const statusChanges = [
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:387:33)
+
+  ● Error Scenarios Tests › Data Type Errors › handles null in optional fields
+
+    expect(received).toBeNull()
+
+    Received: {"code": "23502", "details": "Failing row contains (5f487146-794e-4dba-bbca-1f0928f135de, c9ba2c4e-51a8-4ef0-a181-15eaa44fb263, bde95a57-1fba-45d1-95c5-14720ea0423a, null, null, 0, 0.00, null, null, null, 2026-02-10 21:48:39.904108+00, https://test.example.com/video.mp4, null, Null Fields Test, other, null, pending, track-main, 0, 2026-02-10 21:48:39.904108+00, 0, 8e1b3908-8041-41fb-9248-8dbf72e5345f, null, f, null, null, null, null, f, null, null, null, null, f).", "hint": null, "message": "null value in column \"thumbnail_url\" of relation \"tournament_clips\" violates not-null constraint"}
+
+      466 |         .single();
+      467 |
+    > 468 |       expect(error).toBeNull();
+          |                     ^
+      469 |       if (data) {
+      470 |         createdClipIds.push(data.id);
+      471 |       }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:468:21)
+
+  ● Error Scenarios Tests › Boundary Conditions › vote_weight at minimum (1)
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      552 |         .single();
+      553 |
+    > 554 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      555 |
+      556 |       const { error } = await testSupabase.from('votes').insert({
+      557 |         voter_key: `min_weight_${Date.now()}`,
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:554:33)
+
+  ● Error Scenarios Tests › Boundary Conditions › vote_weight at maximum (200)
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      581 |         .single();
+      582 |
+    > 583 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      584 |
+      585 |       const { error } = await testSupabase.from('votes').insert({
+      586 |         voter_key: `max_weight_${Date.now()}`,
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:583:33)
+
+  ● Error Scenarios Tests › Boundary Conditions › vote_weight over maximum (201) should fail
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      610 |         .single();
+      611 |
+    > 612 |       createdClipIds.push(clip!.id);
+          |                                 ^
+      613 |
+      614 |       const { error } = await testSupabase.from('votes').insert({
+      615 |         voter_key: `over_weight_${Date.now()}`,
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:612:33)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/edge-cases.test.ts
+  Edge Cases Tests
+    Empty Season Scenarios
+      ✓ season with zero clips is valid (23 ms)
+      ✓ all slots remain in initial state with no clips (14 ms)
+      ✓ deleting all clips returns season to empty state (39 ms)
+    Maximum Clips Scenarios
+      ✓ can create 100 clips in a single slot (274 ms)
+      ✓ can query slot with many clips efficiently (3 ms)
+      ✓ can count votes across many clips (233 ms)
+    Special Characters in Data
+      ✓ handles Unicode characters in title (6 ms)
+      ✓ handles emoji in title (11 ms)
+      ✓ handles HTML/script tags in title (stored as-is) (6 ms)
+      ✓ handles SQL injection attempt in title (9 ms)
+      ✓ handles newlines and tabs in description (7 ms)
+      ✓ handles null bytes in title (3 ms)
+    Slot Position Edge Cases
+      ✓ clips can exist without slot assignment (4 ms)
+      ✓ multiple clips in same slot coexist (9 ms)
+      ✓ clip can move between slots (8 ms)
+      ✓ removing slot assignment works (9 ms)
+    Timing Edge Cases
+      ✕ rapid create-update-delete sequence (3 ms)
+      ✕ simultaneous create operations (12 ms)
+    Season State Edge Cases
+      ✓ finished season still allows reads (9 ms)
+      ✕ draft season clips are accessible (11 ms)
+      ✓ season with all slots locked (14 ms)
+    Data Consistency Checks
+      ✓ clip count matches database count (8 ms)
+      ✓ slot count matches total_slots in season (10 ms)
+      ✓ winner clip exists in slot clips (10 ms)
+
+  ● Edge Cases Tests › Timing Edge Cases › rapid create-update-delete sequence
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      390 |         .from('tournament_clips')
+      391 |         .update({ title: 'Updated Rapid Test' })
+    > 392 |         .eq('id', created!.id);
+          |                            ^
+      393 |
+      394 |       // Delete immediately
+      395 |       await testSupabase
+
+      at Object.<anonymous> (src/__tests__/integration/admin/edge-cases.test.ts:392:28)
+
+  ● Edge Cases Tests › Timing Edge Cases › simultaneous create operations
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 10
+    Received: 0
+
+      429 |
+      430 |       // All should succeed
+    > 431 |       expect(successful.length).toBe(10);
+          |                                 ^
+      432 |     });
+      433 |   });
+      434 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/edge-cases.test.ts:431:33)
+
+  ● Edge Cases Tests › Season State Edge Cases › draft season clips are accessible
+
+    TypeError: Cannot read properties of null (reading 'id')
+
+      457 |         .single();
+      458 |
+    > 459 |       createdClipIds.push(data!.id);
+          |                                 ^
+      460 |
+      461 |       const clips = await getClipsForSeason(draftSeasonId);
+      462 |       expect(clips.length).toBe(1);
+
+      at Object.<anonymous> (src/__tests__/integration/admin/edge-cases.test.ts:459:33)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/timer-expiration.test.ts
+  Timer Expiration Tests
+    Timer States
+      ✓ can set voting timer to past (expired state) (8 ms)
+      ✓ can set voting timer to future (active state) (8 ms)
+      ✓ timer with exactly 0 seconds remaining (6 ms)
+    Winner Determination on Expiration
+      ✓ clip with most votes should win when timer expires (268 ms)
+      ✕ handles tie-breaker scenario (earliest upload wins) (179 ms)
+      ✕ handles single clip scenario (auto-win) (19 ms)
+      ✕ handles zero votes scenario (26 ms)
+    Timer Edge Cases
+      ✓ very long timer (30 days) (8 ms)
+      ✓ very short timer (1 minute) (6 ms)
+      ✓ timer already expired by 7 days (6 ms)
+      ✓ null timer values are handled (7 ms)
+    Slot Transitions on Timer Events
+      ✓ slot should transition from voting to locked when winner assigned (37 ms)
+      ✓ next slot should become waiting_for_clips after current locks (24 ms)
+
+  ● Timer Expiration Tests › Winner Determination on Expiration › handles tie-breaker scenario (earliest upload wins)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "e896e62f-19a2-4038-8736-f1c072889024"
+    Received: "c761bb9f-e857-49cf-9230-3015792fa445"
+
+      238 |
+      239 |       // First created should win in tie-breaker
+    > 240 |       expect(clips?.[0].id).toBe(clip1);
+          |                             ^
+      241 |     });
+      242 |
+      243 |     it('handles single clip scenario (auto-win)', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/timer-expiration.test.ts:240:29)
+
+  ● Timer Expiration Tests › Winner Determination on Expiration › handles single clip scenario (auto-win)
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: 6
+
+      252 |         .eq('status', 'active');
+      253 |
+    > 254 |       expect(clips?.length).toBe(1);
+          |                             ^
+      255 |       expect(clips?.[0].id).toBe(clip);
+      256 |     });
+      257 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/timer-expiration.test.ts:254:29)
+
+  ● Timer Expiration Tests › Winner Determination on Expiration › handles zero votes scenario
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: "01924d45-d041-4284-a3be-fedbb0fbe022"
+    Received: "c761bb9f-e857-49cf-9230-3015792fa445"
+
+      303 |         .order('created_at', { ascending: true });
+      304 |
+    > 305 |       expect(clips?.[0].id).toBe(clip1!.id);
+          |                             ^
+      306 |     });
+      307 |   });
+      308 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/timer-expiration.test.ts:305:29)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/api-endpoints.test.ts
+  API Endpoints Tests
+    Health Check
+      ✕ API server is reachable (3 ms)
+    Clips API - GET
+      ✕ GET /api/admin/clips returns clips list (5 ms)
+      ✕ GET /api/admin/clips/:id returns single clip (4 ms)
+      ✕ GET /api/admin/clips/:id with invalid UUID returns 400 or 404 (1 ms)
+      ✕ GET /api/admin/clips/:id with non-existent ID returns 404 (1 ms)
+    Clips API - POST/PUT
+      ✕ POST to approve clip endpoint (4 ms)
+      ✕ POST to reject clip endpoint (4 ms)
+      ✕ PUT to update clip (4 ms)
+    Clips API - DELETE
+      ✕ DELETE /api/admin/clips/:id removes clip (4 ms)
+      ✕ DELETE with non-existent ID returns 404 (1 ms)
+    Slots API
+      ✕ GET /api/admin/slots returns slots list (1 ms)
+      ✕ GET /api/admin/slots/:position returns single slot (1 ms)
+      ✕ POST /api/admin/slots/:position/unlock unlocks slot (1 ms)
+    Seasons API
+      ✕ GET /api/admin/seasons returns seasons list (2 ms)
+      ✕ GET /api/admin/seasons/:id returns single season (1 ms)
+    Response Format Validation
+      ✓ error responses have consistent format (1 ms)
+      ✓ success responses return JSON
+    HTTP Methods
+      ✓ OPTIONS request returns allowed methods (1 ms)
+      ✓ HEAD request works for GET endpoints (1 ms)
+      ✕ unsupported method returns 405
+    Query Parameters
+      ✕ GET with query params for filtering
+      ✕ GET with pagination params
+      ✕ GET with status filter (1 ms)
+    Content-Type Handling
+      ✕ accepts application/json (4 ms)
+      ✕ rejects invalid content-type for POST (4 ms)
+    Rate Limiting Check
+      ✕ multiple rapid requests are handled (2 ms)
+
+  ● API Endpoints Tests › Health Check › API server is reachable
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 404]
+
+      113 |
+      114 |       // Either 200 OK or 404 (endpoint might not exist)
+    > 115 |       expect([200, 404]).toContain(response.status);
+          |                          ^
+      116 |     });
+      117 |   });
+      118 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:115:26)
+
+  ● API Endpoints Tests › Clips API - GET › GET /api/admin/clips returns clips list
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403]
+
+      125 |
+      126 |       // Should return 200 or require auth (401/403)
+    > 127 |       expect([200, 401, 403]).toContain(response.status);
+          |                               ^
+      128 |
+      129 |       if (response.status === 200 && response.data) {
+      130 |         expect(Array.isArray(response.data) || typeof response.data === 'object').toBe(true);
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:127:31)
+
+  ● API Endpoints Tests › Clips API - GET › GET /api/admin/clips/:id returns single clip
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      137 |       const response = await apiRequest('GET', `/api/admin/clips/${clipId}`);
+      138 |
+    > 139 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      140 |     });
+      141 |
+      142 |     it('GET /api/admin/clips/:id with invalid UUID returns 400 or 404', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:139:36)
+
+  ● API Endpoints Tests › Clips API - GET › GET /api/admin/clips/:id with invalid UUID returns 400 or 404
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [400, 404, 500]
+
+      143 |       const response = await apiRequest('GET', '/api/admin/clips/invalid-uuid');
+      144 |
+    > 145 |       expect([400, 404, 500]).toContain(response.status);
+          |                               ^
+      146 |     });
+      147 |
+      148 |     it('GET /api/admin/clips/:id with non-existent ID returns 404', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:145:31)
+
+  ● API Endpoints Tests › Clips API - GET › GET /api/admin/clips/:id with non-existent ID returns 404
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [401, 403, 404]
+
+      150 |       const response = await apiRequest('GET', `/api/admin/clips/${fakeId}`);
+      151 |
+    > 152 |       expect([401, 403, 404]).toContain(response.status);
+          |                               ^
+      153 |     });
+      154 |   });
+      155 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:152:31)
+
+  ● API Endpoints Tests › Clips API - POST/PUT › POST to approve clip endpoint
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 201, 401, 403, 404]
+
+      163 |
+      164 |       // Should work (200) or require auth (401/403)
+    > 165 |       expect([200, 201, 401, 403, 404]).toContain(response.status);
+          |                                         ^
+      166 |     });
+      167 |
+      168 |     it('POST to reject clip endpoint', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:165:41)
+
+  ● API Endpoints Tests › Clips API - POST/PUT › POST to reject clip endpoint
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 201, 401, 403, 404]
+
+      171 |       const response = await apiRequest('POST', `/api/admin/clips/${clipId}/reject`);
+      172 |
+    > 173 |       expect([200, 201, 401, 403, 404]).toContain(response.status);
+          |                                         ^
+      174 |     });
+      175 |
+      176 |     it('PUT to update clip', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:173:41)
+
+  ● API Endpoints Tests › Clips API - POST/PUT › PUT to update clip
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404, 405]
+
+      181 |       });
+      182 |
+    > 183 |       expect([200, 401, 403, 404, 405]).toContain(response.status);
+          |                                         ^
+      184 |     });
+      185 |   });
+      186 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:183:41)
+
+  ● API Endpoints Tests › Clips API - DELETE › DELETE /api/admin/clips/:id removes clip
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 204, 401, 403, 404]
+
+      191 |       const response = await apiRequest('DELETE', `/api/admin/clips/${clipId}`);
+      192 |
+    > 193 |       expect([200, 204, 401, 403, 404]).toContain(response.status);
+          |                                         ^
+      194 |
+      195 |       if (response.status === 200 || response.status === 204) {
+      196 |         // Verify clip is deleted
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:193:41)
+
+  ● API Endpoints Tests › Clips API - DELETE › DELETE with non-existent ID returns 404
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [401, 403, 404]
+
+      213 |       const response = await apiRequest('DELETE', `/api/admin/clips/${fakeId}`);
+      214 |
+    > 215 |       expect([401, 403, 404]).toContain(response.status);
+          |                               ^
+      216 |     });
+      217 |   });
+      218 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:215:31)
+
+  ● API Endpoints Tests › Slots API › GET /api/admin/slots returns slots list
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      221 |       const response = await apiRequest('GET', '/api/admin/slots');
+      222 |
+    > 223 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      224 |     });
+      225 |
+      226 |     it('GET /api/admin/slots/:position returns single slot', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:223:36)
+
+  ● API Endpoints Tests › Slots API › GET /api/admin/slots/:position returns single slot
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      227 |       const response = await apiRequest('GET', '/api/admin/slots/1');
+      228 |
+    > 229 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      230 |     });
+      231 |
+      232 |     it('POST /api/admin/slots/:position/unlock unlocks slot', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:229:36)
+
+  ● API Endpoints Tests › Slots API › POST /api/admin/slots/:position/unlock unlocks slot
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 201, 401, 403, 404, 405]
+
+      233 |       const response = await apiRequest('POST', '/api/admin/slots/1/unlock');
+      234 |
+    > 235 |       expect([200, 201, 401, 403, 404, 405]).toContain(response.status);
+          |                                              ^
+      236 |     });
+      237 |   });
+      238 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:235:46)
+
+  ● API Endpoints Tests › Seasons API › GET /api/admin/seasons returns seasons list
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      241 |       const response = await apiRequest('GET', '/api/admin/seasons');
+      242 |
+    > 243 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      244 |     });
+      245 |
+      246 |     it('GET /api/admin/seasons/:id returns single season', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:243:36)
+
+  ● API Endpoints Tests › Seasons API › GET /api/admin/seasons/:id returns single season
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      247 |       const response = await apiRequest('GET', `/api/admin/seasons/${testSeasonId}`);
+      248 |
+    > 249 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      250 |     });
+      251 |   });
+      252 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:249:36)
+
+  ● API Endpoints Tests › HTTP Methods › unsupported method returns 405
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404, 405]
+
+      300 |
+      301 |       // PATCH might not be supported
+    > 302 |       expect([200, 401, 403, 404, 405]).toContain(response.status);
+          |                                         ^
+      303 |     });
+      304 |   });
+      305 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:302:41)
+
+  ● API Endpoints Tests › Query Parameters › GET with query params for filtering
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      308 |       const response = await apiRequest('GET', `/api/admin/clips?season_id=${testSeasonId}`);
+      309 |
+    > 310 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      311 |     });
+      312 |
+      313 |     it('GET with pagination params', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:310:36)
+
+  ● API Endpoints Tests › Query Parameters › GET with pagination params
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      314 |       const response = await apiRequest('GET', '/api/admin/clips?limit=10&offset=0');
+      315 |
+    > 316 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      317 |     });
+      318 |
+      319 |     it('GET with status filter', async () => {
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:316:36)
+
+  ● API Endpoints Tests › Query Parameters › GET with status filter
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected value: 0
+    Received array: [200, 401, 403, 404]
+
+      320 |       const response = await apiRequest('GET', '/api/admin/clips?status=pending');
+      321 |
+    > 322 |       expect([200, 401, 403, 404]).toContain(response.status);
+          |                                    ^
+      323 |     });
+      324 |   });
+      325 |
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:322:36)
+
+  ● API Endpoints Tests › Content-Type Handling › accepts application/json
+
+    TypeError: fetch failed
+
+      328 |       const clipId = await createTestClip();
+      329 |
+    > 330 |       const response = await fetch(`${API_BASE_URL}/api/admin/clips/${clipId}`, {
+          |                        ^
+      331 |         method: 'PUT',
+      332 |         headers: {
+      333 |           'Content-Type': 'application/json',
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:330:24)
+
+    Cause:
+    AggregateError:
+
+
+
+  ● API Endpoints Tests › Content-Type Handling › rejects invalid content-type for POST
+
+    TypeError: fetch failed
+
+      343 |       const clipId = await createTestClip();
+      344 |
+    > 345 |       const response = await fetch(`${API_BASE_URL}/api/admin/clips/${clipId}/approve`, {
+          |                        ^
+      346 |         method: 'POST',
+      347 |         headers: {
+      348 |           'Content-Type': 'text/plain',
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:345:24)
+
+    Cause:
+    AggregateError:
+
+
+
+  ● API Endpoints Tests › Rate Limiting Check › multiple rapid requests are handled
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      371 |
+      372 |       // Either all succeed or all require auth
+    > 373 |       expect(successCount === 10 || authFailCount === 10 || successCount + authFailCount === 10).toBe(true);
+          |                                                                                                  ^
+      374 |     });
+      375 |   });
+      376 | });
+
+      at Object.<anonymous> (src/__tests__/integration/admin/api-endpoints.test.ts:373:98)
+
+Test Suites: 4 failed, 4 total
+Tests:       39 failed, 48 passed, 87 total
+Snapshots:   0 total
+Time:        3.069 s
+Ran all test suites matching /timer-expiration|api-endpoints|error-scenarios|edge-cases/i.

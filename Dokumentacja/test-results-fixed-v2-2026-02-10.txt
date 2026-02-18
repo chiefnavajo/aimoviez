@@ -1,0 +1,212 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=timer-expiration|api-endpoints|error-scenarios|edge-cases
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/edge-cases.test.ts
+  Edge Cases Tests
+    Empty Season Scenarios
+      ✓ season with zero clips is valid (67 ms)
+      ✓ all slots remain in initial state with no clips (52 ms)
+      ✓ deleting all clips returns season to empty state (55 ms)
+    Maximum Clips Scenarios
+      ✓ can create 100 clips in a single slot (307 ms)
+      ✓ can query slot with many clips efficiently (3 ms)
+      ✓ can count votes across many clips (220 ms)
+    Special Characters in Data
+      ✓ handles Unicode characters in title (4 ms)
+      ✓ handles emoji in title (22 ms)
+      ✓ handles HTML/script tags in title (stored as-is) (18 ms)
+      ✓ handles SQL injection attempt in title (16 ms)
+      ✓ handles newlines and tabs in description (10 ms)
+      ✓ handles null bytes in title (5 ms)
+    Slot Position Edge Cases
+      ✓ clips can exist without slot assignment (4 ms)
+      ✓ multiple clips in same slot coexist (9 ms)
+      ✓ clip can move between slots (9 ms)
+      ✓ removing slot assignment works (6 ms)
+    Timing Edge Cases
+      ✓ rapid create-update-delete sequence (10 ms)
+      ✓ simultaneous create operations (10 ms)
+    Season State Edge Cases
+      ✓ finished season still allows reads (8 ms)
+      ✓ draft season clips are accessible (11 ms)
+      ✓ season with all slots locked (18 ms)
+    Data Consistency Checks
+      ✓ clip count matches database count (8 ms)
+      ✓ slot count matches total_slots in season (11 ms)
+      ✓ winner clip exists in slot clips (10 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/error-scenarios.test.ts
+  Error Scenarios Tests
+    Invalid Data Handling
+      ✓ rejects clip with missing required title (3 ms)
+      ✓ rejects clip with invalid status value (3 ms)
+      ✓ rejects clip with invalid UUID for season_id (3 ms)
+      ✓ rejects clip with non-existent season_id (3 ms)
+      ✓ rejects clip with non-existent user_id (2 ms)
+      ✓ rejects slot with invalid status (3 ms)
+      ✓ rejects negative slot_position (3 ms)
+      ✓ rejects empty string for required fields (2 ms)
+    Constraint Violations
+      ✓ handles duplicate vote from same voter gracefully (14 ms)
+      ✓ cannot set winner to non-existent clip (12 ms)
+      ✓ cannot delete season with existing clips (4 ms)
+    State Transition Errors
+      ✓ cannot lock slot without winner (11 ms)
+      ✕ deleting winner clip should fail or update slot (10 ms)
+    Concurrent Modification Errors
+      ✓ handles simultaneous updates to same clip (8 ms)
+      ✓ handles simultaneous status transitions (10 ms)
+    Data Type Errors
+      ✓ handles very long title (2 ms)
+      ✓ handles special characters in title (3 ms)
+      ✓ handles null in optional fields (3 ms)
+      ✓ handles invalid URL format (2 ms)
+    Boundary Conditions
+      ✓ slot_position at boundary (0) (3 ms)
+      ✓ slot_position at max int (1 ms)
+      ✓ vote_weight at minimum (1) (6 ms)
+      ✓ vote_weight at maximum (200) (8 ms)
+      ✓ vote_weight over maximum (201) is handled (8 ms)
+
+  ● Error Scenarios Tests › State Transition Errors › deleting winner clip should fail or update slot
+
+    expect(received).toBeNull()
+
+    Received: "e3747687-da84-4f10-b0cd-d42414a8603b"
+
+      363 |         const slot = await getSlot(3, testSeasonId);
+      364 |         // Winner should be null now (SET NULL) or slot structure unchanged
+    > 365 |         expect(slot?.winner_tournament_clip_id).toBeNull();
+          |                                                 ^
+      366 |         // Remove from tracking
+      367 |         const idx = createdClipIds.indexOf(clip.id);
+      368 |         if (idx > -1) createdClipIds.splice(idx, 1);
+
+      at Object.<anonymous> (src/__tests__/integration/admin/error-scenarios.test.ts:365:49)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/api-endpoints.test.ts
+  API Endpoints Tests
+    Health Check
+      ✓ API server is reachable (3 ms)
+    Clips API - GET
+      ✓ GET /api/admin/clips returns clips list (4 ms)
+      ✓ GET /api/admin/clips/:id returns single clip (4 ms)
+      ✓ GET /api/admin/clips/:id with invalid UUID returns 400 or 404 (1 ms)
+      ✓ GET /api/admin/clips/:id with non-existent ID returns 404 (1 ms)
+    Clips API - POST/PUT
+      ✓ POST to approve clip endpoint (4 ms)
+      ✓ POST to reject clip endpoint (4 ms)
+      ✓ PUT to update clip (5 ms)
+    Clips API - DELETE
+      ✓ DELETE /api/admin/clips/:id removes clip (9 ms)
+      ✓ DELETE with non-existent ID returns 404 (1 ms)
+    Slots API
+      ✓ GET /api/admin/slots returns slots list (1 ms)
+      ✓ GET /api/admin/slots/:position returns single slot
+      ✓ POST /api/admin/slots/:position/unlock unlocks slot (1 ms)
+    Seasons API
+      ✓ GET /api/admin/seasons returns seasons list (1 ms)
+      ✓ GET /api/admin/seasons/:id returns single season (1 ms)
+    Response Format Validation
+      ✓ error responses have consistent format (1 ms)
+      ✓ success responses return JSON (1 ms)
+    HTTP Methods
+      ✓ OPTIONS request returns allowed methods (1 ms)
+      ✓ HEAD request works for GET endpoints (1 ms)
+      ✓ unsupported method returns 405 (1 ms)
+    Query Parameters
+      ✓ GET with query params for filtering (1 ms)
+      ✓ GET with pagination params
+      ✓ GET with status filter (1 ms)
+    Content-Type Handling
+      ✓ accepts application/json (6 ms)
+      ✓ rejects invalid content-type for POST (5 ms)
+    Rate Limiting Check
+      ✓ multiple rapid requests are handled (2 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/timer-expiration.test.ts
+  Timer Expiration Tests
+    Timer States
+      ✓ can set voting timer to past (expired state) (9 ms)
+      ✓ can set voting timer to future (active state) (6 ms)
+      ✓ timer with exactly 0 seconds remaining (7 ms)
+    Winner Determination on Expiration
+      ✓ clip with most votes should win when timer expires (252 ms)
+      ✓ handles tie-breaker scenario (earliest upload wins) (198 ms)
+      ✓ handles single clip scenario (auto-win) (39 ms)
+      ✓ handles zero votes scenario (36 ms)
+    Timer Edge Cases
+      ✓ very long timer (30 days) (6 ms)
+      ✓ very short timer (1 minute) (7 ms)
+      ✓ timer already expired by 7 days (7 ms)
+      ✓ null timer values are handled (3 ms)
+    Slot Transitions on Timer Events
+      ✓ slot should transition from voting to locked when winner assigned (38 ms)
+      ✓ next slot should become waiting_for_clips after current locks (26 ms)
+
+Test Suites: 1 failed, 3 passed, 4 total
+Tests:       1 failed, 86 passed, 87 total
+Snapshots:   0 total
+Time:        3.066 s, estimated 4 s
+Ran all test suites matching /timer-expiration|api-endpoints|error-scenarios|edge-cases/i.

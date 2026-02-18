@@ -1,0 +1,87 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=load-test
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    
+    📊 Load Test Statistics:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:539:15)
+
+  console.log
+       Total Users: 1000
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:540:15)
+
+  console.log
+       Users Who Uploaded: 350
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:541:15)
+
+  console.log
+       Total Clips: 650
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:542:15)
+
+  console.log
+       Total Votes: 750
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:543:15)
+
+  console.log
+       Clips per Season: { '14dc36ee': 141, db324fe9: 194, '55f0279b': 150, ca4e6280: 165 }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:544:15)
+
+  console.log
+       Query performance: 8 parallel queries in 14ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/load-test-1000-users.test.ts:564:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/load-test-1000-users.test.ts
+  Load Test: 1000 Users Simulation
+    User Creation
+      ✓ creates 1000 unique users successfully (2 ms)
+      ✓ all users exist in database (5 ms)
+    Mass Upload Simulation
+      ✓ 300 users upload 2 clips each (600 total clips) (153 ms)
+      ✓ clips are properly distributed across 4 seasons (43 ms)
+      ✓ each user has exactly 2 clips (51 ms)
+    Admin Approval Flow
+      ✓ admin approves 100 clips for voting in season 1 (53 ms)
+      ✓ slot status changes to voting (4 ms)
+    Mass Voting Simulation
+      ✓ 700 users vote on active clips (194 ms)
+      ✓ votes are distributed across clips (6 ms)
+      ✓ can identify winning clip by vote count (6 ms)
+    Concurrent Operations
+      ✓ simultaneous uploads and votes across seasons (19 ms)
+      ✓ database maintains integrity under concurrent load (82 ms)
+    Statistics & Reporting
+      ✓ generates accurate user activity report (137 ms)
+      ✓ system handles 1000 users without performance degradation (14 ms)
+    Edge Cases with High User Count
+      ✓ handles user voting for their own clip (9 ms)
+      ✓ handles duplicate vote attempts gracefully (16 ms)
+      ✓ handles max clips per user limit (4 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       17 passed, 17 total
+Snapshots:   0 total
+Time:        2.293 s
+Ran all test suites matching /load-test/i.

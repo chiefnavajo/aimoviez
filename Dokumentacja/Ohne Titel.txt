@@ -1,0 +1,219 @@
+Goal                                                                                                                                                                                 
+                                                                                                                                                                                      
+ 100x voting capacity (~10K concurrent votes) at $60/month. Votes validated and counted in Redis (~8ms), queued for async PostgreSQL persistence. Existing sync path stays as         
+ fallback behind async_voting feature flag.                                                                                                                                           
+                                                                                                                                                                                      
+ Architecture Summary                                                                                                                                                                 
+                                                                                                                                                                                      
+ When async_voting enabled:                                                                                                                                                           
+ 1. Rate limit + CAPTCHA + auth (unchanged)                                                                                                                                           
+ 2. Redis validation (1 pipeline, ~2ms): daily limit, dedup, slot valid, freeze check                                                                                                 
+ 3. CRDT counter update (~1ms): HINCRBY on p/pw hashes                                                                                                                                
+ 4. Record + queue (~2ms): SET dedup, INCRBY daily, LPUSH vote_queue                                                                                                                  
+ 5. Read CRDT + respond (~1ms): return accurate count, total ~8ms                                                                                                                     
+                                                                                                                                                                                      
+ When async_voting disabled: Existing sync path (unchanged)                                                                                                                           
+                                                                                                                                                                                      
+ Circuit breaker: If Redis fails 5x, auto-fallback to sync path. Recovers via HALF-OPEN.                                                                                              
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 10 Deliverables                                                                                                                                                                      
+                                                                                                                                                                                      
+ 1. src/lib/crdt-vote-counter.ts — NEW                                                                                                                                                
+                                                                                                                                                                                      
+ CRDT PN-Counter with 4 Redis hashes per clip.                                                                                                                                        
+                                                                                                                                                                                      
+ Keys: crdt:{clipId}:p, crdt:{clipId}:n, crdt:{clipId}:pw, crdt:{clipId}:nw                                                                                                           
+                                                                                                                                                                                      
+ Exports:                                                                                                                                                                             
+ - incrementVote(clipId, weight, nodeId='main') — HINCRBY p + pw (pipeline)                                                                                                           
+ - decrementVote(clipId, weight, nodeId='main') — HINCRBY n + nw                                                                                                                      
+ - getCountAndScore(clipId) — HGETALL all 4 keys, return {voteCount: P-N, weightedScore: PW-NW}                                                                                       
+ - getCountsForClips(clipIds[]) — batch pipeline for counter sync cron                                                                                                                
+ - clearClip(clipId) / clearClips(clipIds[]) — DEL all 4 keys (slot transition)                                                                                                       
+                                                                                                                                                                                      
+ Pattern: Redis singleton from rate-limit.ts. nodeId='main' for single-region Vercel.                                                                                                 
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 2. src/lib/vote-validation-redis.ts — NEW                                                                                                                                            
+                                                                                                                                                                                      
+ Redis-based validation replacing 3 sequential DB queries with 1 pipeline.                                                                                                            
+                                                                                                                                                                                      
+ Keys:                                                                                                                                                                                
+ - daily:{YYYY-MM-DD}:{voterKey} — daily count (48h TTL)                                                                                                                              
+ - voted:{voterKey}:{clipId} — dedup flag (7d TTL)                                                                                                                                    
+ - slot:{seasonId} — JSON slot state (managed by auto-advance)                                                                                                                        
+ - slot_frozen:{seasonId}:{slotPos} — freeze flag (120s TTL)                                                                                                                          
+                                                                                                                                                                                      
+ Exports:                                                                                                                                                                             
+ - validateVoteRedis(voterKey, clipId, seasonId, slotPos, limit) — 4 checks in 1 pipeline, returns {valid, code?, message?, dailyCount?}                                              
+ - recordVote(voterKey, clipId, event, date) — Pipeline: SET dedup, INCRBY daily, LPUSH queue, SADD clips_active                                                                      
+ - removeVoteRecord(voterKey, clipId, date) — DEL dedup, DECRBY daily                                                                                                                 
+ - setSlotState(seasonId, state) — SET slot:{seasonId} (used by auto-advance)                                                                                                         
+ - setVotingFrozen(seasonId, slotPos) — SET frozen flag with 120s TTL                                                                                                                 
+ - getDailyVoteCount(voterKey, date) — GET daily counter                                                                                                                              
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 3. src/lib/vote-event-queue.ts — NEW                                                                                                                                                 
+                                                                                                                                                                                      
+ Queue operations using Redis lists with crash-safe RPOPLPUSH pattern.                                                                                                                
+                                                                                                                                                                                      
+ Keys: vote_queue, vote_queue:processing, vote_queue:dead_letter                                                                                                                      
+                                                                                                                                                                                      
+ Exports:                                                                                                                                                                             
+ - pushEvent(event) — LPUSH vote_queue                                                                                                                                                
+ - popEvents(count) — batch dequeue to processing list (crash-safe)                                                                                                                   
+ - acknowledgeEvents(events[]) — LREM from processing list (pipeline)                                                                                                                 
+ - moveToDeadLetter(event, error, attempts) — LREM processing + LPUSH dead_letter                                                                                                     
+ - getQueueHealth() — LLEN all 3 queues                                                                                                                                               
+ - recoverOrphans(maxAgeMs) — move stale processing items back to main queue                                                                                                          
+ - setLastProcessedAt() — timestamp tracking                                                                                                                                          
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 4. src/lib/counter-sync.ts — NEW                                                                                                                                                     
+                                                                                                                                                                                      
+ Shared utility for force-syncing CRDT counters to PostgreSQL.                                                                                                                        
+                                                                                                                                                                                      
+ Exports:                                                                                                                                                                             
+ - forceSyncCounters(supabase, clipIds[]) — read CRDTs via getCountsForClips, call batch_update_vote_counts RPC, return {synced, errors[]}                                            
+                                                                                                                                                                                      
+ Used by both sync-vote-counters cron and auto-advance (pre-winner sync).                                                                                                             
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 5. src/app/api/vote/route.ts — MODIFY                                                                                                                                                
+                                                                                                                                                                                      
+ Add Redis-first vote path behind async_voting feature flag.                                                                                                                          
+                                                                                                                                                                                      
+ New imports: crdt-vote-counter, vote-validation-redis, vote-event-queue, CircuitBreaker                                                                                              
+                                                                                                                                                                                      
+ Module-level: Create redisVoteCircuit CircuitBreaker instance (failureThreshold: 5, resetTimeout: 30s)                                                                               
+                                                                                                                                                                                      
+ New function handleVoteRedis() (~80 lines):                                                                                                                                          
+ 1. Query clip data from DB (lightweight: slot_position, season_id, status)                                                                                                           
+ 2. validateVoteRedis() — single Redis pipeline                                                                                                                                       
+ 3. incrementVote() — CRDT counter                                                                                                                                                    
+ 4. recordVote() — dedup + daily + queue                                                                                                                                              
+ 5. getCountAndScore() — read CRDT                                                                                                                                                    
+ 6. Return response (same format as sync path)                                                                                                                                        
+                                                                                                                                                                                      
+ Insertion point: After line 1148 (after multiVoteEnabled), before line 1150 (before parallel DB queries).                                                                            
+                                                                                                                                                                                      
+ if (asyncVotingEnabled) {                                                                                                                                                            
+   try {                                                                                                                                                                              
+     return await redisVoteCircuit.execute(                                                                                                                                           
+       () => handleVoteRedis(clipId, effectiveVoterKey, ...)                                                                                                                          
+     );                                                                                                                                                                               
+   } catch {                                                                                                                                                                          
+     // Fall through to sync path                                                                                                                                                     
+   }                                                                                                                                                                                  
+ }                                                                                                                                                                                    
+ // ... existing sync path unchanged ...                                                                                                                                              
+                                                                                                                                                                                      
+ No fallback function in execute() — on circuit open or Redis error, falls through to existing sync code below.                                                                       
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 6. src/app/api/cron/process-vote-queue/route.ts — NEW                                                                                                                                
+                                                                                                                                                                                      
+ Cron worker: dequeue vote events from Redis, batch INSERT into PostgreSQL.                                                                                                           
+                                                                                                                                                                                      
+ Flow:                                                                                                                                                                                
+ 1. CRON_SECRET validation (auto-advance pattern)                                                                                                                                     
+ 2. Check async_voting flag — skip if disabled                                                                                                                                        
+ 3. Distributed lock (cron_locks, job='process_vote_queue')                                                                                                                           
+ 4. recoverOrphans() — handle crashed previous runs                                                                                                                                   
+ 5. popEvents(500) — dequeue batch                                                                                                                                                    
+ 6. Separate up-votes (INSERT) and down-votes (DELETE)                                                                                                                                
+ 7. Batch upsert with ignoreDuplicates: true (100 per DB call)                                                                                                                        
+ 8. Failed events: retry up to 5x, then dead-letter                                                                                                                                   
+ 9. acknowledgeEvents() for successes                                                                                                                                                 
+ 10. Release lock, return health stats                                                                                                                                                
+                                                                                                                                                                                      
+ Cron: Every minute (Vercel). Processes all available events per invocation.                                                                                                          
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 7. src/app/api/cron/sync-vote-counters/route.ts — NEW                                                                                                                                
+                                                                                                                                                                                      
+ Cron worker: read CRDT counters, batch-update PostgreSQL.                                                                                                                            
+                                                                                                                                                                                      
+ Flow:                                                                                                                                                                                
+ 1. CRON_SECRET validation                                                                                                                                                            
+ 2. Check async_voting flag — skip if disabled                                                                                                                                        
+ 3. Distributed lock (cron_locks, job='sync_vote_counters')                                                                                                                           
+ 4. SMEMBERS clips_active — get clips with recent votes                                                                                                                               
+ 5. getCountsForClips(clipIds) — batch read CRDTs                                                                                                                                     
+ 6. Call batch_update_vote_counts RPC (Phase 0)                                                                                                                                       
+ 7. Release lock                                                                                                                                                                      
+                                                                                                                                                                                      
+ Clips stay in clips_active until slot transitions (auto-advance cleans up).                                                                                                          
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 8. src/app/api/cron/auto-advance/route.ts — MODIFY                                                                                                                                   
+                                                                                                                                                                                      
+ Add Redis state management for slot transitions.                                                                                                                                     
+                                                                                                                                                                                      
+ Changes (all gated behind async_voting check):                                                                                                                                       
+ 1. Before winner selection: forceSyncCounters() — ensure PostgreSQL has latest counts                                                                                                
+ 2. After locking slot: clearClips(clipIds) — clear CRDT keys for old slot                                                                                                            
+ 3. After activating next slot: setSlotState() — update Redis slot cache                                                                                                              
+ 4. New logic: set votingFrozen flag 120s before voting_ends_at (freeze check)                                                                                                        
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 9. vercel.json — MODIFY                                                                                                                                                              
+                                                                                                                                                                                      
+ Add 2 new cron entries (safe even before enabling flag — handlers check flag and skip).                                                                                              
+                                                                                                                                                                                      
+ { "path": "/api/cron/process-vote-queue", "schedule": "* * * * *" },                                                                                                                 
+ { "path": "/api/cron/sync-vote-counters", "schedule": "* * * * *" }                                                                                                                  
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ 10. supabase/sql/disable-vote-triggers.sql — NEW (run manually later)                                                                                                                
+                                                                                                                                                                                      
+ DROP TRIGGER IF EXISTS on_vote_insert ON votes;                                                                                                                                      
+ DROP TRIGGER IF EXISTS on_vote_delete ON votes;                                                                                                                                      
+                                                                                                                                                                                      
+ Run ONLY after verifying Redis pipeline works for 24-48 hours.                                                                                                                       
+                                                                                                                                                                                      
+ ---                                                                                                                                                                                  
+ Implementation Order                                                                                                                                                                 
+                                                                                                                                                                                      
+ 1. src/lib/crdt-vote-counter.ts        (no deps)                                                                                                                                     
+ 2. src/lib/vote-validation-redis.ts    (no deps)                                                                                                                                     
+ 3. src/lib/vote-event-queue.ts         (uses types/vote-queue.ts)                                                                                                                    
+ 4. src/lib/counter-sync.ts             (uses #1)                                                                                                                                     
+ 5. src/app/api/vote/route.ts MODIFY    (uses #1, #2, #3, circuit-breaker)                                                                                                            
+ 6. src/app/api/cron/process-vote-queue/route.ts   (uses #3)                                                                                                                          
+ 7. src/app/api/cron/sync-vote-counters/route.ts   (uses #1, #4)                                                                                                                      
+ 8. src/app/api/cron/auto-advance/route.ts MODIFY  (uses #1, #2, #4)                                                                                                                  
+ 9. vercel.json MODIFY                  (independent)                                                                                                                                 
+ 10. supabase/sql/disable-vote-triggers.sql (manual, later)                                                                                                                           
+                                                                                                                                                                                      
+ Steps 1-3 have no interdependency. Steps 6-8 can run in parallel after step 5.                                                                                                       
+                                                                                                                                                                                      
+ Critical Files                                                                                                                                                                       
+                                                                                                                                                                                      
+ - src/app/api/vote/route.ts — main modification (insert at line 1148)                                                                                                                
+ - src/app/api/cron/auto-advance/route.ts — slot transition modifications                                                                                                             
+ - src/lib/rate-limit.ts — Redis singleton pattern reference                                                                                                                          
+ - src/types/vote-queue.ts — Phase 0 types used throughout                                                                                                                            
+ - src/lib/circuit-breaker.ts — Phase 0 circuit breaker                                                                                                                               
+ - supabase/sql/fix-vote-insert-race-condition.sql — insert_vote_atomic RPC reference                                                                                                 
+ - supabase/sql/migration-vote-trigger.sql — trigger to disable (on_vote_insert)                                                                                                      
+                                                                                                                                                                                      
+ Verification                                                                                                                                                                         
+                                                                                                                                                                                      
+ 1. npm run build — all TypeScript compiles                                                                                                                                           
+ 2. Enable async_voting flag in Supabase                                                                                                                                              
+ 3. Cast votes — verify Redis keys created (crdt:, voted:, daily:*, vote_queue)                                                                                                       
+ 4. Verify cron workers process queue and sync counters                                                                                                                               
+ 5. Compare CRDT counts vs PostgreSQL — must match after sync                                                                                                                         
+ 6. Disable flag — verify votes fall back to sync path                                                                                                                                
+ 7. Kill Redis (bad credentials) — verify circuit breaker opens, sync fallback works                                                                                                  
+                                                                                                                                                                                      
+ Safety Nets                                                                                                                                                                          
+                                                                                                                                                                                      
+ - Feature flag off = zero change to existing behavior                                                                                                                                
+ - Circuit breaker = auto-fallback to sync DB path on Redis failure                                                                                                                   
+ - PostgreSQL unique constraint catches duplicate votes from queue                                                                                                                    
+ - Orphan recovery handles crashed cron invocations                                                                                                                                   
+ - Voting freeze prevents lost votes during slot transitions                                                                                                                          
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌

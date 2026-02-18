@@ -1,0 +1,292 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js --testPathPattern=concurrent-voting
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    
+    ⚡ Concurrent Voting Results (1000 simultaneous):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:249:15)
+
+  console.log
+       Total time: 977ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:250:15)
+
+  console.log
+       Successful votes: 247
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:251:15)
+
+  console.log
+       Failed votes: 753
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:252:15)
+
+  console.log
+       Success rate: 24.7%
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:253:15)
+
+  console.log
+       Avg vote duration: 493.77ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:254:15)
+
+  console.log
+       Min vote duration: 230ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:255:15)
+
+  console.log
+       Max vote duration: 978ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:256:15)
+
+  console.log
+       Error breakdown: { 'TypeError: fetch failed': 753 }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:264:17)
+
+  console.log
+       ℹ️  Note: "fetch failed" errors indicate connection pool exhaustion
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:265:17)
+
+  console.log
+       ℹ️  This is expected behavior - use wave voting for better results
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:266:17)
+
+  console.log
+    
+    📊 Vote Distribution:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:294:15)
+
+  console.log
+       Total votes recorded: 247
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:295:15)
+
+  console.log
+       Per clip: {
+      '6a869d0f': 48,
+      '5836e321': 46,
+      d5289d4e: 51,
+      '25efba0a': 50,
+      f40f18e8: 52
+    }
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:296:15)
+
+  console.log
+       Duplicate votes detected: 0
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:329:15)
+
+  console.log
+    
+    🌊 Wave Voting Results:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:371:15)
+
+  console.log
+       Wave 1: 100/100 successful in 158ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 2: 100/100 successful in 163ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 3: 100/100 successful in 174ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 4: 100/100 successful in 156ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 5: 100/100 successful in 190ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 6: 100/100 successful in 177ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 7: 100/100 successful in 160ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 8: 100/100 successful in 196ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 9: 100/100 successful in 150ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Wave 10: 100/100 successful in 194ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:373:17)
+
+  console.log
+       Total votes after waves: 1000
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:390:15)
+
+  console.log
+    
+    🎯 Single Clip Stress Test (500 concurrent):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:421:15)
+
+  console.log
+       Duration: 615ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:422:15)
+
+  console.log
+       Successful: 248
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:423:15)
+
+  console.log
+       Failed: 252
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:424:15)
+
+  console.log
+       Success rate: 49.6%
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:425:15)
+
+  console.log
+       Actual votes on clip: 248
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:433:15)
+
+  console.log
+       ℹ️  Database accurately recorded all successful votes
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:434:15)
+
+  console.log
+    
+    🔍 Race Condition Check:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:477:15)
+
+  console.log
+       Expected successful: 200
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:478:15)
+
+  console.log
+       Actual in database: 200
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:479:15)
+
+  console.log
+       Lost votes: 0
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:480:15)
+
+  console.log
+       Votes are in chronological order: true
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:516:15)
+
+  console.log
+    
+    📈 Performance Metrics:
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:547:15)
+
+  console.log
+       Sequential (100 votes):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:548:15)
+
+  console.log
+         Duration: 252ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:549:15)
+
+  console.log
+         Throughput: 396.83 votes/sec
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:550:15)
+
+  console.log
+       Parallel (100 votes):
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:551:15)
+
+  console.log
+         Duration: 181ms
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:552:15)
+
+  console.log
+         Throughput: 552.49 votes/sec
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:553:15)
+
+  console.log
+       Speedup: 1.39x
+
+      at Object.<anonymous> (src/__tests__/integration/admin/concurrent-voting.test.ts:554:15)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/concurrent-voting.test.ts (6.272 s)
+  Concurrent Voting Stress Test
+    Setup Verification
+      ✓ created 1000 users for voting (1 ms)
+      ✓ created 5 clips to vote on
+      ✓ slot is in voting status (6 ms)
+    Simultaneous Voting - All at Once
+      ✓ 1000 users vote at the exact same time (992 ms)
+      ✓ vote counts are accurate after concurrent voting (5 ms)
+      ✓ no duplicate votes from same voter (4 ms)
+    Wave Voting - Bursts of Users
+      ✓ 10 waves of 100 users voting rapidly (1720 ms)
+      ✓ total votes match expected after waves (4 ms)
+    Stress Test - Rapid Fire Single Clip
+      ✓ 500 users vote for the same clip simultaneously (624 ms)
+    Race Condition Detection
+      ✓ detects if votes are lost under heavy load (432 ms)
+      ✓ vote order is preserved (FIFO check) (171 ms)
+    Performance Metrics
+      ✓ measures database throughput (486 ms)
+
+Test Suites: 1 passed, 1 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        6.455 s, estimated 7 s
+Ran all test suites matching /concurrent-voting/i.

@@ -1,0 +1,515 @@
+
+> aimoviez-app@0.1.0 test:integration
+> jest --config jest.integration.config.js
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+FAIL integration src/__tests__/integration/admin/multi-season.test.ts
+  Multi-Season Operations (8 Seasons)
+    Season Isolation
+      ✕ 8 seasons created independently with correct structure
+      ✕ clips in season 1 do not appear in season 2-8
+      ✕ slot operations in one season do not affect others (1 ms)
+      ✕ winner in season 1 does not lock season 2-8 slots
+    Parallel Upload Operations
+      ✕ upload clip to each of 8 seasons simultaneously
+      ✕ approve clips in all 8 seasons maintains independent slot status
+      ✕ timers run independently per season (1 ms)
+    Parallel Delete Operations
+      ✕ delete clips from season 1 while seasons 2-8 continue
+      ✕ bulk delete across multiple seasons simultaneously
+      ✕ deleting last clip in season 1 does not affect season 2-8 timers (1 ms)
+    Parallel Winner Operations
+      ✕ assign winner in season 1 while seasons 2-8 are voting
+      ✕ lock season 1 slot 1 does not affect season 2-8 slot 1
+    Mixed Operations Across Seasons
+      ✕ different operations in each season simultaneously
+      ✕ all 8 seasons at different stages simultaneously
+    Season Status Combinations
+      ✕ operations only work on active seasons
+      ✕ mixed status seasons do not interfere (1 ms)
+    Stress Test: Rapid Multi-Season Operations
+      ✕ 100 clips across 8 seasons with random distribution
+      ✕ parallel random operations across all seasons
+      ✕ verify data integrity after stress operations
+    Cross-Season Data Integrity
+      ✕ season IDs never leak across boundaries
+      ✕ slot positions are independent per season
+
+  ● Multi-Season Operations (8 Seasons) › Season Isolation › 8 seasons created independently with correct structure
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Season Isolation › clips in season 1 do not appear in season 2-8
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Season Isolation › slot operations in one season do not affect others
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Season Isolation › winner in season 1 does not lock season 2-8 slots
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Upload Operations › upload clip to each of 8 seasons simultaneously
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Upload Operations › approve clips in all 8 seasons maintains independent slot status
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Upload Operations › timers run independently per season
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Delete Operations › delete clips from season 1 while seasons 2-8 continue
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Delete Operations › bulk delete across multiple seasons simultaneously
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Delete Operations › deleting last clip in season 1 does not affect season 2-8 timers
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Winner Operations › assign winner in season 1 while seasons 2-8 are voting
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Parallel Winner Operations › lock season 1 slot 1 does not affect season 2-8 slot 1
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Mixed Operations Across Seasons › different operations in each season simultaneously
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Mixed Operations Across Seasons › all 8 seasons at different stages simultaneously
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Season Status Combinations › operations only work on active seasons
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Season Status Combinations › mixed status seasons do not interfere
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Stress Test: Rapid Multi-Season Operations › 100 clips across 8 seasons with random distribution
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Stress Test: Rapid Multi-Season Operations › parallel random operations across all seasons
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Stress Test: Rapid Multi-Season Operations › verify data integrity after stress operations
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Cross-Season Data Integrity › season IDs never leak across boundaries
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  ● Multi-Season Operations (8 Seasons) › Cross-Season Data Integrity › slot positions are independent per season
+
+    Failed to create season: duplicate key value violates unique constraint "idx_seasons_active_genre"
+
+      328 |
+      329 |   if (seasonError) {
+    > 330 |     throw new Error(`Failed to create season: ${seasonError.message}`);
+          |           ^
+      331 |   }
+      332 |
+      333 |   // Create slots
+
+      at createSeason (src/__tests__/integration/setup.ts:330:11)
+      at Object.<anonymous> (src/__tests__/integration/admin/multi-season.test.ts:40:24)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/operation-combinations.test.ts
+  Operation Combinations
+    Upload Combinations
+      ✓ upload → delete (never approved) (32 ms)
+      ✓ upload → approve → delete (45 ms)
+      ✓ upload → reject → delete (31 ms)
+      ✓ upload → approve → reject → reapprove (36 ms)
+    Winner Combinations
+      ✓ approve → winner → unlock → delete (53 ms)
+      ✓ approve → winner → unlock → re-approve → winner again (35 ms)
+      ✓ two clips → winner clip1 → unlock → winner clip2 (51 ms)
+    Edit Combinations
+      ✓ upload → edit title → approve (18 ms)
+      ✓ approve → edit → still active (16 ms)
+      ✓ locked clip cannot be edited (guard check) (13 ms)
+    Slot Status Combinations
+      ✓ waiting_for_clips → voting → waiting_for_clips (all deleted) (19 ms)
+      ✓ voting → locked → voting (unlock) (25 ms)
+      ✓ slot 1 locked → slot 2 becomes waiting_for_clips (29 ms)
+    Bulk Operation Combinations
+      ✓ bulk approve multiple clips (25 ms)
+      ✓ bulk delete all → slot resets (30 ms)
+      ✓ bulk reject does not affect other clips (30 ms)
+    Edge Case Combinations
+      ✓ delete winner → blocked, unlock → delete → success (33 ms)
+      ✓ multiple operations on same clip rapid succession (37 ms)
+      ✓ all clips rejected → slot stays waiting (no active clips) (30 ms)
+      ✓ mixed statuses in slot: active + pending + rejected (21 ms)
+      ✓ unlock → edit → re-lock with same clip (29 ms)
+    Timer Combinations
+      ✓ timer starts → all clips deleted → timer clears (20 ms)
+      ✓ timer running → add more clips → timer continues (16 ms)
+      ✓ timer running → winner assigned → timer preserved in lock (21 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/slot-management.test.ts
+  Slot Management
+    Timer Management
+      ✓ approving first clip starts 24h timer (16 ms)
+      ✓ bulk delete all clips resets slot to waiting_for_clips (35 ms)
+      ✓ deleting pending clips also resets slot (22 ms)
+    Status Transitions
+      ✓ slot transitions: upcoming -> waiting_for_clips -> voting -> locked (23 ms)
+      ✓ unlocking slot clears winner reference (13 ms)
+    Edge Cases
+      ✓ slot with mixed active and pending clips stays in voting (21 ms)
+      ✓ rejected clips do not count towards slot status (19 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/clip-lifecycle.test.ts
+  Clip Lifecycle
+    Basic Clip Creation
+      ✓ creates a pending clip successfully (5 ms)
+      ✓ creates multiple clips with unique IDs (7 ms)
+    Approve Flow
+      ✓ approving a clip assigns it to the first available slot (13 ms)
+      ✓ approving first clip starts the 24h timer (15 ms)
+    Winner Assignment
+      ✓ assigning winner locks the clip and slot (15 ms)
+      ✓ assigning winner advances to next slot (21 ms)
+    Unlock Flow
+      ✓ unlocking a slot reverts clip status to pending (15 ms)
+    Delete Flow - THE BUG WE FIXED
+      ✓ deleting last clip after unlock resets slot to waiting_for_clips (31 ms)
+      ✓ deleting last active clip clears timer (20 ms)
+      ✓ deleting one of multiple clips does NOT reset slot (14 ms)
+    Safety Checks
+      ✓ cannot delete a clip that is the slot winner (10 ms)
+      ✓ cannot edit a locked clip status (9 ms)
+
+  console.log
+    Integration tests starting...
+
+      at Object.<anonymous> (jest.integration.setup.ts:30:11)
+
+  console.log
+    Supabase URL: http://localhost:54321
+
+      at Object.<anonymous> (jest.integration.setup.ts:31:11)
+
+  console.log
+    Integration tests complete.
+
+      at Object.<anonymous> (jest.integration.setup.ts:35:11)
+
+PASS integration src/__tests__/integration/admin/safety-checks.test.ts
+  Safety Checks
+    Winner Protection
+      ✓ winner clip is linked to slot via winner_tournament_clip_id (21 ms)
+      ✓ can detect if clip is a winner before delete (20 ms)
+      ✓ non-winner clips can be deleted (19 ms)
+    Locked Clip Guards
+      ✓ locked clip has status = locked (10 ms)
+      ✓ can detect locked clip before edit (10 ms)
+      ✓ unlocked clip can be edited (13 ms)
+    Unlock Before Modify
+      ✓ unlocking slot clears winner and allows modification (27 ms)
+      ✓ attempting to modify locked slot winner fails safety check (13 ms)
+    Bulk Operation Safety
+      ✓ bulk delete should skip winner clips (19 ms)
+
+Test Suites: 1 failed, 4 passed, 5 total
+Tests:       21 failed, 52 passed, 73 total
+Snapshots:   0 total
+Time:        2.326 s
+Ran all test suites.

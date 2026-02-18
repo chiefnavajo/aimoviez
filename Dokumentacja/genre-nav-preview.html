@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Genre Nav Preview - 10 Genres</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0a0a0a; color: white; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  h2 { text-align: center; padding: 20px; color: #888; font-size: 14px; text-transform: uppercase; letter-spacing: 2px; }
+  .section { margin: 20px auto; max-width: 420px; border: 1px solid #222; border-radius: 16px; overflow: hidden; }
+  .section.desktop { max-width: 900px; }
+  .label { background: #111; padding: 8px 16px; font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Shared header bg */
+  .header { background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255,255,255,0.1); }
+
+  /* ===== MOBILE: Dynamic Dots ===== */
+  .dots-container { display: flex; justify-content: center; align-items: center; gap: 6px; padding-top: 12px; }
+  .dot { border-radius: 50%; background: white; transition: all 0.2s; cursor: pointer; border: none; }
+  .dot:hover { opacity: 0.8 !important; }
+  .dot.overflow { background: rgba(255,255,255,0.2); }
+  .genre-name { text-align: center; padding: 8px 0 4px; font-size: 18px; font-weight: 700; }
+  .genre-meta { text-align: center; font-size: 12px; color: rgba(255,255,255,0.5); padding-bottom: 12px; }
+
+  /* ===== DESKTOP: Scrollable Pills ===== */
+  .pills-wrapper { position: relative; }
+  .pills-scroll { display: flex; gap: 6px; padding: 10px 16px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+  .pills-scroll::-webkit-scrollbar { display: none; }
+  .pill { flex-shrink: 0; padding: 6px 14px; border-radius: 9999px; font-size: 14px; font-weight: 500; white-space: nowrap; border: none; cursor: pointer; transition: all 0.2s; background: transparent; color: rgba(255,255,255,0.5); }
+  .pill:hover { color: white; background: rgba(255,255,255,0.1); }
+  .pill.active { background: rgba(6,182,212,0.2); color: white; box-shadow: 0 0 0 1px rgba(6,182,212,0.6); }
+  .pill .slot { margin-left: 6px; font-size: 11px; opacity: 0.5; }
+  .fade-left, .fade-right { position: absolute; top: 0; bottom: 0; width: 32px; z-index: 10; pointer-events: none; }
+  .fade-left { left: 0; background: linear-gradient(to right, rgba(0,0,0,0.6), transparent); }
+  .fade-right { right: 0; background: linear-gradient(to left, rgba(0,0,0,0.6), transparent); }
+
+  /* Demo controls */
+  .controls { text-align: center; padding: 16px; }
+  .controls button { background: #222; color: #aaa; border: 1px solid #333; padding: 6px 16px; border-radius: 8px; cursor: pointer; margin: 0 4px; font-size: 13px; }
+  .controls button:hover { background: #333; color: white; }
+  .controls span { color: #555; font-size: 12px; margin: 0 8px; }
+
+  /* Content placeholder */
+  .content-placeholder { height: 300px; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #111 0%, #1a1a2e 100%); }
+  .content-placeholder span { font-size: 48px; }
+</style>
+</head>
+<body>
+
+<h2>Genre Nav Preview - 10 Active Seasons</h2>
+
+<!-- MOBILE PREVIEW -->
+<div class="section" id="mobile-section">
+  <div class="label">Mobile (375px) - iOS Dynamic Dots</div>
+  <div class="header">
+    <div class="dots-container" id="mobile-dots"></div>
+    <div class="genre-name" id="mobile-genre-name"></div>
+    <div class="genre-meta" id="mobile-genre-meta"></div>
+  </div>
+  <div class="content-placeholder" id="mobile-content"></div>
+  <div class="controls">
+    <button onclick="navigate(-1, 'mobile')">&#8592; Prev</button>
+    <span id="mobile-counter"></span>
+    <button onclick="navigate(1, 'mobile')">Next &#8594;</button>
+  </div>
+</div>
+
+<!-- DESKTOP PREVIEW -->
+<div class="section desktop" id="desktop-section">
+  <div class="label">Desktop (900px) - Scrollable Pill Bar</div>
+  <div class="header">
+    <div class="pills-wrapper">
+      <div class="fade-left" id="fade-left" style="display:none"></div>
+      <div class="pills-scroll" id="desktop-pills"></div>
+      <div class="fade-right" id="fade-right"></div>
+    </div>
+  </div>
+  <div class="content-placeholder" id="desktop-content"></div>
+  <div class="controls">
+    <button onclick="navigate(-1, 'desktop')">&#8592; Prev</button>
+    <span id="desktop-counter"></span>
+    <button onclick="navigate(1, 'desktop')">Next &#8594;</button>
+  </div>
+</div>
+
+<script>
+const genres = [
+  { emoji: '😂', label: 'Comedy', slot: '3/75', clips: 24 },
+  { emoji: '😱', label: 'Horror', slot: '5/75', clips: 18 },
+  { emoji: '💥', label: 'Action', slot: '2/75', clips: 31 },
+  { emoji: '🎭', label: 'Drama', slot: '4/75', clips: 12 },
+  { emoji: '🚀', label: 'Sci-Fi', slot: '1/75', clips: 9 },
+  { emoji: '💕', label: 'Romance', slot: '6/75', clips: 22 },
+  { emoji: '🎬', label: 'Animation', slot: '2/75', clips: 15 },
+  { emoji: '🔍', label: 'Thriller', slot: '3/75', clips: 27 },
+  { emoji: '📜', label: 'Historical', slot: '1/75', clips: 6 },
+  { emoji: '🎵', label: 'Musical', slot: '2/75', clips: 11 },
+];
+
+let mobileIndex = 0;
+let desktopIndex = 0;
+
+function navigate(delta, view) {
+  if (view === 'mobile') {
+    mobileIndex = Math.max(0, Math.min(genres.length - 1, mobileIndex + delta));
+    renderMobile();
+  } else {
+    desktopIndex = Math.max(0, Math.min(genres.length - 1, desktopIndex + delta));
+    renderDesktop();
+  }
+}
+
+// ===== MOBILE: iOS Dynamic Dots =====
+function renderMobile() {
+  const MAX_VISIBLE = 7;
+  const current = mobileIndex;
+  const count = genres.length;
+  const container = document.getElementById('mobile-dots');
+  container.innerHTML = '';
+
+  let windowStart, windowEnd;
+
+  if (count <= MAX_VISIBLE) {
+    windowStart = 0;
+    windowEnd = count - 1;
+  } else {
+    const half = Math.floor(MAX_VISIBLE / 2);
+    windowStart = current - half;
+    windowEnd = current + half;
+    if (windowStart < 0) { windowStart = 0; windowEnd = MAX_VISIBLE - 1; }
+    if (windowEnd >= count) { windowEnd = count - 1; windowStart = count - MAX_VISIBLE; }
+  }
+
+  // Left overflow dot
+  if (windowStart > 0) {
+    const dot = document.createElement('button');
+    dot.className = 'dot overflow';
+    dot.style.width = '3px'; dot.style.height = '3px';
+    dot.onclick = () => { mobileIndex = windowStart - 1; renderMobile(); };
+    container.appendChild(dot);
+  }
+
+  for (let i = windowStart; i <= windowEnd; i++) {
+    const distance = Math.abs(i - current);
+    const scale = distance === 0 ? 1 : distance === 1 ? 0.75 : distance === 2 ? 0.55 : 0.4;
+    const opacity = distance === 0 ? 1 : distance === 1 ? 0.6 : distance === 2 ? 0.35 : 0.2;
+    const dot = document.createElement('button');
+    dot.className = 'dot';
+    dot.style.width = `${8 * scale}px`;
+    dot.style.height = `${8 * scale}px`;
+    dot.style.opacity = opacity;
+    const idx = i;
+    dot.onclick = () => { mobileIndex = idx; renderMobile(); };
+    container.appendChild(dot);
+  }
+
+  // Right overflow dot
+  if (windowEnd < count - 1) {
+    const dot = document.createElement('button');
+    dot.className = 'dot overflow';
+    dot.style.width = '3px'; dot.style.height = '3px';
+    dot.onclick = () => { mobileIndex = windowEnd + 1; renderMobile(); };
+    container.appendChild(dot);
+  }
+
+  const g = genres[current];
+  document.getElementById('mobile-genre-name').textContent = `${g.emoji} ${g.label}`;
+  document.getElementById('mobile-genre-meta').textContent = `Slot ${g.slot}  ·  ${g.clips} clips`;
+  document.getElementById('mobile-content').innerHTML = `<span>${g.emoji}</span>`;
+  document.getElementById('mobile-counter').textContent = `${current + 1} / ${count}`;
+}
+
+// ===== DESKTOP: Scrollable Pill Bar =====
+function renderDesktop() {
+  const current = desktopIndex;
+  const container = document.getElementById('desktop-pills');
+  container.innerHTML = '';
+
+  genres.forEach((g, i) => {
+    const btn = document.createElement('button');
+    btn.className = `pill ${i === current ? 'active' : ''}`;
+    btn.innerHTML = `${g.emoji} ${g.label}<span class="slot">${g.slot}</span>`;
+    btn.onclick = () => { desktopIndex = i; renderDesktop(); };
+    container.appendChild(btn);
+  });
+
+  // Auto-scroll to center active pill
+  requestAnimationFrame(() => {
+    const activeBtn = container.children[current];
+    if (activeBtn) {
+      const containerCenter = container.clientWidth / 2;
+      const btnCenter = activeBtn.offsetLeft + activeBtn.offsetWidth / 2;
+      container.scrollTo({ left: btnCenter - containerCenter, behavior: 'smooth' });
+    }
+
+    // Update fades
+    setTimeout(() => {
+      document.getElementById('fade-left').style.display = container.scrollLeft > 4 ? 'block' : 'none';
+      document.getElementById('fade-right').style.display =
+        container.scrollLeft < container.scrollWidth - container.clientWidth - 4 ? 'block' : 'none';
+    }, 300);
+  });
+
+  const g = genres[current];
+  document.getElementById('desktop-content').innerHTML = `<span>${g.emoji}</span>`;
+  document.getElementById('desktop-counter').textContent = `${current + 1} / ${genres.length}`;
+}
+
+// Initial render
+renderMobile();
+renderDesktop();
+</script>
+</body>
+</html>
