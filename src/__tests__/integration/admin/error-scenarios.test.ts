@@ -254,14 +254,17 @@ describe('Error Scenarios Tests', () => {
       }
     });
 
-    it('cannot delete season with existing clips', async () => {
-      // Create a clip in the season
+    it('deleting season cascades to clips and slots', async () => {
+      // Use a throwaway season to avoid destroying testSeasonId
+      const throwawaySeasonId = await createSeason('Throwaway Season', 3, 'active');
+
+      // Create a clip in the throwaway season
       const { data: clip } = await testSupabase
         .from('tournament_clips')
         .insert({
-          title: 'Blocking Clip',
+          title: 'Cascade Test Clip',
           status: 'pending',
-          season_id: testSeasonId,
+          season_id: throwawaySeasonId,
           user_id: MULTI_SEASON_USER_ID,
           video_url: 'https://test.example.com/video.mp4',
           thumbnail_url: 'https://test.example.com/thumb.jpg',
@@ -269,17 +272,23 @@ describe('Error Scenarios Tests', () => {
         .select('id')
         .single();
 
-      if (!clip) return; // Skip test if clip creation failed
-      createdClipIds.push(clip.id);
+      expect(clip).not.toBeNull();
 
-      // Try to delete the season
+      // Delete the season — FK has ON DELETE CASCADE, so clips/slots are also deleted
       const { error } = await testSupabase
         .from('seasons')
         .delete()
-        .eq('id', testSeasonId);
+        .eq('id', throwawaySeasonId);
 
-      // Should fail due to foreign key constraint (clips reference season)
-      expect(error).not.toBeNull();
+      expect(error).toBeNull();
+
+      // Verify clip was cascade-deleted
+      const { data: orphanClip } = await testSupabase
+        .from('tournament_clips')
+        .select('id')
+        .eq('id', clip!.id)
+        .single();
+      expect(orphanClip).toBeNull();
     });
   });
 

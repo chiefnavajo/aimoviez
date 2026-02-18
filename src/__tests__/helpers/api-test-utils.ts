@@ -291,3 +291,111 @@ export async function parseResponse(response: Response) {
   const body = await response.json();
   return { status: response.status, body };
 }
+
+// ============================================================================
+// SEQUENTIAL MOCK (for routes with multiple .from() calls)
+// ============================================================================
+
+/**
+ * Creates a mock that returns different results for sequential calls.
+ * Useful when a route calls .from('same_table') multiple times.
+ *
+ * Usage:
+ *   const seqMock = createSequentialMock([
+ *     { data: { id: '1' }, error: null },   // 1st call
+ *     { data: null, error: { message: 'not found' } },  // 2nd call
+ *   ]);
+ *   mockCreateClient.mockReturnValue({ from: seqMock.from, rpc: jest.fn() });
+ */
+export function createSequentialMock(
+  responses: Array<{ data?: unknown; error?: unknown; count?: number | null }>
+) {
+  let callIndex = 0;
+  const chains = responses.map(r => createSupabaseChain(r));
+
+  const from = jest.fn(() => {
+    const chain = chains[Math.min(callIndex, chains.length - 1)];
+    callIndex++;
+    return chain;
+  });
+
+  return { from, chains };
+}
+
+// ============================================================================
+// CRON REQUEST HELPER
+// ============================================================================
+
+/**
+ * Create a NextRequest with CRON_SECRET authorization header.
+ */
+export function createCronRequest(
+  url: string,
+  secret?: string
+): NextRequest {
+  const headers: Record<string, string> = {};
+  if (secret) {
+    headers['authorization'] = `Bearer ${secret}`;
+  }
+  return createMockRequest(url, { headers });
+}
+
+// ============================================================================
+// ADMIN AUTH MOCK HELPER
+// ============================================================================
+
+/**
+ * Mock requireAdmin / requireAdminWithAuth to succeed.
+ * Pass the mock function reference.
+ */
+export function mockAdminAuth(
+  mock: jest.Mock,
+  userId: string = TEST_ADMIN.userId
+) {
+  mock.mockResolvedValue({
+    isAdmin: true,
+    userId,
+    email: TEST_ADMIN.email,
+  });
+}
+
+/**
+ * Mock requireAdmin / requireAdminWithAuth to fail (not admin).
+ */
+export function mockAdminAuthFail(mock: jest.Mock) {
+  const { NextResponse } = require('next/server');
+  mock.mockResolvedValue(
+    NextResponse.json({ error: 'Admin access required' }, { status: 403 })
+  );
+}
+
+/**
+ * Mock requireAdmin / requireAdminWithAuth to fail (not authenticated).
+ */
+export function mockAdminAuthUnauth(mock: jest.Mock) {
+  const { NextResponse } = require('next/server');
+  mock.mockResolvedValue(
+    NextResponse.json({ error: 'Authentication required' }, { status: 401 })
+  );
+}
+
+// ============================================================================
+// QUICK ASSERTION
+// ============================================================================
+
+/**
+ * Assert response status code.
+ */
+export async function expectStatus(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  return response;
+}
+
+/**
+ * Assert response status and parse JSON body.
+ */
+export async function expectJson(response: Response, status: number) {
+  expect(response.status).toBe(status);
+  const body = await response.json();
+  return body;
+}

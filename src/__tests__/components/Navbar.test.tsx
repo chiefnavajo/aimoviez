@@ -34,6 +34,17 @@ jest.mock('@/hooks/useCountdown', () => ({
   }),
 }));
 
+// Mock useFeatureFlags to avoid QueryClientProvider dependency
+jest.mock('@/hooks/useFeatureFlags', () => ({
+  useFeatureFlags: () => ({ flags: {}, isLoading: false }),
+  useFeature: () => ({ enabled: false, isLoading: false }),
+}));
+
+// Mock useCredits
+jest.mock('@/hooks/useCredits', () => ({
+  useCredits: () => ({ balance: 0, isLoading: false, refetch: jest.fn() }),
+}));
+
 // Mock framer-motion
 jest.mock('framer-motion', () => ({
   motion: {

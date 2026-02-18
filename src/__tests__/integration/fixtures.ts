@@ -36,7 +36,7 @@ export async function createClip(
   seasonId: string,
   options: {
     title?: string;
-    status?: 'pending' | 'active' | 'locked' | 'rejected';
+    status?: 'pending' | 'active' | 'locked' | 'rejected' | 'eliminated';
     slotPosition?: number | null;
     userId?: string;
   } = {}
@@ -92,7 +92,7 @@ export async function createPendingClip(seasonId: string): Promise<ClipFixture> 
 export async function createClipBatch(
   seasonId: string,
   count: number,
-  options: { status?: 'pending' | 'active'; slotPosition?: number } = {}
+  options: { status?: 'pending' | 'active' | 'eliminated'; slotPosition?: number } = {}
 ): Promise<ClipFixture[]> {
   const clips: ClipFixture[] = [];
   for (let i = 0; i < count; i++) {
@@ -198,7 +198,7 @@ export async function createComment(
 ): Promise<CommentFixture> {
   const {
     text = `Test comment ${Date.now()}`,
-    userKey = `user_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+    userKey = `user_${crypto.randomUUID()}`,
     username = 'TestUser',
     parentId = null,
   } = options;
@@ -358,50 +358,173 @@ export async function createGeneration(
 }
 
 // ============================================================================
+// SEASON FIXTURES
+// ============================================================================
+
+export interface SeasonFixture {
+  id: string;
+  label: string;
+  status: string;
+  total_slots: number;
+  genre: string;
+}
+
+export async function createSeason(
+  overrides: Partial<{ label: string; status: string; total_slots: number; genre: string }> = {}
+): Promise<SeasonFixture> {
+  const { data, error } = await testSupabase
+    .from('seasons')
+    .insert({
+      label: overrides.label || `Test Season ${Date.now()}`,
+      status: overrides.status || 'active',
+      total_slots: overrides.total_slots || 75,
+      genre: overrides.genre || `test_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new FixtureError('season', 'create', error.message);
+  }
+
+  trackedResources.seasons.push(data.id);
+
+  return {
+    id: data.id,
+    label: data.label,
+    status: data.status,
+    total_slots: data.total_slots,
+    genre: data.genre,
+  };
+}
+
+// ============================================================================
 // CLEANUP
 // ============================================================================
 
 export async function cleanupAllFixtures(): Promise<void> {
   // Delete in order of dependencies
+  // Each block is wrapped in try-catch so cleanup doesn't fail if optional tables don't exist
+
+  // Direction votes (depend on direction options / seasons)
+  try {
+    for (const seasonId of trackedResources.seasons) {
+      await testSupabase.from('direction_votes').delete().eq('season_id', seasonId);
+    }
+  } catch (_e) {
+    // table may not exist
+  }
+
+  // Direction options (depend on seasons)
+  try {
+    for (const seasonId of trackedResources.seasons) {
+      await testSupabase.from('direction_options').delete().eq('season_id', seasonId);
+    }
+  } catch (_e) {
+    // table may not exist
+  }
 
   // Votes (depend on clips)
-  for (const voterKey of trackedResources.votes) {
-    await testSupabase.from('votes').delete().eq('voter_key', voterKey);
+  try {
+    for (const voterKey of trackedResources.votes) {
+      await testSupabase.from('votes').delete().eq('voter_key', voterKey);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Comment likes (depend on comments)
-  for (const commentId of trackedResources.comments) {
-    await testSupabase.from('comment_likes').delete().eq('comment_id', commentId);
+  try {
+    for (const commentId of trackedResources.comments) {
+      await testSupabase.from('comment_likes').delete().eq('comment_id', commentId);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Comments (depend on clips)
-  for (const commentId of trackedResources.comments) {
-    await testSupabase.from('comments').delete().eq('id', commentId);
+  try {
+    for (const commentId of trackedResources.comments) {
+      await testSupabase.from('comments').delete().eq('id', commentId);
+    }
+  } catch (_e) {
+    // table may not exist
+  }
+
+  // Notifications (depend on users)
+  try {
+    for (const userId of trackedResources.users) {
+      await testSupabase.from('notifications').delete().eq('user_id', userId);
+    }
+  } catch (_e) {
+    // table may not exist
+  }
+
+  // Credit transactions (depend on users)
+  try {
+    for (const userId of trackedResources.users) {
+      await testSupabase.from('credit_transactions').delete().eq('user_id', userId);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Clear slot winners before deleting clips
-  for (const seasonId of trackedResources.seasons) {
-    await testSupabase
-      .from('story_slots')
-      .update({ winner_tournament_clip_id: null })
-      .eq('season_id', seasonId);
+  try {
+    for (const seasonId of trackedResources.seasons) {
+      await testSupabase
+        .from('story_slots')
+        .update({ winner_tournament_clip_id: null })
+        .eq('season_id', seasonId);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Clips
-  for (const clipId of trackedResources.clips) {
-    await testSupabase.from('tournament_clips').delete().eq('id', clipId);
+  try {
+    for (const clipId of trackedResources.clips) {
+      await testSupabase.from('tournament_clips').delete().eq('id', clipId);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Generations
-  for (const genId of trackedResources.generations) {
-    await testSupabase.from('ai_generations').delete().eq('id', genId);
+  try {
+    for (const genId of trackedResources.generations) {
+      await testSupabase.from('ai_generations').delete().eq('id', genId);
+    }
+  } catch (_e) {
+    // table may not exist
+  }
+
+  // Cron locks (standalone, no FK dependency)
+  try {
+    // Clean up any cron locks created during tests
+    await testSupabase.from('cron_locks').delete().lt('locked_at', new Date().toISOString());
+  } catch (_e) {
+    // table may not exist
   }
 
   // Users (except the multi-season user)
-  for (const userId of trackedResources.users) {
-    if (userId !== MULTI_SEASON_USER_ID) {
-      await testSupabase.from('users').delete().eq('id', userId);
+  try {
+    for (const userId of trackedResources.users) {
+      if (userId !== MULTI_SEASON_USER_ID) {
+        await testSupabase.from('users').delete().eq('id', userId);
+      }
     }
+  } catch (_e) {
+    // table may not exist
+  }
+
+  // Tracked seasons (delete last since other resources depend on them)
+  try {
+    for (const seasonId of trackedResources.seasons) {
+      await testSupabase.from('seasons').delete().eq('id', seasonId);
+    }
+  } catch (_e) {
+    // table may not exist
   }
 
   // Reset tracking

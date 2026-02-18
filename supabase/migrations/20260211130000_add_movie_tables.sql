@@ -108,43 +108,64 @@ ALTER TABLE "public"."movie_scenes" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."movie_access" ENABLE ROW LEVEL SECURITY;
 
 -- movie_projects: Users can only see/manage their own projects
-CREATE POLICY "Users can view own movie projects"
-    ON "public"."movie_projects" FOR SELECT
-    USING ("user_id" = "auth"."uid"());
+DO $$ BEGIN
+  CREATE POLICY "Users can view own movie projects"
+      ON "public"."movie_projects" FOR SELECT
+      USING ("user_id" = "auth"."uid"());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can insert own movie projects"
-    ON "public"."movie_projects" FOR INSERT
-    WITH CHECK ("user_id" = "auth"."uid"());
+DO $$ BEGIN
+  CREATE POLICY "Users can insert own movie projects"
+      ON "public"."movie_projects" FOR INSERT
+      WITH CHECK ("user_id" = "auth"."uid"());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can update own movie projects"
-    ON "public"."movie_projects" FOR UPDATE
-    USING ("user_id" = "auth"."uid"());
+DO $$ BEGIN
+  CREATE POLICY "Users can update own movie projects"
+      ON "public"."movie_projects" FOR UPDATE
+      USING ("user_id" = "auth"."uid"());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can delete own movie projects"
-    ON "public"."movie_projects" FOR DELETE
-    USING ("user_id" = "auth"."uid"());
+DO $$ BEGIN
+  CREATE POLICY "Users can delete own movie projects"
+      ON "public"."movie_projects" FOR DELETE
+      USING ("user_id" = "auth"."uid"());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- movie_scenes: Users can see/edit scenes for their own projects
-CREATE POLICY "Users can view own movie scenes"
-    ON "public"."movie_scenes" FOR SELECT
-    USING (EXISTS (
-        SELECT 1 FROM "public"."movie_projects"
-        WHERE "movie_projects"."id" = "movie_scenes"."project_id"
-        AND "movie_projects"."user_id" = "auth"."uid"()
-    ));
+DO $$ BEGIN
+  CREATE POLICY "Users can view own movie scenes"
+      ON "public"."movie_scenes" FOR SELECT
+      USING (EXISTS (
+          SELECT 1 FROM "public"."movie_projects"
+          WHERE "movie_projects"."id" = "movie_scenes"."project_id"
+          AND "movie_projects"."user_id" = "auth"."uid"()
+      ));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE POLICY "Users can update own movie scenes"
-    ON "public"."movie_scenes" FOR UPDATE
-    USING (EXISTS (
-        SELECT 1 FROM "public"."movie_projects"
-        WHERE "movie_projects"."id" = "movie_scenes"."project_id"
-        AND "movie_projects"."user_id" = "auth"."uid"()
-    ));
+DO $$ BEGIN
+  CREATE POLICY "Users can update own movie scenes"
+      ON "public"."movie_scenes" FOR UPDATE
+      USING (EXISTS (
+          SELECT 1 FROM "public"."movie_projects"
+          WHERE "movie_projects"."id" = "movie_scenes"."project_id"
+          AND "movie_projects"."user_id" = "auth"."uid"()
+      ));
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- movie_access: Users can only view their own access record
-CREATE POLICY "Users can view own movie access"
-    ON "public"."movie_access" FOR SELECT
-    USING ("user_id" = "auth"."uid"());
+DO $$ BEGIN
+  CREATE POLICY "Users can view own movie access"
+      ON "public"."movie_access" FOR SELECT
+      USING ("user_id" = "auth"."uid"());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- =============================================================================
 -- FEATURE FLAG
@@ -166,7 +187,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER "movie_projects_updated_at"
-    BEFORE UPDATE ON "public"."movie_projects"
-    FOR EACH ROW
-    EXECUTE FUNCTION "public"."update_movie_projects_updated_at"();
+DO $$ BEGIN
+  CREATE TRIGGER "movie_projects_updated_at"
+      BEFORE UPDATE ON "public"."movie_projects"
+      FOR EACH ROW
+      EXECUTE FUNCTION "public"."update_movie_projects_updated_at"();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

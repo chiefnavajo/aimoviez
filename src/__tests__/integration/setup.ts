@@ -32,6 +32,8 @@ interface ClipOverrides {
   user_id?: string;
   video_url?: string;
   genre?: string;
+  eliminated_at?: string;
+  elimination_reason?: string;
 }
 
 interface SlotOverrides {
@@ -40,6 +42,7 @@ interface SlotOverrides {
   voting_started_at?: string | null;
   voting_ends_at?: string | null;
   winner_tournament_clip_id?: string | null;
+  voting_duration_hours?: number;
 }
 
 interface ApiResponse {
@@ -201,7 +204,7 @@ export async function setupTestSeason(totalSlots: number = 10): Promise<void> {
       label: 'Integration Test Season',
       status: 'active',
       total_slots: totalSlots,
-      genre: 'TEST',
+      genre: `test_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     });
 
   if (seasonError) {
@@ -228,12 +231,33 @@ export async function setupTestSeason(totalSlots: number = 10): Promise<void> {
  * Cleanup test data
  */
 export async function cleanupTestData(): Promise<void> {
+  // Helper to delete from a table, gracefully ignoring "table not found" errors
+  async function safeDelete(table: string, column: string, value: string) {
+    try {
+      await testSupabase.from(table).delete().eq(column, value);
+    } catch {
+      // Gracefully handle table not found or other errors
+    }
+  }
+
   // Delete in order due to foreign key constraints
-  await testSupabase.from('votes').delete().eq('season_id', TEST_SEASON_ID);
-  await testSupabase.from('tournament_clips').delete().eq('season_id', TEST_SEASON_ID);
-  await testSupabase.from('story_slots').delete().eq('season_id', TEST_SEASON_ID);
-  await testSupabase.from('seasons').delete().eq('id', TEST_SEASON_ID);
-  await testSupabase.from('users').delete().eq('id', TEST_USER_ID);
+  // First, clean up co-director / analysis related tables
+  await safeDelete('direction_votes', 'season_id', TEST_SEASON_ID);
+  await safeDelete('direction_options', 'season_id', TEST_SEASON_ID);
+  await safeDelete('slot_briefs', 'season_id', TEST_SEASON_ID);
+  await safeDelete('story_analyses', 'season_id', TEST_SEASON_ID);
+
+  // Clean up social / notification tables
+  await safeDelete('comment_likes', 'season_id', TEST_SEASON_ID);
+  await safeDelete('notifications', 'user_id', TEST_USER_ID);
+  await safeDelete('cron_locks', 'season_id', TEST_SEASON_ID);
+
+  // Core tables
+  await safeDelete('votes', 'season_id', TEST_SEASON_ID);
+  await safeDelete('tournament_clips', 'season_id', TEST_SEASON_ID);
+  await safeDelete('story_slots', 'season_id', TEST_SEASON_ID);
+  await safeDelete('seasons', 'id', TEST_SEASON_ID);
+  await safeDelete('users', 'id', TEST_USER_ID);
 }
 
 /**
@@ -582,4 +606,26 @@ export async function countClipsByStatus(
   }
 
   return count || 0;
+}
+
+/**
+ * Call the assign_winner_atomic RPC function
+ */
+export async function callAssignWinnerRPC(params: {
+  clipId: string;
+  slotId: string;
+  seasonId: string;
+  nextSlotPosition: number;
+  votingDurationHours?: number;
+  advanceSlot?: boolean;
+}) {
+  const { data, error } = await testSupabase.rpc('assign_winner_atomic', {
+    p_clip_id: params.clipId,
+    p_slot_id: params.slotId,
+    p_season_id: params.seasonId,
+    p_next_slot_position: params.nextSlotPosition,
+    p_voting_duration_hours: params.votingDurationHours ?? 24,
+    p_advance_slot: params.advanceSlot ?? true,
+  });
+  return { data, error };
 }

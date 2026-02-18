@@ -11,6 +11,7 @@ env:
   SUPABASE_URL: http://localhost:54321
   SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
   SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+  TEST_SUPABASE_URL: http://localhost:54321
 
 jobs:
   # ==========================================================================
@@ -54,10 +55,11 @@ jobs:
         with:
           version: latest
 
-      - name: Start Supabase
+      - name: Start Supabase and apply migrations
         run: |
           supabase start
-          supabase db push
+          supabase db reset --no-seed
+          echo "TEST_SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
 
       - name: Run Smoke Tests
         run: npm run test:integration -- --testPathPattern="smoke" --ci --reporters=default --reporters=jest-junit
@@ -114,10 +116,11 @@ jobs:
         with:
           version: latest
 
-      - name: Start Supabase
+      - name: Start Supabase and apply migrations
         run: |
           supabase start
-          supabase db push
+          supabase db reset --no-seed
+          echo "TEST_SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
 
       - name: Run Integration Tests
         run: npm run test:integration -- --ci --coverage --reporters=default --reporters=jest-junit
@@ -185,10 +188,11 @@ jobs:
         with:
           version: latest
 
-      - name: Start Supabase
+      - name: Start Supabase and apply migrations
         run: |
           supabase start
-          supabase db push
+          supabase db reset --no-seed
+          echo "TEST_SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
 
       - name: Run Security Tests
         run: npm run test:integration -- --testPathPattern="security" --ci --reporters=default --reporters=jest-junit
@@ -245,10 +249,11 @@ jobs:
         with:
           version: latest
 
-      - name: Start Supabase
+      - name: Start Supabase and apply migrations
         run: |
           supabase start
-          supabase db push
+          supabase db reset --no-seed
+          echo "TEST_SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
 
       - name: Run E2E Tests
         run: npm run test:integration -- --testPathPattern="e2e" --ci --reporters=default --reporters=jest-junit
@@ -306,13 +311,14 @@ jobs:
         with:
           version: latest
 
-      - name: Start Supabase
+      - name: Start Supabase and apply migrations
         run: |
           supabase start
-          supabase db push
+          supabase db reset --no-seed
+          echo "TEST_SUPABASE_SERVICE_KEY=$(supabase status -o json | jq -r '.SERVICE_ROLE_KEY')" >> "$GITHUB_ENV"
 
       - name: Run Performance Tests
-        run: npm run test:integration -- --testPathPattern="load-test|concurrent" --ci --reporters=default --reporters=jest-junit
+        run: npm run test:integration -- --testPathPattern="load-test|concurrent|user-behavior-simulation" --ci --reporters=default --reporters=jest-junit
         env:
           JEST_JUNIT_OUTPUT_DIR: ./reports
           JEST_JUNIT_OUTPUT_NAME: performance-results.xml

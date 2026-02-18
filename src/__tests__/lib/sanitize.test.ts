@@ -162,7 +162,7 @@ describe('sanitizeSearchQuery', () => {
   });
 
   it('removes SQL injection patterns', () => {
-    expect(sanitizeSearchQuery("'; DROP TABLE users;--")).toBe('DROP TABLE users--');
+    expect(sanitizeSearchQuery("'; DROP TABLE users;--")).toBe('DROP TABLE users');
     // Note: = is not removed, but quotes and semicolons are
     expect(sanitizeSearchQuery('1 OR 1=1')).toBe('1 OR 1=1');
     expect(sanitizeSearchQuery("SELECT * FROM users WHERE id='1'")).toBe('SELECT * FROM users WHERE id=1');

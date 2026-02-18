@@ -1,7 +1,11 @@
-import { sounds } from '@/lib/sounds';
+let sounds: typeof import('@/lib/sounds').sounds;
 
 describe('SoundManager', () => {
   beforeEach(() => {
+    // Reset module to get fresh singleton with uninitialized storage flag
+    jest.resetModules();
+    // Re-require after reset to get a fresh instance
+    sounds = require('@/lib/sounds').sounds;
     // Reset localStorage before each test
     localStorage.clear();
     // Mock AudioContext
@@ -49,10 +53,12 @@ describe('SoundManager', () => {
       expect(localStorage.getItem('soundEffectsEnabled')).toBe('true');
     });
 
-    it('should read enabled state from localStorage', () => {
+    it('should read enabled=false from localStorage on first access', () => {
       localStorage.setItem('soundEffectsEnabled', 'false');
       expect(sounds.isEnabled()).toBe(false);
+    });
 
+    it('should read enabled=true from localStorage on first access', () => {
       localStorage.setItem('soundEffectsEnabled', 'true');
       expect(sounds.isEnabled()).toBe(true);
     });

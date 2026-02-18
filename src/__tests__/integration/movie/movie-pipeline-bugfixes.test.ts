@@ -1217,19 +1217,19 @@ describe('Edge cases and regression guards', () => {
     expect(result?.success).toBe(false);
   });
 
-  test('admin_grant_credits with negative amount: balance decreases', async () => {
-    // admin_grant_credits does NOT validate negative amounts (unlike deduct_credits)
-    // This is acceptable because it's an admin-only RPC used for refunds
+  test('admin_grant_credits with negative amount: rejected', async () => {
+    // admin_grant_credits validates that amount is positive to prevent accidental
+    // or malicious negative grants — negative amounts are rejected
     await setUserCredits(PIPELINE_USER_ID, 100);
     const { data: result } = await testSupabase.rpc('admin_grant_credits', {
       p_user_id: PIPELINE_USER_ID,
       p_amount: -5,
       p_reason: 'test negative grant',
     });
-    // It succeeds — admin_grant_credits trusts the caller
-    expect(result?.success).toBe(true);
+    expect(result?.success).toBe(false);
+    expect(result?.error).toMatch(/positive/i);
     const credits = await getUserCredits(PIPELINE_USER_ID);
-    expect(credits).toBe(95); // 100 + (-5) = 95
+    expect(credits).toBe(100); // unchanged
   });
 
   test('scene status transitions are valid', async () => {

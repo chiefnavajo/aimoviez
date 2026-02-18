@@ -16,8 +16,13 @@ const config = {
   // Use Node environment (not jsdom) for API tests
   testEnvironment: 'node',
 
-  // Only run integration tests
+  // Only run integration tests (exclude load/stress tests by default)
   testMatch: ['**/__tests__/integration/**/*.test.ts'],
+  testPathIgnorePatterns: [
+    '/node_modules/',
+    'load-test',
+    'user-behavior-simulation',
+  ],
 
   // TypeScript support
   preset: 'ts-jest',

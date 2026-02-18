@@ -37,13 +37,16 @@ DO $$
 BEGIN
   -- Check if a non-unique index exists and drop it
   IF EXISTS (
-    SELECT 1 FROM pg_indexes
-    WHERE indexname = 'idx_credit_trans_stripe' AND NOT (
-      SELECT indisunique FROM pg_index WHERE indexrelid = 'idx_credit_trans_stripe'::regclass
-    )
+    SELECT 1 FROM pg_indexes i
+    JOIN pg_index pi ON pi.indexrelid = (quote_ident(i.schemaname) || '.' || quote_ident(i.indexname))::regclass
+    WHERE i.indexname = 'idx_credit_trans_stripe'
+    AND NOT pi.indisunique
   ) THEN
     DROP INDEX IF EXISTS public.idx_credit_trans_stripe;
   END IF;
+EXCEPTION WHEN undefined_object THEN
+  -- Index doesn't exist at all, nothing to drop
+  NULL;
 END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_credit_trans_stripe_unique

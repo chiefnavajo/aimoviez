@@ -49,6 +49,8 @@ const config = {
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/.next/',
+    '<rootDir>/src/__tests__/helpers/',
+    '<rootDir>/src/__tests__/integration/',
   ],
 
   // Transform patterns
