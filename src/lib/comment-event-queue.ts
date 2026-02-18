@@ -146,13 +146,12 @@ export async function acknowledgeCommentEvents(events: CommentQueueEvent[]): Pro
 
 /**
  * Acknowledge a single successfully processed event.
- * H25 fix: Uses LPOP instead of LREM with JSON string matching to avoid
- * silent failures from JSON key ordering differences.
+ * Uses LREM to remove the specific event from the processing queue,
+ * preventing silent loss of other events when processing order differs.
  */
-export async function acknowledgeCommentEvent(event: CommentQueueEvent): Promise<void> {
+export async function acknowledgeCommentEvent(eventJson: string): Promise<void> {
   const r = getRedis();
-  // Remove one item from the processing queue (order doesn't matter for single ack)
-  await r.lpop(QUEUE_KEYS.processing);
+  await r.lrem(QUEUE_KEYS.processing, 1, eventJson);
 }
 
 /**
@@ -181,6 +180,8 @@ export async function moveCommentToDeadLetter(
   pipeline.lpop(QUEUE_KEYS.processing);
   // Add to dead letter queue
   pipeline.lpush(QUEUE_KEYS.deadLetter, JSON.stringify(deadLetterEntry));
+  // Cap dead letter queue at 1000 entries to prevent unbounded growth
+  pipeline.ltrim(QUEUE_KEYS.deadLetter, 0, 999);
   await pipeline.exec();
 }
 

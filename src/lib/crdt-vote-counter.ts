@@ -68,6 +68,9 @@ export async function incrementVote(
   const pipeline = r.pipeline();
   pipeline.hincrby(KEYS.p(clipId), nodeId, 1);
   pipeline.hincrby(KEYS.pw(clipId), nodeId, weight);
+  // 30-day TTL to prevent unbounded key accumulation
+  pipeline.expire(KEYS.p(clipId), 30 * 24 * 3600);
+  pipeline.expire(KEYS.pw(clipId), 30 * 24 * 3600);
   await pipeline.exec();
 }
 
@@ -84,6 +87,9 @@ export async function decrementVote(
   const pipeline = r.pipeline();
   pipeline.hincrby(KEYS.n(clipId), nodeId, 1);
   pipeline.hincrby(KEYS.nw(clipId), nodeId, weight);
+  // 30-day TTL to prevent unbounded key accumulation
+  pipeline.expire(KEYS.n(clipId), 30 * 24 * 3600);
+  pipeline.expire(KEYS.nw(clipId), 30 * 24 * 3600);
   await pipeline.exec();
 }
 

@@ -91,9 +91,19 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // --- 4. Get active clip IDs from Redis ---
+    // --- 4. Get active clip IDs from Redis (atomic SMEMBERS + DEL) ---
+    // FIX: Use Lua script to atomically read and clear the set.
+    // Previously, SMEMBERS + SREM raced with incoming SADD: new clip IDs added
+    // between the two calls would be removed before being synced, causing vote drift.
     const redis = getRedis();
-    const clipIds = await redis.smembers(ACTIVE_CLIPS_KEY);
+    const luaScript = `
+      local items = redis.call('SMEMBERS', KEYS[1])
+      if #items > 0 then
+        redis.call('DEL', KEYS[1])
+      end
+      return items
+    `;
+    const clipIds = await redis.eval(luaScript, [ACTIVE_CLIPS_KEY], []) as string[];
 
     if (!clipIds || clipIds.length === 0) {
       return NextResponse.json({ ok: true, synced: 0, message: 'No active clips to sync' });
@@ -106,15 +116,6 @@ export async function GET(req: NextRequest) {
 
     if (result.errors.length > 0) {
       console.warn(`[sync-vote-counters] ${result.errors.length} sync errors:`, result.errors);
-    }
-
-    // --- 6. Clean up synced clip IDs from the active set to prevent unbounded growth ---
-    if (clipIds.length > 0) {
-      try {
-        await redis.srem('clips_active', ...clipIds as [string, ...string[]]);
-      } catch (cleanupErr) {
-        console.warn('[sync-vote-counters] Failed to clean clips_active set:', cleanupErr);
-      }
     }
 
     return NextResponse.json({

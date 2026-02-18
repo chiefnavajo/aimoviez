@@ -8,8 +8,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
 import { getStorageProvider, getSignedUploadUrl as getProviderSignedUrl } from '@/lib/storage';
+import { requireCsrf } from '@/lib/csrf';
 
 // ============================================================================
 // SUPABASE CLIENT (Service Role - can create signed URLs)
@@ -34,6 +36,8 @@ export async function POST(request: NextRequest) {
   // Rate limit: 5 signed URLs per minute per user (prevents abuse)
   const rateLimitResponse = await rateLimit(request, 'upload');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     // Check authentication first
@@ -76,7 +80,7 @@ export async function POST(request: NextRequest) {
 
     // Generate unique filename
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 10);
+    const random = crypto.randomBytes(8).toString('hex');
     const ext = filename.split('.').pop()?.toLowerCase() || 'mp4';
     const uniqueFilename = `clip_${timestamp}_${random}.${ext}`;
     const storagePath = `clips/${uniqueFilename}`;

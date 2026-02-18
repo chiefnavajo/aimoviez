@@ -71,7 +71,7 @@ const CommentsSection = dynamic(() => import('@/components/CommentsSection'), {
 // TYPES
 // ============================================================================
 
-type _VoteType = 'standard';
+
 
 // API response clip structure (from /api/vote)
 interface APIClip {

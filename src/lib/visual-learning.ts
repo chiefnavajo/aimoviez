@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 // =============================================================================
 
 // Use Haiku for fast, cheap visual analysis
-const VISION_MODEL = 'claude-3-haiku-20240307';
+const VISION_MODEL = 'claude-haiku-4-5-20251001';
 
 // Runtime client factories (avoid module-load time env var issues in serverless)
 function getAnthropicClient() {
@@ -19,7 +19,7 @@ function getAnthropicClient() {
   if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY environment variable is required');
   }
-  return new Anthropic({ apiKey });
+  return new Anthropic({ apiKey, timeout: 30_000 });
 }
 
 function getSupabaseClient() {

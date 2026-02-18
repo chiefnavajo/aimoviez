@@ -19,12 +19,12 @@ const anthropic = new Anthropic({
   timeout: 60_000,
 });
 
-const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
 
-// Sonnet: $3/1M input, $15/1M output
+// Haiku 4.5: $0.80/1M input, $4/1M output
 function calculateCostCents(inputTokens: number, outputTokens: number): number {
-  const inputCost = (inputTokens / 1_000_000) * 3;
-  const outputCost = (outputTokens / 1_000_000) * 15;
+  const inputCost = (inputTokens / 1_000_000) * 0.8;
+  const outputCost = (outputTokens / 1_000_000) * 4;
   return Math.ceil((inputCost + outputCost) * 100);
 }
 

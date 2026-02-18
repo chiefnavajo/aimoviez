@@ -9,6 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -166,6 +167,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const rateLimitResponse = await rateLimit(request, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     // Require authentication

@@ -60,8 +60,6 @@ import { DynamicDots } from '@/components/GenreSwiper';
 
 type SlotStatus = 'upcoming' | 'voting' | 'locked';
 type SeasonStatus = 'completed' | 'active' | 'coming_soon';
-type _Genre = 'Thriller' | 'Comedy' | 'Action' | 'Sci-Fi' | 'Romance' | 'Animation' | 'Horror';
-
 interface WinningClip {
   id: string;
   video_url: string;
@@ -205,17 +203,6 @@ const TypewriterIntro = memo(function TypewriterIntro({ text, seasonNumber, onCo
 // ACTION BUTTON
 // ============================================================================
 
-function _ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label?: string | number; onClick?: (e: React.MouseEvent) => void }) {
-  return (
-    <button onClick={onClick} className="flex flex-col items-center gap-0.5 transition-transform active:scale-90">
-      <div className="w-10 h-10 rounded-full flex items-center justify-center">{icon}</div>
-      {label !== undefined && (
-        <span className="text-white text-[10px] font-semibold text-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">{label}</span>
-      )}
-    </button>
-  );
-}
-
 // ============================================================================
 // VIDEO PLAYER SECTION (Top)
 // ============================================================================
@@ -252,6 +239,7 @@ interface VideoPlayerProps {
 }
 
 const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, onToggleFullscreen, hideInternalNav, onSegmentChange, playerRef, isLandscape = false, showLandscapeControls = true, isMuted: isMutedProp, onMuteToggle, isMobile: _isMobile = false }: VideoPlayerProps) {
+  const router = useRouter();
   const [isPlaying, setIsPlaying] = useState(true); // Start playing automatically
   const [currentIndex, setCurrentIndex] = useState(0);
   // Use prop if provided, otherwise use internal state (backwards compatible)
@@ -829,7 +817,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
 
         {/* Vote Button - Dashboard style with infinity symbol */}
         <button
-          onClick={isActive ? onVote : () => window.location.href = '/dashboard'}
+          onClick={isActive ? onVote : () => router.push('/dashboard')}
           className="flex flex-col items-center gap-1 relative transition-transform active:scale-90"
           aria-label="Vote now"
         >
@@ -871,7 +859,7 @@ const VideoPlayer = memo(function VideoPlayer({ season, onVote, isFullscreen, on
         {/* Rankings Button (Completed seasons only) */}
         {isCompleted && (
           <button
-            onClick={() => { window.location.href = '/leaderboard'; }}
+            onClick={() => { router.push('/leaderboard'); }}
             className="flex flex-col items-center gap-1 transition-transform active:scale-90"
             aria-label="View rankings"
           >

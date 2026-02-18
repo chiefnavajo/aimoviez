@@ -14,6 +14,7 @@ import { RegisterClipSchema, parseBody } from '@/lib/validations';
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeText } from '@/lib/sanitize';
 import { isValidGenre } from '@/lib/genres';
+import { requireCsrf } from '@/lib/csrf';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
   // Rate limiting for uploads (very strict)
   const rateLimitResponse = await rateLimit(request, 'upload');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     // Check authentication first

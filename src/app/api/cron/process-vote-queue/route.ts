@@ -202,7 +202,7 @@ export async function GET(req: NextRequest) {
           ...event,
           metadata: { ...event.metadata, retryCount: attempts },
         };
-        await acknowledgeEvent(event);
+        await acknowledgeEvent(JSON.stringify(event));
         await pushEvent(retriedEvent);
       }
     }

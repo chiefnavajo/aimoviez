@@ -741,7 +741,9 @@ function CommentsSectionComponent({ clipId, isOpen, onClose, clipUsername: _clip
                       handlePostComment();
                     }
                     // Prevent space from bubbling up and triggering button clicks
-                    e.stopPropagation();
+                    if (e.key === ' ' || e.key === 'Enter') {
+                      e.stopPropagation();
+                    }
                   }}
                   placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : 'Add a comment...'}
                   maxLength={500}

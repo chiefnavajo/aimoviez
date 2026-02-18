@@ -218,21 +218,35 @@ export async function recordVote(
   }
 
   // Dedup succeeded — record the rest in a pipeline
-  const pipeline = r.pipeline();
+  // FIX: Wrap pipeline in try/catch. If the pipeline fails (e.g. queue push fails),
+  // delete the dedup key so the user can retry. Otherwise the dedup marker persists
+  // and the vote is permanently lost — the user can never re-vote on this clip.
+  try {
+    const pipeline = r.pipeline();
 
-  // Daily counter (48-hour TTL)
-  const dailyKey = KEYS.daily(date, voterKey);
-  pipeline.incr(dailyKey);
-  pipeline.expire(dailyKey, DAILY_COUNTER_TTL);
+    // Daily counter (48-hour TTL)
+    const dailyKey = KEYS.daily(date, voterKey);
+    pipeline.incr(dailyKey);
+    pipeline.expire(dailyKey, DAILY_COUNTER_TTL);
 
-  // Queue event for async PostgreSQL persistence
-  pipeline.lpush('vote_queue', JSON.stringify(event));
+    // Queue event for async PostgreSQL persistence
+    pipeline.lpush('vote_queue', JSON.stringify(event));
 
-  // Track clip as having recent votes (for counter sync)
-  pipeline.sadd(KEYS.activeClips(), clipId);
+    // Track clip as having recent votes (for counter sync)
+    pipeline.sadd(KEYS.activeClips(), clipId);
 
-  await pipeline.exec();
-  return true;
+    await pipeline.exec();
+    return true;
+  } catch (pipelineError) {
+    // Pipeline failed — clean up the dedup key to allow retry
+    console.error('[recordVote] Pipeline failed, removing dedup key to allow retry:', pipelineError);
+    try {
+      await r.del(dedupKey);
+    } catch (cleanupErr) {
+      console.error('[recordVote] Failed to clean up dedup key after pipeline failure:', cleanupErr);
+    }
+    throw pipelineError;
+  }
 }
 
 /**

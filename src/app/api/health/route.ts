@@ -59,7 +59,7 @@ async function checkDatabase(): Promise<HealthCheck> {
 
     if (error && error.code !== 'PGRST116') {
       // PGRST116 = no rows returned, which is fine for health check
-      return { name, status: 'fail', message: error.message, duration };
+      return { name, status: 'fail', message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : error.message, duration };
     }
 
     // Warn if response is slow (>500ms)
@@ -72,7 +72,7 @@ async function checkDatabase(): Promise<HealthCheck> {
     return {
       name,
       status: 'fail',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
       duration: performance.now() - start,
     };
   }
@@ -102,7 +102,7 @@ async function checkStorage(): Promise<HealthCheck> {
       if (error.message?.includes('not found')) {
         return { name, status: 'warn', message: 'Bucket not configured', duration };
       }
-      return { name, status: 'fail', message: error.message, duration };
+      return { name, status: 'fail', message: process.env.NODE_ENV === 'production' ? 'Storage unavailable' : error.message, duration };
     }
 
     return { name, status: 'pass', duration };
@@ -110,7 +110,7 @@ async function checkStorage(): Promise<HealthCheck> {
     return {
       name,
       status: 'fail',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
       duration: performance.now() - start,
     };
   }
@@ -142,7 +142,7 @@ async function checkCache(): Promise<HealthCheck> {
     return {
       name,
       status: 'warn', // Cache is optional, so just warn
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
       duration: performance.now() - start,
     };
   }

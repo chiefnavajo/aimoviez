@@ -15,6 +15,7 @@ import {
 import { rateLimit } from '@/lib/rate-limit';
 import { sanitizeComment, sanitizeText } from '@/lib/sanitize';
 import { getAvatarUrl, generateAvatarUrl } from '@/lib/utils';
+import { requireCsrf } from '@/lib/csrf';
 import { getSessionFast } from '@/lib/session-store';
 import { broadcastCommentEvent } from '@/lib/realtime-broadcast';
 import { pushCommentEvent, type CommentQueueEvent } from '@/lib/comment-event-queue';
@@ -394,6 +395,9 @@ export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'comment');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
+
   try {
     const { url, key } = getSupabaseConfig();
     const supabase = createClient(url, key);
@@ -643,6 +647,9 @@ export async function PATCH(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'comment');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
+
   try {
     const { url, key } = getSupabaseConfig();
     const supabase = createClient(url, key);
@@ -741,6 +748,9 @@ export async function DELETE(req: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(req, 'comment');
   if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
     const { url, key } = getSupabaseConfig();

@@ -37,8 +37,38 @@ export async function POST(req: NextRequest) {
   // Get admin info for audit logging
   const adminAuth = await checkAdminAuth();
 
+  // FIX: Acquire the auto_advance cron lock to prevent auto-advance from running
+  // during a season reset. Without this, auto-advance could advance slots while
+  // the reset is in progress, causing inconsistent state.
+  const supabase = createClient(supabaseUrl, supabaseKey);
+  const lockId = `reset_${Date.now()}`;
+  const lockExpiresAt = new Date(Date.now() + 120000).toISOString();
+  const lockNow = new Date().toISOString();
+
+  // Delete expired auto-advance locks
+  await supabase
+    .from('cron_locks')
+    .delete()
+    .eq('job_name', 'auto-advance')
+    .lt('expires_at', lockNow);
+
+  const { error: lockError } = await supabase
+    .from('cron_locks')
+    .insert({
+      job_name: 'auto-advance',
+      lock_id: lockId,
+      acquired_at: lockNow,
+      expires_at: lockExpiresAt,
+    });
+
+  if (lockError) {
+    return NextResponse.json(
+      { ok: false, error: 'Auto-advance is currently running. Please try again.' },
+      { status: 409 }
+    );
+  }
+
   try {
-    const supabase = createClient(supabaseUrl, supabaseKey);
     let body;
     try {
       body = await req.json();
@@ -361,5 +391,16 @@ export async function POST(req: NextRequest) {
       { ok: false, error: 'Internal server error' },
       { status: 500 }
     );
+  } finally {
+    // Release the auto-advance lock so the cron job can resume
+    try {
+      await supabase
+        .from('cron_locks')
+        .delete()
+        .eq('job_name', 'auto-advance')
+        .eq('lock_id', lockId);
+    } catch (lockReleaseError) {
+      console.error('[reset-season] Failed to release auto-advance lock:', lockReleaseError);
+    }
   }
 }

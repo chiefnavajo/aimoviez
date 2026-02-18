@@ -56,7 +56,7 @@ async function checkConnectivity(): Promise<HealthCheck> {
     return {
       name,
       status: 'fail',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
       duration: performance.now() - start,
     };
   }
@@ -90,7 +90,7 @@ async function checkLatency(): Promise<HealthCheck> {
     return {
       name,
       status: 'fail',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
       duration: performance.now() - start,
     };
   }
@@ -126,7 +126,7 @@ async function checkMemory(): Promise<HealthCheck> {
     return {
       name,
       status: 'warn',
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: process.env.NODE_ENV === 'production' ? 'Service unavailable' : (error instanceof Error ? error.message : 'Unknown error'),
     };
   }
 }

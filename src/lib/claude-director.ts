@@ -21,6 +21,7 @@ const anthropic = new Anthropic({
 });
 
 const DEFAULT_MODEL = 'claude-sonnet-4-20250514';
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
 
 // Blocklist for content that shouldn't appear in story analysis
 const CONTENT_BLOCKLIST = [
@@ -358,7 +359,7 @@ ${JSON.stringify(analysis, null, 2)}
 Generate ${numDirections} direction options for slot ${forSlot} of ${totalSlots} total slots.
 Consider the current act (${analysis.act_structure.current_act}) and pacing.`;
 
-  const result = await callClaude(DIRECTIONS_SYSTEM_PROMPT, userMessage);
+  const result = await callClaude(DIRECTIONS_SYSTEM_PROMPT, userMessage, HAIKU_MODEL);
 
   if (!result.ok) {
     return { ok: false, error: result.error };
@@ -372,12 +373,14 @@ Consider the current act (${analysis.act_structure.current_act}) and pacing.`;
 
     const parsed = JSON.parse(jsonMatch[0]) as { directions: DirectionOption[] };
 
+    // Haiku 4.5: $0.80/1M input, $4/1M output
+    const haikuCost = Math.ceil(((result.inputTokens / 1_000_000) * 0.8 + (result.outputTokens / 1_000_000) * 4) * 100);
     return {
       ok: true,
       directions: parsed.directions,
       inputTokens: result.inputTokens,
       outputTokens: result.outputTokens,
-      costCents: calculateCostCents(result.inputTokens, result.outputTokens),
+      costCents: haikuCost,
     };
   } catch {
     return { ok: false, error: 'Failed to parse directions response' };
@@ -466,11 +469,6 @@ export async function generateQuickStoryBeat(
     };
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return { ok: false, error: 'API key not configured' };
-  }
-
   // Sort clips by slot position
   const sortedClips = [...previousClips].sort((a, b) => a.slot_position - b.slot_position);
   const lastClip = sortedClips[sortedClips.length - 1];
@@ -482,9 +480,8 @@ export async function generateQuickStoryBeat(
     .join('\n');
 
   try {
-    const client = new Anthropic({ apiKey, timeout: 60_000 });
-    const response = await client.messages.create({
-      model: 'claude-3-haiku-20240307',
+    const response = await anthropic.messages.create({
+      model: HAIKU_MODEL,
       max_tokens: 300,
       messages: [{
         role: 'user',

@@ -11,6 +11,7 @@ import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
 import { isValidGenre, getGenreCodes } from '@/lib/genres';
+import { requireCsrf } from '@/lib/csrf';
 
 // ============================================================================
 // SUPABASE CLIENT
@@ -197,6 +198,8 @@ export async function POST(request: NextRequest) {
   // Rate limit: 5 uploads per minute per user (prevents DoS)
   const rateLimitResponse = await rateLimit(request, 'upload');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     // Check authentication first

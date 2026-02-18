@@ -9,6 +9,7 @@ import { getServiceClient } from '@/lib/supabase-client';
 import { rateLimit } from '@/lib/rate-limit';
 import { recordUserPrompt } from '@/lib/prompt-learning';
 import { sanitizeUuid } from '@/lib/sanitize';
+import { requireCsrf } from '@/lib/csrf';
 
 async function isFeatureEnabled(key: string): Promise<boolean> {
   const supabase = getServiceClient();
@@ -34,6 +35,8 @@ async function isFeatureEnabled(key: string): Promise<boolean> {
 export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'prompt_record');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   // Check feature flag
   const enabled = await isFeatureEnabled('prompt_learning');

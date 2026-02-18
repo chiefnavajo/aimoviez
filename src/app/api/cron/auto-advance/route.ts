@@ -109,10 +109,15 @@ export async function GET(req: NextRequest) {
 
     // ========================================================================
     // 0. Self-healing: fix any voting slots with 0 clips (invalid state)
+    // FIX: Only self-heal slots that have been in 'voting' status for >5 minutes.
+    // Without this time guard, freshly-activated slots (that haven't had clips
+    // assigned yet or are still being set up) would be immediately reset.
+    const selfHealCutoff = new Date(Date.now() - 5 * 60 * 1000).toISOString();
     const { data: allVotingSlots } = await supabase
       .from('story_slots')
       .select('id, slot_position, season_id, voting_started_at, voting_ends_at')
-      .eq('status', 'voting');
+      .eq('status', 'voting')
+      .lt('voting_started_at', selfHealCutoff);
 
     if (allVotingSlots && allVotingSlots.length > 0) {
       for (const vs of allVotingSlots) {
@@ -133,7 +138,7 @@ export async function GET(req: NextRequest) {
             })
             .eq('id', vs.id);
 
-          console.log(`[auto-advance] Self-healing: Slot ${vs.slot_position} (season ${vs.season_id}) had 0 clips in voting — reset to waiting_for_clips`);
+          console.log(`[auto-advance] Self-healing: Slot ${vs.slot_position} (season ${vs.season_id}) had 0 clips in voting for >5min — reset to waiting_for_clips`);
         }
       }
     }

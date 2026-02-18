@@ -250,19 +250,34 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Zamknij aktywny slot: status = 'locked', ustaw winner_tournament_clip_id
-    const { error: updateSlotError } = await supabase
+    // FIX: Add .eq('status', 'voting') guard to prevent double-advance.
+    // If another process already advanced this slot (status != 'voting'),
+    // the update returns no rows and we detect the conflict.
+    const { data: lockedSlot, error: updateSlotError } = await supabase
       .from('story_slots')
       .update({
         status: 'locked',
         winner_tournament_clip_id: winner.id,
       })
-      .eq('id', storySlot.id);
+      .eq('id', storySlot.id)
+      .eq('status', 'voting')
+      .select('id')
+      .maybeSingle();
 
     if (updateSlotError) {
       console.error('[advance-slot] updateSlotError:', updateSlotError);
       return NextResponse.json(
         { ok: false, error: 'Failed to lock current slot' },
         { status: 500 }
+      );
+    }
+
+    if (!lockedSlot) {
+      // Slot was already advanced by another process (double-advance prevented)
+      console.warn(`[advance-slot] Slot ${storySlot.slot_position} was already advanced by another process`);
+      return NextResponse.json(
+        { ok: false, error: 'Slot was already advanced by another process' },
+        { status: 409 }
       );
     }
 

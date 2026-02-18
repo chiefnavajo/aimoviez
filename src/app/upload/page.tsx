@@ -39,13 +39,6 @@ const MAX_DURATION = 8.5;
 // HELPERS
 // ============================================================================
 
-function _generateFilename(originalName: string): string {
-  const timestamp = Date.now();
-  const random = Math.random().toString(36).substring(2, 10);
-  const ext = originalName.split('.').pop()?.toLowerCase() || 'mp4';
-  return `clip_${timestamp}_${random}.${ext}`;
-}
-
 // ============================================================================
 // MAIN COMPONENT
 // ============================================================================

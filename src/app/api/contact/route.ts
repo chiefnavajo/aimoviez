@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
 import { escapeHtml } from '@/lib/sanitize';
+import { requireCsrf } from '@/lib/csrf';
 
 // SECURITY: Sanitize user input using HTML entity encoding
 // This is more robust than regex-based removal which can be bypassed
@@ -39,6 +40,9 @@ export async function POST(request: NextRequest) {
   // Rate limit: 3 contact form submissions per minute (prevents spam)
   const rateLimitResponse = await rateLimit(request, 'contact');
   if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     const session = await getServerSession(authOptions);

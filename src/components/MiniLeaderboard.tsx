@@ -92,10 +92,12 @@ export default function MiniLeaderboard({
     fetchTopClips();
   }, [fetchTopClips]);
 
-  // Refresh every 10 seconds with stable callbacks
+  // Refresh every 10 seconds with stable callbacks (pause when tab is hidden)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchTopClips();
+      if (document.visibilityState === 'visible') {
+        fetchTopClips();
+      }
     }, 10000);
     return () => {
       clearInterval(interval);

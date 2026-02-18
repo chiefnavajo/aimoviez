@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
 import { requireCsrf } from '@/lib/csrf';
 import { getStorageProvider, getSignedUploadUrl as getProviderSignedUrl, getPublicVideoUrl } from '@/lib/storage';
@@ -222,7 +223,7 @@ export async function POST(request: NextRequest) {
 
     // 12. Generate unique storage key
     const timestamp = Date.now();
-    const random = Math.random().toString(36).substring(2, 10);
+    const random = crypto.randomBytes(8).toString('hex');
     const uniqueFilename = `clip_${timestamp}_${random}.mp4`;
 
     // 13. Get signed upload URL

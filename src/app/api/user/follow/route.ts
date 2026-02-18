@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,6 +29,8 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
     // Require authentication
@@ -171,6 +174,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
     // Require authentication

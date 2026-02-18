@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -100,6 +101,8 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const rateLimitResponse = await rateLimit(request, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     const session = await getServerSession(authOptions);
@@ -191,6 +194,8 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const rateLimitResponse = await rateLimit(request, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(request);
+  if (csrfError) return csrfError;
 
   try {
     const session = await getServerSession(authOptions);

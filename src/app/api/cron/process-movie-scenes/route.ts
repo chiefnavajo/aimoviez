@@ -218,16 +218,41 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
     .update({ credit_cost: creditCost })
     .eq('id', scene.id);
 
-  // Refetch project to avoid stale read-modify-write on spent_credits
-  const { data: freshProject } = await supabase
-    .from('movie_projects')
-    .select('spent_credits')
-    .eq('id', project.id)
-    .single();
-  await supabase
-    .from('movie_projects')
-    .update({ spent_credits: (freshProject?.spent_credits || 0) + creditCost })
-    .eq('id', project.id);
+  // FIX: Use atomic SQL increment via RPC to prevent lost updates under concurrency.
+  // Previously this was a read-then-write pattern that could lose updates when
+  // multiple scenes for different projects were processed concurrently.
+  const { error: incrSpentError } = await supabase.rpc('increment_movie_project_field', {
+    p_project_id: project.id,
+    p_field: 'spent_credits',
+    p_amount: creditCost,
+  });
+
+  // Fallback: if the RPC doesn't exist, use optimistic read-modify-write with CAS guard
+  if (incrSpentError) {
+    const { data: freshProject } = await supabase
+      .from('movie_projects')
+      .select('spent_credits')
+      .eq('id', project.id)
+      .single();
+    const oldVal = freshProject?.spent_credits || 0;
+    const { error: casError } = await supabase
+      .from('movie_projects')
+      .update({ spent_credits: oldVal + creditCost })
+      .eq('id', project.id)
+      .eq('spent_credits', oldVal); // CAS: only update if value hasn't changed
+    if (casError) {
+      console.warn('[process-movie-scenes] CAS conflict on spent_credits, retrying once');
+      const { data: retry } = await supabase
+        .from('movie_projects')
+        .select('spent_credits')
+        .eq('id', project.id)
+        .single();
+      await supabase
+        .from('movie_projects')
+        .update({ spent_credits: (retry?.spent_credits || 0) + creditCost })
+        .eq('id', project.id);
+    }
+  }
 
   // 2. Get previous scene's last frame for continuity (scene 2+)
   let previousFrameUrl: string | null = null;
@@ -307,10 +332,24 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
         p_amount: creditCost,
         p_reason: `Refund: movie scene ${scene.scene_number} submission failed`,
       });
-      await supabase
-        .from('movie_projects')
-        .update({ spent_credits: Math.max(0, (project.spent_credits || 0) - creditCost) })
-        .eq('id', project.id);
+      // FIX: Use atomic decrement instead of stale project.spent_credits
+      const { error: decrError } = await supabase.rpc('increment_movie_project_field', {
+        p_project_id: project.id,
+        p_field: 'spent_credits',
+        p_amount: -creditCost,
+      });
+      if (decrError) {
+        // Fallback: refetch and update
+        const { data: refundProject } = await supabase
+          .from('movie_projects')
+          .select('spent_credits')
+          .eq('id', project.id)
+          .single();
+        await supabase
+          .from('movie_projects')
+          .update({ spent_credits: Math.max(0, (refundProject?.spent_credits || 0) - creditCost) })
+          .eq('id', project.id);
+      }
     } catch {
       console.error('[process-movie-scenes] Credit refund failed for scene', scene.scene_number);
     }
@@ -517,17 +556,52 @@ async function handleMergingScene(supabase: ReturnType<typeof getSupabase>, proj
       })
       .eq('id', scene.id);
 
-    // 4. Update project progress (refetch to avoid stale read-modify-write)
-    const { data: freshProjectForCompletion } = await supabase
-      .from('movie_projects')
-      .select('completed_scenes')
-      .eq('id', project.id)
-      .single();
-    const newCompleted = (freshProjectForCompletion?.completed_scenes || 0) + 1;
-    await supabase
-      .from('movie_projects')
-      .update({ completed_scenes: newCompleted })
-      .eq('id', project.id);
+    // 4. Update project progress — atomic increment to prevent lost updates
+    // FIX: Use atomic SQL increment via RPC to prevent lost updates under concurrency.
+    const { error: incrScenesError } = await supabase.rpc('increment_movie_project_field', {
+      p_project_id: project.id,
+      p_field: 'completed_scenes',
+      p_amount: 1,
+    });
+
+    let newCompleted: number;
+
+    // Fallback: if the RPC doesn't exist, use optimistic read-modify-write with CAS guard
+    if (incrScenesError) {
+      const { data: freshProjectForCompletion } = await supabase
+        .from('movie_projects')
+        .select('completed_scenes')
+        .eq('id', project.id)
+        .single();
+      const oldScenes = freshProjectForCompletion?.completed_scenes || 0;
+      newCompleted = oldScenes + 1;
+      const { error: casError } = await supabase
+        .from('movie_projects')
+        .update({ completed_scenes: newCompleted })
+        .eq('id', project.id)
+        .eq('completed_scenes', oldScenes); // CAS: only update if value hasn't changed
+      if (casError) {
+        console.warn('[process-movie-scenes] CAS conflict on completed_scenes, retrying once');
+        const { data: retry } = await supabase
+          .from('movie_projects')
+          .select('completed_scenes')
+          .eq('id', project.id)
+          .single();
+        newCompleted = (retry?.completed_scenes || 0) + 1;
+        await supabase
+          .from('movie_projects')
+          .update({ completed_scenes: newCompleted })
+          .eq('id', project.id);
+      }
+    } else {
+      // RPC succeeded — fetch the updated value for downstream logic
+      const { data: updatedProject } = await supabase
+        .from('movie_projects')
+        .select('completed_scenes')
+        .eq('id', project.id)
+        .single();
+      newCompleted = updatedProject?.completed_scenes || (project.completed_scenes + 1);
+    }
 
     console.log(`[process-movie-scenes] Scene ${scene.scene_number}/${project.total_scenes} completed for project ${project.id} (${newCompleted}/${project.total_scenes})`);
 

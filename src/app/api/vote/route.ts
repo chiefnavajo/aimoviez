@@ -33,6 +33,7 @@ import { isValidGenre } from '@/lib/genres';
 import { verifyCaptcha, getClientIp } from '@/lib/captcha';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
+import { requireCsrf } from '@/lib/csrf';
 
 // Only log in development (never log sensitive data in production)
 const isDev = process.env.NODE_ENV === 'development';
@@ -1366,6 +1367,9 @@ export async function POST(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'vote');
   if (rateLimitResponse) return rateLimitResponse;
 
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
+
   const supabase = createSupabaseServerClient();
 
   try {
@@ -1959,6 +1963,9 @@ export async function DELETE(req: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(req, 'vote');
   if (rateLimitResponse) return rateLimitResponse;
+
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   const supabase = createSupabaseServerClient();
 

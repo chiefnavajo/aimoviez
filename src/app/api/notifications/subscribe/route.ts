@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
 
@@ -15,6 +16,8 @@ export async function POST(req: NextRequest) {
   // Rate limit: prevent subscription spam
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
     // BUG FIX API-3: Require authentication to prevent anonymous flooding

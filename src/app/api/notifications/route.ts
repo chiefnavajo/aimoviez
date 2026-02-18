@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth-options';
 import crypto from 'crypto';
 import { requireAdmin } from '@/lib/admin-auth';
 import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -220,10 +221,17 @@ export async function PATCH(req: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
+    // Require authentication for mutation
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = await getUserKey(req);
+    const userKey = `user_${session.user.userId}`;
     const body = await req.json();
 
     const { notification_ids, mark_all_read } = body;
@@ -284,10 +292,17 @@ export async function DELETE(req: NextRequest) {
   // Rate limiting
   const rateLimitResponse = await rateLimit(req, 'api');
   if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
 
   try {
+    // Require authentication for mutation
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.userId) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const userKey = await getUserKey(req);
+    const userKey = `user_${session.user.userId}`;
     const body = await req.json();
 
     const { notification_ids } = body;
