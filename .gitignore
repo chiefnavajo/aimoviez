@@ -52,3 +52,11 @@ Dokumentacja/*.csv
 
 # Claude Code transcript backups (large .jsonl files)
 Dokumentacja/claude-transcripts-backup/
+
+# Cloudflare worker dependencies
+cloudflare-worker/node_modules/
+
+# Supabase local/temp files
+supabase/.branches/
+supabase/.temp/
+supabase/schema_dump.sql

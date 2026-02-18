@@ -1,0 +1,42 @@
+HOW TO RUN TESTS
+================
+
+UNIT TESTS (no external services needed)
+-----------------------------------------
+npm test                    # Run all unit tests (89 suites, 1,792 tests)
+npm run test:api            # API route tests only
+npm run test:lib            # Library/utility tests only
+npm run test:hooks          # React hook tests only
+npm run test:components     # Component tests only
+npm run test:middleware      # Middleware tests only
+npm run test:flow           # Flow/integration-like unit tests
+npm run test:regression     # Regression tests only
+npm run test:unit           # API + lib + hooks + middleware combined
+npm run test:watch          # Watch mode (re-runs on file changes)
+npm run test:coverage       # Run with coverage report
+
+INTEGRATION TESTS (requires local Supabase)
+--------------------------------------------
+Prerequisites:
+  1. Install Supabase CLI: brew install supabase/tap/supabase
+  2. Start local Supabase: supabase start
+  3. Apply migrations:      supabase db reset
+  4. Copy .env.test with:
+       TEST_SUPABASE_URL=http://localhost:54321
+       TEST_SUPABASE_SERVICE_KEY=<service_role key from "supabase status">
+
+Run:
+  npm run test:integration    # All integration tests (27 suites, 751 tests)
+  npm run test:admin          # Admin integration tests only
+
+Run specific groups:
+  npx jest --config jest.integration.config.js --testPathPattern="smoke"
+  npx jest --config jest.integration.config.js --testPathPattern="security"
+  npx jest --config jest.integration.config.js --testPathPattern="api"
+  npx jest --config jest.integration.config.js --testPathPattern="admin"
+  npx jest --config jest.integration.config.js --testPathPattern="e2e"
+  npx jest --config jest.integration.config.js --testPathPattern="movie"
+
+ALL TESTS
+---------
+npm test && npm run test:integration    # Unit + Integration (2,543 tests total)

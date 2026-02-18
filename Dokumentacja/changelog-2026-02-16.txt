@@ -1,0 +1,233 @@
+CHANGELOG — 2026-02-16
+======================
+Generated: 2026-02-16 ~18:00 CET
+
+SUMMARY
+-------
+Built a comprehensive test suite (2,543 tests, 0 failures) and fixed
+the integration test infrastructure so it runs reliably against a local
+Supabase instance with zero manual setup beyond `supabase start`.
+
+Final result:
+  - Unit tests:        89 suites, 1,792 tests, 0 failures
+  - Integration tests: 27 suites,   751 tests, 0 failures
+  - Total:            116 suites, 2,543 tests, 0 failures
+
+Commit: f0c316c (pushed to main)
+Files changed: 97 files, +41,987 lines
+
+
+=========================================================================
+PHASE 1: INITIAL SCHEMA MIGRATION
+=========================================================================
+
+Problem:
+  Core database tables (seasons, story_slots, tournament_clips, votes,
+  users, comments, etc.) were created directly in production and never
+  version-controlled. Running `supabase db reset` on a fresh environment
+  failed because the tables didn't exist.
+
+Fix:
+  - Created supabase/migrations/20260101000000_initial_schema.sql
+    (~6,881 lines) from production schema dump — includes all ~30 tables,
+    ~15 RPCs, indexes, constraints, RLS policies, and grants.
+  - Created supabase/migrations/20260101000001_seed_data.sql
+    with feature flags and default credit packages.
+
+
+=========================================================================
+PHASE 2: FIXED MIGRATION IDEMPOTENCY BUGS
+=========================================================================
+
+File: supabase/migrations/20260211130000_add_movie_tables.sql
+  Problem: `CREATE POLICY` and `CREATE TRIGGER` failed with
+           "already exists (SQLSTATE 42710)" because the initial schema
+           migration already created them.
+  Fix:     Wrapped all 7 CREATE POLICY + 1 CREATE TRIGGER in
+           DO $$ BEGIN ... EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+File: supabase/migrations/20260212000001_cron_locks_and_idempotency.sql
+  Problem: `idx_credit_trans_stripe::regclass` cast crashed with
+           "relation does not exist (SQLSTATE 42P01)" when the index
+           didn't exist yet.
+  Fix:     Rewrote the DO block to query pg_indexes with a joined lookup
+           instead of direct ::regclass cast, wrapped in
+           EXCEPTION WHEN undefined_object.
+
+
+=========================================================================
+PHASE 3: FIXED TEST INFRASTRUCTURE
+=========================================================================
+
+File: src/__tests__/integration/setup.ts
+  - Added eliminated_at, elimination_reason to ClipOverrides interface
+  - Added voting_duration_hours to SlotOverrides interface
+  - Changed setupTestSeason() genre to use unique value per call
+    (test_${Date.now()}_${random}) to avoid unique constraint conflicts
+    on idx_seasons_active_genre
+  - Added safeDelete() helper in cleanup
+  - Expanded cleanupTestData() to cover 7 additional tables
+  - Added callAssignWinnerRPC() helper function
+
+File: src/__tests__/integration/fixtures.ts
+  - Added 'eliminated' to clip status type union
+  - Added createSeason() factory with tracking + cleanup
+  - Fixed createComment() default userKey from
+    user_${Date.now()}_${random} to user_${crypto.randomUUID()}
+    (required by check_commenter_not_banned trigger which parses
+    substring(user_key FROM 6)::UUID)
+  - Added cleanup for credit_transactions, notifications, cron_locks,
+    direction_votes, direction_options
+  - Added graceful error handling for optional tables
+
+
+=========================================================================
+PHASE 4: FIXED BROKEN TEST FILES
+=========================================================================
+
+File: src/__tests__/integration/admin/api-endpoints.test.ts
+  Problem: Every test made HTTP fetch to localhost:3000 with a fake
+           X-Test-Admin header that no route validates. All 393 lines broken.
+  Fix:     Complete rewrite (1,101 lines) — all tests now use direct
+           Supabase DB operations. 6 describe blocks, ~40 test cases
+           covering Season CRUD, Slot Management, Clip Lifecycle,
+           Winner Assignment via RPC, Feature Flags, Cross-cutting Concerns.
+
+File: src/__tests__/integration/e2e/user-journey.test.ts
+  Problem: Hardcoded user_key values (user_1, user_2, liker_1) failed
+           the check_commenter_not_banned trigger.
+  Fix:     Changed to user_${crypto.randomUUID()} stored as named variables
+           (aliceKey, bobKey, likerKey).
+
+File: src/__tests__/integration/security/vulnerability-scan.test.ts
+  - Fixed 6 non-UUID user_key patterns across XSS, ban, flood, nesting,
+    and DoS tests — all changed to user_${crypto.randomUUID()}
+  - Updated admin promotion test: changed expectation from success to
+    error matching /cannot modify is_admin/ (trg_prevent_admin_promotion
+    trigger blocks is_admin field changes)
+  - Updated deep nesting test: changed from expect(50) to
+    toBeGreaterThanOrEqual(5) because check_comment_nesting_depth
+    trigger limits to ~6 levels
+
+File: src/__tests__/integration/admin/error-scenarios.test.ts
+  Problem: Test "cannot delete season with existing clips" expected FK
+           to block deletion, but FK has ON DELETE CASCADE. Deleting the
+           shared testSeasonId destroyed data for all subsequent tests.
+  Fix:     Changed to use a throwaway season, updated expectation to
+           verify cascade behavior (season + clips both deleted).
+
+File: src/__tests__/integration/movie/movie-pipeline-bugfixes.test.ts
+  Problem: Test assumed admin_grant_credits RPC accepts negative amounts.
+           The RPC correctly validates p_amount > 0.
+  Fix:     Updated test to expect {success: false, error: /positive/}
+           and verify balance unchanged.
+
+
+=========================================================================
+PHASE 5: CI PIPELINE UPDATE
+=========================================================================
+
+File: .github/workflows/integration-tests.yml
+  - Changed all 5 `supabase db push` commands to `supabase db reset --no-seed`
+  - Added TEST_SUPABASE_URL: http://localhost:54321 to env block
+  - Added service role key capture via:
+    supabase status -o json | jq -r '.SERVICE_ROLE_KEY'
+  - Added user-behavior-simulation to performance test pattern
+  - Updated jest.integration.config.js to exclude load-test and
+    user-behavior-simulation from default run
+
+
+=========================================================================
+NEW UNIT TEST FILES CREATED (75 files)
+=========================================================================
+
+API route tests (17 files):
+  src/__tests__/api/admin-advanced.test.ts
+  src/__tests__/api/admin-co-director.test.ts
+  src/__tests__/api/admin-core.test.ts
+  src/__tests__/api/ai-generation.test.ts
+  src/__tests__/api/character-suggestions.test.ts
+  src/__tests__/api/co-director.test.ts
+  src/__tests__/api/comments.test.ts
+  src/__tests__/api/credits.test.ts
+  src/__tests__/api/cron.test.ts
+  src/__tests__/api/leaderboard-notifications.test.ts
+  src/__tests__/api/misc.test.ts
+  src/__tests__/api/movie.test.ts
+  src/__tests__/api/profile-user.test.ts
+  src/__tests__/api/story.test.ts
+  src/__tests__/api/teams.test.ts
+  src/__tests__/api/upload.test.ts
+  src/__tests__/api/voting.test.ts
+
+Component tests (9 files):
+  src/__tests__/components/AIGeneratePanel.test.tsx
+  src/__tests__/components/CommentsSection.test.tsx
+  src/__tests__/components/CreditBalance.test.tsx
+  src/__tests__/components/CreditPurchaseModal.test.tsx
+  src/__tests__/components/DirectionVotingModal.test.tsx
+  src/__tests__/components/ErrorBoundary.test.tsx
+  src/__tests__/components/Leaderboard.test.tsx
+  src/__tests__/components/ReportModal.test.tsx
+  src/__tests__/components/StoryTimeline.test.tsx
+
+Hook tests (11 files):
+  src/__tests__/hooks/useAIGenerations.test.ts
+  src/__tests__/hooks/useAdminAuth.test.ts
+  src/__tests__/hooks/useAuth.test.tsx
+  src/__tests__/hooks/useCoDirector.test.ts
+  src/__tests__/hooks/useCountdown.test.ts
+  src/__tests__/hooks/useCredits.test.ts
+  src/__tests__/hooks/useFeatureFlags.test.ts
+  src/__tests__/hooks/useMovieProject.test.ts
+  src/__tests__/hooks/useRealtimeComments.test.ts
+  src/__tests__/hooks/useRealtimeVotes.test.ts
+  src/__tests__/hooks/useTeam.test.ts
+
+Library tests (25 files):
+  src/__tests__/lib/admin-auth.test.ts
+  src/__tests__/lib/ai-video.test.ts
+  src/__tests__/lib/api-utils.test.ts
+  src/__tests__/lib/audit-log.test.ts
+  src/__tests__/lib/auth-options.test.ts
+  src/__tests__/lib/captcha.test.ts
+  src/__tests__/lib/claude-director.test.ts
+  src/__tests__/lib/comment-event-queue.test.ts
+  src/__tests__/lib/counter-sync.test.ts
+  src/__tests__/lib/cron-auth.test.ts
+  src/__tests__/lib/genres.test.ts
+  src/__tests__/lib/leaderboard-redis.test.ts
+  src/__tests__/lib/logger.test.ts
+  src/__tests__/lib/monitoring.test.ts
+  src/__tests__/lib/movie-script-generator.test.ts
+  src/__tests__/lib/notifications.test.ts
+  src/__tests__/lib/push-notifications.test.ts
+  src/__tests__/lib/rate-limit.test.ts
+  src/__tests__/lib/realtime-broadcast.test.ts
+  src/__tests__/lib/seen-tracking.test.ts
+  src/__tests__/lib/session-store.test.ts
+  src/__tests__/lib/storage.test.ts
+  src/__tests__/lib/validations.test.ts
+  src/__tests__/lib/vote-count-cache.test.ts
+  src/__tests__/lib/vote-event-queue.test.ts
+
+Middleware tests (3 files):
+  src/__tests__/middleware/input-sanitization.test.ts
+  src/__tests__/middleware/middleware.test.ts
+  src/__tests__/middleware/permission-boundaries.test.ts
+
+Flow tests (5 files):
+  src/__tests__/flows/credit-purchase-flow.test.ts
+  src/__tests__/flows/movie-creation-flow.test.ts
+  src/__tests__/flows/season-lifecycle-flow.test.ts
+  src/__tests__/flows/team-collaboration-flow.test.ts
+  src/__tests__/flows/voting-flow.test.ts
+
+Regression tests (3 files):
+  src/__tests__/regression/data-integrity.test.ts
+  src/__tests__/regression/race-conditions.test.ts
+  src/__tests__/regression/security-regressions.test.ts
+
+Test helpers (2 files):
+  src/__tests__/helpers/component-test-utils.tsx
+  src/__tests__/helpers/redis-mock.ts
