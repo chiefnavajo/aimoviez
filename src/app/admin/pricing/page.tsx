@@ -19,6 +19,7 @@ import {
   Zap,
   Save,
   Loader2,
+  Settings,
 } from 'lucide-react';
 import { useAdminAuth } from '@/hooks/useAdminAuth';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -56,6 +57,16 @@ interface CreditPackage {
   stripe_price_id: string | null;
 }
 
+interface RevenueBucket {
+  purchases: number;
+  gross_cents: number;
+  stripe_fees_cents: number;
+  ai_costs_cents: number;
+  overhead_cents: number;
+  profit_cents: number;
+  margin_percent: number;
+}
+
 interface PricingAlert {
   id: string;
   model_key: string;
@@ -80,6 +91,14 @@ export default function AdminPricingPage() {
   const [packages, setPackages] = useState<CreditPackage[]>([]);
   const [alerts, setAlerts] = useState<PricingAlert[]>([]);
   const [worstCaseCentsPerCredit, setWorstCaseCentsPerCredit] = useState(0);
+  const [revenue, setRevenue] = useState<{
+    today: RevenueBucket;
+    week: RevenueBucket;
+    month: RevenueBucket;
+  } | null>(null);
+  const [monthlyOverheadCents, setMonthlyOverheadCents] = useState(0);
+  const [editingOverhead, setEditingOverhead] = useState(false);
+  const [overheadInput, setOverheadInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [recalculating, setRecalculating] = useState(false);
@@ -114,6 +133,8 @@ export default function AdminPricingPage() {
         setPackages(data.packages || []);
         setAlerts(data.alerts || []);
         setWorstCaseCentsPerCredit(data.worst_case_cents_per_credit || 0);
+        setRevenue(data.revenue || null);
+        setMonthlyOverheadCents(data.monthly_overhead_cents || 0);
       }
     } catch {
       setMessage({ type: 'error', text: 'Failed to fetch pricing data' });
@@ -221,6 +242,34 @@ export default function AdminPricingPage() {
       setMessage({ type: 'error', text: 'Network error' });
     } finally {
       setRecalculating(false);
+    }
+  };
+
+  const saveOverhead = async () => {
+    const cents = Math.round(parseFloat(overheadInput) * 100);
+    if (isNaN(cents) || cents < 0) {
+      setMessage({ type: 'error', text: 'Enter a valid dollar amount' });
+      return;
+    }
+    setSaving('overhead');
+    try {
+      const res = await fetch('/api/admin/pricing', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+        body: JSON.stringify({ monthly_overhead_cents: cents }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessage({ type: 'success', text: `Monthly overhead set to $${(cents / 100).toFixed(2)}` });
+        setEditingOverhead(false);
+        fetchPricing();
+      } else {
+        setMessage({ type: 'error', text: data.error || 'Failed to update' });
+      }
+    } catch {
+      setMessage({ type: 'error', text: 'Network error' });
+    } finally {
+      setSaving(null);
     }
   };
 
@@ -358,6 +407,107 @@ export default function AdminPricingPage() {
             </div>
           </div>
         </div>
+
+        {/* Revenue & Profit */}
+        {revenue && (
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-bold flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-400" />
+                Revenue & Profit
+              </h2>
+              <div className="flex items-center gap-2 text-sm">
+                <Settings className="w-4 h-4 text-white/40" />
+                <span className="text-white/50">Monthly overhead:</span>
+                {editingOverhead ? (
+                  <div className="flex items-center gap-1">
+                    <span className="text-white/60">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={overheadInput}
+                      onChange={e => setOverheadInput(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && saveOverhead()}
+                      className="w-24 bg-white/10 rounded px-2 py-1 text-right text-sm font-mono"
+                      autoFocus
+                    />
+                    <button
+                      onClick={saveOverhead}
+                      disabled={saving === 'overhead'}
+                      className="p-1 rounded bg-green-500/20 text-green-300 hover:bg-green-500/30 disabled:opacity-50"
+                    >
+                      {saving === 'overhead' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                    </button>
+                    <button
+                      onClick={() => setEditingOverhead(false)}
+                      className="p-1 rounded bg-white/10 text-white/60 hover:bg-white/20"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => { setOverheadInput((monthlyOverheadCents / 100).toFixed(2)); setEditingOverhead(true); }}
+                    className="font-mono text-cyan-400 hover:text-cyan-300 transition"
+                  >
+                    ${(monthlyOverheadCents / 100).toFixed(2)}/mo
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {([
+                { label: 'Today', data: revenue.today },
+                { label: 'This Week', data: revenue.week },
+                { label: 'This Month', data: revenue.month },
+              ] as const).map(({ label, data }) => {
+                const marginStatus = getMarginStatus(data.margin_percent);
+                return (
+                  <div key={label} className="bg-white/5 rounded-xl p-4 border border-white/10">
+                    <div className="text-xs text-white/50 mb-3 uppercase tracking-wider">{label}</div>
+                    <div className="space-y-1.5 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-white/60">Revenue</span>
+                        <span className="font-mono text-white">${(data.gross_cents / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/60">AI Costs</span>
+                        <span className="font-mono text-red-400">-${(data.ai_costs_cents / 100).toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-white/60">Stripe Fees</span>
+                        <span className="font-mono text-red-400">-${(data.stripe_fees_cents / 100).toFixed(2)}</span>
+                      </div>
+                      {data.overhead_cents > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-white/60">Overhead</span>
+                          <span className="font-mono text-orange-400">-${(data.overhead_cents / 100).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="border-t border-white/10 pt-1.5 mt-1.5">
+                        <div className="flex justify-between">
+                          <span className="text-white font-medium">Profit</span>
+                          <span className={`font-mono font-bold ${data.profit_cents >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {data.profit_cents >= 0 ? '+' : ''}${(data.profit_cents / 100).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between mt-1">
+                          <span className="text-white/60">Margin</span>
+                          <span className={`font-mono font-medium ${marginStatus.color}`}>
+                            {data.gross_cents > 0 ? `${data.margin_percent}%` : '-'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-white/40 mt-2">
+                          {data.purchases} purchase{data.purchases !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Pricing Alerts */}
         {alerts.length > 0 && (
