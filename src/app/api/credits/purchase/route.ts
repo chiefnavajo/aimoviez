@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     // 5. Look up user
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, lifetime_purchased_credits')
+      .select('id')
       .eq('email', session.user.email)
       .maybeSingle();
 
@@ -133,13 +133,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Calculate total credits (base + bonus + first-purchase bonus)
-    const bonusCredits = Math.floor(pkg.credits * pkg.bonus_percent / 100);
-    const isFirstPurchase = (user.lifetime_purchased_credits ?? 0) === 0;
-    const firstPurchaseBonus = isFirstPurchase ? Math.floor((pkg.credits + bonusCredits) * 0.5) : 0;
-    const totalCredits = pkg.credits + bonusCredits + firstPurchaseBonus;
-
-    // 8. Create Stripe Checkout Session
+    // 7. Create Stripe Checkout Session
+    const totalCredits = pkg.credits;
     const stripe = getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -156,16 +151,13 @@ export async function POST(request: NextRequest) {
         user_id: user.id,
         package_id: pkg.id,
         credits: String(totalCredits),
-        base_credits: String(pkg.credits),
-        bonus_credits: String(bonusCredits),
-        first_purchase_bonus: String(firstPurchaseBonus),
       },
       success_url: `${appUrl}/dashboard?purchase=success&credits=${totalCredits}`,
       cancel_url: `${appUrl}/dashboard?purchase=cancelled`,
       customer_email: session.user.email,
     });
 
-    console.info(`[CREDITS_PURCHASE] Checkout session created: ${checkoutSession.id} for user ${user.id}, package ${pkg.name}, ${totalCredits} credits${isFirstPurchase ? ' (first purchase bonus!)' : ''}`);
+    console.info(`[CREDITS_PURCHASE] Checkout session created: ${checkoutSession.id} for user ${user.id}, package ${pkg.name}, ${totalCredits} credits`);
 
     return NextResponse.json({
       success: true,

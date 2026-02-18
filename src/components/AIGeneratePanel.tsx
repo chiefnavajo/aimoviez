@@ -172,14 +172,12 @@ export default function AIGeneratePanel({
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
   const { enabled: pinningEnabled } = useFeature('character_pinning');
   const { enabled: promptLearningEnabled } = useFeature('prompt_learning');
-  const { enabled: creditSystemEnabled } = useFeature('credit_system');
   const { balance: creditBalance, refetch: refetchCredits } = useCredits();
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
 
   // Model credit costs (fetched once)
   const [modelCreditCosts, setModelCreditCosts] = useState<Record<string, number>>({});
   useEffect(() => {
-    if (!creditSystemEnabled) return;
     fetch('/api/credits/packages', { credentials: 'include' })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
@@ -192,7 +190,7 @@ export default function AIGeneratePanel({
         }
       })
       .catch(() => {});
-  }, [creditSystemEnabled]);
+  }, []);
 
   const narrationConfig = narrationConfigRaw as NarrationConfig | null;
 
@@ -334,9 +332,6 @@ export default function AIGeneratePanel({
       setPrompt(initialPrompt);
     }
   }, [initialPrompt]);
-
-  // Cooldown state (for free gen gating)
-  const [cooldownEndsAt, setCooldownEndsAt] = useState<string | null>(null);
 
   // Generation state
   const [stage, setStage] = useState<Stage>('idle');
@@ -510,18 +505,6 @@ export default function AIGeneratePanel({
         if (result.code === 'INSUFFICIENT_CREDITS') {
           setPurchaseModalOpen(true);
           setError(`Insufficient credits (need ${result.required}, have ${result.current})`);
-          setStage('failed');
-          return;
-        }
-        if (result.code === 'COOLDOWN_ACTIVE') {
-          const hrs = Math.ceil(result.hours_remaining || 0);
-          setError(`Free generation available in ${hrs} hour${hrs !== 1 ? 's' : ''}. Buy credits for instant access.`);
-          setCooldownEndsAt(result.next_free_at || null);
-          setStage('failed');
-          return;
-        }
-        if (result.code === 'FREE_MODEL_ONLY') {
-          setError(result.error || 'Free generations are limited to Kling 2.6');
           setStage('failed');
           return;
         }
@@ -1450,17 +1433,10 @@ export default function AIGeneratePanel({
                       : 'bg-white/5 border border-white/10 hover:bg-white/10'
                   }`}
                 >
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-bold text-sm">{m.label}</p>
-                    {!creditSystemEnabled && m.id === 'kling-2.6' && (
-                      <span className="px-1.5 py-0.5 bg-green-500/20 text-green-400 text-[10px] font-bold rounded">FREE</span>
-                    )}
-                  </div>
+                  <p className="font-bold text-sm">{m.label}</p>
                   <p className="text-xs text-white/40">{m.desc}</p>
-                  {creditSystemEnabled && creditCost ? (
+                  {creditCost ? (
                     <p className="text-xs text-yellow-400 mt-1">{creditCost} credits</p>
-                  ) : !creditSystemEnabled && m.id !== 'kling-2.6' ? (
-                    <p className="text-xs text-white/30 mt-1">Credits required</p>
                   ) : null}
                 </button>
               );
@@ -1520,7 +1496,7 @@ export default function AIGeneratePanel({
         }`}
       >
         <Sparkles className="w-5 h-5" />
-        {creditSystemEnabled && modelCreditCosts[model]
+        {modelCreditCosts[model]
           ? `Generate (${modelCreditCosts[model]} credits)`
           : 'Generate Video'}
       </button>

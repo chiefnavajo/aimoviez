@@ -47,19 +47,15 @@ export async function GET(request: NextRequest) {
     // Non-fatal, continue without pricing
   }
 
-  // Calculate effective credits (base + bonus) and value per credit
+  // Calculate value per credit
   const enrichedPackages = (packages || []).map(pkg => {
-    const bonusCredits = Math.floor(pkg.credits * pkg.bonus_percent / 100);
-    const totalCredits = pkg.credits + bonusCredits;
-    const pricePerCredit = pkg.price_cents / totalCredits;
+    const pricePerCredit = pkg.price_cents / pkg.credits;
 
     return {
       id: pkg.id,
       name: pkg.name,
       credits: pkg.credits,
-      bonus_credits: bonusCredits,
-      total_credits: totalCredits,
-      bonus_percent: pkg.bonus_percent,
+      total_credits: pkg.credits,
       price_cents: pkg.price_cents,
       price_per_credit_cents: Math.round(pricePerCredit * 100) / 100,
     };

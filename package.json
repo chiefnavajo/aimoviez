@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "test:integration": "jest --config jest.integration.config.js",
     "test:admin": "jest --config jest.integration.config.js --testPathPattern=admin",
-    "test:fixes": "jest --testPathPattern='src/__tests__/(api|hooks)/' --verbose"
+    "test:fixes": "jest --testPathPattern='src/__tests__/(api|hooks)/' --verbose",
+    "simulate:pricing": "npx tsx scripts/simulate-pricing.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.73.0",

@@ -8,16 +8,14 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Coins, Sparkles, Loader2, Gift, Zap, Crown } from 'lucide-react';
+import { X, Coins, Sparkles, Loader2, Zap, Crown } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 interface CreditPackage {
   id: string;
   name: string;
   credits: number;
-  bonus_credits: number;
   total_credits: number;
-  bonus_percent: number;
   price_cents: number;
   price_per_credit_cents: number;
 }
@@ -60,7 +58,6 @@ export default function CreditPurchaseModal({
   const [isLoading, setIsLoading] = useState(true);
   const [purchaseLoading, setPurchaseLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isFirstPurchase, setIsFirstPurchase] = useState(false);
 
   // Fetch packages when modal opens
   useEffect(() => {
@@ -70,20 +67,11 @@ export default function CreditPurchaseModal({
       setIsLoading(true);
       setError(null);
       try {
-        const [packagesRes, balanceRes] = await Promise.all([
-          fetch('/api/credits/packages', { credentials: 'include' }),
-          fetch('/api/credits/balance', { credentials: 'include' }),
-        ]);
-
-        if (packagesRes.ok) {
-          const data = await packagesRes.json();
+        const res = await fetch('/api/credits/packages', { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
           setPackages(data.packages || []);
           setModelPricing(data.model_pricing || []);
-        }
-
-        if (balanceRes.ok) {
-          const balanceData = await balanceRes.json();
-          setIsFirstPurchase((balanceData.lifetime_purchased ?? 0) === 0);
         }
       } catch {
         setError('Failed to load packages');
@@ -162,17 +150,6 @@ export default function CreditPurchaseModal({
             </div>
 
             <div className="px-6 py-5 space-y-5">
-              {/* First purchase bonus banner */}
-              {isFirstPurchase && (
-                <div className="p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-xl flex items-center gap-3">
-                  <Gift className="w-6 h-6 text-green-400 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-bold text-green-300">First Purchase Bonus!</p>
-                    <p className="text-xs text-green-400/70">Get 50% extra credits on your first purchase</p>
-                  </div>
-                </div>
-              )}
-
               {/* Loading */}
               {isLoading && (
                 <div className="flex items-center justify-center py-12">
@@ -194,10 +171,6 @@ export default function CreditPurchaseModal({
                     const highlight = PACKAGE_LABELS[pkg.name];
                     const Icon = PACKAGE_ICONS[pkg.name] || Coins;
                     const isPopular = pkg.name === 'Popular';
-                    const firstBonus = isFirstPurchase
-                      ? Math.floor(pkg.total_credits * 0.5)
-                      : 0;
-                    const displayTotal = pkg.total_credits + firstBonus;
 
                     return (
                       <button
@@ -230,17 +203,9 @@ export default function CreditPurchaseModal({
                             </div>
                             <div>
                               <p className="font-bold text-white">{pkg.name}</p>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-sm text-yellow-300 font-medium">
-                                  {displayTotal} credits
-                                </span>
-                                {(pkg.bonus_percent > 0 || firstBonus > 0) && (
-                                  <span className="text-[10px] text-green-400 font-medium">
-                                    {pkg.bonus_percent > 0 && `+${pkg.bonus_percent}%`}
-                                    {firstBonus > 0 && ` +${firstBonus} bonus`}
-                                  </span>
-                                )}
-                              </div>
+                              <span className="text-sm text-yellow-300 font-medium">
+                                {pkg.credits} credits
+                              </span>
                             </div>
                           </div>
 
