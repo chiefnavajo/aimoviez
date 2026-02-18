@@ -110,12 +110,16 @@ export async function POST(request: NextRequest) {
       daily_cost_limit_cents?: number;
       monthly_cost_limit_cents?: number;
       keyword_blocklist?: string[];
+      free_cooldown_hours?: number;
+      free_model?: string;
     } | null;
 
     const maxDaily = config?.max_daily_free ?? 3;
     const dailyCostLimitCents = config?.daily_cost_limit_cents ?? 500;
     const monthlyCostLimitCents = config?.monthly_cost_limit_cents ?? 10000;
     const keywordBlocklist = config?.keyword_blocklist ?? [];
+    const freeCooldownHours = config?.free_cooldown_hours ?? 72;
+    const freeModel = config?.free_model ?? 'kling-2.6';
 
     // 6b. Check if credit system is enabled
     const { data: creditFlag } = await supabase
@@ -158,28 +162,74 @@ export async function POST(request: NextRequest) {
 
     const sanitizedPrompt = sanitizeResult.prompt;
 
-    // 9. Daily limit check (only when credit system is disabled)
+    // 9. Free generation gating (only when credit system is disabled)
     if (!creditSystemEnabled) {
-      const { data: reservationResult, error: reservationError } = await supabase
-        .rpc('check_and_reserve_generation_v2', {
-          p_user_id: userId,
-          p_date: new Date().toISOString().split('T')[0],
-          p_global_max_daily: maxDaily,
-        });
+      // Use cooldown-based check if cooldown is configured, otherwise fall back to daily limit
+      if (freeCooldownHours > 0) {
+        // Cooldown-based: check time since last free generation
+        const { data: cooldownResult, error: cooldownError } = await supabase
+          .rpc('check_generation_cooldown', {
+            p_user_id: userId,
+            p_cooldown_hours: freeCooldownHours,
+          });
 
-      if (reservationError) {
-        console.error('[AI_GENERATE] Reservation RPC error:', reservationError.message);
-        return NextResponse.json(
-          { success: false, error: 'Internal server error' },
-          { status: 500 }
-        );
-      }
+        if (cooldownError) {
+          console.error('[AI_GENERATE] Cooldown RPC error:', cooldownError.message);
+          return NextResponse.json(
+            { success: false, error: 'Internal server error' },
+            { status: 500 }
+          );
+        }
 
-      if (reservationResult === -1) {
-        return NextResponse.json(
-          { success: false, error: 'Daily generation limit reached' },
-          { status: 429 }
-        );
+        if (!cooldownResult?.allowed) {
+          const hoursRemaining = cooldownResult?.hours_remaining ?? 0;
+          const nextFreeAt = cooldownResult?.next_free_at ?? null;
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Free generation available in ${Math.ceil(hoursRemaining)} hours`,
+              code: 'COOLDOWN_ACTIVE',
+              hours_remaining: hoursRemaining,
+              next_free_at: nextFreeAt,
+            },
+            { status: 429 }
+          );
+        }
+
+        // Restrict free generations to the free model only
+        if (validated.model !== freeModel) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: `Free generations are limited to ${freeModel}. Purchase credits for other models.`,
+              code: 'FREE_MODEL_ONLY',
+            },
+            { status: 403 }
+          );
+        }
+      } else {
+        // Legacy daily limit check
+        const { data: reservationResult, error: reservationError } = await supabase
+          .rpc('check_and_reserve_generation_v2', {
+            p_user_id: userId,
+            p_date: new Date().toISOString().split('T')[0],
+            p_global_max_daily: maxDaily,
+          });
+
+        if (reservationError) {
+          console.error('[AI_GENERATE] Reservation RPC error:', reservationError.message);
+          return NextResponse.json(
+            { success: false, error: 'Internal server error' },
+            { status: 500 }
+          );
+        }
+
+        if (reservationResult === -1) {
+          return NextResponse.json(
+            { success: false, error: 'Daily generation limit reached' },
+            { status: 429 }
+          );
+        }
       }
     }
 

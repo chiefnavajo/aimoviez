@@ -29,6 +29,8 @@ import {
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
+import { useCredits } from '@/hooks/useCredits';
+import CreditPurchaseModal from './CreditPurchaseModal';
 
 // ============================================================================
 // TYPES
@@ -170,6 +172,27 @@ export default function AIGeneratePanel({
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
   const { enabled: pinningEnabled } = useFeature('character_pinning');
   const { enabled: promptLearningEnabled } = useFeature('prompt_learning');
+  const { enabled: creditSystemEnabled } = useFeature('credit_system');
+  const { balance: creditBalance, refetch: refetchCredits } = useCredits();
+  const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
+
+  // Model credit costs (fetched once)
+  const [modelCreditCosts, setModelCreditCosts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!creditSystemEnabled) return;
+    fetch('/api/credits/packages', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.model_pricing) {
+          const costs: Record<string, number> = {};
+          for (const mp of data.model_pricing) {
+            costs[mp.model_key] = mp.credit_cost;
+          }
+          setModelCreditCosts(costs);
+        }
+      })
+      .catch(() => {});
+  }, [creditSystemEnabled]);
 
   const narrationConfig = narrationConfigRaw as NarrationConfig | null;
 
@@ -487,6 +510,10 @@ export default function AIGeneratePanel({
       localStorage.setItem(STORAGE_TIMESTAMP_KEY, String(Date.now()));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Generation failed';
+      // Open purchase modal on insufficient credits
+      if (message === 'Insufficient credits') {
+        setPurchaseModalOpen(true);
+      }
       setError(message);
       setStage('failed');
     }
@@ -1388,20 +1415,26 @@ export default function AIGeneratePanel({
         <div>
           <p className="text-sm text-white/60 mb-2">Model:{continuationMode === 'continue' ? ' (image-to-video compatible)' : ''}</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {MODELS.filter(m => continuationMode !== 'continue' || I2V_SUPPORTED_MODELS.has(m.id)).map((m) => (
-              <button
-                key={m.id}
-                onClick={() => setModel(m.id)}
-                className={`p-3 rounded-xl text-left transition-all ${
-                  model === m.id
-                    ? 'bg-purple-500/20 border border-purple-500'
-                    : 'bg-white/5 border border-white/10 hover:bg-white/10'
-                }`}
-              >
-                <p className="font-bold text-sm">{m.label}</p>
-                <p className="text-xs text-white/40">{m.desc}</p>
-              </button>
-            ))}
+            {MODELS.filter(m => continuationMode !== 'continue' || I2V_SUPPORTED_MODELS.has(m.id)).map((m) => {
+              const creditCost = modelCreditCosts[m.id];
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setModel(m.id)}
+                  className={`p-3 rounded-xl text-left transition-all ${
+                    model === m.id
+                      ? 'bg-purple-500/20 border border-purple-500'
+                      : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  <p className="font-bold text-sm">{m.label}</p>
+                  <p className="text-xs text-white/40">{m.desc}</p>
+                  {creditSystemEnabled && creditCost && (
+                    <p className="text-xs text-yellow-400 mt-1">{creditCost} credits</p>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1445,8 +1478,21 @@ export default function AIGeneratePanel({
             : 'bg-white/10 text-white/40 cursor-not-allowed'
         }`}
       >
-        <Sparkles className="w-5 h-5" /> Generate Video
+        <Sparkles className="w-5 h-5" />
+        {creditSystemEnabled && modelCreditCosts[model]
+          ? `Generate (${modelCreditCosts[model]} credits)`
+          : 'Generate Video'}
       </button>
+
+      {/* Credit Purchase Modal */}
+      <CreditPurchaseModal
+        isOpen={purchaseModalOpen}
+        onClose={() => {
+          setPurchaseModalOpen(false);
+          refetchCredits();
+        }}
+        currentBalance={creditBalance}
+      />
     </div>
   );
 }

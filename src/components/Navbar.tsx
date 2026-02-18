@@ -10,6 +10,7 @@ import { useCountdown } from '@/hooks/useCountdown';
 import { Round } from '@/types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, User } from 'lucide-react';
+import CreditBalance from './CreditBalance';
 
 interface NavbarProps {
   round: Round;
@@ -99,7 +100,9 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
             </span>
           </div>
 
-          {/* Right: User Menu */}
+          {/* Credits + User Menu */}
+          <div className="flex items-center gap-2">
+            <CreditBalance />
           <div className="flex-shrink-0 relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
@@ -160,6 +163,7 @@ export default function Navbar({ round, userName, userAvatar }: NavbarProps) {
                 </motion.div>
               )}
             </AnimatePresence>
+          </div>
           </div>
         </div>
       </div>
