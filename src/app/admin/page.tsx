@@ -3313,13 +3313,14 @@ export default function AdminDashboard() {
           ) : (
             <div className="space-y-6">
               {/* Group by category */}
-              {['growth', 'engagement', 'monetization', 'safety', 'performance', 'realtime', 'ai', 'general'].map((category) => {
+              {['growth', 'engagement', 'community', 'monetization', 'safety', 'performance', 'realtime', 'ai', 'general'].map((category) => {
                 const categoryFlags = featureFlags.filter((f) => f.category === category);
                 if (categoryFlags.length === 0) return null;
 
                 const categoryIcons: Record<string, React.ReactNode> = {
                   growth: <Zap className="w-5 h-5 text-green-400" />,
                   engagement: <Users className="w-5 h-5 text-cyan-400" />,
+                  community: <Users className="w-5 h-5 text-indigo-400" />,
                   monetization: <DollarSign className="w-5 h-5 text-yellow-400" />,
                   safety: <Shield className="w-5 h-5 text-red-400" />,
                   performance: <Zap className="w-5 h-5 text-purple-400" />,
@@ -3331,6 +3332,7 @@ export default function AdminDashboard() {
                 const categoryColors: Record<string, string> = {
                   growth: 'from-green-500/20 to-emerald-500/20 border-green-500/30',
                   engagement: 'from-cyan-500/20 to-blue-500/20 border-cyan-500/30',
+                  community: 'from-indigo-500/20 to-violet-500/20 border-indigo-500/30',
                   monetization: 'from-yellow-500/20 to-orange-500/20 border-yellow-500/30',
                   safety: 'from-red-500/20 to-pink-500/20 border-red-500/30',
                   performance: 'from-purple-500/20 to-violet-500/20 border-purple-500/30',
