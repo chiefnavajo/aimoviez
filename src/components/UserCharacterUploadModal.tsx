@@ -32,6 +32,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
   const [description, setDescription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
+  const [autoGenerateAngles, setAutoGenerateAngles] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Clean up blob URL on unmount or when replaced
@@ -137,8 +138,8 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
       let finalRefCount = 0;
       let finalRefUrls: string[] = [];
 
-      // Step 4: Auto-generate reference angles if enabled
-      if (autoAnglesEnabled) {
+      // Step 4: Auto-generate reference angles if enabled and user opted in
+      if (autoAnglesEnabled && autoGenerateAngles) {
         setIsUploading(false);
         setIsGeneratingAngles(true);
         try {
@@ -260,6 +261,22 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
           rows={2}
           className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"
         />
+
+        {/* Auto-generate angles toggle */}
+        {autoAnglesEnabled && (
+          <label className="flex items-start gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={autoGenerateAngles}
+              onChange={(e) => setAutoGenerateAngles(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
+            />
+            <div>
+              <p className="text-sm text-white/70">Auto-generate reference angles</p>
+              <p className="text-xs text-white/40">Takes ~20s. You can also generate later from the character manager.</p>
+            </div>
+          </label>
+        )}
 
         {/* Error */}
         {error && (
