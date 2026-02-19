@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
     let augmentedPrompt = sanitizedPrompt;
     let effectiveModel: string = validated.model;
 
-    if (!isImageToVideo && !validated.skip_pinned) {
+    if (!validated.skip_pinned) {
       // Check if character pinning is enabled
       const { data: pinFlag } = await supabase
         .from('feature_flags')
@@ -524,11 +524,16 @@ export async function POST(request: NextRequest) {
 
       if (isReferenceToVideo) {
         try {
+          // When continuing from last frame + characters, pass frame as imageUrls
+          const imageUrls = isImageToVideo && validated.image_url
+            ? [validated.image_url]
+            : undefined;
           const result = await startReferenceToVideoGeneration(
             augmentedPrompt,
             refElements,
             validated.style,
-            webhookUrl
+            webhookUrl,
+            imageUrls
           );
           requestId = result.requestId;
         } catch (refError) {
