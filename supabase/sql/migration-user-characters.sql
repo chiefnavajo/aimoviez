@@ -80,12 +80,13 @@ ALTER TABLE ai_generations
   ADD COLUMN IF NOT EXISTS user_character_ids UUID[];
 
 -- 6. Feature flag
-INSERT INTO feature_flags (key, enabled, category, description)
+INSERT INTO feature_flags (key, name, description, category, enabled)
 VALUES (
   'user_characters',
-  false,
+  'User Characters',
+  'Allow users to upload personal character photos for AI video generation',
   'ai',
-  'Allow users to upload personal character photos for AI video generation'
+  false
 )
 ON CONFLICT (key) DO NOTHING;
 
