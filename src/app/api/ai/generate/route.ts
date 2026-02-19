@@ -254,7 +254,13 @@ export async function POST(request: NextRequest) {
             );
             const allReachable = healthChecks.every(Boolean);
 
-            if (allReachable) {
+            // Only use reference-to-video if at least one character has reference angles
+            // fal.ai's o1/reference-to-video requires reference images beyond just frontals
+            const hasAnyRefs = pinnedChars.some(
+              pc => pc.reference_image_urls && pc.reference_image_urls.length > 0
+            );
+
+            if (allReachable && hasAnyRefs) {
               isReferenceToVideo = true;
               pinnedCharacterIds = pinnedChars.map(pc => pc.id);
               effectiveModel = 'kling-o1-ref';
