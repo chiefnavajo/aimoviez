@@ -166,10 +166,10 @@ export async function POST(request: NextRequest) {
 
   const supabase = getSupabase();
 
-  // Look up generation by fal_request_id (include user_id and credit info for refunds)
+  // Look up generation by fal_request_id (include user_id, credit info, and mode for fallback)
   const { data: gen, error: lookupError } = await supabase
     .from('ai_generations')
-    .select('id, status, user_id, credit_deducted, credit_amount')
+    .select('id, status, user_id, credit_deducted, credit_amount, generation_mode, model, prompt, style')
     .eq('fal_request_id', falRequestId)
     .maybeSingle();
 
@@ -251,15 +251,55 @@ export async function POST(request: NextRequest) {
   } else {
     // Error or unknown status
     const errorMessage = payload.error || payload.detail || `Webhook status: ${webhookStatus}`;
+    const errorStr = typeof errorMessage === 'string' ? errorMessage.slice(0, 500) : 'Generation failed';
+
+    console.error('[AI_WEBHOOK] Generation failed:', gen.id, 'mode:', gen.generation_mode, 'error:', errorStr);
+
+    // Reference-to-video failed — attempt text-to-video fallback with character descriptions in prompt
+    if (gen.generation_mode === 'reference-to-video' && gen.prompt) {
+      try {
+        const { startGeneration } = await import('@/lib/ai-video');
+        const fallbackModel = 'kling-2.6'; // Safe default with lowest cost
+        const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/webhook`;
+
+        // Strip @Element tags from prompt (keep character descriptions)
+        const cleanPrompt = gen.prompt.replace(/@Element\d+\s*/g, '').trim();
+
+        const fallbackResult = await startGeneration(
+          fallbackModel,
+          cleanPrompt,
+          gen.style || undefined,
+          webhookUrl
+        );
+
+        // Update generation row to use fallback model and new request ID
+        await supabase
+          .from('ai_generations')
+          .update({
+            fal_request_id: fallbackResult.requestId,
+            model: fallbackModel,
+            generation_mode: 'text-to-video',
+            status: 'processing',
+            error_message: null,
+            prompt: cleanPrompt,
+          })
+          .eq('id', gen.id);
+
+        console.info('[AI_WEBHOOK] Fallback to text-to-video for generation:', gen.id, 'new request:', fallbackResult.requestId);
+        return NextResponse.json({ ok: true });
+      } catch (fallbackError) {
+        console.error('[AI_WEBHOOK] Text-to-video fallback also failed:', gen.id, fallbackError instanceof Error ? fallbackError.message : fallbackError);
+        // Fall through to mark as failed
+      }
+    }
+
     await supabase
       .from('ai_generations')
       .update({
         status: 'failed',
-        error_message: typeof errorMessage === 'string' ? errorMessage.slice(0, 500) : 'Generation failed',
+        error_message: errorStr,
       })
       .eq('id', gen.id);
-
-    console.error('[AI_WEBHOOK] Generation failed:', gen.id, errorMessage);
 
     // Auto-refund credits
     await refundCreditsIfApplicable(supabase, gen);

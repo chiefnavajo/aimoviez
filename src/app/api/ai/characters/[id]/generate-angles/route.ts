@@ -44,16 +44,16 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const { id: characterId } = await context.params;
     const supabase = getSupabase();
 
-    // Check feature flag
-    const { data: flag } = await supabase
+    // Check feature flag — allow if either user_characters or auto_generate_angles is enabled
+    const { data: flags } = await supabase
       .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'auto_generate_angles')
-      .maybeSingle();
+      .select('key, enabled')
+      .in('key', ['user_characters', 'auto_generate_angles']);
 
-    if (!flag?.enabled) {
+    const flagMap = Object.fromEntries((flags ?? []).map(f => [f.key, f.enabled]));
+    if (!flagMap['user_characters'] && !flagMap['auto_generate_angles']) {
       return NextResponse.json(
-        { success: false, error: 'Auto angle generation is not enabled' },
+        { success: false, error: 'Angle generation is not enabled' },
         { status: 403 }
       );
     }

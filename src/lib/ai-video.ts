@@ -427,10 +427,13 @@ export function buildReferenceToVideoInput(
     ? `${STYLE_PREFIXES[style]} ${rawPrompt}`
     : rawPrompt;
 
-  // Clean elements: only include reference_image_urls if non-empty
+  // fal.ai requires at least 1 reference_image_url per element (see OmniVideoElementInput).
+  // When no reference angles exist, use the frontal image as the reference fallback.
   const cleanedElements = elements.map(el => ({
     frontal_image_url: el.frontal_image_url,
-    ...(el.reference_image_urls?.length ? { reference_image_urls: el.reference_image_urls } : {}),
+    reference_image_urls: el.reference_image_urls?.length
+      ? el.reference_image_urls
+      : [el.frontal_image_url],
   }));
 
   return {

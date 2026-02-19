@@ -90,21 +90,27 @@ function createMockWithRpc(
  * Build a sequential Supabase mock for the generate-angles route.
  *
  * .from() call order:
- *   0. feature_flags (auto_generate_angles) — maybeSingle
+ *   0. feature_flags (user_characters + auto_generate_angles) — .in() returns array
  *   1. users — maybeSingle
  *   2. user_characters — maybeSingle
  *   3. feature_flags (r2_storage) — maybeSingle
  * RPC calls: append_user_character_angle (up to 3 times)
  */
 function buildGenerateAnglesMock(overrides: Record<string, unknown> = {}) {
-  const flag = overrides.flag !== undefined ? overrides.flag : { enabled: true };
+  // flag can be: { enabled: true/false } (single-flag format) or an array of rows
+  const flagEnabled = overrides.flag !== undefined
+    ? (overrides.flag as { enabled: boolean } | null)?.enabled ?? false
+    : true;
+  const flagRows = flagEnabled
+    ? [{ key: 'user_characters', enabled: true }, { key: 'auto_generate_angles', enabled: true }]
+    : [];
   const user = overrides.user !== undefined ? overrides.user : DEFAULT_USER;
   const character = overrides.character !== undefined ? overrides.character : DEFAULT_CHARACTER;
   const r2Flag = overrides.r2Flag !== undefined ? overrides.r2Flag : { enabled: false };
 
   const responses = [
-    // 0: feature_flags (auto_generate_angles)
-    { data: flag, error: null },
+    // 0: feature_flags (.in() query — returns array)
+    { data: flagRows, error: null },
     // 1: users
     { data: user, error: null },
     // 2: user_characters

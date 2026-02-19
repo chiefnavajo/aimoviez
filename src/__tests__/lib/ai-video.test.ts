@@ -257,14 +257,28 @@ describe('ai-video', () => {
       }]);
     });
 
-    it('excludes reference_image_urls when empty', () => {
+    it('uses frontal_image_url as reference fallback when reference_image_urls is empty', () => {
       const elements = [{
         frontal_image_url: 'https://img.com/face.jpg',
         reference_image_urls: [],
       }];
       const input = buildReferenceToVideoInput('A hero walks', elements);
 
-      expect((input.elements as Array<Record<string, unknown>>)[0]).not.toHaveProperty('reference_image_urls');
+      // fal.ai requires at least 1 reference image per element — frontal is used as fallback
+      expect((input.elements as Array<Record<string, unknown>>)[0]).toHaveProperty(
+        'reference_image_urls', ['https://img.com/face.jpg']
+      );
+    });
+
+    it('uses frontal_image_url as reference fallback when reference_image_urls is undefined', () => {
+      const elements = [{
+        frontal_image_url: 'https://img.com/face.jpg',
+      }];
+      const input = buildReferenceToVideoInput('A hero walks', elements);
+
+      expect((input.elements as Array<Record<string, unknown>>)[0]).toHaveProperty(
+        'reference_image_urls', ['https://img.com/face.jpg']
+      );
     });
 
     it('includes image_urls when provided', () => {

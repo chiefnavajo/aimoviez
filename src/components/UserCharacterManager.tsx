@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle } from 'lucide-react';
+import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle, Wand2 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 export interface UserCharacter {
@@ -39,6 +39,7 @@ export default function UserCharacterManager({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [angleUploading, setAngleUploading] = useState(false);
   const [angleError, setAngleError] = useState<string | null>(null);
+  const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
 
   const handleDelete = async (id: string) => {
     setIsDeleting(id);
@@ -59,6 +60,34 @@ export default function UserCharacterManager({
     } finally {
       setIsDeleting(null);
       setConfirmDelete(null);
+    }
+  };
+
+  const handleGenerateAngles = async (characterId: string) => {
+    setAngleError(null);
+    setIsGeneratingAngles(true);
+    try {
+      await ensureToken();
+      const csrfToken = document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '';
+      const res = await fetch(`/api/ai/characters/${characterId}/generate-angles`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        credentials: 'include',
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to generate angles');
+      }
+      if (data.reference_count > 0) {
+        onAngleAdded(characterId, data.reference_count);
+        if (previewChar?.id === characterId) {
+          setPreviewChar(prev => prev ? { ...prev, reference_count: data.reference_count } : null);
+        }
+      }
+    } catch (err) {
+      setAngleError(err instanceof Error ? err.message : 'Failed to generate angles');
+    } finally {
+      setIsGeneratingAngles(false);
     }
   };
 
@@ -98,6 +127,9 @@ export default function UserCharacterManager({
       if (!angleRes.ok || !angleData.ok) throw new Error(angleData.error || 'Failed to add angle');
 
       onAngleAdded(characterId, angleData.reference_count);
+      if (previewChar?.id === characterId) {
+        setPreviewChar(prev => prev ? { ...prev, reference_count: angleData.reference_count } : null);
+      }
     } catch (err) {
       setAngleError(err instanceof Error ? err.message : 'Failed to add angle');
     } finally {
@@ -242,14 +274,29 @@ export default function UserCharacterManager({
                 <p className="text-xs text-white/30 mt-1">Used {previewChar.usage_count} time{previewChar.usage_count !== 1 ? 's' : ''}</p>
               </div>
 
-              {/* Angle upload */}
+              {/* Angle generation & upload */}
               {previewChar.reference_count < 6 && (
-                <div>
+                <div className="space-y-2">
+                  {/* AI Generate angles button */}
+                  {previewChar.reference_count === 0 && (
+                    <button
+                      onClick={() => handleGenerateAngles(previewChar.id)}
+                      disabled={isGeneratingAngles || angleUploading}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 text-sm hover:bg-purple-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isGeneratingAngles ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Generating angles...</>
+                      ) : (
+                        <><Wand2 className="w-4 h-4" /> Auto-Generate Reference Angles</>
+                      )}
+                    </button>
+                  )}
+                  {/* Manual angle upload */}
                   <label className="flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition">
                     {angleUploading ? (
                       <><Loader2 className="w-4 h-4 animate-spin" /> Adding angle...</>
                     ) : (
-                      <><Camera className="w-4 h-4" /> Add Reference Angle ({previewChar.reference_count}/6)</>
+                      <><Camera className="w-4 h-4" /> Upload Reference Angle ({previewChar.reference_count}/6)</>
                     )}
                     <input
                       type="file"
