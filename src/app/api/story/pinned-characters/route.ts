@@ -49,12 +49,15 @@ export async function GET(req: NextRequest) {
     let seasonId = searchParams.get('season_id');
 
     if (!seasonId) {
-      const { data: season } = await supabase
+      // Use .limit(1) instead of .maybeSingle() — multiple active seasons exist
+      const { data: seasons } = await supabase
         .from('seasons')
         .select('id')
         .eq('status', 'active')
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1);
 
+      const season = seasons?.[0];
       if (!season) {
         return NextResponse.json({ ok: true, characters: [], reason: 'no_active_season' });
       }
