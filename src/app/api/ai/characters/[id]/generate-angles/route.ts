@@ -1,0 +1,182 @@
+// app/api/ai/characters/[id]/generate-angles/route.ts
+// Auto-generate left/right/rear reference angles from a frontal photo using Kling O1 Image
+
+export const dynamic = 'force-dynamic';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth-options';
+import { rateLimit } from '@/lib/rate-limit';
+import { requireCsrf } from '@/lib/csrf';
+import { generateCharacterAngle, ANGLE_PROMPTS } from '@/lib/ai-video';
+import { getStorageProvider, getSignedUploadUrl } from '@/lib/storage';
+import crypto from 'crypto';
+
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error('Missing Supabase config');
+  return createClient(url, key);
+}
+
+/**
+ * POST /api/ai/characters/{id}/generate-angles
+ * Auto-generate 3 reference angle views from the frontal photo.
+ * Requires auto_generate_angles feature flag to be enabled.
+ */
+export async function POST(req: NextRequest, context: RouteContext) {
+  const rateLimitResponse = await rateLimit(req, 'upload');
+  if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
+
+  try {
+    const { id: characterId } = await context.params;
+    const supabase = getSupabase();
+
+    // Check feature flag
+    const { data: flag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'auto_generate_angles')
+      .maybeSingle();
+
+    if (!flag?.enabled) {
+      return NextResponse.json(
+        { success: false, error: 'Auto angle generation is not enabled' },
+        { status: 403 }
+      );
+    }
+
+    // Get user
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .maybeSingle();
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+    }
+
+    // Get character (with ownership check)
+    const { data: character } = await supabase
+      .from('user_characters')
+      .select('id, frontal_image_url, reference_image_urls')
+      .eq('id', characterId)
+      .eq('user_id', user.id)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!character) {
+      return NextResponse.json(
+        { success: false, error: 'Character not found or not owned by you' },
+        { status: 404 }
+      );
+    }
+
+    // Skip if character already has reference angles
+    const existingCount = character.reference_image_urls?.length ?? 0;
+    if (existingCount >= 3) {
+      return NextResponse.json({
+        ok: true,
+        reference_count: existingCount,
+        skipped: true,
+        message: 'Character already has reference angles',
+      });
+    }
+
+    // Determine storage provider
+    const { data: r2Flag } = await supabase
+      .from('feature_flags')
+      .select('enabled')
+      .eq('key', 'r2_storage')
+      .maybeSingle();
+    const provider = await getStorageProvider(r2Flag?.enabled ?? false);
+
+    // Generate 3 angles in parallel
+    console.log(`[generate-angles] Generating ${ANGLE_PROMPTS.length} angles for character ${characterId}`);
+    const angleResults = await Promise.allSettled(
+      ANGLE_PROMPTS.map(prompt => generateCharacterAngle(character.frontal_image_url, prompt))
+    );
+
+    let successCount = 0;
+
+    for (let i = 0; i < angleResults.length; i++) {
+      const result = angleResults[i];
+      if (result.status === 'rejected') {
+        console.error(`[generate-angles] Angle ${i} failed:`, result.reason);
+        continue;
+      }
+
+      const falImageUrl = result.value;
+
+      try {
+        // Download the generated image from fal.ai
+        const imageRes = await fetch(falImageUrl, {
+          signal: AbortSignal.timeout(30_000),
+        });
+        if (!imageRes.ok) {
+          console.error(`[generate-angles] Failed to download angle ${i}: HTTP ${imageRes.status}`);
+          continue;
+        }
+        const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+        const contentType = imageRes.headers.get('content-type') || 'image/png';
+
+        // Upload to our storage
+        const ext = contentType.includes('jpeg') || contentType.includes('jpg') ? 'jpg' : 'png';
+        const uniqueFilename = `${user.id}/${crypto.randomUUID()}.${ext}`;
+        const uploadResult = await getSignedUploadUrl(uniqueFilename, contentType, provider, 'user-characters/');
+
+        const uploadRes = await fetch(uploadResult.signedUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': contentType },
+          body: imageBuffer,
+        });
+
+        if (!uploadRes.ok) {
+          console.error(`[generate-angles] Failed to upload angle ${i}: HTTP ${uploadRes.status}`);
+          continue;
+        }
+
+        // Append to character via RPC
+        const { data: rpcResult, error: rpcError } = await supabase.rpc('append_user_character_angle', {
+          p_id: characterId,
+          p_user_id: user.id,
+          p_url: uploadResult.publicUrl,
+          p_max_refs: 6,
+        });
+
+        if (rpcError || !rpcResult || rpcResult.length === 0) {
+          console.error(`[generate-angles] RPC failed for angle ${i}:`, rpcError);
+          continue;
+        }
+
+        successCount++;
+      } catch (err) {
+        console.error(`[generate-angles] Error processing angle ${i}:`, err);
+      }
+    }
+
+    console.log(`[generate-angles] Completed: ${successCount}/${ANGLE_PROMPTS.length} angles for character ${characterId}`);
+
+    return NextResponse.json({
+      ok: true,
+      reference_count: existingCount + successCount,
+      generated: successCount,
+    });
+  } catch (err) {
+    console.error('[POST /api/ai/characters/[id]/generate-angles] error:', err);
+    return NextResponse.json({ success: false, error: 'Failed to generate angles' }, { status: 500 });
+  }
+}

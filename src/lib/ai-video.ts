@@ -463,6 +463,50 @@ export async function startReferenceToVideoGeneration(
 }
 
 // =============================================================================
+// CHARACTER ANGLE GENERATION (Kling O1 Image — synchronous)
+// =============================================================================
+
+export const ANGLE_PROMPTS = [
+  '@Image1 Same person, left profile view, neutral expression, studio lighting, white background',
+  '@Image1 Same person, right profile view, neutral expression, studio lighting, white background',
+  '@Image1 Same person, three-quarter rear view looking slightly over shoulder, studio lighting, white background',
+] as const;
+
+const KLING_IMAGE_ENDPOINT = 'fal-ai/kling-image/o1';
+const KLING_IMAGE_COST_CENTS = 3; // ~$0.028 per image
+
+/**
+ * Generate a single character angle view from a frontal photo.
+ * Uses fal.subscribe (synchronous — blocks until result is ready, ~5-10s).
+ * Returns the URL of the generated image on fal.ai CDN.
+ */
+export async function generateCharacterAngle(
+  frontalImageUrl: string,
+  anglePrompt: string,
+): Promise<string> {
+  const result = await withRetry(() =>
+    fal.subscribe(KLING_IMAGE_ENDPOINT, {
+      input: {
+        prompt: anglePrompt,
+        image_urls: [frontalImageUrl],
+        aspect_ratio: '1:1' as const,
+      },
+    })
+  );
+
+  // fal.ai Kling Image returns { images: [{ url, content_type }] }
+  const images = (result as { data?: { images?: { url: string }[] }; images?: { url: string }[] });
+  const url = images.data?.images?.[0]?.url ?? images.images?.[0]?.url;
+  if (!url) {
+    throw new Error('Kling O1 Image returned no image URL');
+  }
+  return url;
+}
+
+/** Cost in cents for generating all 3 angles. */
+export const ANGLE_GENERATION_TOTAL_COST_CENTS = KLING_IMAGE_COST_CENTS * ANGLE_PROMPTS.length;
+
+// =============================================================================
 // PROMPT SANITIZATION
 // =============================================================================
 

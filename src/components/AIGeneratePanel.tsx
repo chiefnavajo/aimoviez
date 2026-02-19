@@ -176,6 +176,7 @@ export default function AIGeneratePanel({
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
   const { enabled: pinningEnabled } = useFeature('character_pinning');
   const { enabled: userCharsEnabled } = useFeature('user_characters');
+  const { enabled: autoAnglesEnabled } = useFeature('auto_generate_angles');
   const { enabled: promptLearningEnabled } = useFeature('prompt_learning');
   const { balance: creditBalance, refetch: refetchCredits } = useCredits();
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -1497,6 +1498,7 @@ export default function AIGeneratePanel({
                   setUserCharacters(prev => [newChar, ...prev]);
                   setShowUploadModal(false);
                 }}
+                autoAnglesEnabled={autoAnglesEnabled}
               />
             )}
           </AnimatePresence>
