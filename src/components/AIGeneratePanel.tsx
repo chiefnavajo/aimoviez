@@ -232,25 +232,30 @@ export default function AIGeneratePanel({
     top_patterns: string[];
   } | null>(null);
 
-  // Fetch pinned characters when feature is enabled
+  // Fetch pinned characters when feature is enabled or genre changes
   useEffect(() => {
     if (!pinningEnabled) return;
     async function fetchPinned() {
       try {
-        const res = await fetch('/api/story/pinned-characters');
+        const genreQuery = genre ? `?genre=${encodeURIComponent(genre)}` : '';
+        const res = await fetch(`/api/story/pinned-characters${genreQuery}`);
         const data = await res.json();
         if (data.ok && data.characters?.length > 0) {
           setPinnedCharacters(data.characters);
           // Default: all characters selected
           setSelectedCharacterIds(new Set(data.characters.map((c: { id: string }) => c.id)));
           if (data.season_id) setPinnedSeasonId(data.season_id);
+        } else {
+          setPinnedCharacters([]);
+          setSelectedCharacterIds(new Set());
+          setPinnedSeasonId('');
         }
       } catch {
         // Non-critical
       }
     }
     fetchPinned();
-  }, [pinningEnabled]);
+  }, [pinningEnabled, genre]);
 
   // Toggle a single character selection
   const toggleCharacter = (id: string) => {

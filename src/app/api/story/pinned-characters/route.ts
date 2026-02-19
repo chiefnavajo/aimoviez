@@ -19,7 +19,7 @@ function getSupabase() {
 /**
  * GET /api/story/pinned-characters
  * Returns active pinned characters for the current active season.
- * Optional: ?season_id=X to specify a season.
+ * Optional: ?season_id=X to specify a season, or ?genre=X to find by genre.
  */
 export async function GET(req: NextRequest) {
   const rateLimitResponse = await rateLimit(req, 'api');
@@ -44,22 +44,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, characters: [], enabled: false });
     }
 
-    // Determine season
+    // Determine season — by season_id, genre, or fallback to most recent active
     const { searchParams } = new URL(req.url);
     let seasonId = searchParams.get('season_id');
+    const genre = searchParams.get('genre');
 
     if (!seasonId) {
-      // Use .limit(1) instead of .maybeSingle() — multiple active seasons exist
-      const { data: seasons } = await supabase
+      let query = supabase
         .from('seasons')
         .select('id')
         .eq('status', 'active')
         .order('created_at', { ascending: false })
         .limit(1);
 
+      if (genre) {
+        query = query.ilike('genre', genre);
+      }
+
+      const { data: seasons } = await query;
+
       const season = seasons?.[0];
       if (!season) {
-        return NextResponse.json({ ok: true, characters: [], reason: 'no_active_season' });
+        return NextResponse.json({ ok: true, characters: [], reason: genre ? 'no_season_for_genre' : 'no_active_season' });
       }
       seasonId = season.id;
     }
