@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { season_id, source_clip_id, frame_timestamp, label, element_index } = body;
+    const { season_id, source_clip_id, frame_timestamp, label, element_index, appearance_description } = body;
 
     if (!season_id || typeof season_id !== 'string') {
       return NextResponse.json({ error: 'season_id is required' }, { status: 400 });
@@ -168,6 +168,7 @@ export async function POST(req: NextRequest) {
         season_id,
         element_index: elemIdx,
         label: label || null,
+        appearance_description: appearance_description || null,
         frontal_image_url: frontalImageUrl,
         source_clip_id,
         source_frame_timestamp: frame_timestamp ?? null,
@@ -219,4 +220,55 @@ export async function DELETE(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, message: 'Character unpinned' });
+}
+
+/**
+ * PATCH /api/admin/pinned-characters
+ * Update a pinned character (e.g., appearance_description, label)
+ */
+export async function PATCH(req: NextRequest) {
+  const rateLimitResponse = await rateLimit(req, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+
+  const adminError = await requireAdmin();
+  if (adminError) return adminError;
+
+  try {
+    const body = await req.json();
+    const { id, appearance_description, label } = body;
+
+    if (!id || typeof id !== 'string') {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (appearance_description !== undefined) {
+      updates.appearance_description = appearance_description || null;
+    }
+    if (label !== undefined) {
+      updates.label = label || null;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('pinned_characters')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[PATCH /api/admin/pinned-characters] error:', error);
+      return NextResponse.json({ error: 'Failed to update character' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, character: data });
+  } catch (err) {
+    console.error('[PATCH /api/admin/pinned-characters] Unexpected error:', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }

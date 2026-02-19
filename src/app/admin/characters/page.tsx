@@ -33,6 +33,7 @@ interface PinnedCharacter {
   season_id: string;
   element_index: number;
   label: string | null;
+  appearance_description: string | null;
   frontal_image_url: string;
   reference_image_urls: string[];
   source_clip_id: string | null;
@@ -75,10 +76,16 @@ export default function CharacterPinningPage() {
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinClipId, setPinClipId] = useState<string | null>(null);
   const [pinLabel, setPinLabel] = useState('');
+  const [pinAppearanceDesc, setPinAppearanceDesc] = useState('');
   const [pinElementIndex, setPinElementIndex] = useState(1);
   const [pinTimestamp, setPinTimestamp] = useState<number | null>(null);
   const [pinning, setPinning] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
+
+  // Inline edit state for appearance description
+  const [editingDescId, setEditingDescId] = useState<string | null>(null);
+  const [editingDescValue, setEditingDescValue] = useState('');
+  const [savingDesc, setSavingDesc] = useState(false);
 
   // Suggestion queue state
   const [suggestions, setSuggestions] = useState<Array<{
@@ -253,6 +260,7 @@ export default function CharacterPinningPage() {
           source_clip_id: pinClipId,
           frame_timestamp: pinTimestamp,
           label: pinLabel || undefined,
+          appearance_description: pinAppearanceDesc || undefined,
           element_index: pinElementIndex,
         }),
       });
@@ -266,6 +274,7 @@ export default function CharacterPinningPage() {
       setShowPinModal(false);
       setPinClipId(null);
       setPinLabel('');
+      setPinAppearanceDesc('');
       setPinTimestamp(null);
       fetchCharacters(selectedSeason);
     } catch {
@@ -323,6 +332,29 @@ export default function CharacterPinningPage() {
       alert('Network error');
     } finally {
       setAddingAngle(false);
+    }
+  }
+
+  async function handleSaveDescription(charId: string, description: string) {
+    setSavingDesc(true);
+    try {
+      const res = await fetch('/api/admin/pinned-characters', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await getHeaders()) },
+        body: JSON.stringify({ id: charId, appearance_description: description }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        alert(data.error || 'Failed to update description');
+        return;
+      }
+      setEditingDescId(null);
+      setEditingDescValue('');
+      if (selectedSeason) fetchCharacters(selectedSeason);
+    } catch {
+      alert('Network error');
+    } finally {
+      setSavingDesc(false);
     }
   }
 
@@ -406,6 +438,7 @@ export default function CharacterPinningPage() {
                     onClick={() => {
                       setPinClipId(null);
                       setPinLabel('');
+                      setPinAppearanceDesc('');
                       setPinTimestamp(null);
                       setPinError(null);
                       setPinElementIndex(availableIndices[0]);
@@ -460,6 +493,55 @@ export default function CharacterPinningPage() {
                             {char.reference_image_urls?.length || 0} reference angles |
                             Used {char.usage_count} times
                           </p>
+
+                          {/* Appearance description */}
+                          {editingDescId === char.id ? (
+                            <div className="mt-2 space-y-1">
+                              <textarea
+                                value={editingDescValue}
+                                onChange={(e) => setEditingDescValue(e.target.value)}
+                                placeholder="e.g., tall alien with blue skin and glowing green eyes"
+                                className="w-full bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white"
+                                rows={2}
+                                maxLength={500}
+                              />
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => handleSaveDescription(char.id, editingDescValue)}
+                                  disabled={savingDesc}
+                                  className="px-2 py-1 text-[10px] bg-green-500/20 text-green-400 rounded hover:bg-green-500/30 transition disabled:opacity-50"
+                                  type="button"
+                                >
+                                  {savingDesc ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  onClick={() => { setEditingDescId(null); setEditingDescValue(''); }}
+                                  className="px-2 py-1 text-[10px] bg-white/10 rounded hover:bg-white/20 transition"
+                                  type="button"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mt-1 flex items-start gap-1">
+                              {char.appearance_description ? (
+                                <p className="text-xs text-white/50 italic">{char.appearance_description}</p>
+                              ) : (
+                                <p className="text-xs text-white/30">No appearance description</p>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setEditingDescId(char.id);
+                                  setEditingDescValue(char.appearance_description || '');
+                                }}
+                                className="text-[10px] text-yellow-400/60 hover:text-yellow-400 ml-1 flex-shrink-0"
+                                type="button"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          )}
 
                           {/* Reference angle thumbnails */}
                           {char.reference_image_urls?.length > 0 && (
@@ -650,6 +732,7 @@ export default function CharacterPinningPage() {
                               setPinClipId(clip.id);
                               setPinElementIndex(availableIndices[0]);
                               setPinLabel('');
+                              setPinAppearanceDesc('');
                               setPinTimestamp(null);
                               setPinError(null);
                               setShowPinModal(true);
@@ -763,6 +846,19 @@ export default function CharacterPinningPage() {
                 placeholder="e.g., Main Robot, Companion Cat"
                 className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm"
               />
+            </div>
+
+            <div>
+              <label className="text-sm text-white/60 block mb-1">Appearance Description (optional)</label>
+              <textarea
+                value={pinAppearanceDesc}
+                onChange={(e) => setPinAppearanceDesc(e.target.value)}
+                placeholder="e.g., tall alien with blue skin and glowing green eyes"
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm"
+                rows={2}
+                maxLength={500}
+              />
+              <p className="text-[10px] text-white/30 mt-0.5">Used in AI prompt when generating videos with this character</p>
             </div>
 
             <div>

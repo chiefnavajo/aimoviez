@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
     // Get active pinned characters
     const { data: characters, error } = await supabase
       .from('pinned_characters')
-      .select('id, element_index, label, frontal_image_url, reference_image_urls, usage_count')
+      .select('id, element_index, label, frontal_image_url, reference_image_urls, usage_count, appearance_description')
       .eq('season_id', seasonId)
       .eq('is_active', true)
       .order('element_index', { ascending: true });
@@ -89,6 +89,7 @@ export async function GET(req: NextRequest) {
       label: c.label,
       frontal_image_url: c.frontal_image_url,
       reference_count: (c.reference_image_urls || []).length,
+      appearance_description: c.appearance_description || null,
     }));
 
     return NextResponse.json({

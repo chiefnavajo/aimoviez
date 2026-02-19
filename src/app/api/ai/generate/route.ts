@@ -224,7 +224,7 @@ export async function POST(request: NextRequest) {
           // Get active pinned characters for this season
           let pinnedCharsQuery = supabase
             .from('pinned_characters')
-            .select('id, element_index, label, frontal_image_url, reference_image_urls')
+            .select('id, element_index, label, frontal_image_url, reference_image_urls, appearance_description')
             .eq('season_id', activeSeason.id)
             .eq('is_active', true);
 
@@ -257,13 +257,19 @@ export async function POST(request: NextRequest) {
             );
             const allReachable = healthChecks.every(Boolean);
 
-            // Only use reference-to-video if at least one character has reference angles
-            // fal.ai's o1/reference-to-video requires reference images beyond just frontals
-            const hasAnyRefs = pinnedChars.some(
-              pc => pc.reference_image_urls && pc.reference_image_urls.length > 0
-            );
+            // Inject character appearance descriptions into prompt
+            // (works for both ref-to-video AND text-to-video fallback)
+            const charDescriptions = pinnedChars
+              .filter((pc: { appearance_description?: string | null }) => pc.appearance_description)
+              .map((pc: { label?: string | null; element_index: number; appearance_description?: string | null }) =>
+                `${pc.label || `Element ${pc.element_index}`}: ${pc.appearance_description}`)
+              .join('; ');
+            if (charDescriptions) {
+              augmentedPrompt = `Characters: ${charDescriptions}. ${augmentedPrompt}`;
+            }
 
-            if (allReachable && hasAnyRefs) {
+            // Try reference-to-video with frontal images; fallback to text-to-video on failure
+            if (allReachable) {
               isReferenceToVideo = true;
               pinnedCharacterIds = pinnedChars.map(pc => pc.id);
               effectiveModel = 'kling-o1-ref';
@@ -430,7 +436,7 @@ export async function POST(request: NextRequest) {
 
           const fallbackResult = await startGeneration(
             validated.model,
-            sanitizedPrompt,
+            augmentedPrompt,
             validated.style,
             webhookUrl
           );
@@ -442,7 +448,7 @@ export async function POST(request: NextRequest) {
             .update({
               model: validated.model,
               generation_mode: 'text-to-video',
-              prompt: sanitizedPrompt,
+              prompt: augmentedPrompt,
               cost_cents: modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents,
             })
             .eq('id', generation.id);

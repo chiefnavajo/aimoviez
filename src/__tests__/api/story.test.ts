@@ -583,6 +583,7 @@ describe('GET /api/story/pinned-characters', () => {
       label: 'Character 0',
       frontal_image_url: 'https://cdn.example.com/char-0.jpg',
       reference_count: 2,
+      appearance_description: null,
     });
   });
 

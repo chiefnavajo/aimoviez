@@ -202,6 +202,7 @@ export default function AIGeneratePanel({
     label: string | null;
     frontal_image_url: string;
     reference_count: number;
+    appearance_description: string | null;
   }>>([]);
   const [selectedCharacterIds, setSelectedCharacterIds] = useState<Set<string>>(new Set());
   const [previewCharacter, setPreviewCharacter] = useState<{
@@ -210,6 +211,7 @@ export default function AIGeneratePanel({
     frontal_image_url: string;
     element_index: number;
     reference_count: number;
+    appearance_description: string | null;
   } | null>(null);
   const [pinnedSeasonId, setPinnedSeasonId] = useState<string | null>(null);
   const [suggestingForCharacter, setSuggestingForCharacter] = useState<{
@@ -218,6 +220,7 @@ export default function AIGeneratePanel({
     frontal_image_url: string;
     element_index: number;
     reference_count: number;
+    appearance_description: string | null;
   } | null>(null);
 
   // Genre state (declared early so pinned character fetch can depend on it)
@@ -1341,6 +1344,11 @@ export default function AIGeneratePanel({
                     {previewCharacter.reference_count > 0 && (
                       <p className="text-xs text-white/40 mt-1">
                         {previewCharacter.reference_count} reference angle{previewCharacter.reference_count !== 1 ? 's' : ''}
+                      </p>
+                    )}
+                    {previewCharacter.appearance_description && (
+                      <p className="text-sm text-white/50 italic mt-2">
+                        {previewCharacter.appearance_description}
                       </p>
                     )}
                   </div>
