@@ -26,6 +26,7 @@ import {
   ChevronDown,
   ChevronUp,
   Wand2,
+  Play,
 } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 import { useFeature } from '@/hooks/useFeatureFlags';
@@ -407,6 +408,10 @@ export default function AIGeneratePanel({
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isMuted, setIsMuted] = useState(true);
+  const [blobVideoUrl, setBlobVideoUrl] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [videoError, setVideoError] = useState(false);
 
   // Narration state
   const [narrationOpen, setNarrationOpen] = useState(false);
@@ -515,16 +520,22 @@ export default function AIGeneratePanel({
     }
   }, [generationId, stage, pollStatus]);
 
-  // Pre-download video Blob when generation is ready (saves 2-10s on submit)
+  // Pre-download video Blob when generation is ready (saves 2-10s on submit + instant preview)
   useEffect(() => {
     if (stage !== 'ready' || !videoUrl) return;
     const controller = new AbortController();
+    setVideoLoading(true);
+    setIsPlaying(false);
+    setVideoError(false);
 
+    let blobUrl: string | null = null;
     fetch(videoUrl, { signal: controller.signal })
       .then(res => res.blob())
       .then(blob => {
         if (blob.size <= 20 * 1024 * 1024) { // 20MB guard for mobile
           prefetchedVideoRef.current = blob;
+          blobUrl = URL.createObjectURL(blob);
+          setBlobVideoUrl(blobUrl);
         }
       })
       .catch(() => {}); // Non-critical pre-fetch
@@ -532,6 +543,8 @@ export default function AIGeneratePanel({
     return () => {
       controller.abort();
       prefetchedVideoRef.current = null;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      setBlobVideoUrl(null);
     };
   }, [stage, videoUrl]);
 
@@ -835,6 +848,12 @@ export default function AIGeneratePanel({
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
     if (pollRef.current) clearTimeout(pollRef.current);
+    // Clear video preview state
+    if (blobVideoUrl) URL.revokeObjectURL(blobVideoUrl);
+    setBlobVideoUrl(null);
+    setVideoLoading(true);
+    setIsPlaying(false);
+    setVideoError(false);
     // Clear narration state
     handleRemoveNarration();
     setNarrationOpen(false);
@@ -944,18 +963,53 @@ export default function AIGeneratePanel({
     return (
       <div className="space-y-6">
         {/* Video preview */}
-        <div className="relative aspect-[9/16] max-h-[60vh] mx-auto rounded-xl overflow-hidden bg-black">
+        <div
+          className="relative aspect-[9/16] max-h-[60vh] mx-auto rounded-xl overflow-hidden bg-black cursor-pointer"
+          onClick={() => {
+            const v = videoRef.current;
+            if (!v) return;
+            if (v.paused) { v.play().catch(() => {}); }
+            else { v.pause(); }
+          }}
+        >
           <video
             ref={videoRef}
-            src={videoUrl}
+            src={blobVideoUrl || videoUrl}
             className="w-full h-full object-contain"
             autoPlay
             loop
             muted={isMuted}
             playsInline
+            onCanPlay={() => setVideoLoading(false)}
+            onPlaying={() => { setVideoLoading(false); setIsPlaying(true); }}
+            onWaiting={() => setVideoLoading(true)}
+            onPause={() => setIsPlaying(false)}
+            onPlay={() => setIsPlaying(true)}
+            onError={() => { setVideoError(true); setVideoLoading(false); }}
           />
+          {/* Loading spinner */}
+          {videoLoading && !videoError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/50 pointer-events-none">
+              <Loader2 className="w-8 h-8 text-white animate-spin" />
+            </div>
+          )}
+          {/* Play button — shown when paused and not loading */}
+          {!isPlaying && !videoLoading && !videoError && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="w-16 h-16 rounded-full bg-black/60 flex items-center justify-center">
+                <Play className="w-8 h-8 text-white ml-1" />
+              </div>
+            </div>
+          )}
+          {/* Error state */}
+          {videoError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
+              <AlertCircle className="w-8 h-8 text-red-400" />
+              <p className="text-sm text-red-400">Failed to load video</p>
+            </div>
+          )}
           <button
-            onClick={() => setIsMuted(!isMuted)}
+            onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted); }}
             className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-black/50 flex items-center justify-center"
           >
             {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
