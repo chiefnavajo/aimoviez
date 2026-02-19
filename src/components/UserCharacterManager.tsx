@@ -87,6 +87,9 @@ export default function UserCharacterManager({
       if (!res.ok || !data.ok) {
         throw new Error(data.error || 'Failed to generate angles');
       }
+      if (data.generated === 0 && !data.skipped) {
+        throw new Error('All angle generations failed. Please try again.');
+      }
       const urls = data.reference_image_urls || [];
       onAngleAdded(characterId, data.reference_count, urls);
       if (previewChar?.id === characterId) {

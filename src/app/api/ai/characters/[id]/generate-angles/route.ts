@@ -106,10 +106,14 @@ export async function POST(req: NextRequest, context: RouteContext) {
     const provider = await getStorageProvider(r2Flag?.enabled ?? false);
 
     // Generate 3 angles in parallel
-    console.log(`[generate-angles] Generating ${ANGLE_PROMPTS.length} angles for character ${characterId}`);
+    console.log(`[generate-angles] Generating ${ANGLE_PROMPTS.length} angles for character ${characterId}, frontal: ${character.frontal_image_url?.substring(0, 80)}...`);
     const angleResults = await Promise.allSettled(
-      ANGLE_PROMPTS.map(prompt => generateCharacterAngle(character.frontal_image_url, prompt))
+      ANGLE_PROMPTS.map((prompt, idx) => {
+        console.log(`[generate-angles] Starting angle ${idx}: ${prompt.substring(0, 40)}...`);
+        return generateCharacterAngle(character.frontal_image_url, prompt);
+      })
     );
+    console.log(`[generate-angles] fal.ai results:`, angleResults.map((r, i) => r.status === 'fulfilled' ? `angle${i}=OK` : `angle${i}=FAILED: ${r.reason}`).join(', '));
 
     let successCount = 0;
 
