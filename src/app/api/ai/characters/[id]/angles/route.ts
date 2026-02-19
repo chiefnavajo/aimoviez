@@ -122,9 +122,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
+    const urls = rpcResult[0].reference_image_urls || [];
     return NextResponse.json({
       ok: true,
-      reference_count: (rpcResult[0].reference_image_urls || []).length,
+      reference_count: urls.length,
+      reference_image_urls: urls,
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/ai/characters/[id]/angles] error:', err);

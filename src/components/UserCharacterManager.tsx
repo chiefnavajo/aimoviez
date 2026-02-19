@@ -9,6 +9,7 @@ export interface UserCharacter {
   id: string;
   label: string;
   frontal_image_url: string;
+  reference_image_urls: string[];
   reference_count: number;
   appearance_description: string | null;
   usage_count: number;
@@ -20,7 +21,7 @@ interface UserCharacterManagerProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onUploadClick: () => void;
-  onAngleAdded: (characterId: string, newCount: number) => void;
+  onAngleAdded: (characterId: string, newCount: number, referenceImageUrls: string[]) => void;
   maxSelectable: number;
 }
 
@@ -78,11 +79,10 @@ export default function UserCharacterManager({
       if (!res.ok || !data.ok) {
         throw new Error(data.error || 'Failed to generate angles');
       }
-      if (data.reference_count > 0) {
-        onAngleAdded(characterId, data.reference_count);
-        if (previewChar?.id === characterId) {
-          setPreviewChar(prev => prev ? { ...prev, reference_count: data.reference_count } : null);
-        }
+      const urls = data.reference_image_urls || [];
+      onAngleAdded(characterId, data.reference_count, urls);
+      if (previewChar?.id === characterId) {
+        setPreviewChar(prev => prev ? { ...prev, reference_count: data.reference_count, reference_image_urls: urls } : null);
       }
     } catch (err) {
       setAngleError(err instanceof Error ? err.message : 'Failed to generate angles');
@@ -126,9 +126,10 @@ export default function UserCharacterManager({
       const angleData = await angleRes.json();
       if (!angleRes.ok || !angleData.ok) throw new Error(angleData.error || 'Failed to add angle');
 
-      onAngleAdded(characterId, angleData.reference_count);
+      const urls = angleData.reference_image_urls || [];
+      onAngleAdded(characterId, angleData.reference_count, urls);
       if (previewChar?.id === characterId) {
-        setPreviewChar(prev => prev ? { ...prev, reference_count: angleData.reference_count } : null);
+        setPreviewChar(prev => prev ? { ...prev, reference_count: angleData.reference_count, reference_image_urls: urls } : null);
       }
     } catch (err) {
       setAngleError(err instanceof Error ? err.message : 'Failed to add angle');
@@ -273,6 +274,30 @@ export default function UserCharacterManager({
                 )}
                 <p className="text-xs text-white/30 mt-1">Used {previewChar.usage_count} time{previewChar.usage_count !== 1 ? 's' : ''}</p>
               </div>
+
+              {/* Reference angle thumbnails */}
+              {previewChar.reference_image_urls.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/40 mb-2">Reference Angles</p>
+                  <div className="flex gap-2 justify-center">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewChar.frontal_image_url}
+                      alt="Front"
+                      className="w-16 h-16 rounded-lg object-cover border-2 border-purple-500/50"
+                    />
+                    {previewChar.reference_image_urls.map((url, i) => (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        key={i}
+                        src={url}
+                        alt={`Angle ${i + 1}`}
+                        className="w-16 h-16 rounded-lg object-cover border border-white/10"
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Angle generation & upload */}
               {previewChar.reference_count < 6 && (

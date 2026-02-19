@@ -1481,9 +1481,9 @@ export default function AIGeneratePanel({
               });
             }}
             onUploadClick={() => setShowUploadModal(true)}
-            onAngleAdded={(charId, newCount) => {
+            onAngleAdded={(charId, newCount, urls) => {
               setUserCharacters(prev =>
-                prev.map(c => c.id === charId ? { ...c, reference_count: newCount } : c)
+                prev.map(c => c.id === charId ? { ...c, reference_count: newCount, reference_image_urls: urls } : c)
               );
             }}
             maxSelectable={maxSelectableUserChars}

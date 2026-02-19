@@ -170,9 +170,21 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     console.log(`[generate-angles] Completed: ${successCount}/${ANGLE_PROMPTS.length} angles for character ${characterId}`);
 
+    // Fetch final reference URLs from DB for accurate response
+    let finalUrls: string[] = [];
+    if (successCount > 0) {
+      const { data: updated } = await supabase
+        .from('user_characters')
+        .select('reference_image_urls')
+        .eq('id', characterId)
+        .single();
+      finalUrls = updated?.reference_image_urls || [];
+    }
+
     return NextResponse.json({
       ok: true,
-      reference_count: existingCount + successCount,
+      reference_count: finalUrls.length || (existingCount + successCount),
+      reference_image_urls: finalUrls,
       generated: successCount,
     });
   } catch (err) {

@@ -92,6 +92,7 @@ export async function GET(req: NextRequest) {
     id: c.id,
     label: c.label,
     frontal_image_url: c.frontal_image_url,
+    reference_image_urls: c.reference_image_urls || [],
     reference_count: (c.reference_image_urls || []).length,
     appearance_description: c.appearance_description || null,
     usage_count: c.usage_count,

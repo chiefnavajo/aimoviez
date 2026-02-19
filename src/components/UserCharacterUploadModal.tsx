@@ -11,6 +11,7 @@ interface UserCharacterUploadModalProps {
     id: string;
     label: string;
     frontal_image_url: string;
+    reference_image_urls: string[];
     appearance_description: string | null;
     reference_count: number;
     usage_count: number;
@@ -127,6 +128,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
 
       const characterId = createData.character.id;
       let finalRefCount = 0;
+      let finalRefUrls: string[] = [];
 
       // Step 4: Auto-generate reference angles if enabled
       if (autoAnglesEnabled) {
@@ -142,6 +144,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
           const anglesData = await anglesRes.json();
           if (anglesRes.ok && anglesData.ok) {
             finalRefCount = anglesData.reference_count ?? 0;
+            finalRefUrls = anglesData.reference_image_urls || [];
           }
           // If angle generation fails, we still proceed with the character (frontal-only is fine)
         } catch {
@@ -155,6 +158,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
         id: characterId,
         label: createData.character.label,
         frontal_image_url: createData.character.frontal_image_url,
+        reference_image_urls: finalRefUrls,
         appearance_description: createData.character.appearance_description || null,
         reference_count: finalRefCount,
         usage_count: 0,
