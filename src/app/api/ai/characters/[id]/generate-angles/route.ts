@@ -86,15 +86,39 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
-    // Skip if character already has reference angles
+    // Parse optional body for clear_existing flag
+    let clearExisting = false;
+    try {
+      const body = await req.json();
+      clearExisting = body?.clear_existing === true;
+    } catch {
+      // No body is fine — defaults to false
+    }
+
+    // Skip if character already has reference angles (unless regenerating)
     const existingCount = character.reference_image_urls?.length ?? 0;
-    if (existingCount >= 3) {
+    if (existingCount >= 3 && !clearExisting) {
       return NextResponse.json({
         ok: true,
         reference_count: existingCount,
+        reference_image_urls: character.reference_image_urls || [],
         skipped: true,
         message: 'Character already has reference angles',
       });
+    }
+
+    // Clear existing angles for regeneration
+    if (clearExisting && existingCount > 0) {
+      const { error: clearError } = await supabase
+        .rpc('clear_user_character_angles', {
+          p_id: characterId,
+          p_user_id: user.id,
+        });
+      if (clearError) {
+        console.error('[generate-angles] Failed to clear existing angles:', clearError);
+        return NextResponse.json({ success: false, error: 'Failed to clear existing angles' }, { status: 500 });
+      }
+      console.log(`[generate-angles] Cleared ${existingCount} existing angles for regeneration`);
     }
 
     // Determine storage provider

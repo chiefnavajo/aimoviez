@@ -1,5 +1,5 @@
 // app/api/ai/characters/[id]/angles/route.ts
-// Add reference angles to a user character
+// Add or remove reference angles from a user character
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -131,6 +131,75 @@ export async function POST(req: NextRequest, context: RouteContext) {
     }, { status: 201 });
   } catch (err) {
     console.error('[POST /api/ai/characters/[id]/angles] error:', err);
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/ai/characters/[id]/angles
+ * Remove a specific reference angle image from a user character.
+ */
+export async function DELETE(req: NextRequest, context: RouteContext) {
+  const rateLimitResponse = await rateLimit(req, 'api');
+  if (rateLimitResponse) return rateLimitResponse;
+  const csrfError = await requireCsrf(req);
+  if (csrfError) return csrfError;
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) {
+    return NextResponse.json({ success: false, error: 'Authentication required' }, { status: 401 });
+  }
+
+  try {
+    const { id: characterId } = await context.params;
+    const body = await req.json();
+    const validation = parseBody(UserCharacterAngleSchema, body);
+    if (!validation.success) {
+      return NextResponse.json({ success: false, error: validation.error }, { status: 400 });
+    }
+
+    const { image_url } = validation.data;
+    const supabase = getSupabase();
+
+    // Get user
+    const { data: user } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', session.user.email)
+      .maybeSingle();
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+    }
+
+    // Atomic remove via RPC (with ownership check)
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('remove_user_character_angle', {
+        p_id: characterId,
+        p_user_id: user.id,
+        p_url: image_url,
+      });
+
+    if (rpcError) {
+      console.error('[DELETE /api/ai/characters/[id]/angles] RPC error:', rpcError);
+      return NextResponse.json({ success: false, error: 'Failed to remove angle' }, { status: 500 });
+    }
+
+    if (!rpcResult || rpcResult.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Angle not found or not owned by you' },
+        { status: 404 }
+      );
+    }
+
+    const urls = rpcResult[0].out_reference_image_urls || [];
+    return NextResponse.json({
+      ok: true,
+      reference_count: urls.length,
+      reference_image_urls: urls,
+    });
+  } catch (err) {
+    console.error('[DELETE /api/ai/characters/[id]/angles] error:', err);
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -42,6 +42,8 @@ export default function UserCharacterManager({
   const [angleError, setAngleError] = useState<string | null>(null);
   const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [isDeletingAngle, setIsDeletingAngle] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     setIsDeleting(id);
@@ -68,7 +70,7 @@ export default function UserCharacterManager({
     }
   };
 
-  const handleGenerateAngles = async (characterId: string) => {
+  const handleGenerateAngles = async (characterId: string, clearExisting: boolean = false) => {
     setAngleError(null);
     setIsGeneratingAngles(true);
     try {
@@ -78,6 +80,7 @@ export default function UserCharacterManager({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
         credentials: 'include',
+        body: JSON.stringify(clearExisting ? { clear_existing: true } : {}),
       });
       const contentType = res.headers.get('content-type') || '';
       if (!contentType.includes('application/json')) {
@@ -146,6 +149,34 @@ export default function UserCharacterManager({
       setAngleError(err instanceof Error ? err.message : 'Failed to add angle');
     } finally {
       setAngleUploading(false);
+    }
+  };
+
+  const handleDeleteAngle = async (characterId: string, imageUrl: string) => {
+    setAngleError(null);
+    setIsDeletingAngle(imageUrl);
+    try {
+      await ensureToken();
+      const csrfToken = document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '';
+      const res = await fetch(`/api/ai/characters/${characterId}/angles`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        credentials: 'include',
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || 'Failed to remove angle');
+      }
+      const urls = data.reference_image_urls || [];
+      onAngleAdded(characterId, data.reference_count, urls);
+      if (previewChar?.id === characterId) {
+        setPreviewChar(prev => prev ? { ...prev, reference_count: data.reference_count, reference_image_urls: urls } : null);
+      }
+    } catch (err) {
+      setAngleError(err instanceof Error ? err.message : 'Failed to remove angle');
+    } finally {
+      setIsDeletingAngle(null);
     }
   };
 
@@ -281,13 +312,15 @@ export default function UserCharacterManager({
               aria-modal="true"
             >
               <div className="pointer-events-auto bg-gray-900 rounded-2xl p-4 max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto touch-manipulation">
-              {/* Large image */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previewChar.frontal_image_url}
-                alt={previewChar.label}
-                className="w-full aspect-square object-cover rounded-xl"
-              />
+              {/* Large image — tap for fullscreen */}
+              <button onClick={() => setFullscreenImage(previewChar.frontal_image_url)} className="w-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={previewChar.frontal_image_url}
+                  alt={previewChar.label}
+                  className="w-full aspect-square object-cover rounded-xl hover:opacity-90 transition"
+                />
+              </button>
 
               {/* Info */}
               <div className="text-center">
@@ -303,26 +336,58 @@ export default function UserCharacterManager({
                 <p className="text-xs text-white/30 mt-1">Used {previewChar.usage_count} time{previewChar.usage_count !== 1 ? 's' : ''}</p>
               </div>
 
-              {/* Reference angle thumbnails */}
+              {/* Reference angle thumbnails — grid with tap-to-fullscreen + delete */}
               {previewChar.reference_image_urls.length > 0 && (
                 <div>
-                  <p className="text-xs text-white/40 mb-2">Reference Angles</p>
-                  <div className="flex gap-2 justify-center">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={previewChar.frontal_image_url}
-                      alt="Front"
-                      className="w-16 h-16 rounded-lg object-cover border-2 border-purple-500/50"
-                    />
-                    {previewChar.reference_image_urls.map((url, i) => (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img
-                        key={i}
-                        src={url}
-                        alt={`Angle ${i + 1}`}
-                        className="w-16 h-16 rounded-lg object-cover border border-white/10"
-                      />
-                    ))}
+                  <p className="text-xs text-white/40 mb-2">Reference Angles <span className="text-white/25">· tap to enlarge</span></p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {/* Frontal image (not deletable) */}
+                    <div className="flex flex-col items-center">
+                      <button
+                        onClick={() => setFullscreenImage(previewChar.frontal_image_url)}
+                        className="relative w-full aspect-square rounded-lg overflow-hidden border-2 border-purple-500/50 hover:border-purple-400 transition"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={previewChar.frontal_image_url} alt="Front" className="w-full h-full object-cover" />
+                      </button>
+                      <span className="text-[10px] text-purple-300/70 mt-1">Front</span>
+                    </div>
+                    {/* Angle images (deletable) */}
+                    {previewChar.reference_image_urls.map((url, i) => {
+                      const angleLabels = ['Left', 'Right', 'Rear', 'Extra', 'Extra', 'Extra'];
+                      return (
+                        <div key={url} className="flex flex-col items-center">
+                          <button
+                            onClick={() => setFullscreenImage(url)}
+                            className="relative w-full aspect-square rounded-lg overflow-hidden border border-white/10 hover:border-white/30 transition group"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={url}
+                              alt={`${angleLabels[i]} angle`}
+                              className={`w-full h-full object-cover ${isDeletingAngle === url ? 'opacity-30' : ''}`}
+                            />
+                            {/* Delete X button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAngle(previewChar.id, url);
+                              }}
+                              disabled={isDeletingAngle !== null}
+                              className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-black/70 text-white/70 flex items-center justify-center opacity-70 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-red-500/80 hover:text-white transition-all touch-manipulation"
+                              aria-label={`Remove ${angleLabels[i]} angle`}
+                            >
+                              {isDeletingAngle === url ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <X className="w-3 h-3" />
+                              )}
+                            </button>
+                          </button>
+                          <span className="text-[10px] text-white/30 mt-1">{angleLabels[i]}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -330,20 +395,22 @@ export default function UserCharacterManager({
               {/* Angle generation & upload */}
               {previewChar.reference_count < 6 && (
                 <div className="space-y-2">
-                  {/* AI Generate angles button */}
-                  {previewChar.reference_count < 3 && (
-                    <button
-                      onClick={() => handleGenerateAngles(previewChar.id)}
-                      disabled={isGeneratingAngles || angleUploading}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 text-sm hover:bg-purple-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isGeneratingAngles ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Generating angles...</>
-                      ) : (
-                        <><Wand2 className="w-4 h-4" /> {previewChar.reference_count > 0 ? 'Retry — Generate Missing Angles' : 'Auto-Generate Reference Angles'}</>
-                      )}
-                    </button>
-                  )}
+                  {/* AI Generate angles button — always visible with contextual label */}
+                  <button
+                    onClick={() => handleGenerateAngles(previewChar.id, previewChar.reference_count >= 3)}
+                    disabled={isGeneratingAngles || angleUploading || isDeletingAngle !== null}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 text-sm hover:bg-purple-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isGeneratingAngles ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Generating angles...</>
+                    ) : previewChar.reference_count >= 3 ? (
+                      <><Wand2 className="w-4 h-4" /> Regenerate All Angles</>
+                    ) : previewChar.reference_count > 0 ? (
+                      <><Wand2 className="w-4 h-4" /> Generate Missing Angles</>
+                    ) : (
+                      <><Wand2 className="w-4 h-4" /> Auto-Generate Reference Angles</>
+                    )}
+                  </button>
                   {/* Manual angle upload */}
                   <label className="flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition">
                     {angleUploading ? (
@@ -426,6 +493,45 @@ export default function UserCharacterManager({
               )}
             </div>
           </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen image viewer */}
+      <AnimatePresence>
+        {fullscreenImage && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[60] bg-black/95"
+              onClick={() => setFullscreenImage(null)}
+              aria-hidden="true"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="fixed inset-0 z-[61] flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="pointer-events-auto relative max-w-lg w-full max-h-[80vh]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={fullscreenImage}
+                  alt="Enlarged view"
+                  className="w-full h-full object-contain rounded-xl"
+                  onClick={() => setFullscreenImage(null)}
+                />
+                <button
+                  onClick={() => setFullscreenImage(null)}
+                  className="absolute top-2 right-2 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition touch-manipulation"
+                  aria-label="Close fullscreen view"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </motion.div>
           </>
         )}
       </AnimatePresence>
