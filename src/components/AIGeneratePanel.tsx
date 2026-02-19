@@ -220,6 +220,9 @@ export default function AIGeneratePanel({
     reference_count: number;
   } | null>(null);
 
+  // Genre state (declared early so pinned character fetch can depend on it)
+  const [genre, setGenre] = useState(preselectedGenre || '');
+
   // AI Prompt Suggestion state
   const [autoSuggestEnabled, setAutoSuggestEnabled] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -294,7 +297,6 @@ export default function AIGeneratePanel({
   const [prompt, setPrompt] = useState(initialPrompt || '');
   const [style, setStyle] = useState<string | undefined>();
   const [model, setModel] = useState('kling-2.6');
-  const [genre, setGenre] = useState(preselectedGenre || '');
   const [title, setTitle] = useState('');
 
   // Notify parent when genre changes (for multi-genre last frame fetching)
