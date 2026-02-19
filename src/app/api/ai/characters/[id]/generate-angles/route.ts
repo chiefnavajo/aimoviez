@@ -2,6 +2,7 @@
 // Auto-generate left/right/rear reference angles from a frontal photo using Kling O1 Image
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 120; // fal.ai generation (3 parallel) + download + upload
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';

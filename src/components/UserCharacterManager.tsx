@@ -75,6 +75,10 @@ export default function UserCharacterManager({
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
         credentials: 'include',
       });
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(res.status === 504 ? 'Generation timed out. Please try again.' : 'Server error. Please try again.');
+      }
       const data = await res.json();
       if (!res.ok || !data.ok) {
         throw new Error(data.error || 'Failed to generate angles');
