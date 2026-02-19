@@ -118,6 +118,10 @@ describe('rate-limit', () => {
         expect(config.window).toBe('1m');
       }
     });
+
+    it('ai_status allows 60 requests per minute', () => {
+      expect(RATE_LIMITS.ai_status.requests).toBe(60);
+    });
   });
 
   // =========================================================================

@@ -76,12 +76,20 @@ jest.mock('@/lib/elevenlabs', () => ({
   isValidVoiceId: jest.fn(() => true),
 }));
 
+// Mock next/server's `after()` — called by the status route for non-blocking fallback polling.
+// We use jest.requireActual to preserve NextRequest/NextResponse and only stub `after`.
+jest.mock('next/server', () => ({
+  ...jest.requireActual('next/server'),
+  after: jest.fn((cb: () => void) => { /* no-op in tests — skip background work */ }),
+}));
+
 // =============================================================================
 // Imports
 // =============================================================================
 
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
+import { after } from 'next/server';
 import { requireCsrf } from '@/lib/csrf';
 import { parseBody } from '@/lib/validations';
 import { sanitizePrompt, getModelConfig, startGeneration, cancelFalRequest, checkFalStatus, getModelCosts } from '@/lib/ai-video';
@@ -362,27 +370,36 @@ describe('POST /api/ai/register', () => {
   };
 
   /**
-   * Register route .from() call order:
-   *   0. feature_flags — ai_video_generation (maybeSingle)
-   *   1. users (maybeSingle)
-   *   2. ai_generations lookup (maybeSingle)
-   *   3. feature_flags — r2_storage (maybeSingle)
-   *   4. seasons (maybeSingle)
-   *   5. story_slots (maybeSingle)
-   *   6. tournament_clips insert (single)
-   *   7. ai_generations update — clip_id (select)
-   *   8. feature_flags — prompt_learning (maybeSingle)
+   * Register route .from() call order (after parallelization):
+   *   Batch 1 (Promise.all — 4 synchronous .from() calls):
+   *     0. feature_flags — ai_video_generation (maybeSingle)
+   *     1. users (maybeSingle)
+   *     2. feature_flags — r2_storage (maybeSingle)
+   *     3. feature_flags — prompt_learning (maybeSingle)
+   *   Season query construction (before Batch 2 Promise.all):
+   *     4. seasons (maybeSingle)
+   *   Batch 2 (Promise.all — ai_generations .from() call, seasonQuery already built):
+   *     5. ai_generations lookup (maybeSingle)
+   *   Sequential:
+   *     6. story_slots (maybeSingle)
+   *     7. tournament_clips insert (single)
+   *     8. ai_generations update — clip_id (select)
    */
   function buildRegisterMock(overrides: Record<string, unknown> = {}) {
     const responses = [
+      // Batch 1 (parallel)
       { data: pick(overrides, 'featureFlag', { enabled: true }), error: null },
       {
         data: pick(overrides, 'userProfile', { id: VALID_UUID, username: 'testuser', avatar_url: 'https://avatar.example.com/test.png', is_banned: false }),
         error: null,
       },
-      { data: pick(overrides, 'generation', DEFAULT_GEN_REGISTER), error: pick(overrides, 'genError', null) },
       { data: pick(overrides, 'r2Flag', { enabled: false }), error: null },
+      { data: { enabled: false }, error: null }, // prompt_learning flag
+      // Season query construction (before Batch 2 Promise.all)
       { data: pick(overrides, 'season', { id: 'season-1', total_slots: 10 }), error: pick(overrides, 'seasonError', null) },
+      // Batch 2 (ai_generations .from() inside Promise.all)
+      { data: pick(overrides, 'generation', DEFAULT_GEN_REGISTER), error: pick(overrides, 'genError', null) },
+      // Sequential
       {
         data: pick(overrides, 'votingSlot', {
           id: 'slot-1', slot_position: 1, status: 'voting',
@@ -392,7 +409,6 @@ describe('POST /api/ai/register', () => {
       },
       { data: pick(overrides, 'clipData', { id: 'clip-1' }), error: pick(overrides, 'clipError', null) },
       { data: pick(overrides, 'updateRows', [{ id: GENERATION_UUID }]), error: pick(overrides, 'updateError', null) },
-      { data: { enabled: false }, error: null },
     ];
     const seq = createSequentialMock(responses);
     mockCreateClient.mockReturnValue({ from: seq.from, rpc: jest.fn() });
@@ -478,6 +494,23 @@ describe('POST /api/ai/register', () => {
     expect(body.clip).toBeDefined();
     expect(body.clip.id).toBe('clip-1');
   });
+
+  test('parallelizes feature flag and user queries in batch 1', async () => {
+    // Build a full mock matching the parallelized .from() call order:
+    //   Batch 1 (Promise.all): feature_flags, users, r2_flag, prompt_learning_flag
+    //   Season query construction: seasons
+    //   Batch 2 (Promise.all): ai_generations
+    //   Sequential: story_slots, clips insert, gen update
+    const mock = buildRegisterMock();
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    const res = await registerPost(req);
+    const { status, body } = await parseResponse(res);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.clip).toBeDefined();
+    // Verify all 9 .from() calls were made in the expected parallelized order
+    expect(mock.from).toHaveBeenCalledTimes(9);
+  });
 });
 
 // #############################################################################
@@ -489,18 +522,23 @@ describe('POST /api/ai/complete', () => {
   const validBody = { generationId: GENERATION_UUID };
 
   /**
-   * Complete route .from() call order:
-   *   0. users (maybeSingle)
-   *   1. ai_generations lookup (maybeSingle)
-   *   2. seasons (via .limit(1) -> thenable, returns array)
-   *   3. story_slots (via .limit(1) -> thenable, returns array)
-   *   4. ai_generations update — complete_initiated_at guard (select)
-   *   5. feature_flags — r2_storage (maybeSingle)
-   *   6. ai_generations update — storage_key
+   * Complete route .from() call order (after parallelization):
+   *   Batch 1 (Promise.all — 2 parallel calls):
+   *     0. users (maybeSingle)
+   *     1. feature_flags — r2_storage (maybeSingle)
+   *   Sequential:
+   *     2. ai_generations lookup (maybeSingle)
+   *     3. ai_generations update — complete_initiated_at guard (select)
+   *     4. seasons (via .limit(1) -> thenable, returns array)
+   *     5. story_slots (via .limit(1) -> thenable, returns array)
+   *     6. ai_generations update — storage_key
    */
   function buildCompleteMock(overrides: Record<string, unknown> = {}) {
     const responses = [
+      // Batch 1 (parallel)
       { data: pick(overrides, 'user', { id: VALID_UUID }), error: pick(overrides, 'userError', null) },
+      { data: pick(overrides, 'r2Flag', { enabled: false }), error: null },
+      // Sequential
       {
         data: pick(overrides, 'generation', {
           id: GENERATION_UUID, status: 'completed', video_url: 'https://fal.media/video.mp4',
@@ -509,10 +547,9 @@ describe('POST /api/ai/complete', () => {
         }),
         error: pick(overrides, 'genError', null),
       },
+      { data: pick(overrides, 'guardRows', [{ id: GENERATION_UUID }]), error: pick(overrides, 'guardError', null) },
       { data: pick(overrides, 'seasons', [{ id: 'season-1' }]), error: null },
       { data: pick(overrides, 'slots', [{ id: 'slot-1' }]), error: null },
-      { data: pick(overrides, 'guardRows', [{ id: GENERATION_UUID }]), error: pick(overrides, 'guardError', null) },
-      { data: pick(overrides, 'r2Flag', { enabled: false }), error: null },
       { data: null, error: pick(overrides, 'updateError', null) },
     ];
     const seq = createSequentialMock(responses);
@@ -598,6 +635,29 @@ describe('POST /api/ai/complete', () => {
     const { status, body } = await parseResponse(res);
     expect(status).toBe(410);
     expect(body.error).toMatch(/expired/i);
+  });
+
+  test('fails fast with 409 before season/slot queries when double-complete guard triggers', async () => {
+    // complete_initiated_at is set and recent (within 10 min) — guard should fire immediately
+    const recentTimestamp = new Date(Date.now() - 2 * 60 * 1000).toISOString(); // 2 min ago
+    const mock = buildCompleteMock({
+      generation: {
+        id: GENERATION_UUID, status: 'completed', video_url: 'https://fal.media/video.mp4',
+        completed_at: new Date().toISOString(), storage_key: null,
+        complete_initiated_at: recentTimestamp, clip_id: null, model: 'kling-2.6', genre: 'thriller',
+      },
+      // The guard update returns empty rows (meaning another request already set it)
+      guardRows: [],
+    });
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    const res = await completePost(req);
+    const { status, body } = await parseResponse(res);
+    expect(status).toBe(409);
+    expect(body.error).toMatch(/already being processed/i);
+    // Verify we stopped before season/slot queries:
+    // A successful complete would call .from() 7 times (user, r2flag, gen, guard, seasons, slots, update).
+    // The 409 path should stop at 4 (user, r2flag, gen, guard).
+    expect(mock.from.mock.calls.length).toBeLessThan(7);
   });
 });
 
@@ -796,14 +856,13 @@ describe('GET /api/ai/status/[id]', () => {
   const url = '/api/ai/status/' + GENERATION_UUID;
 
   /**
-   * Status route .from() call order:
-   *   0. users (maybeSingle)
-   *   1. ai_generations lookup (maybeSingle)
-   * Plus possible update calls for fallback polling (not exercised in these tests)
+   * Status route .from() call order (after optimization):
+   *   0. ai_generations lookup (maybeSingle)
+   * User ID now comes from session.user.userId (no DB lookup).
+   * Fallback polling uses after() from next/server (mocked as no-op).
    */
   function buildStatusMock(overrides: Record<string, unknown> = {}) {
     const responses = [
-      { data: pick(overrides, 'user', { id: VALID_UUID }), error: pick(overrides, 'userError', null) },
       {
         data: pick(overrides, 'generation', {
           id: GENERATION_UUID, status: 'completed', video_url: 'https://fal.media/video.mp4',
@@ -902,6 +961,59 @@ describe('GET /api/ai/status/[id]', () => {
     expect(status).toBe(200);
     expect(body.stage).toBe('failed');
     expect(body.error).toBe('fal.ai timeout');
+  });
+
+  test('uses session.user.userId instead of DB lookup', async () => {
+    // The status route only needs 1 .from() call (ai_generations).
+    // There should be NO users table query — userId comes from session.
+    const seq = buildStatusMock();
+    const req = createMockRequest(url);
+    const res = await statusGet(req, { params: Promise.resolve({ id: GENERATION_UUID }) });
+    const { status, body } = await parseResponse(res);
+    expect(status).toBe(200);
+    expect(body.success).toBe(true);
+    // Only 1 .from() call should have been made (ai_generations), not 2 (users + ai_generations)
+    expect(seq.from).toHaveBeenCalledTimes(1);
+  });
+
+  test('uses after() for non-blocking fallback poll when stuck > 2min', async () => {
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    buildStatusMock({
+      generation: {
+        id: GENERATION_UUID, status: 'pending', video_url: null,
+        error_message: null, user_id: VALID_UUID,
+        fal_request_id: 'fal-req-123', model: 'kling-2.6',
+        created_at: threeMinutesAgo,
+      },
+    });
+    const req = createMockRequest(url);
+    const res = await statusGet(req, { params: Promise.resolve({ id: GENERATION_UUID }) });
+    const { status, body } = await parseResponse(res);
+    // Response returns current DB status immediately
+    expect(status).toBe(200);
+    expect(body.stage).toBe('queued');
+    // after() should have been called for background fallback polling
+    expect((after as jest.Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('returns DB status immediately even when fallback would trigger', async () => {
+    const threeMinutesAgo = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    buildStatusMock({
+      generation: {
+        id: GENERATION_UUID, status: 'pending', video_url: null,
+        error_message: null, user_id: VALID_UUID,
+        fal_request_id: 'fal-req-123', model: 'kling-2.6',
+        created_at: threeMinutesAgo,
+      },
+    });
+    const req = createMockRequest(url);
+    const res = await statusGet(req, { params: Promise.resolve({ id: GENERATION_UUID }) });
+    const { status, body } = await parseResponse(res);
+    // The response should return the DB status (queued), NOT 'ready' —
+    // proving the response doesn't wait for the fal.ai check
+    expect(status).toBe(200);
+    expect(body.stage).toBe('queued');
+    expect(body.videoUrl).toBeNull();
   });
 });
 

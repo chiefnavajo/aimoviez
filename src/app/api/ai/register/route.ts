@@ -89,21 +89,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 4. Feature flag check
-    const { data: featureFlag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'ai_video_generation')
-      .maybeSingle();
-
-    if (!featureFlag?.enabled) {
-      return NextResponse.json(
-        { success: false, error: 'AI video generation is not currently available' },
-        { status: 403 }
-      );
-    }
-
-    // 5. Check user is not banned
+    // 4. Batch 1: Run 4 independent queries in parallel (all only need supabase client)
     const voterKey = getVoterKey(request);
     const userEmail = session.user.email;
 
@@ -111,12 +97,27 @@ export async function POST(request: NextRequest) {
     let uploaderAvatar = `https://api.dicebear.com/7.x/avataaars/svg?seed=${voterKey}`;
     let userId: string | null = null;
 
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('id, username, avatar_url, is_banned')
-      .eq('email', userEmail)
-      .maybeSingle();
+    const [featureFlagResult, userProfileResult, r2FlagResult, promptLearningFlagResult] = await Promise.all([
+      supabase.from('feature_flags').select('enabled').eq('key', 'ai_video_generation').maybeSingle(),
+      supabase.from('users').select('id, username, avatar_url, is_banned').eq('email', userEmail).maybeSingle(),
+      supabase.from('feature_flags').select('enabled').eq('key', 'r2_storage').maybeSingle(),
+      supabase.from('feature_flags').select('enabled').eq('key', 'prompt_learning').maybeSingle(),
+    ]);
 
+    const { data: featureFlag } = featureFlagResult;
+    const { data: userProfile } = userProfileResult;
+    const { data: r2Flag } = r2FlagResult;
+    const { data: promptLearningFlag } = promptLearningFlagResult;
+
+    // Validate feature flag
+    if (!featureFlag?.enabled) {
+      return NextResponse.json(
+        { success: false, error: 'AI video generation is not currently available' },
+        { status: 403 }
+      );
+    }
+
+    // 5. Validate user profile
     if (!userProfile) {
       return NextResponse.json(
         { success: false, error: 'User not found' },
@@ -135,13 +136,32 @@ export async function POST(request: NextRequest) {
     uploaderUsername = userProfile.username || uploaderUsername;
     uploaderAvatar = userProfile.avatar_url || uploaderAvatar;
 
-    // 6. Look up generation (user owns, completed, no clip_id, has storage_key)
-    const { data: gen, error: genError } = await supabase
-      .from('ai_generations')
-      .select('id, status, model, prompt, style, storage_key, clip_id, narration_text')
-      .eq('id', generationId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    // 6. Batch 2: Run generation lookup + season query in parallel
+    //    - generation lookup needs userId (from batch 1)
+    //    - season query needs genre (from request body, already available)
+    let seasonQuery = supabase
+      .from('seasons')
+      .select('id, total_slots')
+      .eq('status', 'active');
+    if (genre) {
+      seasonQuery = seasonQuery.eq('genre', genre.toLowerCase());
+    }
+
+    const [genResult, seasonResult] = await Promise.all([
+      supabase
+        .from('ai_generations')
+        .select('id, status, model, prompt, style, storage_key, clip_id, narration_text')
+        .eq('id', generationId)
+        .eq('user_id', userId)
+        .maybeSingle(),
+      seasonQuery
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const { data: gen, error: genError } = genResult;
+    const { data: season, error: seasonError } = seasonResult;
 
     if (genError || !gen) {
       return NextResponse.json(
@@ -171,29 +191,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 7. Construct public URL from storage_key (server-side, never from client)
-    const { data: r2Flag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'r2_storage')
-      .maybeSingle();
-
+    // 7. Construct public URL from storage_key (R2 flag already fetched in batch 1)
     const storageProvider = await getStorageProvider(r2Flag?.enabled ?? false);
     const publicUrl = getPublicVideoUrl(gen.storage_key, storageProvider);
 
-    // 8. Get active season (genre-aware for multi-genre)
-    let seasonQuery = supabase
-      .from('seasons')
-      .select('id, total_slots')
-      .eq('status', 'active');
-    if (genre) {
-      seasonQuery = seasonQuery.eq('genre', genre.toLowerCase());
-    }
-    const { data: season, error: seasonError } = await seasonQuery
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
+    // 8. Validate season (fetched in batch 2)
     if (seasonError || !season) {
       return NextResponse.json(
         { success: false, error: 'No active season. Uploads are currently closed.' },
@@ -201,7 +203,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 9. Get current voting or waiting_for_clips slot
+    // 9. Get current voting or waiting_for_clips slot (needs season.id — must be sequential)
     const { data: votingSlot, error: slotError } = await supabase
       .from('story_slots')
       .select('id, slot_position, status, voting_started_at, voting_duration_hours')
@@ -286,13 +288,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 12b. Record prompt for AI learning (server-side, reliable)
-    const { data: promptLearningFlag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'prompt_learning')
-      .maybeSingle();
-
+    // 12b. Record prompt for AI learning (prompt_learning flag already fetched in batch 1)
     if (promptLearningFlag?.enabled && gen.prompt) {
       try {
         const { recordUserPrompt } = await import('@/lib/prompt-learning');

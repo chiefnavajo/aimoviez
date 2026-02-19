@@ -2,7 +2,7 @@
 // Prompt-to-video generation form with style/model selectors, credit checks, and polling
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import AIGeneratePanel from '@/components/AIGeneratePanel';
 
 // Mock framer-motion
@@ -207,5 +207,120 @@ describe('AIGeneratePanel', () => {
 
     expect(screen.getByText('Continue from last scene')).toBeInTheDocument();
     expect(screen.getByText('Start fresh')).toBeInTheDocument();
+  });
+
+  it('pre-downloads video when stage transitions to ready', async () => {
+    const videoBlob = new Blob(['fake-video-data'], { type: 'video/mp4' });
+    const fetchCalls: string[] = [];
+
+    // Track all fetch calls
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      fetchCalls.push(url);
+      if (url === '/api/credits/packages') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ model_pricing: [{ model_key: 'kling-2.6', credit_cost: 5 }] }),
+        });
+      }
+      if (url === '/api/ai/generate') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, generationId: 'gen-123' }),
+        });
+      }
+      if (url.includes('/api/ai/status/')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, stage: 'ready', videoUrl: 'https://fal.media/test.mp4' }),
+        });
+      }
+      if (url === 'https://fal.media/test.mp4') {
+        return Promise.resolve({
+          ok: true,
+          blob: () => Promise.resolve(videoBlob),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+
+    render(<AIGeneratePanel />);
+
+    // Type a valid prompt and click generate
+    const textarea = screen.getByPlaceholderText(/describe a dramatic scene/i);
+    fireEvent.change(textarea, { target: { value: 'A dramatic cinematic scene for testing pre-download' } });
+
+    const generateButton = screen.getByText(/Generate/);
+    fireEvent.click(generateButton);
+
+    // Wait for the component to reach 'ready' state and trigger pre-download
+    await waitFor(() => {
+      expect(fetchCalls).toContain('https://fal.media/test.mp4');
+    }, { timeout: 5000 });
+  });
+
+  it('uses adaptive polling intervals starting at 1s', async () => {
+    jest.useFakeTimers();
+
+    let statusCallCount = 0;
+
+    global.fetch = jest.fn().mockImplementation((url: string) => {
+      if (url === '/api/credits/packages') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ model_pricing: [{ model_key: 'kling-2.6', credit_cost: 5 }] }),
+        });
+      }
+      if (url === '/api/ai/generate') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, generationId: 'gen-456' }),
+        });
+      }
+      if (url.includes('/api/ai/status/')) {
+        statusCallCount++;
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, stage: 'queued' }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    });
+
+    await act(async () => {
+      render(<AIGeneratePanel />);
+    });
+
+    // Type a valid prompt and click generate
+    const textarea = screen.getByPlaceholderText(/describe a dramatic scene/i);
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'A cinematic test prompt for adaptive polling' } });
+    });
+
+    const generateButton = screen.getByText(/Generate/);
+    await act(async () => {
+      fireEvent.click(generateButton);
+    });
+
+    // Flush promises to allow generate fetch to complete
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // The component should have made an immediate poll
+    const initialCount = statusCallCount;
+    expect(initialCount).toBeGreaterThanOrEqual(1);
+
+    // Advance by 1000ms — the first adaptive interval
+    await act(async () => {
+      jest.advanceTimersByTime(1000);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    // Should have at least one more poll after 1s (not waiting for 3s)
+    expect(statusCallCount).toBeGreaterThan(initialCount);
+
+    jest.useRealTimers();
   });
 });

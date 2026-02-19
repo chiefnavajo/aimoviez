@@ -562,8 +562,8 @@ describe('GET /api/story/pinned-characters', () => {
     const client = createSequentialClient([
       // 1. feature_flags
       { data: { enabled: true } },
-      // 2. seasons (active)
-      { data: { id: SEASON_ID } },
+      // 2. seasons (active) — returns array with .limit(1)
+      { data: [{ id: SEASON_ID }] },
       // 3. pinned_characters
       { data: chars },
     ]);
@@ -671,8 +671,8 @@ describe('GET /api/story/pinned-characters', () => {
     const client = createSequentialClient([
       // feature_flags
       { data: { enabled: true } },
-      // seasons
-      { data: { id: SEASON_ID } },
+      // seasons — returns array with .limit(1)
+      { data: [{ id: SEASON_ID }] },
       // pinned_characters: error
       { data: null, error: { message: 'Table not found' } },
     ]);
@@ -690,7 +690,8 @@ describe('GET /api/story/pinned-characters', () => {
 
     const client = createSequentialClient([
       { data: { enabled: true } },
-      { data: { id: SEASON_ID } },
+      // seasons — returns array with .limit(1)
+      { data: [{ id: SEASON_ID }] },
       { data: [] },
     ]);
     mockCreateClient.mockReturnValue(client);

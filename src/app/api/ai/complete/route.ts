@@ -88,12 +88,14 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabase();
 
-    // 4. Look up user
-    const { data: user, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', session.user.email)
-      .maybeSingle();
+    // 4. Look up user + R2 feature flag in parallel (zero dependencies)
+    const [userResult, r2FlagResult] = await Promise.all([
+      supabase.from('users').select('id').eq('email', session.user.email).maybeSingle(),
+      supabase.from('feature_flags').select('enabled').eq('key', 'r2_storage').maybeSingle(),
+    ]);
+
+    const { data: user, error: userError } = userResult;
+    const { data: r2Flag } = r2FlagResult;
 
     if (userError || !user) {
       return NextResponse.json(
@@ -130,6 +132,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: 'Video URL missing from generation' },
         { status: 500 }
+      );
+    }
+
+    // 6c. Atomic double-complete guard (fail-fast before season/slot queries)
+    // H14: If complete_initiated_at was set more than 10 minutes ago but no storage_key exists,
+    // the previous attempt failed — reset so the user can retry
+    if (gen.complete_initiated_at && !gen.storage_key) {
+      const initiatedAt = new Date(gen.complete_initiated_at).getTime();
+      const tenMinutesMs = 10 * 60 * 1000;
+      if (Date.now() - initiatedAt > tenMinutesMs) {
+        await supabase
+          .from('ai_generations')
+          .update({ complete_initiated_at: null })
+          .eq('id', gen.id);
+        console.info('[AI_COMPLETE] Reset stale complete_initiated_at for retry:', gen.id);
+        // Re-read to get fresh state
+        gen.complete_initiated_at = null;
+      }
+    }
+
+    const { data: guardRows, error: guardError } = await supabase
+      .from('ai_generations')
+      .update({ complete_initiated_at: new Date().toISOString() })
+      .eq('id', gen.id)
+      .is('complete_initiated_at', null)
+      .select();
+
+    if (guardError || !guardRows?.length) {
+      console.warn('[AI_COMPLETE] Double-complete guard triggered:', gen.id);
+      return NextResponse.json(
+        { success: false, error: 'Already being processed' },
+        { status: 409 }
       );
     }
 
@@ -180,45 +214,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 10. Atomic double-complete guard
-    // H14: If complete_initiated_at was set more than 10 minutes ago but no storage_key exists,
-    // the previous attempt failed — reset so the user can retry
-    if (gen.complete_initiated_at && !gen.storage_key) {
-      const initiatedAt = new Date(gen.complete_initiated_at).getTime();
-      const tenMinutesMs = 10 * 60 * 1000;
-      if (Date.now() - initiatedAt > tenMinutesMs) {
-        await supabase
-          .from('ai_generations')
-          .update({ complete_initiated_at: null })
-          .eq('id', gen.id);
-        console.info('[AI_COMPLETE] Reset stale complete_initiated_at for retry:', gen.id);
-        // Re-read to get fresh state
-        gen.complete_initiated_at = null;
-      }
-    }
-
-    const { data: guardRows, error: guardError } = await supabase
-      .from('ai_generations')
-      .update({ complete_initiated_at: new Date().toISOString() })
-      .eq('id', gen.id)
-      .is('complete_initiated_at', null)
-      .select();
-
-    if (guardError || !guardRows?.length) {
-      console.warn('[AI_COMPLETE] Double-complete guard triggered:', gen.id);
-      return NextResponse.json(
-        { success: false, error: 'Already being processed' },
-        { status: 409 }
-      );
-    }
-
-    // 11. Get storage provider (check R2 feature flag)
-    const { data: r2Flag } = await supabase
-      .from('feature_flags')
-      .select('enabled')
-      .eq('key', 'r2_storage')
-      .maybeSingle();
-
+    // 10. Get storage provider (R2 flag already fetched in parallel with user lookup)
     const storageProvider = await getStorageProvider(r2Flag?.enabled ?? false);
 
     // 12. Generate unique storage key

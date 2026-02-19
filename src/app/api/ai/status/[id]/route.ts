@@ -4,7 +4,7 @@
 
 export const dynamic = 'force-dynamic';
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth-options';
@@ -57,21 +57,23 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // 1. Rate limit
-    const rateLimitResponse = await rateLimit(request, 'ai_status');
+    // 1–3. Rate limit, authentication, and params — in parallel
+    const [rateLimitResponse, session, { id }] = await Promise.all([
+      rateLimit(request, 'ai_status'),
+      getServerSession(authOptions),
+      params,
+    ]);
+
     if (rateLimitResponse) return rateLimitResponse;
 
-    // 2. Authentication
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.email) {
+    if (!session?.user?.userId) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
         { status: 401 }
       );
     }
 
-    // 3. Extract and validate ID from route params
-    const { id } = await params;
+    const userId = session.user.userId;
 
     if (!id || !UUID_REGEX.test(id)) {
       return NextResponse.json(
@@ -81,28 +83,6 @@ export async function GET(
     }
 
     const supabase = getSupabase();
-
-    // 4. Look up user by email to get user_id
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', session.user.email)
-      .maybeSingle();
-
-    if (userError) {
-      console.error('[AI_STATUS] User lookup error:', userError.message);
-      return NextResponse.json(
-        { success: false, error: 'Internal server error' },
-        { status: 500 }
-      );
-    }
-
-    if (!userData) {
-      return NextResponse.json(
-        { success: false, error: 'User not found' },
-        { status: 404 }
-      );
-    }
 
     // 5. Query generation by ID (includes fields for fallback polling)
     const { data: gen, error: genError } = await supabase
@@ -120,14 +100,14 @@ export async function GET(
     }
 
     // 6. Not found OR user_id mismatch — return same 404 to prevent enumeration
-    if (!gen || gen.user_id !== userData.id) {
+    if (!gen || gen.user_id !== userId) {
       return NextResponse.json(
         { success: false, error: 'Generation not found' },
         { status: 404 }
       );
     }
 
-    // 7. Fallback: if stuck pending/processing > 2 min, poll fal.ai directly
+    // 7. Non-blocking fallback: if stuck pending/processing > 2 min, poll fal.ai after response
     if (
       (gen.status === 'pending' || gen.status === 'processing') &&
       gen.fal_request_id &&
@@ -139,53 +119,47 @@ export async function GET(
       const TWO_MINUTES = 2 * 60 * 1000;
 
       if (ageMs > TWO_MINUTES) {
-        try {
-          const falResult = await checkFalStatus(gen.model, gen.fal_request_id);
+        const genId = gen.id;
+        const model = gen.model;
+        const falRequestId = gen.fal_request_id;
+        const currentStatus = gen.status;
 
-          if (falResult.status === 'COMPLETED' && falResult.videoUrl) {
-            // Validate hostname (same as webhook route)
-            const hostname = new URL(falResult.videoUrl).hostname;
-            if (hostname.endsWith('.fal.media') || hostname.endsWith('.fal.ai')) {
-              await supabase
+        after(async () => {
+          try {
+            const bgSupabase = getSupabase();
+            const falResult = await checkFalStatus(model, falRequestId);
+
+            if (falResult.status === 'COMPLETED' && falResult.videoUrl) {
+              // Validate hostname (same as webhook route)
+              const hostname = new URL(falResult.videoUrl).hostname;
+              if (hostname.endsWith('.fal.media') || hostname.endsWith('.fal.ai')) {
+                await bgSupabase
+                  .from('ai_generations')
+                  .update({
+                    status: 'completed',
+                    video_url: falResult.videoUrl,
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('id', genId);
+
+                console.info('[AI_STATUS] Fallback poll recovered generation:', genId);
+              }
+            } else if (falResult.status === 'IN_PROGRESS' && currentStatus === 'pending') {
+              // Update to processing so next poll shows "generating"
+              await bgSupabase
                 .from('ai_generations')
-                .update({
-                  status: 'completed',
-                  video_url: falResult.videoUrl,
-                  completed_at: new Date().toISOString(),
-                })
-                .eq('id', gen.id);
-
-              console.info('[AI_STATUS] Fallback poll recovered generation:', gen.id);
-              return NextResponse.json({
-                success: true,
-                stage: 'ready',
-                videoUrl: falResult.videoUrl,
-                error: null,
-              });
+                .update({ status: 'processing' })
+                .eq('id', genId);
             }
-          } else if (falResult.status === 'IN_PROGRESS' && gen.status === 'pending') {
-            // Update to processing so UI shows "generating"
-            await supabase
-              .from('ai_generations')
-              .update({ status: 'processing' })
-              .eq('id', gen.id);
-
-            return NextResponse.json({
-              success: true,
-              stage: 'generating',
-              videoUrl: null,
-              error: null,
-            });
+            // IN_QUEUE or UNKNOWN — no update needed
+          } catch (pollError) {
+            console.warn('[AI_STATUS] Fallback poll error:', pollError instanceof Error ? pollError.message : pollError);
           }
-          // IN_QUEUE or UNKNOWN — continue with DB status
-        } catch (pollError) {
-          // Fallback poll failed — don't block, return DB status
-          console.warn('[AI_STATUS] Fallback poll error:', pollError instanceof Error ? pollError.message : pollError);
-        }
+        });
       }
     }
 
-    // 8. Map status to client-facing stage
+    // 8. Map status to client-facing stage (always return DB state immediately)
     const stage = mapStatusToStage(gen.status);
 
     return NextResponse.json({

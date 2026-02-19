@@ -32,12 +32,16 @@ function getSupabase() {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Rate limit (fail-closed — ai_generate is in CRITICAL_RATE_LIMIT_TYPES)
-    const rateLimitResponse = await rateLimit(request, 'ai_generate');
-    if (rateLimitResponse) return rateLimitResponse;
+    // 1-3. Rate limit, authentication, CSRF — all independent, run in parallel
+    const [rateLimitResponse, session, csrfError] = await Promise.all([
+      rateLimit(request, 'ai_generate'),
+      getServerSession(authOptions),
+      requireCsrf(request),
+    ]);
 
-    // 2. Authentication
-    const session = await getServerSession(authOptions);
+    if (rateLimitResponse) return rateLimitResponse;
+    if (csrfError) return csrfError;
+
     if (!session?.user?.email) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },
@@ -45,19 +49,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. CSRF protection
-    const csrfError = await requireCsrf(request);
-    if (csrfError) return csrfError;
-
     const supabase = getSupabase();
 
-    // 4. Check user is not banned + get credit balance
-    const { data: userData, error: userLookupError } = await supabase
-      .from('users')
-      .select('id, is_banned, balance_credits')
-      .eq('email', session.user.email)
-      .maybeSingle();
+    // 4-5. User lookup, feature flag, and model costs — all independent, run in parallel
+    const [userResult, flagResult, modelCosts] = await Promise.all([
+      supabase
+        .from('users')
+        .select('id, is_banned, balance_credits')
+        .eq('email', session.user.email)
+        .maybeSingle(),
+      supabase
+        .from('feature_flags')
+        .select('enabled, config')
+        .eq('key', 'ai_video_generation')
+        .maybeSingle(),
+      getModelCosts(supabase),
+    ]);
 
+    const { data: userData, error: userLookupError } = userResult;
     if (userLookupError) {
       console.error('[AI_GENERATE] User lookup error:', userLookupError.message);
       return NextResponse.json(
@@ -82,13 +91,7 @@ export async function POST(request: NextRequest) {
 
     const userId = userData.id;
 
-    // 5. Feature flag check
-    const { data: featureFlag, error: flagError } = await supabase
-      .from('feature_flags')
-      .select('enabled, config')
-      .eq('key', 'ai_video_generation')
-      .maybeSingle();
-
+    const { data: featureFlag, error: flagError } = flagResult;
     if (flagError) {
       console.error('[AI_GENERATE] Feature flag lookup error:', flagError.message);
       return NextResponse.json(
@@ -239,7 +242,7 @@ export async function POST(request: NextRequest) {
                 try {
                   const headRes = await fetch(pc.frontal_image_url, {
                     method: 'HEAD',
-                    signal: AbortSignal.timeout(3_000),
+                    signal: AbortSignal.timeout(1_000),
                   });
                   if (!headRes.ok) {
                     console.warn(`[AI_GENERATE] Pinned char ${pc.id} frontal URL unreachable: ${headRes.status}`);
@@ -292,7 +295,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the effective model's cost from DB (may have switched to kling-o1-ref)
-    const modelCosts = await getModelCosts(supabase);
     const effectiveCostCents = isImageToVideo
       ? (modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents)
       : (modelCosts[effectiveModel]?.fal_cost_cents ?? modelConfig.costCents);

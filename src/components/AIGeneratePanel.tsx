@@ -373,7 +373,10 @@ export default function AIGeneratePanel({
     generationId: string;
     falVideoUrl: string;
     signedUploadUrl: string;
+    fetchedAt: number;
   } | null>(null);
+  const prefetchedVideoRef = useRef<Blob | null>(null);
+  const pollCountRef = useRef(0);
 
   // Resume from localStorage on mount
   useEffect(() => {
@@ -415,13 +418,13 @@ export default function AIGeneratePanel({
       if (data.stage === 'ready') {
         setStage('ready');
         setVideoUrl(data.videoUrl);
-        if (pollRef.current) clearInterval(pollRef.current);
+        if (pollRef.current) clearTimeout(pollRef.current);
       } else if (data.stage === 'failed') {
         setStage('failed');
         setError(data.error || 'Generation failed');
         localStorage.removeItem(STORAGE_KEY);
         localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
-        if (pollRef.current) clearInterval(pollRef.current);
+        if (pollRef.current) clearTimeout(pollRef.current);
       } else if (data.stage === 'generating') {
         setStage('generating');
       } else {
@@ -434,14 +437,52 @@ export default function AIGeneratePanel({
 
   useEffect(() => {
     if (generationId && (stage === 'queued' || stage === 'generating')) {
-      // Poll immediately, then every 3s
+      pollCountRef.current = 0;
+
+      // Adaptive polling: 1s for first 15 polls, 2s for next 15, 3s thereafter
+      const getInterval = () => {
+        const count = pollCountRef.current;
+        if (count < 15) return 1000;
+        if (count < 30) return 2000;
+        return 3000;
+      };
+
+      const schedulePoll = () => {
+        pollStatus();
+        pollCountRef.current++;
+        pollRef.current = setTimeout(schedulePoll, getInterval());
+      };
+
+      // Poll immediately, then schedule adaptive
       pollStatus();
-      pollRef.current = setInterval(pollStatus, 3000);
+      pollCountRef.current++;
+      pollRef.current = setTimeout(schedulePoll, getInterval());
+
       return () => {
-        if (pollRef.current) clearInterval(pollRef.current);
+        if (pollRef.current) clearTimeout(pollRef.current);
       };
     }
   }, [generationId, stage, pollStatus]);
+
+  // Pre-download video Blob when generation is ready (saves 2-10s on submit)
+  useEffect(() => {
+    if (stage !== 'ready' || !videoUrl) return;
+    const controller = new AbortController();
+
+    fetch(videoUrl, { signal: controller.signal })
+      .then(res => res.blob())
+      .then(blob => {
+        if (blob.size <= 20 * 1024 * 1024) { // 20MB guard for mobile
+          prefetchedVideoRef.current = blob;
+        }
+      })
+      .catch(() => {}); // Non-critical pre-fetch
+
+    return () => {
+      controller.abort();
+      prefetchedVideoRef.current = null;
+    };
+  }, [stage, videoUrl]);
 
   // Sync narration audio with video playback
   useEffect(() => {
@@ -473,7 +514,7 @@ export default function AIGeneratePanel({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
       // Revoke blob URLs
       if (narrationAudioUrl) URL.revokeObjectURL(narrationAudioUrl);
     };
@@ -653,9 +694,12 @@ export default function AIGeneratePanel({
         let falVideoUrl: string;
         let signedUploadUrl: string;
 
-        if (completeResultRef.current && completeResultRef.current.generationId === generationId) {
-          falVideoUrl = completeResultRef.current.falVideoUrl;
-          signedUploadUrl = completeResultRef.current.signedUploadUrl;
+        const SIGNED_URL_MAX_AGE = 10 * 60 * 1000; // 10 min (R2 URLs expire in 15)
+        const cached = completeResultRef.current;
+        if (cached && cached.generationId === generationId
+            && (Date.now() - cached.fetchedAt) < SIGNED_URL_MAX_AGE) {
+          falVideoUrl = cached.falVideoUrl;
+          signedUploadUrl = cached.signedUploadUrl;
         } else {
           const completeResult = await csrfPost<{
             success: boolean;
@@ -671,13 +715,18 @@ export default function AIGeneratePanel({
 
           falVideoUrl = completeResult.falVideoUrl;
           signedUploadUrl = completeResult.signedUploadUrl;
-          completeResultRef.current = { generationId, falVideoUrl, signedUploadUrl };
+          completeResultRef.current = { generationId, falVideoUrl, signedUploadUrl, fetchedAt: Date.now() };
         }
 
-        // Step 2: Fetch video from fal.ai
-        const videoRes = await fetch(falVideoUrl);
-        if (!videoRes.ok) throw new Error('Failed to download video');
-        const videoBlob = await videoRes.blob();
+        // Step 2: Use pre-fetched Blob or download from fal.ai
+        let videoBlob: Blob;
+        if (prefetchedVideoRef.current) {
+          videoBlob = prefetchedVideoRef.current;
+        } else {
+          const videoRes = await fetch(falVideoUrl);
+          if (!videoRes.ok) throw new Error('Failed to download video');
+          videoBlob = await videoRes.blob();
+        }
 
         // Step 3: Upload to our storage via signed URL
         const uploadRes = await fetch(signedUploadUrl, {
@@ -730,9 +779,10 @@ export default function AIGeneratePanel({
     setStyle(undefined);
     setTitle('');
     completeResultRef.current = null;
+    prefetchedVideoRef.current = null;
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem(STORAGE_TIMESTAMP_KEY);
-    if (pollRef.current) clearInterval(pollRef.current);
+    if (pollRef.current) clearTimeout(pollRef.current);
     // Clear narration state
     handleRemoveNarration();
     setNarrationOpen(false);

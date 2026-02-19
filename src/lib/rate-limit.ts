@@ -44,7 +44,7 @@ export const RATE_LIMITS = {
 
   // AI generation endpoints
   ai_generate: { requests: 3, window: '1m' as const },
-  ai_status: { requests: 30, window: '1m' as const },
+  ai_status: { requests: 60, window: '1m' as const },
   ai_narrate: { requests: 5, window: '1m' as const },
 
   // AI Co-Director endpoints
