@@ -123,7 +123,7 @@ export async function POST(req: NextRequest, context: RouteContext) {
       );
     }
 
-    const urls = rpcResult[0].reference_image_urls || [];
+    const urls = rpcResult[0].out_reference_image_urls || rpcResult[0].reference_image_urls || [];
     return NextResponse.json({
       ok: true,
       reference_count: urls.length,

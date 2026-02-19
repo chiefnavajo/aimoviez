@@ -49,18 +49,18 @@ CREATE OR REPLACE FUNCTION append_user_character_angle(
   p_url TEXT,
   p_max_refs INTEGER DEFAULT 6
 )
-RETURNS TABLE(id UUID, reference_image_urls TEXT[]) AS $$
+RETURNS TABLE(out_id UUID, out_reference_image_urls TEXT[]) AS $$
 BEGIN
   RETURN QUERY
   UPDATE user_characters
   SET
-    reference_image_urls = array_append(reference_image_urls, p_url),
+    reference_image_urls = array_append(user_characters.reference_image_urls, p_url),
     updated_at = NOW()
   WHERE user_characters.id = p_id
     AND user_characters.user_id = p_user_id
     AND user_characters.is_active = true
-    AND array_length(reference_image_urls, 1) IS DISTINCT FROM p_max_refs
-    AND (array_length(reference_image_urls, 1) IS NULL OR array_length(reference_image_urls, 1) < p_max_refs)
+    AND array_length(user_characters.reference_image_urls, 1) IS DISTINCT FROM p_max_refs
+    AND (array_length(user_characters.reference_image_urls, 1) IS NULL OR array_length(user_characters.reference_image_urls, 1) < p_max_refs)
   RETURNING user_characters.id, user_characters.reference_image_urls;
 END;
 $$ LANGUAGE plpgsql;
