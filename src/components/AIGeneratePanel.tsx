@@ -342,8 +342,18 @@ export default function AIGeneratePanel({
       .map(c => c.id);
   };
 
-  // Continuation mode
-  const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(null);
+  // Continuation mode — default to 'continue' when previous scene exists
+  const [continuationMode, setContinuationMode] = useState<'continue' | 'fresh' | null>(
+    lastFrameUrl ? 'continue' : null
+  );
+
+  // Auto-set to 'continue' when lastFrameUrl arrives async
+  useEffect(() => {
+    if (lastFrameUrl && continuationMode === null) {
+      setContinuationMode('continue');
+      if (!I2V_SUPPORTED_MODELS.has(model)) setModel('kling-2.6');
+    }
+  }, [lastFrameUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Form state
   const [prompt, setPrompt] = useState(initialPrompt || '');
@@ -865,7 +875,8 @@ export default function AIGeneratePanel({
     setModel('kling-2.6');
     setGenre(preselectedGenre || '');
     setTitle('');
-    setContinuationMode(null);
+    setContinuationMode(lastFrameUrl ? 'continue' : null);
+    if (lastFrameUrl && !I2V_SUPPORTED_MODELS.has('kling-2.6')) setModel('kling-2.6');
     setSelectedCharacterIds(new Set());
     setSelectedUserCharIds(new Set());
     setError(null);
@@ -1253,43 +1264,6 @@ export default function AIGeneratePanel({
         >
           <RefreshCw className="w-4 h-4" /> Try Again
         </button>
-      </div>
-    );
-  }
-
-  // Idle — continuation choice (if lastFrameUrl available)
-  if (lastFrameUrl && continuationMode === null && stage === 'idle') {
-    return (
-      <div className="space-y-5">
-        <div className="text-center">
-          <p className="text-sm text-white/60 mb-3">The previous scene ended with this frame</p>
-        </div>
-        <div className="relative aspect-video max-w-sm mx-auto rounded-xl overflow-hidden border border-white/20">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lastFrameUrl} alt="Last frame from previous clip" className="w-full h-full object-cover" />
-          <div className="absolute bottom-2 left-2 px-2 py-1 rounded bg-black/60 text-xs text-white/80">
-            Previous scene
-          </div>
-        </div>
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={() => {
-              setContinuationMode('continue');
-              if (!I2V_SUPPORTED_MODELS.has(model)) setModel('kling-2.6');
-            }}
-            className="w-full py-4 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
-          >
-            <Film className="w-5 h-5" />
-            Continue from last scene
-          </button>
-          <button
-            onClick={() => setContinuationMode('fresh')}
-            className="w-full py-4 bg-white/10 border border-white/20 rounded-xl font-bold text-lg flex items-center justify-center gap-2"
-          >
-            <Zap className="w-5 h-5" />
-            Start fresh
-          </button>
-        </div>
       </div>
     );
   }

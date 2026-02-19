@@ -202,11 +202,11 @@ describe('AIGeneratePanel', () => {
     expect(textarea.value).toContain('figure sprints through flames');
   });
 
-  it('shows the continuation choice UI when lastFrameUrl is provided', () => {
+  it('defaults to continue mode when lastFrameUrl is provided', () => {
     render(<AIGeneratePanel lastFrameUrl="https://example.com/frame.jpg" />);
 
-    expect(screen.getByText('Continue from last scene')).toBeInTheDocument();
-    expect(screen.getByText('Start fresh')).toBeInTheDocument();
+    expect(screen.getByText('Continuing from last scene')).toBeInTheDocument();
+    expect(screen.getByText('Switch')).toBeInTheDocument();
   });
 
   it('pre-downloads video when stage transitions to ready', async () => {
