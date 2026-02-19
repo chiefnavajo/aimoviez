@@ -21,10 +21,11 @@ async function withRetry<T>(
     } catch (err) {
       lastError = err as Error;
       console.warn(`[AI_VIDEO] Attempt ${attempt}/${maxAttempts} failed:`, lastError.message);
-      if (attempt < maxAttempts) {
-        const delay = baseDelayMs * Math.pow(2, attempt - 1);
-        await new Promise(r => setTimeout(r, delay));
-      }
+      // Don't retry client errors (4xx) — only retry transient/server errors
+      const is4xx = lastError.message?.includes('status code: 4');
+      if (is4xx || attempt >= maxAttempts) break;
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      await new Promise(r => setTimeout(r, delay));
     }
   }
   throw lastError;
