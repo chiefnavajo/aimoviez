@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle, Wand2 } from 'lucide-react';
+import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle, Wand2, Eye } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 export interface UserCharacter {
@@ -181,11 +181,13 @@ export default function UserCharacterManager({
             return (
               <button
                 key={char.id}
-                onClick={() => setPreviewChar(char)}
-                className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all ${
+                onClick={() => { if (canSelect) onToggle(char.id); }}
+                className={`flex flex-col items-center p-2 sm:p-3 rounded-lg transition-all touch-manipulation ${
                   isSelected
                     ? 'bg-purple-500/20 border-2 border-purple-500'
-                    : 'bg-white/5 border-2 border-transparent opacity-60 hover:opacity-80'
+                    : canSelect
+                    ? 'bg-white/5 border-2 border-transparent opacity-60 hover:opacity-80 active:opacity-100'
+                    : 'bg-white/5 border-2 border-transparent opacity-40'
                 }`}
               >
                 <div className="relative">
@@ -197,21 +199,21 @@ export default function UserCharacterManager({
                       isSelected ? 'ring-2 ring-purple-500' : 'grayscale'
                     }`}
                   />
+                  {isSelected && (
+                    <div className="absolute -top-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center bg-purple-500 text-white">
+                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </div>
+                  )}
+                  {/* Preview / details button */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (canSelect) onToggle(char.id);
+                      setPreviewChar(char);
                     }}
-                    className={`absolute -top-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center transition-colors ${
-                      isSelected
-                        ? 'bg-purple-500 text-white hover:bg-purple-400'
-                        : canSelect
-                        ? 'bg-white/30 text-white/60 hover:bg-white/50'
-                        : 'bg-white/10 text-white/20 cursor-not-allowed'
-                    }`}
-                    aria-label={isSelected ? `Deselect ${char.label}` : `Select ${char.label}`}
+                    className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center bg-white/20 text-white/70 hover:bg-white/40 active:bg-white/50 transition-colors touch-manipulation"
+                    aria-label={`Preview ${char.label}`}
                   >
-                    {isSelected ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <span className="text-sm font-bold">+</span>}
+                    <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </button>
                 </div>
                 <p className={`text-xs sm:text-sm mt-1.5 font-medium truncate w-full text-center ${
@@ -230,29 +232,33 @@ export default function UserCharacterManager({
         </div>
 
         <p className="text-xs text-white/40 mt-3">
-          Tap to preview · Select characters to include in your video
+          Tap to select · <Eye className="w-3 h-3 inline" /> for details
         </p>
       </div>
 
-      {/* Preview Modal */}
+      {/* Preview Modal — backdrop and content are siblings to avoid mobile touch issues */}
       <AnimatePresence>
         {previewChar && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-            onClick={() => { setPreviewChar(null); setAngleError(null); }}
-            role="dialog"
-            aria-modal="true"
-          >
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/80"
+              onClick={() => { setPreviewChar(null); setAngleError(null); }}
+              aria-hidden="true"
+            />
+            {/* Modal content */}
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-gray-900 rounded-2xl p-4 max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4"
+              className="fixed inset-0 z-[51] flex items-center justify-center p-4 pointer-events-none"
+              role="dialog"
+              aria-modal="true"
             >
+              <div className="pointer-events-auto bg-gray-900 rounded-2xl p-4 max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto touch-manipulation">
               {/* Large image */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -353,10 +359,10 @@ export default function UserCharacterManager({
                       setPreviewChar(null);
                     }
                   }}
-                  className={`flex-1 py-3 rounded-xl font-medium transition-colors text-sm ${
+                  className={`flex-1 py-3 rounded-xl font-medium transition-colors text-sm touch-manipulation ${
                     selectedIds.has(previewChar.id)
-                      ? 'bg-white/10 text-white/70 hover:bg-white/20'
-                      : 'bg-purple-500 text-white hover:bg-purple-400'
+                      ? 'bg-white/10 text-white/70 hover:bg-white/20 active:bg-white/30'
+                      : 'bg-purple-500 text-white hover:bg-purple-400 active:bg-purple-300'
                   }`}
                 >
                   {selectedIds.has(previewChar.id) ? 'Deselect' : 'Select'}
@@ -391,8 +397,9 @@ export default function UserCharacterManager({
                   <X className="w-4 h-4" />
                 </button>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>
