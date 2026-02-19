@@ -840,6 +840,27 @@ export default function AIGeneratePanel({
     setNarrationOpen(false);
   };
 
+  const handleClearAll = () => {
+    setPrompt('');
+    setStyle(undefined);
+    setModel('kling-2.6');
+    setGenre(preselectedGenre || '');
+    setTitle('');
+    setContinuationMode(null);
+    setSelectedCharacterIds(new Set());
+    setSelectedUserCharIds(new Set());
+    setError(null);
+    setSuggestionBasis(null);
+    handleRemoveNarration();
+    setNarrationOpen(false);
+  };
+
+  const hasFormState = !!(
+    prompt.trim() || style || model !== 'kling-2.6' ||
+    genre !== (preselectedGenre || '') || selectedCharacterIds.size > 0 ||
+    selectedUserCharIds.size > 0 || continuationMode
+  );
+
   const handleCancel = async () => {
     if (!generationId) {
       handleReset();
@@ -1253,6 +1274,19 @@ export default function AIGeneratePanel({
             className="text-xs text-white/40 hover:text-white/60 flex-shrink-0"
           >
             Switch
+          </button>
+        </div>
+      )}
+
+      {/* Clear All — reset form to defaults */}
+      {hasFormState && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleClearAll}
+            className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+          >
+            <RefreshCw className="w-3 h-3" />
+            Clear All
           </button>
         </div>
       )}
