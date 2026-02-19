@@ -2,7 +2,10 @@
 -- FIX: "column reference_image_urls is ambiguous" in append_user_character_angle
 -- The RETURNS TABLE column name conflicted with the table column name.
 -- Fix: rename return columns to out_* and fully qualify all column references.
+-- Must DROP first because return type changed (PostgreSQL requirement).
 -- =============================================================================
+
+DROP FUNCTION IF EXISTS append_user_character_angle(uuid,uuid,text,integer);
 
 CREATE OR REPLACE FUNCTION append_user_character_angle(
   p_id UUID,
@@ -24,3 +27,6 @@ BEGIN
   RETURNING uc.id, uc.reference_image_urls;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Re-grant after drop
+GRANT EXECUTE ON FUNCTION append_user_character_angle TO service_role;
