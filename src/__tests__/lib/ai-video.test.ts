@@ -9,17 +9,20 @@
 /* eslint-disable no-var */
 var mockQueueSubmit: jest.Mock;
 var mockFalConfig: jest.Mock;
+var mockFalSubscribe: jest.Mock;
 /* eslint-enable no-var */
 
 jest.mock('@fal-ai/client', () => {
   mockQueueSubmit = jest.fn();
   mockFalConfig = jest.fn();
+  mockFalSubscribe = jest.fn();
   return {
     fal: {
       config: mockFalConfig,
       queue: {
         submit: mockQueueSubmit,
       },
+      subscribe: mockFalSubscribe,
     },
   };
 });
@@ -73,6 +76,9 @@ import {
   getCreditCost,
   getFalCostCents,
   invalidateCostCache,
+  generateCharacterAngle,
+  ANGLE_PROMPTS,
+  ANGLE_GENERATION_TOTAL_COST_CENTS,
   MODELS,
   MODEL_DURATION_SECONDS,
   STYLE_PREFIXES,
@@ -539,6 +545,84 @@ describe('ai-video', () => {
     it('getCreditCost returns fallback for unknown model', async () => {
       const cost = await getCreditCost('nonexistent-model');
       expect(cost).toBe(10);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // generateCharacterAngle
+  // -----------------------------------------------------------------------
+
+  describe('generateCharacterAngle', () => {
+    const FRONTAL_URL = 'https://cdn.example.com/face.jpg';
+    const ANGLE_PROMPT = ANGLE_PROMPTS[0];
+
+    it('calls fal.subscribe with correct endpoint and input', async () => {
+      mockFalSubscribe.mockResolvedValueOnce({
+        data: { images: [{ url: 'https://fal.ai/generated/angle.png' }] },
+      });
+
+      await generateCharacterAngle(FRONTAL_URL, ANGLE_PROMPT);
+
+      expect(mockFalSubscribe).toHaveBeenCalledWith(
+        'fal-ai/kling-image/o1',
+        expect.objectContaining({
+          input: {
+            prompt: ANGLE_PROMPT,
+            image_urls: [FRONTAL_URL],
+            aspect_ratio: '1:1',
+          },
+        }),
+      );
+    });
+
+    it('returns the generated image URL from result.data.images', async () => {
+      mockFalSubscribe.mockResolvedValueOnce({
+        data: { images: [{ url: 'https://fal.ai/generated/left.png' }] },
+      });
+
+      const url = await generateCharacterAngle(FRONTAL_URL, ANGLE_PROMPT);
+      expect(url).toBe('https://fal.ai/generated/left.png');
+    });
+
+    it('handles flat images array (without data wrapper)', async () => {
+      mockFalSubscribe.mockResolvedValueOnce({
+        images: [{ url: 'https://fal.ai/generated/right.png' }],
+      });
+
+      const url = await generateCharacterAngle(FRONTAL_URL, ANGLE_PROMPT);
+      expect(url).toBe('https://fal.ai/generated/right.png');
+    });
+
+    it('throws when no image URL is returned', async () => {
+      mockFalSubscribe.mockResolvedValueOnce({ data: { images: [] } });
+
+      await expect(
+        generateCharacterAngle(FRONTAL_URL, ANGLE_PROMPT),
+      ).rejects.toThrow('Kling O1 Image returned no image URL');
+    });
+
+    it('retries on transient failure', async () => {
+      mockFalSubscribe
+        .mockRejectedValueOnce(new Error('timeout'))
+        .mockResolvedValueOnce({
+          data: { images: [{ url: 'https://fal.ai/generated/retry.png' }] },
+        });
+
+      const url = await generateCharacterAngle(FRONTAL_URL, ANGLE_PROMPT);
+      expect(url).toBe('https://fal.ai/generated/retry.png');
+      expect(mockFalSubscribe).toHaveBeenCalledTimes(2);
+    });
+
+    it('ANGLE_PROMPTS has 3 entries starting with @Image1', () => {
+      expect(ANGLE_PROMPTS).toHaveLength(3);
+      for (const prompt of ANGLE_PROMPTS) {
+        expect(prompt).toMatch(/^@Image1/);
+      }
+    });
+
+    it('ANGLE_GENERATION_TOTAL_COST_CENTS is 3x single image cost', () => {
+      // KLING_IMAGE_COST_CENTS is 3, so total should be 9
+      expect(ANGLE_GENERATION_TOTAL_COST_CENTS).toBe(9);
     });
   });
 });
