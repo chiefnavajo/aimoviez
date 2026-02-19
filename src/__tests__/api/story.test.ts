@@ -719,4 +719,58 @@ describe('GET /api/story/pinned-characters', () => {
     expect(status).toBe(500);
     expect(body.error).toBe('Internal server error');
   });
+
+  it('returns appearance_description when present', async () => {
+    mockSession(mockGetSession, TEST_USER);
+
+    const charsWithDesc = [{
+      id: 'char-desc-1',
+      element_index: 1,
+      label: 'Blue Alien',
+      frontal_image_url: 'https://cdn.example.com/alien.jpg',
+      reference_image_urls: [],
+      usage_count: 5,
+      appearance_description: 'tall alien with blue skin and glowing eyes',
+    }];
+
+    const client = createSequentialClient([
+      { data: { enabled: true } },
+      { data: [{ id: SEASON_ID }] },
+      { data: charsWithDesc },
+    ]);
+    mockCreateClient.mockReturnValue(client);
+
+    const res = await pinnedCharsGET(buildReq());
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.characters[0].appearance_description).toBe('tall alien with blue skin and glowing eyes');
+  });
+
+  it('returns null appearance_description when not set', async () => {
+    mockSession(mockGetSession, TEST_USER);
+
+    const charsNoDesc = [{
+      id: 'char-no-desc',
+      element_index: 1,
+      label: 'Robot',
+      frontal_image_url: 'https://cdn.example.com/robot.jpg',
+      reference_image_urls: ['https://cdn.example.com/ref.jpg'],
+      usage_count: 0,
+    }];
+
+    const client = createSequentialClient([
+      { data: { enabled: true } },
+      { data: [{ id: SEASON_ID }] },
+      { data: charsNoDesc },
+    ]);
+    mockCreateClient.mockReturnValue(client);
+
+    const res = await pinnedCharsGET(buildReq());
+    const { status, body } = await parseResponse(res);
+
+    expect(status).toBe(200);
+    expect(body.characters[0].appearance_description).toBeNull();
+    expect(body.characters[0].reference_count).toBe(1);
+  });
 });

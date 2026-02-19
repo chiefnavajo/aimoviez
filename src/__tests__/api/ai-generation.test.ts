@@ -92,7 +92,7 @@ import { getServerSession } from 'next-auth';
 import { after } from 'next/server';
 import { requireCsrf } from '@/lib/csrf';
 import { parseBody } from '@/lib/validations';
-import { sanitizePrompt, getModelConfig, startGeneration, cancelFalRequest, checkFalStatus, getModelCosts } from '@/lib/ai-video';
+import { sanitizePrompt, getModelConfig, startGeneration, startReferenceToVideoGeneration, cancelFalRequest, checkFalStatus, getModelCosts } from '@/lib/ai-video';
 import { isValidVoiceId } from '@/lib/elevenlabs';
 import {
   createSequentialMock,
@@ -124,6 +124,7 @@ const mockStartGeneration = startGeneration as jest.Mock;
 const mockCancelFalRequest = cancelFalRequest as jest.Mock;
 const mockCheckFalStatus = checkFalStatus as jest.Mock;
 const mockGetModelCosts = getModelCosts as jest.Mock;
+const mockStartRefToVideo = startReferenceToVideoGeneration as jest.Mock;
 const mockIsValidVoiceId = isValidVoiceId as jest.Mock;
 
 // =============================================================================
@@ -347,6 +348,152 @@ describe('POST /api/ai/generate', () => {
     const { status, body } = await parseResponse(res);
     expect(status).toBe(400);
     expect(body.error).toMatch(/invalid model/i);
+  });
+
+  // ===========================================================================
+  // Pinned Characters — 3-layer character handling
+  // ===========================================================================
+
+  /**
+   * Build a generate mock with pinned characters enabled.
+   * Extended call order:
+   *   0. users
+   *   1. feature_flags — ai_video_generation
+   *   2. feature_flags — character_pinning (enabled)
+   *   3. seasons (active season lookup)
+   *   4. pinned_characters
+   *   5. ai_generations insert
+   *   6. ai_generations update (fal_request_id)
+   *   Plus: ai_generations update (fallback, if ref-to-video fails)
+   */
+  function buildPinnedCharsMock(overrides: Record<string, unknown> = {}) {
+    const SEASON_ID = '770e8400-e29b-41d4-a716-446655440002';
+    const pinnedChars = pick(overrides, 'pinnedChars', [
+      {
+        id: 'char-1',
+        element_index: 1,
+        label: 'Blue Alien',
+        frontal_image_url: 'https://cdn.example.com/char1.jpg',
+        reference_image_urls: [],
+        appearance_description: 'tall alien with blue skin and glowing eyes',
+      },
+    ]);
+    const responses = [
+      // 0: users
+      { data: pick(overrides, 'userData', DEFAULT_USER), error: null },
+      // 1: feature_flags — ai_video_generation
+      { data: pick(overrides, 'featureFlag', { enabled: true, config: null }), error: null },
+      // 2: feature_flags — character_pinning (enabled!)
+      { data: { enabled: true }, error: null },
+      // 3: seasons
+      { data: pick(overrides, 'season', { id: SEASON_ID }), error: null },
+      // 4: pinned_characters
+      { data: pinnedChars, error: null },
+      // 5: ai_generations insert
+      { data: { id: GENERATION_UUID }, error: null },
+      // 6: ai_generations update (fal_request_id) — or fallback update
+      { data: null, error: null },
+      // 7: ai_generations update (extra, for fallback case)
+      { data: null, error: null },
+    ];
+    const rpcResponses: Record<string, { data?: unknown; error?: unknown }> = {
+      check_global_cost_cap: { data: true, error: null },
+      deduct_credits: { data: { success: true }, error: null },
+      increment_pinned_usage: { data: null, error: null },
+    };
+    const mock = createMockWithRpc(responses, rpcResponses);
+    mockCreateClient.mockReturnValue({ from: mock.from, rpc: mock.rpc });
+
+    // Mock fetch for health checks (HEAD requests to frontal URLs)
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+
+    return mock;
+  }
+
+  afterEach(() => {
+    // Restore fetch if overridden
+    if (jest.isMockFunction(global.fetch)) {
+      (global.fetch as jest.Mock).mockRestore?.();
+    }
+  });
+
+  test('tries ref-to-video with frontal-only characters (no reference angles)', async () => {
+    buildPinnedCharsMock();
+    mockGetModelCosts.mockResolvedValue({
+      'kling-2.6': { fal_cost_cents: 20, credit_cost: 10 },
+      'kling-o1-ref': { fal_cost_cents: 56, credit_cost: 11 },
+    });
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    const res = await generatePost(req);
+    const { status } = await parseResponse(res);
+    expect(status).toBe(200);
+    // Should have attempted reference-to-video (not plain text-to-video)
+    expect(mockStartRefToVideo).toHaveBeenCalled();
+  });
+
+  test('injects appearance_description into prompt for ref-to-video', async () => {
+    buildPinnedCharsMock();
+    mockGetModelCosts.mockResolvedValue({
+      'kling-2.6': { fal_cost_cents: 20, credit_cost: 10 },
+      'kling-o1-ref': { fal_cost_cents: 56, credit_cost: 11 },
+    });
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    await generatePost(req);
+    // The augmented prompt passed to startReferenceToVideoGeneration should contain character description
+    const callArgs = mockStartRefToVideo.mock.calls[0];
+    expect(callArgs[0]).toContain('Characters: Blue Alien: tall alien with blue skin and glowing eyes');
+  });
+
+  test('falls back to text-to-video with descriptions when ref-to-video fails', async () => {
+    buildPinnedCharsMock();
+    mockGetModelCosts.mockResolvedValue({
+      'kling-2.6': { fal_cost_cents: 20, credit_cost: 10 },
+      'kling-o1-ref': { fal_cost_cents: 56, credit_cost: 11 },
+    });
+    // Make ref-to-video fail with 422
+    mockStartRefToVideo.mockRejectedValueOnce(new Error('status code: 422'));
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    const res = await generatePost(req);
+    const { status } = await parseResponse(res);
+    expect(status).toBe(200);
+    // Should have fallen back to text-to-video
+    expect(mockStartGeneration).toHaveBeenCalled();
+    // Fallback prompt should still contain character descriptions
+    const fallbackPrompt = mockStartGeneration.mock.calls[0][1];
+    expect(fallbackPrompt).toContain('Characters: Blue Alien: tall alien with blue skin and glowing eyes');
+  });
+
+  test('skips description injection when no appearance_description set', async () => {
+    buildPinnedCharsMock({
+      pinnedChars: [{
+        id: 'char-1',
+        element_index: 1,
+        label: 'Robot',
+        frontal_image_url: 'https://cdn.example.com/char1.jpg',
+        reference_image_urls: [],
+        appearance_description: null,
+      }],
+    });
+    mockGetModelCosts.mockResolvedValue({
+      'kling-2.6': { fal_cost_cents: 20, credit_cost: 10 },
+      'kling-o1-ref': { fal_cost_cents: 56, credit_cost: 11 },
+    });
+    const req = createMockRequest(url, { method: 'POST', body: validBody });
+    await generatePost(req);
+    const callArgs = mockStartRefToVideo.mock.calls[0];
+    // Should NOT contain "Characters:" prefix when no descriptions
+    expect(callArgs[0]).not.toContain('Characters:');
+  });
+
+  test('skips pinned characters when skip_pinned is true', async () => {
+    buildPinnedCharsMock();
+    const req = createMockRequest(url, { method: 'POST', body: { ...validBody, skip_pinned: true } });
+    const res = await generatePost(req);
+    const { status } = await parseResponse(res);
+    // Should use plain text-to-video (not ref-to-video) since skip_pinned=true
+    // The pinning subtree is skipped, so it won't call startReferenceToVideoGeneration
+    expect(mockStartRefToVideo).not.toHaveBeenCalled();
+    expect(status).toBe(200);
   });
 });
 
