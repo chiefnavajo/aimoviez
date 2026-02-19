@@ -1496,6 +1496,16 @@ export default function AIGeneratePanel({
                 onClose={() => setShowUploadModal(false)}
                 onCreated={(newChar) => {
                   setUserCharacters(prev => [newChar, ...prev]);
+                  // Auto-select the newly uploaded character if within limits
+                  setSelectedUserCharIds(prev => {
+                    const totalSelected = selectedCharacterIds.size + prev.size;
+                    if (totalSelected < 4) {
+                      const next = new Set(prev);
+                      next.add(newChar.id);
+                      return next;
+                    }
+                    return prev;
+                  });
                   setShowUploadModal(false);
                 }}
                 autoAnglesEnabled={autoAnglesEnabled}

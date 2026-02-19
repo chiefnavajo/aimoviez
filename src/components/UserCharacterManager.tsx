@@ -41,9 +41,11 @@ export default function UserCharacterManager({
   const [angleUploading, setAngleUploading] = useState(false);
   const [angleError, setAngleError] = useState<string | null>(null);
   const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const handleDelete = async (id: string) => {
     setIsDeleting(id);
+    setDeleteError(null);
     try {
       await ensureToken();
       const csrfToken = document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '';
@@ -55,9 +57,11 @@ export default function UserCharacterManager({
       if (res.ok) {
         onDelete(id);
         setPreviewChar(null);
+      } else {
+        setDeleteError('Failed to delete. Please try again.');
       }
     } catch {
-      // Non-critical
+      setDeleteError('Network error. Please try again.');
     } finally {
       setIsDeleting(null);
       setConfirmDelete(null);
@@ -208,16 +212,16 @@ export default function UserCharacterManager({
                       <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                   )}
-                  {/* Preview / details button */}
+                  {/* Preview button — larger circle on mobile, hidden on desktop */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setPreviewChar(char);
                     }}
-                    className="absolute -bottom-1 -right-1 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center bg-white/20 text-white/70 hover:bg-white/40 active:bg-white/50 transition-colors touch-manipulation"
+                    className="absolute -bottom-1 -right-1 w-8 h-8 rounded-full flex sm:hidden items-center justify-center bg-white/20 text-white/70 hover:bg-white/40 active:bg-white/50 transition-colors touch-manipulation"
                     aria-label={`Preview ${char.label}`}
                   >
-                    <Eye className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                    <Eye className="w-4 h-4" />
                   </button>
                 </div>
                 <p className={`text-xs sm:text-sm mt-1.5 font-medium truncate w-full text-center ${
@@ -230,13 +234,24 @@ export default function UserCharacterManager({
                     {char.reference_count} angle{char.reference_count !== 1 ? 's' : ''}
                   </p>
                 )}
+                {/* Desktop-only details button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreviewChar(char);
+                  }}
+                  className="hidden sm:flex items-center gap-1 mt-1 text-[11px] text-white/40 hover:text-purple-300 transition-colors"
+                >
+                  <Eye className="w-3 h-3" /> Details
+                </button>
               </button>
             );
           })}
         </div>
 
         <p className="text-xs text-white/40 mt-3">
-          Tap to select · <Eye className="w-3 h-3 inline" /> for details
+          <span className="sm:hidden">Tap to select · <Eye className="w-3 h-3 inline" /> for details</span>
+          <span className="hidden sm:inline">Click to select · &quot;Details&quot; for preview &amp; angles</span>
         </p>
       </div>
 
@@ -250,7 +265,7 @@ export default function UserCharacterManager({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 bg-black/80"
-              onClick={() => { setPreviewChar(null); setAngleError(null); }}
+              onClick={() => { setPreviewChar(null); setAngleError(null); setDeleteError(null); }}
               aria-hidden="true"
             />
             {/* Modal content */}
@@ -313,7 +328,7 @@ export default function UserCharacterManager({
               {previewChar.reference_count < 6 && (
                 <div className="space-y-2">
                   {/* AI Generate angles button */}
-                  {previewChar.reference_count === 0 && (
+                  {previewChar.reference_count < 3 && (
                     <button
                       onClick={() => handleGenerateAngles(previewChar.id)}
                       disabled={isGeneratingAngles || angleUploading}
@@ -322,7 +337,7 @@ export default function UserCharacterManager({
                       {isGeneratingAngles ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> Generating angles...</>
                       ) : (
-                        <><Wand2 className="w-4 h-4" /> Auto-Generate Reference Angles</>
+                        <><Wand2 className="w-4 h-4" /> {previewChar.reference_count > 0 ? 'Retry — Generate Missing Angles' : 'Auto-Generate Reference Angles'}</>
                       )}
                     </button>
                   )}
@@ -395,12 +410,17 @@ export default function UserCharacterManager({
                 )}
 
                 <button
-                  onClick={() => { setPreviewChar(null); setAngleError(null); setConfirmDelete(null); }}
+                  onClick={() => { setPreviewChar(null); setAngleError(null); setConfirmDelete(null); setDeleteError(null); }}
                   className="px-4 py-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors text-sm"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
+              {deleteError && (
+                <p className="text-xs text-red-400 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" /> {deleteError}
+                </p>
+              )}
             </div>
           </motion.div>
           </>

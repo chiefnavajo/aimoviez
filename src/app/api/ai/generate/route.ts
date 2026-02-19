@@ -356,14 +356,13 @@ export async function POST(request: NextRequest) {
                 } else {
                   // Append to existing Characters: block
                   augmentedPrompt = augmentedPrompt.replace(
-                    /^Characters: (.+?)\. /,
+                    /^Characters: (.+)\. (?=@Element|\S)/,
                     `Characters: $1; ${ucDescriptions}. `
                   );
                 }
               }
 
               // Add to refElements
-              const startIdx = refElements.length;
               for (const uc of reachableChars) {
                 refElements.push({
                   frontal_image_url: uc.frontal_image_url,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { X, Upload, Loader2, AlertCircle, User } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
@@ -33,6 +33,13 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
   const [isUploading, setIsUploading] = useState(false);
   const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clean up blob URL on unmount or when replaced
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
@@ -172,22 +179,26 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
+    <>
+      {/* Backdrop — sibling to avoid mobile touch issues */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 bg-black/80"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      {/* Modal content */}
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        className="bg-gray-900 rounded-2xl p-5 max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4"
+        className="fixed inset-0 z-[51] flex items-center justify-center p-4 pointer-events-none"
+        role="dialog"
+        aria-modal="true"
       >
+        <div className="pointer-events-auto bg-gray-900 rounded-2xl p-5 max-w-sm w-full border border-purple-500/30 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto touch-manipulation">
         {/* Header */}
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-bold text-purple-300">Upload Character</h3>
@@ -281,7 +292,8 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
             </>
           )}
         </button>
+        </div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }

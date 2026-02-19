@@ -258,8 +258,9 @@ export async function POST(request: NextRequest) {
     // Reference-to-video failed — attempt text-to-video fallback with character descriptions in prompt
     if (gen.generation_mode === 'reference-to-video' && gen.prompt) {
       try {
-        const { startGeneration } = await import('@/lib/ai-video');
+        const { startGeneration, getFalCostCents } = await import('@/lib/ai-video');
         const fallbackModel = 'kling-2.6'; // Safe default with lowest cost
+        const fallbackCostCents = await getFalCostCents(fallbackModel);
         const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ai/webhook`;
 
         // Strip @Element tags from prompt (keep character descriptions)
@@ -282,6 +283,7 @@ export async function POST(request: NextRequest) {
             status: 'processing',
             error_message: null,
             prompt: cleanPrompt,
+            cost_cents: fallbackCostCents,
           })
           .eq('id', gen.id);
 
