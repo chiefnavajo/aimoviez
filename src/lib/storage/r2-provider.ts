@@ -88,12 +88,13 @@ export async function uploadToR2(
  */
 export async function getR2SignedUploadUrl(
   filename: string,
-  contentType: string
+  contentType: string,
+  keyPrefix: string = 'clips/'
 ): Promise<{ signedUrl: string; publicUrl: string; key: string }> {
   const r2 = getR2Client();
   if (!r2) throw new Error('R2 client not configured');
 
-  const key = `clips/${filename}`;
+  const key = `${keyPrefix}${filename}`;
 
   const command = new PutObjectCommand({
     Bucket: getBucket(),

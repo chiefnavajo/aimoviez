@@ -195,6 +195,7 @@ export async function POST(request: NextRequest) {
     let isReferenceToVideo = false;
     let refElements: ReferenceElement[] = [];
     let pinnedCharacterIds: string[] = [];
+    let userCharacterIds: string[] = [];
     let augmentedPrompt = sanitizedPrompt;
     let effectiveModel: string = validated.model;
 
@@ -300,6 +301,106 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 10d. User characters — merge personal characters into refElements
+    if (!isImageToVideo && validated.user_character_ids && validated.user_character_ids.length > 0) {
+      // Check feature flag
+      const { data: ucFlag } = await supabase
+        .from('feature_flags')
+        .select('enabled')
+        .eq('key', 'user_characters')
+        .maybeSingle();
+
+      if (ucFlag?.enabled) {
+        // Fetch user characters with ownership check
+        const { data: userChars } = await supabase
+          .from('user_characters')
+          .select('id, label, frontal_image_url, reference_image_urls, appearance_description')
+          .in('id', validated.user_character_ids)
+          .eq('user_id', userId)
+          .eq('is_active', true);
+
+        if (userChars && userChars.length > 0) {
+          // Enforce total max 4 elements (pinned + user combined)
+          const remainingSlots = 4 - refElements.length;
+          const usableChars = userChars.slice(0, remainingSlots);
+
+          if (usableChars.length > 0) {
+            // Health-check frontal URLs
+            const ucHealthChecks = await Promise.all(
+              usableChars.map(async (uc) => {
+                try {
+                  const headRes = await fetch(uc.frontal_image_url, {
+                    method: 'HEAD',
+                    signal: AbortSignal.timeout(1_000),
+                  });
+                  return headRes.ok;
+                } catch {
+                  console.warn(`[AI_GENERATE] User char ${uc.id} frontal URL check failed`);
+                  return false;
+                }
+              })
+            );
+
+            const reachableChars = usableChars.filter((_, i) => ucHealthChecks[i]);
+
+            if (reachableChars.length > 0) {
+              // Inject descriptions into prompt
+              const ucDescriptions = reachableChars
+                .filter(uc => uc.appearance_description)
+                .map(uc => `${uc.label}: ${uc.appearance_description}`)
+                .join('; ');
+              if (ucDescriptions) {
+                const prefix = augmentedPrompt.startsWith('Characters: ') ? '' : 'Characters: ';
+                if (prefix) {
+                  augmentedPrompt = `Characters: ${ucDescriptions}. ${augmentedPrompt}`;
+                } else {
+                  // Append to existing Characters: block
+                  augmentedPrompt = augmentedPrompt.replace(
+                    /^Characters: (.+?)\. /,
+                    `Characters: $1; ${ucDescriptions}. `
+                  );
+                }
+              }
+
+              // Add to refElements
+              const startIdx = refElements.length;
+              for (const uc of reachableChars) {
+                refElements.push({
+                  frontal_image_url: uc.frontal_image_url,
+                  reference_image_urls: uc.reference_image_urls || [],
+                });
+              }
+
+              userCharacterIds = reachableChars.map(uc => uc.id);
+              isReferenceToVideo = true;
+              effectiveModel = 'kling-o1-ref';
+
+              // Re-generate all @Element tags for the full combined array
+              const allElementTags = refElements
+                .map((_, i) => `@Element${i + 1}`)
+                .filter(tag => !augmentedPrompt.includes(tag))
+                .join(' ');
+              if (allElementTags) {
+                // Remove existing @Element tags first, then re-add all
+                augmentedPrompt = augmentedPrompt
+                  .replace(/@Element\d+\s*/g, '')
+                  .trim();
+                const fullTags = refElements.map((_, i) => `@Element${i + 1}`).join(' ');
+                augmentedPrompt = `${fullTags} ${augmentedPrompt}`;
+              }
+
+              // Increment usage counts (non-blocking)
+              supabase
+                .rpc('increment_user_char_usage', { p_ids: userCharacterIds })
+                .then(({ error: incErr }) => {
+                  if (incErr) console.warn('[AI_GENERATE] user char usage_count increment failed:', incErr.message);
+                });
+            }
+          }
+        }
+      }
+    }
+
     // Use the effective model's cost from DB (may have switched to kling-o1-ref)
     const effectiveCostCents = isImageToVideo
       ? (modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents)
@@ -364,6 +465,7 @@ export async function POST(request: NextRequest) {
         image_url: validated.image_url || null,
         generation_mode: generationMode,
         ...(pinnedCharacterIds.length > 0 ? { pinned_character_ids: pinnedCharacterIds } : {}),
+        ...(userCharacterIds.length > 0 ? { user_character_ids: userCharacterIds } : {}),
       })
       .select('id')
       .single();

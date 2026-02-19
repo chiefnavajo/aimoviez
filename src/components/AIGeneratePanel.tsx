@@ -32,6 +32,9 @@ import { useFeature } from '@/hooks/useFeatureFlags';
 import { useCredits } from '@/hooks/useCredits';
 import CreditPurchaseModal from './CreditPurchaseModal';
 import CharacterReferenceSuggestModal from './CharacterReferenceSuggestModal';
+import UserCharacterManager from './UserCharacterManager';
+import type { UserCharacter } from './UserCharacterManager';
+import UserCharacterUploadModal from './UserCharacterUploadModal';
 
 // ============================================================================
 // TYPES
@@ -172,6 +175,7 @@ export default function AIGeneratePanel({
   const { enabled: aiEnabled, isLoading: flagLoading } = useFeature('ai_video_generation');
   const { enabled: narrationEnabled, config: narrationConfigRaw } = useFeature('elevenlabs_narration');
   const { enabled: pinningEnabled } = useFeature('character_pinning');
+  const { enabled: userCharsEnabled } = useFeature('user_characters');
   const { enabled: promptLearningEnabled } = useFeature('prompt_learning');
   const { balance: creditBalance, refetch: refetchCredits } = useCredits();
   const [purchaseModalOpen, setPurchaseModalOpen] = useState(false);
@@ -223,6 +227,11 @@ export default function AIGeneratePanel({
     appearance_description: string | null;
   } | null>(null);
 
+  // User characters
+  const [userCharacters, setUserCharacters] = useState<UserCharacter[]>([]);
+  const [selectedUserCharIds, setSelectedUserCharIds] = useState<Set<string>>(new Set());
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
   // Genre state (declared early so pinned character fetch can depend on it)
   const [genre, setGenre] = useState(preselectedGenre || '');
 
@@ -262,6 +271,44 @@ export default function AIGeneratePanel({
     }
     fetchPinned();
   }, [pinningEnabled, genre]);
+
+  // Fetch user characters when feature is enabled
+  useEffect(() => {
+    if (!userCharsEnabled) return;
+    async function fetchUserChars() {
+      try {
+        const res = await fetch('/api/ai/characters');
+        const data = await res.json();
+        if (data.ok && data.characters?.length > 0) {
+          setUserCharacters(data.characters);
+        } else {
+          setUserCharacters([]);
+        }
+      } catch {
+        // Non-critical
+      }
+    }
+    fetchUserChars();
+  }, [userCharsEnabled]);
+
+  // Toggle a single user character selection
+  const toggleUserChar = (id: string) => {
+    setSelectedUserCharIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        // Enforce total max 4 (pinned + user combined)
+        const totalSelected = selectedCharacterIds.size + next.size;
+        if (totalSelected >= 4) return prev;
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Max selectable user characters = 4 minus selected pinned chars
+  const maxSelectableUserChars = 4 - selectedCharacterIds.size;
 
   // Toggle a single character selection
   const toggleCharacter = (id: string) => {
@@ -556,6 +603,7 @@ export default function AIGeneratePanel({
           ...(continuationMode === 'continue' && lastFrameUrl ? { image_url: lastFrameUrl } : {}),
           ...(skipAll ? { skip_pinned: true } : {}),
           ...(skipCharacterIds.length > 0 && !skipAll ? { skip_character_ids: skipCharacterIds } : {}),
+          ...(selectedUserCharIds.size > 0 ? { user_character_ids: Array.from(selectedUserCharIds) } : {}),
         }),
       });
 
@@ -1416,6 +1464,60 @@ export default function AIGeneratePanel({
         </div>
       )}
 
+      {/* User Characters (My Characters) */}
+      {userCharsEnabled && (
+        <>
+          <UserCharacterManager
+            characters={userCharacters}
+            selectedIds={selectedUserCharIds}
+            onToggle={toggleUserChar}
+            onDelete={(id) => {
+              setUserCharacters(prev => prev.filter(c => c.id !== id));
+              setSelectedUserCharIds(prev => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+            }}
+            onUploadClick={() => setShowUploadModal(true)}
+            onAngleAdded={(charId, newCount) => {
+              setUserCharacters(prev =>
+                prev.map(c => c.id === charId ? { ...c, reference_count: newCount } : c)
+              );
+            }}
+            maxSelectable={maxSelectableUserChars}
+          />
+
+          {/* Upload Modal */}
+          <AnimatePresence>
+            {showUploadModal && (
+              <UserCharacterUploadModal
+                onClose={() => setShowUploadModal(false)}
+                onCreated={(newChar) => {
+                  setUserCharacters(prev => [newChar, ...prev]);
+                  setShowUploadModal(false);
+                }}
+              />
+            )}
+          </AnimatePresence>
+        </>
+      )}
+
+      {/* Combined character count warning */}
+      {(selectedCharacterIds.size + selectedUserCharIds.size) > 4 && (
+        <div className="p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-lg text-yellow-300 text-xs flex items-center gap-2">
+          <AlertCircle className="w-3 h-3 shrink-0" />
+          Maximum 4 characters per video. Only the first 4 will be used.
+        </div>
+      )}
+
+      {/* Cost indicator when characters selected */}
+      {(selectedCharacterIds.size > 0 || selectedUserCharIds.size > 0) && modelCreditCosts['kling-o1-ref'] && (
+        <div className="p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg text-purple-300 text-xs">
+          Characters selected — will use reference-to-video ({modelCreditCosts['kling-o1-ref']} credits)
+        </div>
+      )}
+
       {/* AI Prompt Suggestion Toggle */}
       {promptLearningEnabled && (
         <div className="flex items-center justify-between px-1">
@@ -1605,7 +1707,9 @@ export default function AIGeneratePanel({
         }`}
       >
         <Sparkles className="w-5 h-5" />
-        {modelCreditCosts[model]
+        {(selectedCharacterIds.size > 0 || selectedUserCharIds.size > 0) && modelCreditCosts['kling-o1-ref']
+          ? `Generate (${modelCreditCosts['kling-o1-ref']} credits)`
+          : modelCreditCosts[model]
           ? `Generate (${modelCreditCosts[model]} credits)`
           : 'Generate Video'}
       </button>

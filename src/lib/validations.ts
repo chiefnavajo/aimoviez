@@ -206,6 +206,7 @@ export const AIGenerateSchema = z.object({
   image_url: z.string().url().optional(),
   skip_pinned: z.boolean().optional(),
   skip_character_ids: z.array(z.string().uuid()).optional(),
+  user_character_ids: z.array(z.string().uuid()).max(4, 'Maximum 4 characters per generation').optional(),
 }).strict();
 
 export type AIGenerateRequest = z.infer<typeof AIGenerateSchema>;
@@ -387,6 +388,24 @@ export const ReviewSuggestionSchema = z.object({
 }).strict();
 
 export type ReviewSuggestionRequest = z.infer<typeof ReviewSuggestionSchema>;
+
+// =============================================================================
+// USER CHARACTER VALIDATION
+// =============================================================================
+
+export const UserCharacterCreateSchema = z.object({
+  label: z.string().min(1, 'Label is required').max(100, 'Label must be 100 characters or less'),
+  frontal_image_url: z.string().url('Invalid image URL'),
+  appearance_description: z.string().max(500, 'Description must be 500 characters or less').optional(),
+}).strict();
+
+export type UserCharacterCreateRequest = z.infer<typeof UserCharacterCreateSchema>;
+
+export const UserCharacterAngleSchema = z.object({
+  image_url: z.string().url('Invalid image URL'),
+}).strict();
+
+export type UserCharacterAngleRequest = z.infer<typeof UserCharacterAngleSchema>;
 
 // =============================================================================
 // HELPER: Parse and validate with friendly error

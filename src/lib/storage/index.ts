@@ -49,10 +49,11 @@ export async function getStorageProvider(
 export async function getSignedUploadUrl(
   filename: string,
   contentType: string,
-  provider: StorageProvider
+  provider: StorageProvider,
+  keyPrefix: string = 'clips/'
 ): Promise<SignedUrlResult> {
   if (provider === 'r2') {
-    const result = await getR2SignedUploadUrl(filename, contentType);
+    const result = await getR2SignedUploadUrl(filename, contentType, keyPrefix);
     return {
       provider: 'r2',
       signedUrl: result.signedUrl,
@@ -61,7 +62,7 @@ export async function getSignedUploadUrl(
     };
   }
 
-  // Supabase signed URL
+  // Supabase signed URL — bucket name derived from keyPrefix
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -70,17 +71,18 @@ export async function getSignedUploadUrl(
   }
 
   const supabase = createClient(supabaseUrl, supabaseKey);
+  const bucket = keyPrefix.replace(/\/$/, '') || 'clips';
   const filePath = filename;
 
   const { data, error } = await supabase.storage
-    .from('clips')
+    .from(bucket)
     .createSignedUploadUrl(filePath);
 
   if (error || !data) {
     throw new Error(`Supabase signed URL failed: ${error?.message || 'Unknown error'}`);
   }
 
-  const publicUrl = `${supabaseUrl}/storage/v1/object/public/clips/${filePath}`;
+  const publicUrl = `${supabaseUrl}/storage/v1/object/public/${bucket}/${filePath}`;
 
   return {
     provider: 'supabase',
