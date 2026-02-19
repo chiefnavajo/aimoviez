@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
     // 1. Find expired voting slots
     const { data: expiredSlots, error: findError } = await supabase
       .from('story_slots')
-      .select('*, seasons!inner(id, status, total_slots)')
+      .select('*, seasons!fk_story_slots_season!inner(id, status, total_slots)')
       .eq('status', 'voting')
       .eq('seasons.status', 'active')
       .lt('voting_ends_at', new Date().toISOString())
