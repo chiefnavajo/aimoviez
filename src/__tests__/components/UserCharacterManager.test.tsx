@@ -13,24 +13,26 @@ import UserCharacterManager, { UserCharacter } from '@/components/UserCharacterM
 // Mock framer-motion
 // =============================================================================
 
-jest.mock('framer-motion', () => ({
-  motion: {
-    div: React.forwardRef<HTMLDivElement, React.PropsWithChildren<Record<string, unknown>>>(
-      ({ children, ...props }, ref) => {
-        // Filter out framer-motion-specific props
-        const { initial, animate, exit, whileHover, whileTap, ...domProps } = props as Record<string, unknown>;
-        return <div ref={ref} {...domProps}>{children}</div>;
-      }
-    ),
-    button: React.forwardRef<HTMLButtonElement, React.PropsWithChildren<Record<string, unknown>>>(
-      ({ children, ...props }, ref) => {
-        const { initial, animate, exit, whileHover, whileTap, ...domProps } = props as Record<string, unknown>;
-        return <button ref={ref} {...domProps}>{children}</button>;
-      }
-    ),
-  },
-  AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
-}));
+jest.mock('framer-motion', () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ReactActual = require('react');
+  const MotionDiv = ReactActual.forwardRef(
+    function MotionDiv({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>, ref: React.Ref<HTMLDivElement>) {
+      const { initial: _i, animate: _a, exit: _e, whileHover: _wh, whileTap: _wt, ...domProps } = props;
+      return <div ref={ref} {...domProps}>{children}</div>;
+    }
+  );
+  const MotionButton = ReactActual.forwardRef(
+    function MotionButton({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>, ref: React.Ref<HTMLButtonElement>) {
+      const { initial: _i, animate: _a, exit: _e, whileHover: _wh, whileTap: _wt, ...domProps } = props;
+      return <button ref={ref} {...domProps}>{children}</button>;
+    }
+  );
+  return {
+    motion: { div: MotionDiv, button: MotionButton },
+    AnimatePresence: ({ children }: React.PropsWithChildren) => <>{children}</>,
+  };
+});
 
 // =============================================================================
 // Mock useCsrf hook
@@ -85,16 +87,6 @@ const CHARACTER_2: UserCharacter = {
   reference_count: 0,
   appearance_description: null,
   usage_count: 0,
-};
-
-const CHARACTER_NO_ANGLES: UserCharacter = {
-  id: 'char-3',
-  label: 'Sidekick',
-  frontal_image_url: 'https://cdn.example.com/sidekick-front.jpg',
-  reference_image_urls: ['https://cdn.example.com/sidekick-left.png'],
-  reference_count: 1,
-  appearance_description: null,
-  usage_count: 2,
 };
 
 // =============================================================================
