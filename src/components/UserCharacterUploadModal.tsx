@@ -16,13 +16,12 @@ interface UserCharacterUploadModalProps {
     reference_count: number;
     usage_count: number;
   }) => void;
-  autoAnglesEnabled?: boolean;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 
-export default function UserCharacterUploadModal({ onClose, onCreated, autoAnglesEnabled }: UserCharacterUploadModalProps) {
+export default function UserCharacterUploadModal({ onClose, onCreated }: UserCharacterUploadModalProps) {
   const { ensureToken } = useCsrf();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -31,8 +30,6 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
   const [label, setLabel] = useState('');
   const [description, setDescription] = useState('');
   const [isUploading, setIsUploading] = useState(false);
-  const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
-  const [autoGenerateAngles, setAutoGenerateAngles] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Clean up blob URL on unmount or when replaced
@@ -134,48 +131,19 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
         throw new Error(createData.error || 'Failed to create character');
       }
 
-      const characterId = createData.character.id;
-      let finalRefCount = 0;
-      let finalRefUrls: string[] = [];
-
-      // Step 4: Auto-generate reference angles if enabled and user opted in
-      if (autoAnglesEnabled && autoGenerateAngles) {
-        setIsUploading(false);
-        setIsGeneratingAngles(true);
-        try {
-          const csrfTokenForAngles = document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '';
-          const anglesRes = await fetch(`/api/ai/characters/${characterId}/generate-angles`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfTokenForAngles },
-            credentials: 'include',
-          });
-          const anglesData = await anglesRes.json();
-          if (anglesRes.ok && anglesData.ok) {
-            finalRefCount = anglesData.reference_count ?? 0;
-            finalRefUrls = anglesData.reference_image_urls || [];
-          }
-          // If angle generation fails, we still proceed with the character (frontal-only is fine)
-        } catch {
-          // Non-critical — character was already created successfully
-        } finally {
-          setIsGeneratingAngles(false);
-        }
-      }
-
       onCreated({
-        id: characterId,
+        id: createData.character.id,
         label: createData.character.label,
         frontal_image_url: createData.character.frontal_image_url,
-        reference_image_urls: finalRefUrls,
+        reference_image_urls: [],
         appearance_description: createData.character.appearance_description || null,
-        reference_count: finalRefCount,
+        reference_count: 0,
         usage_count: 0,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsUploading(false);
-      setIsGeneratingAngles(false);
     }
   };
 
@@ -262,22 +230,6 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
           className="w-full px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"
         />
 
-        {/* Auto-generate angles toggle */}
-        {autoAnglesEnabled && (
-          <label className="flex items-start gap-2.5 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={autoGenerateAngles}
-              onChange={(e) => setAutoGenerateAngles(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded border-white/20 bg-white/5 text-purple-500 focus:ring-purple-500 focus:ring-offset-0"
-            />
-            <div>
-              <p className="text-sm text-white/70">Auto-generate reference angles</p>
-              <p className="text-xs text-white/40">Takes ~20s. You can also generate later from the character manager.</p>
-            </div>
-          </label>
-        )}
-
         {/* Error */}
         {error && (
           <div className="p-2 bg-red-500/20 border border-red-500/40 rounded-lg text-red-400 text-xs flex items-center gap-2">
@@ -288,18 +240,14 @@ export default function UserCharacterUploadModal({ onClose, onCreated, autoAngle
         {/* Submit button */}
         <button
           onClick={handleSubmit}
-          disabled={!file || !label.trim() || isUploading || isGeneratingAngles}
+          disabled={!file || !label.trim() || isUploading}
           className={`w-full py-3 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition ${
-            file && label.trim() && !isUploading && !isGeneratingAngles
+            file && label.trim() && !isUploading
               ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:opacity-90'
               : 'bg-white/10 text-white/40 cursor-not-allowed'
           }`}
         >
-          {isGeneratingAngles ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" /> Generating reference angles...
-            </>
-          ) : isUploading ? (
+          {isUploading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" /> Uploading...
             </>

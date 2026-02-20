@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle, Wand2, Eye } from 'lucide-react';
+import { Check, Plus, Trash2, X, Upload, Camera, Loader2, AlertCircle, Eye } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 export interface UserCharacter {
@@ -40,10 +40,18 @@ export default function UserCharacterManager({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [angleUploading, setAngleUploading] = useState(false);
   const [angleError, setAngleError] = useState<string | null>(null);
-  const [isGeneratingAngles, setIsGeneratingAngles] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isDeletingAngle, setIsDeletingAngle] = useState<string | null>(null);
+
+  // Guided camera capture state
+  const [showCaptureFlow, setShowCaptureFlow] = useState(false);
+  const [captureStep, setCaptureStep] = useState(0);
+  const [capturePreview, setCapturePreview] = useState<string | null>(null);
+  const [captureBlob, setCaptureBlob] = useState<Blob | null>(null);
+  const [captureUploading, setCaptureUploading] = useState(false);
+  const [captureError, setCaptureError] = useState<string | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const handleDelete = async (id: string) => {
     setIsDeleting(id);
@@ -70,39 +78,94 @@ export default function UserCharacterManager({
     }
   };
 
-  const handleGenerateAngles = async (characterId: string, clearExisting: boolean = false) => {
-    setAngleError(null);
-    setIsGeneratingAngles(true);
-    try {
-      await ensureToken();
-      const csrfToken = document.cookie.split(';').find(c => c.trim().startsWith('csrf-token='))?.split('=')[1] || '';
-      const res = await fetch(`/api/ai/characters/${characterId}/generate-angles`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        credentials: 'include',
-        body: JSON.stringify(clearExisting ? { clear_existing: true } : {}),
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        throw new Error(res.status === 504 ? 'Generation timed out. Please try again.' : 'Server error. Please try again.');
-      }
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
-        throw new Error(data.error || 'Failed to generate angles');
-      }
-      if (data.generated === 0 && !data.skipped) {
-        throw new Error('All angle generations failed. Please try again.');
-      }
-      const urls = data.reference_image_urls || [];
-      onAngleAdded(characterId, data.reference_count, urls);
-      if (previewChar?.id === characterId) {
-        setPreviewChar(prev => prev ? { ...prev, reference_count: data.reference_count, reference_image_urls: urls } : null);
-      }
-    } catch (err) {
-      setAngleError(err instanceof Error ? err.message : 'Failed to generate angles');
-    } finally {
-      setIsGeneratingAngles(false);
+  const CAPTURE_STEPS = [
+    { label: 'Left Profile', instruction: 'Turn your head to the LEFT', emoji: '👈' },
+    { label: 'Right Profile', instruction: 'Turn your head to the RIGHT', emoji: '👉' },
+    { label: 'Three-Quarter Rear', instruction: 'Turn AWAY and look slightly over your shoulder', emoji: '🔄' },
+  ];
+
+  const compressImage = (file: File, maxDim = 1024, quality = 0.85): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          const ratio = Math.min(maxDim / width, maxDim / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => blob ? resolve(blob) : reject(new Error('Compression failed')),
+          'image/jpeg',
+          quality
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Invalid image')); };
+      img.src = url;
+    });
+  };
+
+  const handleCapturePhoto = async (file: File) => {
+    const ACCEPTED = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!ACCEPTED.includes(file.type)) {
+      setCaptureError('Please use JPEG, PNG, or WebP images');
+      return;
     }
+    if (file.size > 10 * 1024 * 1024) {
+      setCaptureError('Image must be under 10MB');
+      return;
+    }
+    setCaptureError(null);
+    try {
+      const compressed = await compressImage(file);
+      const previewUrl = URL.createObjectURL(compressed);
+      if (capturePreview) URL.revokeObjectURL(capturePreview);
+      setCapturePreview(previewUrl);
+      setCaptureBlob(compressed);
+    } catch {
+      setCaptureError('Could not process image. Please try again.');
+    }
+  };
+
+  const handleCaptureConfirm = async () => {
+    if (!captureBlob || !previewChar) return;
+    setCaptureUploading(true);
+    setCaptureError(null);
+    try {
+      const compressedFile = new File([captureBlob], `angle-${captureStep}.jpg`, { type: 'image/jpeg' });
+      await handleAngleUpload(previewChar.id, compressedFile);
+      // Clean up preview
+      if (capturePreview) URL.revokeObjectURL(capturePreview);
+      setCapturePreview(null);
+      setCaptureBlob(null);
+      // Advance to next step or finish
+      if (captureStep < 2) {
+        setCaptureStep(prev => prev + 1);
+      } else {
+        setCaptureStep(3); // done state
+      }
+    } catch {
+      setCaptureError('Upload failed. Please try again.');
+    } finally {
+      setCaptureUploading(false);
+    }
+  };
+
+  const resetCaptureState = () => {
+    setShowCaptureFlow(false);
+    setCaptureStep(0);
+    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    setCapturePreview(null);
+    setCaptureBlob(null);
+    setCaptureUploading(false);
+    setCaptureError(null);
   };
 
   const handleAngleUpload = async (characterId: string, file: File) => {
@@ -299,7 +362,7 @@ export default function UserCharacterManager({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 bg-black/80"
-              onClick={() => { setPreviewChar(null); setAngleError(null); setDeleteError(null); }}
+              onClick={() => { setPreviewChar(null); setAngleError(null); setDeleteError(null); resetCaptureState(); }}
               aria-hidden="true"
             />
             {/* Modal content */}
@@ -392,45 +455,133 @@ export default function UserCharacterManager({
                 </div>
               )}
 
-              {/* Angle generation & upload */}
+              {/* Reference angle capture & upload */}
               {previewChar.reference_count < 6 && (
                 <div className="space-y-2">
-                  {/* AI Generate angles button — always visible with contextual label */}
-                  <button
-                    onClick={() => handleGenerateAngles(previewChar.id, previewChar.reference_count >= 3)}
-                    disabled={isGeneratingAngles || angleUploading || isDeletingAngle !== null}
-                    className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 text-sm hover:bg-purple-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {isGeneratingAngles ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Generating angles...</>
-                    ) : previewChar.reference_count >= 3 ? (
-                      <><Wand2 className="w-4 h-4" /> Regenerate All Angles</>
-                    ) : previewChar.reference_count > 0 ? (
-                      <><Wand2 className="w-4 h-4" /> Generate Missing Angles</>
-                    ) : (
-                      <><Wand2 className="w-4 h-4" /> Auto-Generate Reference Angles</>
-                    )}
-                  </button>
-                  {/* Manual angle upload */}
-                  <label className="flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition">
-                    {angleUploading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Adding angle...</>
-                    ) : (
-                      <><Camera className="w-4 h-4" /> Upload Reference Angle ({previewChar.reference_count}/6)</>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      disabled={angleUploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleAngleUpload(previewChar.id, f);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                  {angleError && (
+                  {/* Hidden camera input */}
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    capture="user"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCapturePhoto(file);
+                      e.target.value = '';
+                    }}
+                  />
+
+                  {!showCaptureFlow ? (
+                    <>
+                      {/* Take Reference Photos — only when room for 3 more angles */}
+                      {previewChar.reference_count < 4 && (
+                        <button
+                          onClick={() => { setShowCaptureFlow(true); setCaptureStep(0); }}
+                          disabled={angleUploading || isDeletingAngle !== null}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-purple-500/20 border border-purple-500/40 rounded-xl text-purple-300 text-sm hover:bg-purple-500/30 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Camera className="w-4 h-4" /> Take Reference Photos
+                        </button>
+                      )}
+                      {/* Manual angle upload */}
+                      <label className="flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition">
+                        {angleUploading ? (
+                          <><Loader2 className="w-4 h-4 animate-spin" /> Adding angle...</>
+                        ) : (
+                          <><Upload className="w-4 h-4" /> Upload Image ({previewChar.reference_count}/6)</>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          disabled={angleUploading}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleAngleUpload(previewChar.id, f);
+                            e.target.value = '';
+                          }}
+                        />
+                      </label>
+                    </>
+                  ) : captureStep >= 3 ? (
+                    /* Done state */
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4 text-center space-y-2">
+                      <p className="text-sm text-green-400 font-medium">All done! 3 reference photos saved</p>
+                      <button
+                        onClick={resetCaptureState}
+                        className="px-4 py-2 bg-green-500/20 border border-green-500/40 rounded-lg text-green-300 text-sm hover:bg-green-500/30 transition"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  ) : (
+                    /* Guided capture step */
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-purple-300 font-medium">Step {captureStep + 1} of 3: {CAPTURE_STEPS[captureStep].label}</p>
+                        <button
+                          onClick={resetCaptureState}
+                          className="p-1 text-white/40 hover:text-white/70 transition"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <p className="text-center text-lg py-2">
+                        <span className="text-2xl mr-2">{CAPTURE_STEPS[captureStep].emoji}</span>
+                        <span className="text-white/70 text-sm">{CAPTURE_STEPS[captureStep].instruction}</span>
+                      </p>
+
+                      {capturePreview ? (
+                        /* Preview captured photo */
+                        <div className="space-y-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={capturePreview} alt="Preview" className="w-full aspect-square object-cover rounded-lg" />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (capturePreview) URL.revokeObjectURL(capturePreview);
+                                setCapturePreview(null);
+                                setCaptureBlob(null);
+                                setCaptureError(null);
+                              }}
+                              disabled={captureUploading}
+                              className="flex-1 py-2.5 border border-white/20 rounded-lg text-white/60 text-sm hover:bg-white/10 transition disabled:opacity-50"
+                            >
+                              Retake
+                            </button>
+                            <button
+                              onClick={handleCaptureConfirm}
+                              disabled={captureUploading}
+                              className="flex-1 py-2.5 bg-purple-500 rounded-lg text-white text-sm hover:bg-purple-400 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                              {captureUploading ? (
+                                <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+                              ) : (
+                                'Use This'
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        /* Camera trigger */
+                        <button
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="w-full py-3 bg-purple-500/20 border border-purple-500/40 rounded-lg text-purple-300 text-sm hover:bg-purple-500/30 transition flex items-center justify-center gap-2"
+                        >
+                          <Camera className="w-4 h-4" /> Take or choose a photo
+                        </button>
+                      )}
+
+                      {captureError && (
+                        <p className="text-xs text-red-400 flex items-center gap-1">
+                          <AlertCircle className="w-3 h-3" /> {captureError}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {angleError && !showCaptureFlow && (
                     <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> {angleError}
                     </p>
@@ -480,7 +631,7 @@ export default function UserCharacterManager({
                 )}
 
                 <button
-                  onClick={() => { setPreviewChar(null); setAngleError(null); setConfirmDelete(null); setDeleteError(null); }}
+                  onClick={() => { setPreviewChar(null); setAngleError(null); setConfirmDelete(null); setDeleteError(null); resetCaptureState(); }}
                   className="px-4 py-3 rounded-xl bg-white/10 text-white/70 hover:bg-white/20 transition-colors text-sm"
                 >
                   <X className="w-4 h-4" />
