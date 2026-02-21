@@ -2,7 +2,7 @@
  * UserCharacterManager component tests.
  *
  * Tests cover: character selection/deselection, preview modal, fullscreen viewer,
- * delete individual angles, guided camera capture flow, and empty state.
+ * delete individual angles, upload angle button, and empty state.
  */
 
 import React from 'react';

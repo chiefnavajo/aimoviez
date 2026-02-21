@@ -263,7 +263,7 @@ export default function UserCharacterManager({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 z-50 bg-black/80"
-              onClick={() => { setPreviewChar(null); setAngleError(null); setDeleteError(null); }}
+              onClick={() => { setPreviewChar(null); setAngleError(null); setDeleteError(null); setConfirmDelete(null); }}
               aria-hidden="true"
             />
             {/* Modal content */}

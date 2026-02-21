@@ -63,6 +63,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
   // --- Phase 1: Upload frontal photo ---
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const submittingRef = useRef(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [label, setLabel] = useState('');
@@ -79,14 +80,16 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
   const [captureUploading, setCaptureUploading] = useState(false);
   const [captureError, setCaptureError] = useState<string | null>(null);
   const captureInputRef = useRef<HTMLInputElement>(null);
+  const captureGalleryRef = useRef<HTMLInputElement>(null);
+  const previewUrlRef = useRef<string | null>(null);
+  const capturePreviewRef = useRef<string | null>(null);
 
   // Clean up blob URLs on unmount
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      if (capturePreview) URL.revokeObjectURL(capturePreview);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+      if (capturePreviewRef.current) URL.revokeObjectURL(capturePreviewRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getCsrfToken = () =>
@@ -98,6 +101,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selected = e.target.files?.[0];
+    e.target.value = ''; // Reset so same file can be re-selected
     if (!selected) return;
     setError(null);
 
@@ -121,6 +125,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setFile(selected);
       setPreviewUrl(objectUrl);
+      previewUrlRef.current = objectUrl;
     };
     img.onerror = () => {
       setError('Could not read image file');
@@ -130,11 +135,13 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
   };
 
   const handleSubmit = async () => {
+    if (submittingRef.current) return;
     if (!file || !label.trim()) {
       setError('Please select an image and enter a name');
       return;
     }
 
+    submittingRef.current = true;
     setError(null);
     setIsUploading(true);
 
@@ -192,12 +199,17 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
       onCreated(character);
       setCreatedChar(character);
 
+      // Clean up frontal preview blob URL before transitioning
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrlRef.current = null;
+
       // Transition to capture phase
       setPhase('capture');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setIsUploading(false);
+      submittingRef.current = false;
     }
   };
 
@@ -220,6 +232,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
       const url = URL.createObjectURL(compressed);
       if (capturePreview) URL.revokeObjectURL(capturePreview);
       setCapturePreview(url);
+      capturePreviewRef.current = url;
       setCaptureBlob(compressed);
     } catch {
       setCaptureError('Could not process image. Please try again.');
@@ -275,6 +288,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
       // Clean up and advance
       if (capturePreview) URL.revokeObjectURL(capturePreview);
       setCapturePreview(null);
+      capturePreviewRef.current = null;
       setCaptureBlob(null);
 
       if (captureStep < 2) {
@@ -290,7 +304,10 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
   };
 
   const handleClose = () => {
-    if (capturePreview) URL.revokeObjectURL(capturePreview);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    if (capturePreviewRef.current) URL.revokeObjectURL(capturePreviewRef.current);
+    previewUrlRef.current = null;
+    capturePreviewRef.current = null;
     onClose();
   };
 
@@ -448,12 +465,23 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
               </div>
             )}
 
-            {/* Hidden capture input */}
+            {/* Hidden capture inputs — camera + gallery */}
             <input
               ref={captureInputRef}
               type="file"
               accept="image/jpeg,image/png,image/webp"
               capture="user"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleCaptureSelect(f);
+                e.target.value = '';
+              }}
+            />
+            <input
+              ref={captureGalleryRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(e) => {
                 const f = e.target.files?.[0];
@@ -508,6 +536,7 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
                         onClick={() => {
                           if (capturePreview) URL.revokeObjectURL(capturePreview);
                           setCapturePreview(null);
+                          capturePreviewRef.current = null;
                           setCaptureBlob(null);
                           setCaptureError(null);
                         }}
@@ -530,13 +559,21 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
                     </div>
                   </div>
                 ) : (
-                  /* Camera trigger */
-                  <button
-                    onClick={() => captureInputRef.current?.click()}
-                    className="w-full py-3 bg-purple-500/20 border border-purple-500/40 rounded-lg text-purple-300 text-sm hover:bg-purple-500/30 transition flex items-center justify-center gap-2"
-                  >
-                    <Camera className="w-4 h-4" /> Take or choose a photo
-                  </button>
+                  /* Camera + gallery triggers */
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => captureInputRef.current?.click()}
+                      className="flex-1 py-3 bg-purple-500/20 border border-purple-500/40 rounded-lg text-purple-300 text-sm hover:bg-purple-500/30 transition flex items-center justify-center gap-2"
+                    >
+                      <Camera className="w-4 h-4" /> Take Photo
+                    </button>
+                    <button
+                      onClick={() => captureGalleryRef.current?.click()}
+                      className="flex-1 py-3 bg-white/10 border border-white/20 rounded-lg text-white/60 text-sm hover:bg-white/20 transition flex items-center justify-center gap-2"
+                    >
+                      <ImageIcon className="w-4 h-4" /> Gallery
+                    </button>
+                  </div>
                 )}
 
                 {captureError && (

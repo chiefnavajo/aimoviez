@@ -1556,7 +1556,12 @@ export default function AIGeneratePanel({
               <UserCharacterUploadModal
                 onClose={() => setShowUploadModal(false)}
                 onCreated={(newChar) => {
-                  setUserCharacters(prev => [newChar, ...prev]);
+                  // Update or insert character (called on initial save + after each angle upload)
+                  setUserCharacters(prev => {
+                    const exists = prev.some(c => c.id === newChar.id);
+                    if (exists) return prev.map(c => c.id === newChar.id ? newChar : c);
+                    return [newChar, ...prev];
+                  });
                   // Auto-select the newly uploaded character if within limits
                   setSelectedUserCharIds(prev => {
                     const totalSelected = selectedCharacterIds.size + prev.size;
@@ -1567,7 +1572,7 @@ export default function AIGeneratePanel({
                     }
                     return prev;
                   });
-                  setShowUploadModal(false);
+                  // Don't close modal — user finishes via Done/Skip which triggers onClose
                 }}
               />
             )}
