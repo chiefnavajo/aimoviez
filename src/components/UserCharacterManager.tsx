@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Plus, Trash2, X, Upload, Loader2, AlertCircle, Eye } from 'lucide-react';
+import { Check, Plus, Trash2, X, Upload, Loader2, AlertCircle, Eye, Camera } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 export interface UserCharacter {
@@ -356,27 +356,49 @@ export default function UserCharacterManager({
                 </div>
               )}
 
-              {/* Add angle upload */}
+              {/* Add angle — camera + gallery */}
               {previewChar.reference_count < 6 && (
                 <div className="space-y-2">
-                  <label className="flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition">
-                    {angleUploading ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Adding angle...</>
-                    ) : (
-                      <><Upload className="w-4 h-4" /> Upload Angle ({previewChar.reference_count}/6)</>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      className="hidden"
-                      disabled={angleUploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handleAngleUpload(previewChar.id, f);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
+                  <p className="text-xs text-white/40">Add Angle ({previewChar.reference_count}/6)</p>
+                  <div className="flex gap-2">
+                    <label className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-purple-500/30 rounded-xl text-purple-300 text-sm cursor-pointer hover:bg-purple-500/10 transition touch-manipulation">
+                      {angleUploading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
+                      ) : (
+                        <><Camera className="w-4 h-4" /> Take Photo</>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        capture="user"
+                        className="hidden"
+                        disabled={angleUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleAngleUpload(previewChar.id, f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <label className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-white/20 rounded-xl text-white/60 text-sm cursor-pointer hover:bg-white/10 transition touch-manipulation">
+                      {angleUploading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Adding...</>
+                      ) : (
+                        <><Upload className="w-4 h-4" /> Gallery</>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp"
+                        className="hidden"
+                        disabled={angleUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handleAngleUpload(previewChar.id, f);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                  </div>
                   {angleError && (
                     <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                       <AlertCircle className="w-3 h-3" /> {angleError}

@@ -58,6 +58,7 @@ jest.mock('lucide-react', () => ({
   Loader2: ({ className }: { className?: string }) => <span data-testid="icon-loader2" className={className} />,
   AlertCircle: ({ className }: { className?: string }) => <span data-testid="icon-alert" className={className} />,
   Eye: ({ className }: { className?: string }) => <span data-testid="icon-eye" className={className} />,
+  Camera: ({ className }: { className?: string }) => <span data-testid="icon-camera" className={className} />,
 }));
 
 // =============================================================================
@@ -401,14 +402,15 @@ describe('UserCharacterManager', () => {
   // ===========================================================================
 
   describe('upload angle button', () => {
-    test('shows "Upload Angle" button when character has < 6 angles', () => {
+    test('shows "Take Photo" and "Gallery" buttons when character has < 6 angles', () => {
       renderManager({ characters: [CHARACTER_2] }); // Villain has 0 angles
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.getByText(/Upload Angle/)).toBeInTheDocument();
+      expect(screen.getByText(/Take Photo/)).toBeInTheDocument();
+      expect(screen.getByText(/Gallery/)).toBeInTheDocument();
     });
 
-    test('hides upload button when character has 6 angles', () => {
+    test('hides angle buttons when character has 6 angles', () => {
       const charFull: UserCharacter = {
         ...CHARACTER_1,
         reference_count: 6,
@@ -417,7 +419,8 @@ describe('UserCharacterManager', () => {
       renderManager({ characters: [charFull] });
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.queryByText(/Upload Angle/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Take Photo/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Gallery/)).not.toBeInTheDocument();
     });
   });
 
