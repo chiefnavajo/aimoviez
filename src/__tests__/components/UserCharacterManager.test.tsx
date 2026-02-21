@@ -55,7 +55,6 @@ jest.mock('lucide-react', () => ({
   Trash2: ({ className }: { className?: string }) => <span data-testid="icon-trash2" className={className} />,
   X: ({ className }: { className?: string }) => <span data-testid="icon-x" className={className} />,
   Upload: ({ className }: { className?: string }) => <span data-testid="icon-upload" className={className} />,
-  Camera: ({ className }: { className?: string }) => <span data-testid="icon-camera" className={className} />,
   Loader2: ({ className }: { className?: string }) => <span data-testid="icon-loader2" className={className} />,
   AlertCircle: ({ className }: { className?: string }) => <span data-testid="icon-alert" className={className} />,
   Eye: ({ className }: { className?: string }) => <span data-testid="icon-eye" className={className} />,
@@ -398,64 +397,27 @@ describe('UserCharacterManager', () => {
   });
 
   // ===========================================================================
-  // Guided camera capture flow
+  // Upload angle button
   // ===========================================================================
 
-  describe('guided camera capture', () => {
-    test('shows "Take Reference Photos" button when character has < 4 angles', () => {
+  describe('upload angle button', () => {
+    test('shows "Upload Angle" button when character has < 6 angles', () => {
       renderManager({ characters: [CHARACTER_2] }); // Villain has 0 angles
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.getByText('Take Reference Photos')).toBeInTheDocument();
+      expect(screen.getByText(/Upload Angle/)).toBeInTheDocument();
     });
 
-    test('hides "Take Reference Photos" when character has 4+ angles', () => {
-      const charWith4Angles: UserCharacter = {
+    test('hides upload button when character has 6 angles', () => {
+      const charFull: UserCharacter = {
         ...CHARACTER_1,
-        reference_count: 4,
-        reference_image_urls: ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'],
+        reference_count: 6,
+        reference_image_urls: ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg', 'e.jpg', 'f.jpg'],
       };
-      renderManager({ characters: [charWith4Angles] });
+      renderManager({ characters: [charFull] });
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.queryByText('Take Reference Photos')).not.toBeInTheDocument();
-    });
-
-    test('shows step 1 instruction when capture flow starts', () => {
-      renderManager({ characters: [CHARACTER_2] });
-      const previewButtons = screen.getAllByLabelText(/Preview/);
-      fireEvent.click(previewButtons[0]);
-      fireEvent.click(screen.getByText('Take Reference Photos'));
-      expect(screen.getByText('Step 1 of 3: Left Profile')).toBeInTheDocument();
-      expect(screen.getByText('Turn your head to the LEFT')).toBeInTheDocument();
-      expect(screen.getByText('Take or choose a photo')).toBeInTheDocument();
-    });
-
-    test('shows "Upload Image" button alongside capture flow', () => {
-      renderManager({ characters: [CHARACTER_2] });
-      const previewButtons = screen.getAllByLabelText(/Preview/);
-      fireEvent.click(previewButtons[0]);
-      // Before starting capture flow, both buttons should be visible
-      expect(screen.getByText('Take Reference Photos')).toBeInTheDocument();
-      expect(screen.getByText(/Upload Image/)).toBeInTheDocument();
-    });
-
-    test('closes capture flow when X button clicked', () => {
-      renderManager({ characters: [CHARACTER_2] });
-      const previewButtons = screen.getAllByLabelText(/Preview/);
-      fireEvent.click(previewButtons[0]);
-      fireEvent.click(screen.getByText('Take Reference Photos'));
-      expect(screen.getByText('Step 1 of 3: Left Profile')).toBeInTheDocument();
-      // Find and click the X in the capture flow header
-      const xIcons = screen.getAllByTestId('icon-x');
-      // The capture flow X is within the capture flow div
-      const captureX = xIcons.find(icon => {
-        const btn = icon.closest('button');
-        return btn && btn.closest('.space-y-3');
-      });
-      if (captureX) fireEvent.click(captureX.closest('button')!);
-      // Should be back to the button state
-      expect(screen.queryByText('Step 1 of 3: Left Profile')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Upload Angle/)).not.toBeInTheDocument();
     });
   });
 
