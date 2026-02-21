@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { X, Upload, Loader2, AlertCircle, User } from 'lucide-react';
+import { X, Upload, Loader2, AlertCircle, User, Camera, ImageIcon } from 'lucide-react';
 import { useCsrf } from '@/hooks/useCsrf';
 
 interface UserCharacterUploadModalProps {
@@ -24,6 +24,7 @@ const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 export default function UserCharacterUploadModal({ onClose, onCreated }: UserCharacterUploadModalProps) {
   const { ensureToken } = useCsrf();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -177,30 +178,54 @@ export default function UserCharacterUploadModal({ onClose, onCreated }: UserCha
         </div>
 
         {/* Image upload area */}
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className={`relative aspect-square rounded-xl border-2 border-dashed cursor-pointer transition-colors flex items-center justify-center ${
-            previewUrl ? 'border-purple-500/50' : 'border-white/20 hover:border-purple-500/40'
-          }`}
-        >
-          {previewUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
+        {previewUrl ? (
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="relative aspect-square rounded-xl border-2 border-dashed border-purple-500/50 cursor-pointer transition-colors flex items-center justify-center"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={previewUrl} alt="Preview" className="w-full h-full object-cover rounded-xl" />
-          ) : (
-            <div className="text-center p-6">
-              <User className="w-12 h-12 mx-auto text-white/30 mb-3" />
-              <p className="text-sm text-white/50 mb-1">Tap to select a photo</p>
-              <p className="text-xs text-white/30">JPEG, PNG, or WebP (max 5MB)</p>
+          </div>
+        ) : (
+          <div className="rounded-xl border-2 border-dashed border-white/20 p-6">
+            <User className="w-12 h-12 mx-auto text-white/30 mb-3" />
+            <p className="text-xs text-white/30 text-center mb-4">JPEG, PNG, or WebP (max 5MB)</p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-purple-600/80 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+              >
+                <Camera className="w-4 h-4" />
+                Take Photo
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 flex items-center justify-center gap-2 py-3 rounded-lg bg-white/10 hover:bg-white/20 text-white/70 text-sm font-medium transition-colors"
+              >
+                <ImageIcon className="w-4 h-4" />
+                Gallery
+              </button>
             </div>
-          )}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-        </div>
+          </div>
+        )}
+        {/* Hidden file inputs */}
+        <input
+          ref={cameraInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="user"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handleFileSelect}
+          className="hidden"
+        />
 
         {/* Tips */}
         <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
