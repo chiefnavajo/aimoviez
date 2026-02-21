@@ -94,15 +94,18 @@ export async function GET(req: NextRequest) {
           polled++;
 
           if (falResult.status === 'COMPLETED' && falResult.videoUrl) {
-            await supabase
+            // Status guard: only update if still pending/processing
+            const { data: recoveredRows } = await supabase
               .from('ai_generations')
               .update({
                 status: 'completed',
                 video_url: falResult.videoUrl,
                 completed_at: new Date().toISOString(),
               })
-              .eq('id', gen.id);
-            autoCompleted++;
+              .eq('id', gen.id)
+              .in('status', ['pending', 'processing'])
+              .select('id');
+            if (recoveredRows?.length) autoCompleted++;
           }
         } catch {
           // Ignore individual polling errors
@@ -216,6 +219,39 @@ export async function GET(req: NextRequest) {
     if (expireError) {
       console.error('[ai-timeout] Expire error:', expireError);
     }
+
+    // ========================================================================
+    // STEP 4b: Refund credits for expired generations
+    // ========================================================================
+    let expiredCreditsRefunded = 0;
+    if (expiredGens && expiredGens.length > 0) {
+      // Need credit info — re-fetch with credit fields
+      const expiredIds = expiredGens.map(g => g.id);
+      const { data: expiredWithCredits } = await supabase
+        .from('ai_generations')
+        .select('id, user_id, credit_deducted, credit_amount')
+        .in('id', expiredIds);
+
+      if (expiredWithCredits) {
+        for (const gen of expiredWithCredits) {
+          if (gen.credit_deducted && gen.credit_amount && gen.user_id) {
+            try {
+              const { data: refundResult } = await supabase.rpc('refund_credits', {
+                p_user_id: gen.user_id,
+                p_generation_id: gen.id,
+              });
+              if (refundResult?.success) {
+                expiredCreditsRefunded += refundResult.refunded;
+                console.info(`[ai-timeout] Refunded ${refundResult.refunded} credits for expired generation:`, gen.id);
+              }
+            } catch (err) {
+              console.error('[ai-timeout] Expired credit refund error:', gen.id, err);
+            }
+          }
+        }
+      }
+    }
+    results.expired_credits_refunded = expiredCreditsRefunded;
 
     // ========================================================================
     // STEP 5: Clean orphaned storage files from expired generations

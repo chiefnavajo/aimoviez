@@ -195,6 +195,24 @@ export async function POST(request: NextRequest) {
     const storageProvider = await getStorageProvider(r2Flag?.enabled ?? false);
     const publicUrl = getPublicVideoUrl(gen.storage_key, storageProvider);
 
+    // 7b. Validate video file exists in storage (HEAD check)
+    try {
+      const headRes = await fetch(publicUrl, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!headRes.ok) {
+        console.error('[AI_REGISTER] Video file not found in storage:', publicUrl, headRes.status);
+        return NextResponse.json(
+          { success: false, error: 'Video file not found in storage. Please regenerate.' },
+          { status: 400 }
+        );
+      }
+    } catch (headErr) {
+      console.warn('[AI_REGISTER] Video HEAD check failed (non-fatal):', headErr instanceof Error ? headErr.message : headErr);
+      // Non-fatal — storage might not support HEAD. Continue with registration.
+    }
+
     // 8. Validate season (fetched in batch 2)
     if (seasonError || !season) {
       return NextResponse.json(
@@ -222,7 +240,6 @@ export async function POST(request: NextRequest) {
 
     const slotPosition = votingSlot.slot_position;
     const isWaitingForClips = votingSlot.status === 'waiting_for_clips';
-    const isFirstClipInSlot = !votingSlot.voting_started_at || isWaitingForClips;
 
     // 10. Get duration from model config
     const durationSeconds = MODEL_DURATION_SECONDS[gen.model] || 5;
@@ -242,7 +259,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         username: sanitizeText(uploaderUsername),
         avatar_url: uploaderAvatar,
-        genre: genre.toUpperCase(),
+        genre: genre,
         title: sanitizedTitle,
         description: sanitizedDescription,
         vote_count: 0,
@@ -328,27 +345,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 13. Voting timer logic (same as register route)
-    let timerStarted = false;
-    if (isFirstClipInSlot) {
-      const durationHours = votingSlot.voting_duration_hours || 24;
-      const now = new Date();
-      const votingEndsAt = new Date(now.getTime() + durationHours * 60 * 60 * 1000);
-
-      const { error: timerError } = await supabase
-        .from('story_slots')
-        .update({
-          voting_started_at: now.toISOString(),
-          voting_ends_at: votingEndsAt.toISOString(),
-        })
-        .eq('id', votingSlot.id);
-
-      if (timerError) {
-        console.error('[AI_REGISTER] Failed to start voting timer:', timerError);
-      } else {
-        timerStarted = true;
-      }
-    }
+    // 13. Voting timer: NOT started here because AI clips are status='pending'
+    // and require admin approval before becoming active. The voting timer should
+    // start when the first clip is approved, not when it's uploaded.
 
     // 14. Audit log
     logAdminAction(request, {
@@ -359,7 +358,7 @@ export async function POST(request: NextRequest) {
       details: {
         clip_id: clipData.id,
         model: gen.model,
-        genre: genre.toUpperCase(),
+        genre: genre,
       },
     }).catch(() => {});
 
@@ -377,7 +376,6 @@ export async function POST(request: NextRequest) {
       message: isWaitingForClips
         ? 'AI clip registered! Waiting for more clips before voting starts.'
         : 'AI clip registered successfully! Pending admin approval.',
-      timerStarted,
       isWaitingForClips,
     });
   } catch (error) {

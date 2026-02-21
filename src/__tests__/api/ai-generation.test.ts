@@ -223,9 +223,11 @@ describe('POST /api/ai/generate', () => {
       { data: pick(overrides, 'featureFlag', { enabled: true, config: null }), error: pick(overrides, 'flagError', null) },
       // 2: feature_flags (character_pinning) — return disabled by default so we skip the pinning subtree
       { data: pick(overrides, 'pinningFlag', { enabled: false }), error: null },
-      // 3: ai_generations insert
+      // 3: ai_generations — duplicate generation guard (no existing by default)
+      { data: pick(overrides, 'existingGen', null), error: null },
+      // 4: ai_generations insert
       { data: pick(overrides, 'generation', { id: GENERATION_UUID }), error: pick(overrides, 'insertError', null) },
-      // 4: ai_generations update (fal_request_id)
+      // 5: ai_generations update (fal_request_id)
       { data: null, error: null },
     ];
     const rpcResponses: Record<string, { data?: unknown; error?: unknown }> = {
@@ -389,17 +391,20 @@ describe('POST /api/ai/generate', () => {
       { data: pick(overrides, 'season', { id: SEASON_ID }), error: null },
       // 4: pinned_characters
       { data: pinnedChars, error: null },
-      // 5: ai_generations insert
-      { data: { id: GENERATION_UUID }, error: null },
-      // 6: ai_generations update (fal_request_id) — or fallback update
+      // 5: ai_generations — duplicate generation guard (no existing)
       { data: null, error: null },
-      // 7: ai_generations update (extra, for fallback case)
+      // 6: ai_generations insert
+      { data: { id: GENERATION_UUID }, error: null },
+      // 7: ai_generations update (fal_request_id) — or fallback update
+      { data: null, error: null },
+      // 8: ai_generations update (extra, for fallback case)
       { data: null, error: null },
     ];
     const rpcResponses: Record<string, { data?: unknown; error?: unknown }> = {
       check_global_cost_cap: { data: true, error: null },
       deduct_credits: { data: { success: true }, error: null },
       increment_pinned_usage: { data: null, error: null },
+      admin_grant_credits: { data: null, error: null },
     };
     const mock = createMockWithRpc(responses, rpcResponses);
     mockCreateClient.mockReturnValue({ from: mock.from, rpc: mock.rpc });
@@ -486,12 +491,25 @@ describe('POST /api/ai/generate', () => {
   });
 
   test('skips pinned characters when skip_pinned is true', async () => {
-    buildPinnedCharsMock();
+    // skip_pinned=true means the character_pinning flag is never checked,
+    // so from() sequence excludes that call: users → ai_gen_flag → duplicate_guard → insert → update
+    const responses = [
+      { data: DEFAULT_USER, error: null },                    // 0: users
+      { data: { enabled: true, config: null }, error: null }, // 1: feature_flags (ai_gen)
+      { data: null, error: null },                            // 2: ai_generations (duplicate guard)
+      { data: { id: GENERATION_UUID }, error: null },         // 3: ai_generations insert
+      { data: null, error: null },                            // 4: ai_generations update
+    ];
+    const rpcResponses: Record<string, { data?: unknown; error?: unknown }> = {
+      check_global_cost_cap: { data: true, error: null },
+      deduct_credits: { data: { success: true }, error: null },
+    };
+    const mock = createMockWithRpc(responses, rpcResponses);
+    mockCreateClient.mockReturnValue({ from: mock.from, rpc: mock.rpc });
     const req = createMockRequest(url, { method: 'POST', body: { ...validBody, skip_pinned: true } });
     const res = await generatePost(req);
     const { status } = await parseResponse(res);
     // Should use plain text-to-video (not ref-to-video) since skip_pinned=true
-    // The pinning subtree is skipped, so it won't call startReferenceToVideoGeneration
     expect(mockStartRefToVideo).not.toHaveBeenCalled();
     expect(status).toBe(200);
   });
@@ -832,7 +850,8 @@ describe('POST /api/ai/cancel', () => {
         }),
         error: pick(overrides, 'genError', null),
       },
-      { data: null, error: pick(overrides, 'updateError', null) },
+      // Cancel update now uses .select('id') — must return rows for success
+      { data: pick(overrides, 'cancelledRows', [{ id: GENERATION_UUID }]), error: pick(overrides, 'updateError', null) },
     ];
     const rpcResponses: Record<string, { data?: unknown; error?: unknown }> = {
       refund_credits: { data: pick(overrides, 'refundResult', { success: true, refunded: 10 }), error: pick(overrides, 'refundError', null) },

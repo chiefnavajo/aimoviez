@@ -120,14 +120,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 8. Mark as failed in DB
-    const { error: updateError } = await supabase
+    // 8. Mark as failed in DB (status guard prevents overwriting webhook completion)
+    const { data: cancelledRows, error: updateError } = await supabase
       .from('ai_generations')
       .update({
         status: 'failed',
         error_message: 'Cancelled by user',
       })
-      .eq('id', gen.id);
+      .eq('id', gen.id)
+      .in('status', ['pending', 'processing'])
+      .select('id');
 
     if (updateError) {
       console.error('[AI_CANCEL] DB update error:', updateError);
@@ -137,7 +139,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 9. Refund credits if applicable
+    // If no rows updated, webhook completed the generation between our check and update
+    if (!cancelledRows?.length) {
+      return NextResponse.json(
+        { success: false, error: 'Generation already completed', alreadyCompleted: true },
+        { status: 409 }
+      );
+    }
+
+    // 9. Refund credits if applicable (only if we actually cancelled)
     if (gen.credit_deducted && gen.credit_amount && gen.user_id) {
       try {
         const { data: refundResult, error: refundError } = await supabase.rpc('refund_credits', {

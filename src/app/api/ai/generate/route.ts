@@ -445,6 +445,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 11c. Duplicate generation guard — prevent double-submit
+    const { data: existingGen } = await supabase
+      .from('ai_generations')
+      .select('id')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'processing'])
+      .limit(1)
+      .maybeSingle();
+
+    if (existingGen) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'You already have a generation in progress',
+          existingGenerationId: existingGen.id,
+        },
+        { status: 409 }
+      );
+    }
+
     // 12. Insert pending generation row
     const generationMode = isReferenceToVideo ? 'reference-to-video'
       : isImageToVideo ? 'image-to-video'
@@ -549,6 +569,7 @@ export async function POST(request: NextRequest) {
           requestId = fallbackResult.requestId;
 
           // Update generation row to reflect the fallback
+          const fallbackCreditCost = modelCosts[validated.model]?.credit_cost ?? 10;
           await supabase
             .from('ai_generations')
             .update({
@@ -556,8 +577,24 @@ export async function POST(request: NextRequest) {
               generation_mode: 'text-to-video',
               prompt: augmentedPrompt,
               cost_cents: modelCosts[validated.model]?.fal_cost_cents ?? modelConfig.costCents,
+              credit_amount: fallbackCreditCost,
             })
             .eq('id', generation.id);
+
+          // Partial credit refund if fallback model is cheaper
+          const creditDifference = creditCost - fallbackCreditCost;
+          if (creditDifference > 0) {
+            try {
+              await supabase.rpc('admin_grant_credits', {
+                p_user_id: userId,
+                p_amount: creditDifference,
+                p_reason: `Partial refund: model downgrade from ${effectiveModel} to ${validated.model}`,
+              });
+              console.info(`[AI_GENERATE] Partial refund ${creditDifference} credits for model fallback on ${generation.id}`);
+            } catch (refundErr) {
+              console.error('[AI_GENERATE] Partial refund failed:', refundErr);
+            }
+          }
         }
       } else if (isImageToVideo) {
         const result = await startImageToVideoGeneration(

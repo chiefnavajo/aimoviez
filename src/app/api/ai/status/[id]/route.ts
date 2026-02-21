@@ -133,23 +133,28 @@ export async function GET(
               // Validate hostname (same as webhook route)
               const hostname = new URL(falResult.videoUrl).hostname;
               if (hostname.endsWith('.fal.media') || hostname.endsWith('.fal.ai')) {
-                await bgSupabase
+                const { data: recoveredRows } = await bgSupabase
                   .from('ai_generations')
                   .update({
                     status: 'completed',
                     video_url: falResult.videoUrl,
                     completed_at: new Date().toISOString(),
                   })
-                  .eq('id', genId);
+                  .eq('id', genId)
+                  .in('status', ['pending', 'processing'])
+                  .select('id');
 
-                console.info('[AI_STATUS] Fallback poll recovered generation:', genId);
+                if (recoveredRows?.length) {
+                  console.info('[AI_STATUS] Fallback poll recovered generation:', genId);
+                }
               }
             } else if (falResult.status === 'IN_PROGRESS' && currentStatus === 'pending') {
               // Update to processing so next poll shows "generating"
               await bgSupabase
                 .from('ai_generations')
                 .update({ status: 'processing' })
-                .eq('id', genId);
+                .eq('id', genId)
+                .eq('status', 'pending');
             }
             // IN_QUEUE or UNKNOWN — no update needed
           } catch (pollError) {

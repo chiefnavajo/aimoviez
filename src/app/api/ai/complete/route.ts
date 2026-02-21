@@ -258,6 +258,11 @@ export async function POST(request: NextRequest) {
         });
 
         if (!videoRes.ok) {
+          // Reset so user can retry (storage_key was set but no video uploaded)
+          await supabase
+            .from('ai_generations')
+            .update({ complete_initiated_at: null, storage_key: null })
+            .eq('id', gen.id);
           return NextResponse.json(
             { success: false, error: `Failed to download video: ${videoRes.status}` },
             { status: 502 }
@@ -323,6 +328,11 @@ export async function POST(request: NextRequest) {
 
         if (!uploadRes.ok) {
           console.error('[AI_COMPLETE] Merged upload failed:', uploadRes.status);
+          // Reset so user can retry
+          await supabase
+            .from('ai_generations')
+            .update({ complete_initiated_at: null, storage_key: null })
+            .eq('id', gen.id);
           return NextResponse.json(
             { success: false, error: 'Failed to upload merged video' },
             { status: 502 }
@@ -339,6 +349,11 @@ export async function POST(request: NextRequest) {
         });
       } catch (mergeError) {
         console.error('[AI_COMPLETE] Narration merge error:', mergeError);
+        // Reset so user can retry
+        await supabase
+          .from('ai_generations')
+          .update({ complete_initiated_at: null, storage_key: null })
+          .eq('id', gen.id);
         return NextResponse.json(
           { success: false, error: 'Audio merge failed. Please try again without narration.' },
           { status: 500 }

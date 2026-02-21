@@ -237,15 +237,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Update to completed
-    await supabase
+    // Update to completed (status guard prevents overwriting cancel/failure)
+    const { data: completedRows } = await supabase
       .from('ai_generations')
       .update({
         status: 'completed',
         video_url: videoUrl,
         completed_at: new Date().toISOString(),
       })
-      .eq('id', gen.id);
+      .eq('id', gen.id)
+      .in('status', ['pending', 'processing'])
+      .select('id');
+
+    if (!completedRows?.length) {
+      console.warn('[AI_WEBHOOK] Completion update skipped (generation state changed):', gen.id);
+      return NextResponse.json({ ok: true });
+    }
 
     console.info('[AI_WEBHOOK] Generation completed:', gen.id);
   } else {
@@ -274,7 +281,8 @@ export async function POST(request: NextRequest) {
         );
 
         // Update generation row to use fallback model and new request ID
-        await supabase
+        // Status guard: only update if still in mutable state
+        const { data: fallbackRows } = await supabase
           .from('ai_generations')
           .update({
             fal_request_id: fallbackResult.requestId,
@@ -285,7 +293,35 @@ export async function POST(request: NextRequest) {
             prompt: cleanPrompt,
             cost_cents: fallbackCostCents,
           })
-          .eq('id', gen.id);
+          .eq('id', gen.id)
+          .in('status', ['pending', 'processing'])
+          .select('id');
+
+        if (!fallbackRows?.length) {
+          console.warn('[AI_WEBHOOK] Fallback update skipped (generation state changed):', gen.id);
+          return NextResponse.json({ ok: true });
+        }
+
+        // Partial credit refund if fallback model is cheaper than original
+        if (gen.credit_amount && gen.credit_amount > 0) {
+          try {
+            const { getCreditCost } = await import('@/lib/ai-video');
+            const fallbackCreditCost = await getCreditCost(fallbackModel, supabase);
+            const creditDifference = gen.credit_amount - fallbackCreditCost;
+            if (creditDifference > 0) {
+              await supabase.rpc('admin_grant_credits', {
+                p_user_id: gen.user_id,
+                p_amount: creditDifference,
+                p_reason: `Partial refund: model downgrade from ${gen.model} to ${fallbackModel}`,
+              });
+              // Update credit_amount to reflect actual cost
+              await supabase.from('ai_generations').update({ credit_amount: fallbackCreditCost }).eq('id', gen.id);
+              console.info(`[AI_WEBHOOK] Partial refund ${creditDifference} credits for model fallback on ${gen.id}`);
+            }
+          } catch (partialRefundErr) {
+            console.error('[AI_WEBHOOK] Partial credit refund failed:', partialRefundErr);
+          }
+        }
 
         console.info('[AI_WEBHOOK] Fallback to text-to-video for generation:', gen.id, 'new request:', fallbackResult.requestId);
         return NextResponse.json({ ok: true });
@@ -295,16 +331,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    await supabase
+    const { data: failedRows } = await supabase
       .from('ai_generations')
       .update({
         status: 'failed',
         error_message: errorStr,
       })
-      .eq('id', gen.id);
+      .eq('id', gen.id)
+      .in('status', ['pending', 'processing'])
+      .select('id');
 
-    // Auto-refund credits
-    await refundCreditsIfApplicable(supabase, gen);
+    // Only refund if we actually transitioned to failed (prevent double-refund on race)
+    if (failedRows?.length) {
+      await refundCreditsIfApplicable(supabase, gen);
+    } else {
+      console.warn('[AI_WEBHOOK] Failure update skipped (generation state changed):', gen.id);
+    }
   }
 
   // Always return 200 to prevent retries

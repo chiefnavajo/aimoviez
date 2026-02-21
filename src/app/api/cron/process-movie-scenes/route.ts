@@ -197,21 +197,49 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
     return { processed: true };
   }
 
-  // 1. Deduct credits — always deduct (retries need to re-deduct since prior failure was refunded)
+  // 1a. Create ai_generations record first (needed for credit deduction reference)
+  const placeholderRequestId = 'placeholder_movie_' + crypto.randomUUID();
+  const { data: earlyGenRecord, error: earlyGenError } = await supabase
+    .from('ai_generations')
+    .insert({
+      user_id: project.user_id,
+      fal_request_id: placeholderRequestId,
+      status: 'pending',
+      prompt: scene.video_prompt.slice(0, 2000),
+      model: project.model,
+      style: project.style,
+      generation_mode: scene.scene_number === 1 ? 'text-to-video' : 'image-to-video',
+      credit_deducted: false,
+      credit_amount: creditCost,
+    })
+    .select('id')
+    .single();
+
+  if (earlyGenError || !earlyGenRecord) {
+    console.error('[process-movie-scenes] Failed to create generation record:', earlyGenError?.message);
+    await supabase.from('movie_scenes').update({ status: 'failed', error_message: 'Failed to create generation record' }).eq('id', scene.id);
+    return { processed: false, error: true };
+  }
+
+  // 1b. Deduct credits with generation reference (enables proper refund path)
   const { data: deductResult } = await supabase.rpc('deduct_credits', {
     p_user_id: project.user_id,
     p_amount: creditCost,
-    p_generation_id: null,
+    p_generation_id: earlyGenRecord.id,
   });
 
   if (!deductResult?.success) {
-    // Insufficient credits — pause project
+    // Insufficient credits — clean up generation record, pause project
+    await supabase.from('ai_generations').update({ status: 'failed', error_message: 'Insufficient credits' }).eq('id', earlyGenRecord.id);
     await supabase
       .from('movie_projects')
       .update({ status: 'paused', error_message: 'Insufficient credits. Add more credits and resume.' })
       .eq('id', project.id);
     return { processed: false, error: true };
   }
+
+  // Mark credits as deducted
+  await supabase.from('ai_generations').update({ credit_deducted: true }).eq('id', earlyGenRecord.id);
 
   // Update scene credit cost and project spent_credits
   await supabase
@@ -294,30 +322,23 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
       requestId = result.requestId;
     }
 
-    // 4. Record in ai_generations table (reuses webhook completion flow)
-    const { data: genRecord } = await supabase
+    // 4. Update ai_generations record with real fal_request_id
+    await supabase
       .from('ai_generations')
-      .insert({
-        user_id: project.user_id,
+      .update({
         fal_request_id: requestId,
-        status: 'pending',
-        prompt: scene.video_prompt.slice(0, 2000),
-        model: project.model,
-        style: project.style,
+        status: 'processing',
         generation_mode: scene.scene_number === 1 || !previousFrameUrl ? 'text-to-video' : 'image-to-video',
         image_url: previousFrameUrl,
-        credit_deducted: true,
-        credit_amount: creditCost,
       })
-      .select('id')
-      .single();
+      .eq('id', earlyGenRecord.id);
 
     // 5. Update scene status
     await supabase
       .from('movie_scenes')
       .update({
         status: 'generating',
-        ai_generation_id: genRecord?.id || null,
+        ai_generation_id: earlyGenRecord.id,
       })
       .eq('id', scene.id);
 
@@ -326,13 +347,14 @@ async function handlePendingScene(supabase: ReturnType<typeof getSupabase>, proj
   } catch (err) {
     console.error(`[process-movie-scenes] Generation submit error for scene ${scene.scene_number}:`, err);
 
-    // Refund credits since generation was never submitted
+    // Refund credits using proper refund path (with generation reference)
     try {
-      await supabase.rpc('admin_grant_credits', {
+      await supabase.rpc('refund_credits', {
         p_user_id: project.user_id,
-        p_amount: creditCost,
-        p_reason: `Refund: movie scene ${scene.scene_number} submission failed`,
+        p_generation_id: earlyGenRecord.id,
       });
+      // Mark generation as failed
+      await supabase.from('ai_generations').update({ status: 'failed', error_message: 'fal.ai submission failed' }).eq('id', earlyGenRecord.id);
       // FIX: Use atomic decrement instead of stale project.spent_credits
       const { error: decrError } = await supabase.rpc('increment_movie_project_field', {
         p_project_id: project.id,
