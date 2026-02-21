@@ -402,15 +402,14 @@ describe('UserCharacterManager', () => {
   // ===========================================================================
 
   describe('upload angle button', () => {
-    test('shows "Take Photo" and "Gallery" buttons when character has < 6 angles', () => {
+    test('shows "Upload Angle" button when character has < 6 angles', () => {
       renderManager({ characters: [CHARACTER_2] }); // Villain has 0 angles
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.getByText(/Take Photo/)).toBeInTheDocument();
-      expect(screen.getByText(/Gallery/)).toBeInTheDocument();
+      expect(screen.getByText(/Upload Angle/)).toBeInTheDocument();
     });
 
-    test('hides angle buttons when character has 6 angles', () => {
+    test('hides upload button when character has 6 angles', () => {
       const charFull: UserCharacter = {
         ...CHARACTER_1,
         reference_count: 6,
@@ -419,8 +418,7 @@ describe('UserCharacterManager', () => {
       renderManager({ characters: [charFull] });
       const previewButtons = screen.getAllByLabelText(/Preview/);
       fireEvent.click(previewButtons[0]);
-      expect(screen.queryByText(/Take Photo/)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Gallery/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Upload Angle/)).not.toBeInTheDocument();
     });
   });
 
