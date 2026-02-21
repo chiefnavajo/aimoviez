@@ -23,6 +23,7 @@
     "test:all": "jest --verbose",
     "test:ci": "jest --ci --coverage --forceExit",
     "test:fixes": "jest --testPathPattern='src/__tests__/(api|hooks)/' --verbose",
+    "test:deep": "jest --testPathPattern='src/__tests__/(components/.*integration|regression/)' --verbose",
     "simulate:pricing": "npx tsx scripts/simulate-pricing.ts"
   },
   "dependencies": {

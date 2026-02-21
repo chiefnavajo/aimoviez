@@ -132,3 +132,33 @@ export function mockFetchSequence(
 export function mockFetch(response: { ok?: boolean; status?: number; json?: unknown; text?: string }) {
   return mockFetchSequence([response]);
 }
+
+/**
+ * Wraps render() with a console.error spy that captures
+ * React "setState on unmounted component" warnings.
+ * Use in any test that unmounts during async operations.
+ *
+ * Usage:
+ *   const { unmount, getUnmountWarnings, restoreConsole } = renderWithUnmountTracking(<MyComponent />);
+ *   unmount();
+ *   // Advance timers, resolve promises, etc.
+ *   expect(getUnmountWarnings()).toHaveLength(0);
+ *   restoreConsole();
+ */
+export function renderWithUnmountTracking(ui: React.ReactElement) {
+  const warnings: string[] = [];
+  const origError = console.error;
+  console.error = (...args: unknown[]) => {
+    const msg = String(args[0]);
+    if (msg.includes('unmounted') || msg.includes('Cannot update') || msg.includes('not mounted')) {
+      warnings.push(msg);
+    }
+    origError(...args);
+  };
+  const result = render(ui);
+  return {
+    ...result,
+    getUnmountWarnings: () => warnings,
+    restoreConsole: () => { console.error = origError; },
+  };
+}
