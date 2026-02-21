@@ -359,6 +359,7 @@ export default function AIGeneratePanel({
   const [style, setStyle] = useState<string | undefined>();
   const [model, setModel] = useState('kling-2.6');
   const [title, setTitle] = useState('');
+  const [isEnhancingPrompt, setIsEnhancingPrompt] = useState(false);
 
   // Notify parent when genre changes (for multi-genre last frame fetching)
   useEffect(() => {
@@ -410,6 +411,26 @@ export default function AIGeneratePanel({
       setPrompt(initialPrompt);
     }
   }, [initialPrompt]);
+
+  // Enhance prompt with AI
+  async function handleEnhancePrompt() {
+    if (!prompt.trim() || isEnhancingPrompt) return;
+    setIsEnhancingPrompt(true);
+    try {
+      const result = await csrfPost<{ ok: boolean; prompt?: string; error?: string }>(
+        '/api/ai/enhance-prompt',
+        { description: prompt.trim(), genre, style }
+      );
+      if (result.ok && result.prompt) {
+        setPrompt(result.prompt);
+        if (suggestionBasis) setSuggestionBasis(null);
+      }
+    } catch (err) {
+      console.warn('[enhance-prompt]', err);
+    } finally {
+      setIsEnhancingPrompt(false);
+    }
+  }
 
   // Generation state
   const [stage, setStage] = useState<Stage>('idle');
@@ -1666,7 +1687,21 @@ export default function AIGeneratePanel({
           rows={compact ? 3 : 5}
           className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder:text-white/40 focus:outline-none focus:border-purple-500 resize-none"
         />
-        <p className="text-xs text-white/40 mt-1 text-right">{prompt.length}/800</p>
+        <div className="flex items-center justify-between mt-1">
+          <button
+            onClick={handleEnhancePrompt}
+            disabled={!prompt.trim() || isEnhancingPrompt || stage !== 'idle'}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-500/20 border border-purple-500/30 rounded-lg text-xs text-purple-300 hover:bg-purple-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            {isEnhancingPrompt ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Wand2 className="w-3 h-3" />
+            )}
+            Generate Prompt
+          </button>
+          <p className="text-xs text-white/40">{prompt.length}/800</p>
+        </div>
       </div>
 
       {/* Suggestion chips */}

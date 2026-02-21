@@ -106,7 +106,7 @@ describe('AIGeneratePanel', () => {
     expect(
       screen.getByPlaceholderText(/describe a dramatic scene/i)
     ).toBeInTheDocument();
-    expect(screen.getByText('Generate Video')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate (?:Video|\()/ })).toBeInTheDocument();
   });
 
   it('renders nothing when ai_video_generation feature is disabled', () => {
@@ -121,7 +121,7 @@ describe('AIGeneratePanel', () => {
     render(<AIGeneratePanel />);
 
     // The component renders a Loader2 spinner during flag loading
-    expect(screen.queryByText('Generate Video')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Generate (?:Video|\()/ })).not.toBeInTheDocument();
   });
 
   it('renders style pills for selection', () => {
@@ -137,7 +137,7 @@ describe('AIGeneratePanel', () => {
   it('disables generate button when prompt is too short', () => {
     render(<AIGeneratePanel />);
 
-    const generateButton = screen.getByText('Generate Video');
+    const generateButton = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
     expect(generateButton).toBeDisabled();
 
     // Type a short prompt (< 10 chars)
@@ -153,7 +153,7 @@ describe('AIGeneratePanel', () => {
     const textarea = screen.getByPlaceholderText(/describe a dramatic scene/i);
     fireEvent.change(textarea, { target: { value: 'A long enough prompt that describes a dramatic scene' } });
 
-    const generateButton = screen.getByText(/Generate/);
+    const generateButton = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
     expect(generateButton).not.toBeDisabled();
   });
 
@@ -176,7 +176,7 @@ describe('AIGeneratePanel', () => {
         json: () => Promise.resolve({ error: 'Server error', success: false }),
       });
 
-    const generateButton = screen.getByText(/Generate/);
+    const generateButton = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
     fireEvent.click(generateButton);
 
     await waitFor(() => {
@@ -249,7 +249,7 @@ describe('AIGeneratePanel', () => {
     const textarea = screen.getByPlaceholderText(/describe a dramatic scene/i);
     fireEvent.change(textarea, { target: { value: 'A dramatic cinematic scene for testing pre-download' } });
 
-    const generateButton = screen.getByText(/Generate/);
+    const generateButton = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
     fireEvent.click(generateButton);
 
     // Wait for the component to reach 'ready' state and trigger pre-download
@@ -296,7 +296,7 @@ describe('AIGeneratePanel', () => {
       fireEvent.change(textarea, { target: { value: 'A cinematic test prompt for adaptive polling' } });
     });
 
-    const generateButton = screen.getByText(/Generate/);
+    const generateButton = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
     await act(async () => {
       fireEvent.click(generateButton);
     });

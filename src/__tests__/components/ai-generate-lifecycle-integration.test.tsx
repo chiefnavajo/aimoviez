@@ -308,7 +308,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
 
     // Type prompt and click generate
     typeValidPrompt();
-    const generateBtn = screen.getByText(/Generate/);
+    const generateBtn = screen.getByRole('button', { name: /Generate (?:Video|\()/ });
 
     await act(async () => {
       fireEvent.click(generateBtn);
@@ -377,7 +377,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // Type prompt and generate
     typeValidPrompt();
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Let generate fetch resolve and polling start
@@ -445,7 +445,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // Type prompt and generate
     typeValidPrompt();
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Wait for stage to transition to 'ready' (poll returns ready immediately)
@@ -505,7 +505,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     typeValidPrompt(promptText);
 
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Component sets stage='failed' AND purchaseModalOpen=true.
@@ -562,7 +562,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     typeValidPrompt();
 
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Wait until we're in the queued/generating stage (Cancel button appears)
@@ -579,7 +579,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // (text may be "Generate Video" or "Generate (5 credits)" depending on pricing)
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/describe a dramatic scene/i)).toBeInTheDocument();
-      expect(screen.getByText(/Generate/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Generate (?:Video|\()/ })).toBeInTheDocument();
     });
 
     // localStorage should be cleaned up
@@ -608,7 +608,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // Panel should stay in idle — showing the Generate button
     // (text may be "Generate Video" or "Generate (N credits)" if pricing loaded)
     await waitFor(() => {
-      expect(screen.getByText(/Generate/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Generate (?:Video|\()/ })).toBeInTheDocument();
     });
     // Confirm we're in idle state (prompt textarea visible)
     expect(screen.getByPlaceholderText(/describe a dramatic scene/i)).toBeInTheDocument();
@@ -657,7 +657,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     typeValidPrompt();
 
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Wait for ready state — video preview with "New" button
@@ -673,7 +673,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // Should return to idle — generate button text varies with pricing
     await waitFor(() => {
       expect(screen.getByPlaceholderText(/describe a dramatic scene/i)).toBeInTheDocument();
-      expect(screen.getByText(/Generate/)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Generate (?:Video|\()/ })).toBeInTheDocument();
     });
 
     // URL.revokeObjectURL should have been called (blob cleanup)
@@ -768,7 +768,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
 
     // First attempt — goes to failed stage with purchaseModalOpen=true
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     await waitFor(() => {
@@ -799,7 +799,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     // Try generating again with insufficient credits
     typeValidPrompt();
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Goes to failed again
@@ -928,7 +928,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     typeValidPrompt();
 
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Wait for ready state — video element should appear
@@ -1005,7 +1005,7 @@ describe('AIGeneratePanel lifecycle integration', () => {
     typeValidPrompt();
 
     await act(async () => {
-      fireEvent.click(screen.getByText(/Generate/));
+      fireEvent.click(screen.getByRole('button', { name: /Generate (?:Video|\()/ }));
     });
 
     // Wait for ready state
